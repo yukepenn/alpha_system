@@ -1,0 +1,16 @@
+name: frontier-canaries
+
+on:
+  - pull_request
+  - workflow_dispatch
+
+jobs:
+  canaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run Frontier canaries
+        run: python tools/hooks/canary_runner.py

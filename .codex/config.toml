@@ -1,0 +1,23 @@
+[project]
+name = "alpha_system"
+profile = "trading_research"
+template_version = "3.0.0"
+
+[workspace]
+root_policy = "repo-local"
+default_branch = "main"
+
+[automation]
+lane = "supervised"
+auto_merge = false
+requires_human_review = true
+
+[models]
+executor = "gpt-5.5"
+fast_subagent = "gpt-5.4-mini"
+
+[skills]
+execute = "frontier-execute"
+repair = "frontier-repair"
+verify = "frontier-verify"
+handoff = "frontier-handoff"

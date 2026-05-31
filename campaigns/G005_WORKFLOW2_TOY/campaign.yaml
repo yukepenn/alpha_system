@@ -1,0 +1,38 @@
+campaign_id: "G005_WORKFLOW2_TOY"
+project: "alpha_system"
+profile: "trading_research"
+workflow: "workflow2"
+driver: "ralph_local_toy_v1"
+default_lane: "green"
+status: "approved_for_local_toy"
+owner: "human"
+created_from_template: "3.0.0"
+
+automation:
+  deterministic_local_only: true
+  external_providers_allowed: false
+  github_api_allowed: false
+  browser_allowed: false
+  network_allowed: false
+  auto_merge_allowed: false
+  deployment_allowed: false
+  live_trading_allowed: false
+  paper_trading_allowed: false
+  real_multi_agent_execution_allowed: false
+
+phases:
+  - id: "P01_CREATE_TOY_DOC_A"
+    output: "docs/toy_workflow2/phase_a.md"
+  - id: "P02_CREATE_TOY_DOC_B"
+    output: "docs/toy_workflow2/phase_b.md"
+  - id: "P03_CREATE_TOY_SUMMARY"
+    output: "docs/toy_workflow2/summary.md"
+
+limits:
+  max_phases: 3
+  max_micro_loops_per_phase: 1
+
+stop_behavior:
+  check_before_each_phase: true
+  write_stopped_state: true
+  preserve_completed_phase_artifacts: true

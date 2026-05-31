@@ -1,0 +1,246 @@
+schema_version: "frontier-harness-v3"
+harness_version: "3.0.0"
+generated_at: "2026-05-31T21:44:19+00:00"
+
+project:
+  name: "alpha_system"
+  slug: "alpha_system"
+  repo_type: "trading_research"
+  default_branch: "main"
+  primary_language: "python"
+  primary_runtime: "wsl2"
+  timezone: "America/New_York"
+  risk_level: "high"
+  trading_enabled: true
+  broker_enabled: false
+
+models:
+  chatgpt_strategist:
+    provider: "openai"
+    model: "gpt-5.5-thinking"
+    role: "strategic reasoning, campaign design, post-run review"
+  codex_executor:
+    provider: "openai"
+    model: "gpt-5.5"
+    effort: "high"
+    role: "primary execution and repair"
+  codex_fast_subagent:
+    provider: "openai"
+    model: "gpt-5.4-mini"
+    effort: "medium"
+    role: "light subagent work"
+  claude_architect:
+    provider: "anthropic"
+    model: "claude-opus-4-8"
+    effort: "xhigh"
+    role: "architecture, campaign decomposition, specs"
+  claude_reviewer:
+    provider: "anthropic"
+    model: "claude-opus-4-8"
+    effort: "xhigh"
+    role: "cross-provider review, done-check"
+  claude_verifier:
+    provider: "anthropic"
+    model: "claude-sonnet-4-6"
+    effort: "high"
+    role: "repo map, verifier, audit"
+
+paths:
+  campaigns: "campaigns"
+  specs: "specs"
+  handoffs: "handoffs"
+  reviews: "reviews"
+  runs: "runs"
+  docs: "docs"
+  decisions: "decisions"
+  canaries: "evals/canaries"
+  behaviors: "evals/behaviors"
+
+commands:
+  smoke: "python tools/verify.py --smoke"
+  lint: "python tools/verify.py --lint"
+  typecheck: "python tools/verify.py --typecheck"
+  test: "python tools/verify.py --test"
+  verify: "python tools/verify.py --all"
+  verify_canaries: "python tools/hooks/canary_runner.py"
+  audit_boundaries: "python tools/verify.py --boundaries"
+  validate_artifacts: "python tools/verify.py --artifacts"
+
+lanes:
+  green:
+    description: "Low-risk automatic lane."
+    auto_execute: true
+    auto_repair: true
+    auto_review: true
+    require_claude_review: false
+    auto_pr: true
+    auto_merge: true
+    max_micro_loops: 4
+    max_phase_minutes: 90
+    max_changed_files: 80
+    required_checks: ["smoke", "lint", "test"]
+    merge_policy:
+      allow_pass_with_warnings: true
+      block_on_critical: true
+
+  yellow:
+    description: "Material engineering or research lane. Automatic with Claude review."
+    auto_execute: true
+    auto_repair: true
+    auto_review: true
+    require_claude_review: true
+    auto_pr: true
+    auto_merge: true
+    max_micro_loops: 3
+    max_phase_minutes: 180
+    max_changed_files: 150
+    required_checks: ["smoke", "lint", "typecheck", "test", "verify_canaries"]
+    merge_policy:
+      allow_pass_with_warnings: true
+      block_on_critical: true
+      block_on_test_tamper: true
+      block_on_boundary_violation: true
+
+  red:
+    description: "External, destructive, live, production, or broker-adjacent lane. Automatic only when scoped authorization is armed."
+    auto_execute: true
+    auto_repair: true
+    auto_review: true
+    require_claude_review: true
+    auto_pr: true
+    auto_merge: false
+    can_auto_merge_when_authorized: true
+    allow_runtime_ops: true
+    max_micro_loops: 2
+    max_phase_minutes: 150
+    required_env:
+      - "PROJECT_OP_AUTHORIZED"
+      - "PROJECT_OP_SCOPE"
+      - "PROJECT_OP_EXPIRES"
+    required_checks: ["verify", "verify_canaries", "audit_boundaries"]
+    merge_policy:
+      allow_pass_with_warnings: false
+      require_operation_scope_match: true
+
+workflow1:
+  enabled: true
+  human_spec_gate_required: true
+  human_merge_gate_required: true
+  default_lane: "yellow"
+  parallel_worktrees_default: 3
+
+workflow2:
+  enabled: true
+  ralph_required: true
+  mode: "strict_micro_loop"
+  fresh_context_each_iteration: true
+  allow_auto_spec_generation: true
+  allow_auto_execute: true
+  allow_auto_repair: true
+  allow_auto_review: true
+  allow_auto_pr: true
+  allow_auto_merge: true
+  max_phases: 30
+  max_micro_loops_default: 3
+  semantic_done_check_required: true
+  heldout_behavior_check_required: true
+  run_summary_required: true
+  update_project_skill_lessons: true
+  stuck_detection:
+    no_diff_iterations: 2
+    repeated_error_iterations: 2
+    no_new_passing_check_iterations: 2
+    same_review_findings_iterations: 2
+
+git:
+  hooks_path: ".githooks"
+  explicit_add_only: true
+  forbid_git_add_dot: true
+  forbid_git_add_A: true
+  forbid_force_push: true
+  protected_main: true
+  branch_prefixes:
+    workflow1: "feat/"
+    workflow2: "auto/"
+    review: "review/"
+    repair: "repair/"
+  commit_message_format: "<campaign_id>/<phase_id>: <summary>"
+  auto_create_pr: true
+  auto_merge_green_yellow_when_checks_pass: true
+
+artifacts:
+  allow_commit:
+    - "AGENTS.md"
+    - "CLAUDE.md"
+    - "frontier.yaml"
+    - "ACTIVE_CAMPAIGN.md"
+    - ".codex/**"
+    - ".claude/**"
+    - ".githooks/**"
+    - ".github/**"
+    - "tools/**"
+    - "scripts/**"
+    - "campaigns/**"
+    - "specs/**"
+    - "handoffs/**"
+    - "reviews/**"
+    - "decisions/**"
+    - "docs/**"
+    - "evals/**"
+    - "src/**"
+    - "tests/**"
+    - "configs/**"
+
+  forbid_commit:
+    - "**/.env"
+    - "**/.env.*"
+    - "**/*.key"
+    - "**/*.pem"
+    - "**/secret.*"
+    - "**/secrets.*"
+    - "**/*_secret.*"
+    - "**/*-secret.*"
+    - "**/credential"
+    - "**/credential/**"
+    - "**/credentials"
+    - "**/credentials/**"
+    - "**/credential.*"
+    - "**/credentials.*"
+    - "**/*_credential.*"
+    - "**/*-credential.*"
+    - "**/*_credentials.*"
+    - "**/*-credentials.*"
+    - "**/token.*"
+    - "**/tokens.*"
+    - "**/*_token.*"
+    - "**/*-token.*"
+    - "**/*_tokens.*"
+    - "**/*-tokens.*"
+    - "**/private_key.*"
+    - "**/private-key.*"
+    - "**/*_private_key.*"
+    - "**/*-private-key.*"
+    - "**/data/raw/**"
+    - "**/cache/**"
+    - "**/.pytest_cache/**"
+    - "**/__pycache__/**"
+    - "**/*.parquet"
+    - "**/*.feather"
+    - "**/*.sqlite"
+    - "**/*.db"
+    - "**/*.duckdb"
+    - "**/*.log"
+    - "**/node_modules/**"
+    - "**/.venv/**"
+    - "**/*.pt"
+    - "**/*.pth"
+    - "**/*.onnx"
+    - "**/*.pkl"
+    - "**/*.joblib"
+
+test_policy:
+  require_spec_authorization_for_tests: true
+  allowed_test_change_key: "allowed_test_paths"
+  forbid_skip_only_changes: true
+  forbid_weakened_assertions: true
+  forbid_visible_test_special_cases: true

@@ -1,0 +1,17 @@
+name: frontier-automerge
+
+on:
+  - workflow_dispatch
+
+jobs:
+  policy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Preview merge gate
+        run: |
+          python tools/frontier/merge_gate.py --dry-run
+          echo "Automerge is scaffolded. Wire repository rules before enabling real merges."

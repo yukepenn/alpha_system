@@ -1,0 +1,36 @@
+campaign_id: "000-template"
+project: "alpha_system"
+profile: "trading_research"
+workflow: "workflow2"
+driver: "ralph_frontier_strict"
+default_lane: "yellow"
+status: "draft"
+owner: "human"
+created_from_template: "3.0.0"
+
+automation:
+  auto_generate_phase_specs: true
+  auto_execute: true
+  auto_repair: true
+  auto_review: true
+  auto_pr: true
+  auto_merge: true
+  strict_micro_loop: true
+  ralph_required: true
+
+limits:
+  max_phases: 30
+  max_micro_loops_per_phase: 3
+  max_run_minutes: 720
+
+review:
+  green_requires_claude_review: false
+  yellow_requires_claude_review: true
+  red_requires_claude_review: true
+
+merge:
+  green_auto_merge: true
+  yellow_auto_merge: true
+  red_auto_merge: false
+  require_ci: true
+  require_verdict_json: true

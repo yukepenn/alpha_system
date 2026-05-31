@@ -1,0 +1,4060 @@
+===== FILE: campaigns/ALPHA_SYSTEM_V1/campaign.yaml =====
+campaign_id: ALPHA_SYSTEM_V1
+campaign_name: Local-First Alpha Research Platform Foundation
+repo_name: alpha_system
+repo_path: "~/projects/alpha_system"
+
+project_profile:
+primary: trading_research
+secondary: research
+project_type: clean_slate_alpha_research_platform
+initial_workflow: one_minute_session_first_intraday_research
+local_first: true
+future_multi_asset_ready: true
+future_l2_ready: true
+alpha_research_platform_not_merely_backtester: true
+broker_live_trading_in_scope: false
+paper_trading_in_scope: false
+production_trading_claims_allowed: false
+alpha_tradability_claims_allowed_without_evidence: false
+
+workflow:
+harness: Frontier Harness Generic
+harness_version: "3.0"
+workflow_id: Workflow 2
+driver: Ralph
+executor: Codex
+reviewer: Claude
+mode: Ralph-driven strict autonomous loop
+loose_loop: false
+fresh_context_per_phase: true
+git_memory: true
+campaign_contract_based: true
+automatic_pr_merge_by_lane: true
+stop_file_supported: true
+semantic_done_check_required: true
+handoff_required_per_phase: true
+review_required_for_yellow: true
+fake_completion_forbidden: true
+
+runtime:
+host: Windows
+primary_runtime: WSL2 Ubuntu
+required_repo_path: "~/projects/alpha_system"
+required_filesystem: WSL2 Linux filesystem
+forbidden_active_worktree_paths:
+- "/mnt/c"
+- "/mnt/d"
+- "/mnt/e"
+- "OneDrive"
+- "Dropbox"
+- "Google Drive"
+- "Windows-synced folders"
+- "network drives"
+- "temporary directories"
+local_first: true
+cloud_db_required: false
+paid_db_required: false
+server_first_architecture: false
+broker_credentials_required: false
+live_market_data_required: false
+
+models:
+strategy:
+name: ChatGPT Pro GPT-5.5 Thinking
+roles:
+- strategy
+- roadmap
+- post-run reasoning
+- campaign design
+- final strategic review
+spec_review:
+name: Claude Opus 4.8 xhigh
+roles:
+- phase specs
+- architecture specs
+- semantic reviews
+- done-checks
+- hard debugging
+- campaign decomposition
+verifier:
+name: Claude Sonnet 4.6
+roles:
+- source maps
+- verifier
+- audits
+- mechanical inspections
+- static review support
+executor:
+name: Codex GPT-5.5 high
+roles:
+- primary executor
+- implementation
+- repair from review
+- tests
+- refactors
+- artifact generation
+subagent:
+name: Codex GPT-5.4-mini medium
+roles:
+- lightweight subagents
+- mechanical exploration
+- local source mapping
+
+lane_policy:
+GREEN:
+description: Low-risk docs, scaffolding, and mechanical work.
+automatic_execute: true
+automatic_repair: true
+automatic_pr: true
+automatic_merge: true
+claude_review_required: false
+checks_required: true
+artifact_policy_required: true
+handoff_required: true
+merge_requires:
+- checks_pass
+- handoff_valid
+- artifact_policy_pass
+- no_forbidden_paths
+- no_stop_file
+- semantic_done_check_pass
+YELLOW:
+description: Material engineering or research infrastructure.
+automatic_execute: true
+automatic_repair: true
+automatic_pr: true
+automatic_merge: true
+claude_review_required: true
+required_reviewer: Claude Opus 4.8 xhigh
+checks_required: true
+artifact_policy_required: true
+handoff_required: true
+most_phases: true
+merge_requires:
+- checks_pass
+- handoff_valid
+- artifact_policy_pass
+- no_forbidden_paths
+- no_stop_file
+- claude_review_complete
+- verdict_PASS_or_PASS_WITH_WARNINGS
+- semantic_done_check_pass
+RED:
+description: Production, destructive, live, external, or costly operations.
+automatic_execute_when_scoped: true
+automatic_repair: false
+automatic_pr_if_authorized: true
+automatic_merge_default: false
+claude_review_required: true
+scoped_authorization_required: true
+authorization_env_vars:
+- PROJECT_OP_AUTHORIZED
+- PROJECT_OP_SCOPE
+- PROJECT_OP_EXPIRES
+expected_in_this_campaign: false
+campaign_should_avoid_red: true
+reason_campaign_should_avoid_red:
+- no broker/live trading in scope
+- no destructive production operations in scope
+- no external costly infrastructure in scope
+
+state_machine:
+strict: true
+states:
+- RUN_INIT
+- CAMPAIGN_LOAD
+- PHASE_SELECT
+- SPEC_GENERATE
+- SPEC_VALIDATE
+- WORKTREE_CREATE
+- CODEX_EXECUTE
+- CHECKS_RUN
+- HANDOFF_VALIDATE
+- CLAUDE_REVIEW
+- VERDICT_PARSE
+- PR_CREATE
+- CI_WAIT
+- MERGE_GATE
+- MERGE
+- DONE_CHECK
+- NEXT_PHASE
+- CAMPAIGN_DONE_CHECK
+- RUN_SUMMARY
+failure_routes:
+REWORK:
+route: bounded_repair_loop
+repair_attempts_tracked: true
+max_repair_attempts_default: 3
+repair_attempts_path: "runs/<run_id>/phases/<phase_id>/repair_attempts/"
+fake_completion_forbidden: true
+BLOCKED:
+route: blocked_handoff_and_stop_or_escalation
+blocked_handoff_required: true
+dependent_phases_blocked: true
+fake_completion_forbidden: true
+FAIL:
+route: checks_failure_repair_loop_or_blocked_handoff
+repair_attempts_tracked: true
+fake_completion_forbidden: true
+
+artifact_policy:
+never_commit:
+- "data/raw/**"
+- "data/canonical/**"
+- "data/factors/**"
+- "data/labels/**"
+- "data/cache/**"
+- "metadata/*.sqlite"
+- "metadata/*.sqlite3"
+- "metadata/*.db"
+- "metadata/*.db-journal"
+- "metadata/*.wal"
+- "**/*.sqlite"
+- "**/*.sqlite3"
+- "**/*.db"
+- "**/*.db-journal"
+- "**/*.wal"
+- "**/*.parquet"
+- "**/*.arrow"
+- "**/*.feather"
+- "**/*.log"
+- "**/logs/**"
+- "**/tmp/**"
+- "**/temp/**"
+- "**/cache/**"
+- "**/.pytest_cache/**"
+- "**/.mypy_cache/**"
+- "**/.ruff_cache/**"
+- "**/**pycache**/**"
+- "artifacts/**"
+- "runs/**/large_outputs/**"
+- "**/full_grid_outputs/**"
+- "**/full_trade_logs/**"
+- "**/generated_local_only/**"
+commit_allowed:
+- source code
+- configs
+- schemas
+- small fixtures
+- docs
+- phase specs
+- handoffs
+- reviews
+- curated summaries
+- validation summaries
+- source maps
+- run manifests if small
+- top config examples if small
+tiny_fixture_exceptions:
+allowed: true
+paths:
+- "tests/fixtures/**"
+requirements:
+- synthetic or tiny deterministic fixture
+- explicitly documented as fixture
+- below repository size threshold
+- not real raw production data
+- not used as alpha evidence
+phase_requirements:
+explicit_artifact_policy_required: true
+explicit_staging_required: true
+artifact_audit_before_merge: true
+no_raw_data_commits: true
+no_heavy_artifact_commits: true
+no_local_db_commits: true
+no_hidden_failed_runs: true
+
+git_policy:
+explicit_staging_only: true
+forbidden_commands:
+- "git add ."
+- "git add -A"
+force_push_allowed: false
+force_push_allowed_only_if_phase_explicitly_authorizes: true
+phase_handoff_required: true
+clean_merge_gate_required: true
+artifact_audit_before_merge: true
+raw_data_commits_allowed: false
+heavy_artifact_commits_allowed: false
+local_db_commits_allowed: false
+cache_log_commits_allowed: false
+generated_local_only_artifact_commits_allowed: false
+require_git_status_short: true
+require_explicit_file_list_in_handoff: true
+
+review_policy:
+yellow_requires_fresh_claude_opus_review: true
+green_review_optional_unless_phase_requires: true
+green_mechanical_review_allowed: true
+red_requires_scoped_authorization_and_claude_review: true
+verdict_json_required: true
+review_artifact_required_for_yellow: true
+allowed_verdicts:
+- PASS
+- PASS_WITH_WARNINGS
+- REWORK
+- BLOCKED
+merge_allowed_verdicts:
+- PASS
+- PASS_WITH_WARNINGS
+merge_blocking_verdicts:
+- REWORK
+- BLOCKED
+- FAIL
+review_must_check:
+- phase scope compliance
+- domain boundary compliance
+- no-lookahead where relevant
+- artifact policy compliance
+- no raw data committed
+- no heavy artifacts committed
+- no local DB committed
+- no broker/live trading scope
+- no alpha/tradability claims
+- no hidden failed runs
+- no test weakening or gaming
+- handoff completeness
+- semantic done criteria
+
+merge_policy:
+GREEN:
+auto_pr: true
+auto_merge: true
+requires:
+- checks_pass
+- handoff_valid
+- artifact_policy_pass
+- no_forbidden_paths
+- no_stop_file
+- semantic_done_check_pass
+YELLOW:
+auto_pr: true
+auto_merge: true
+requires:
+- checks_pass
+- handoff_valid
+- claude_review_complete
+- verdict_PASS_or_PASS_WITH_WARNINGS
+- artifact_policy_pass
+- no_forbidden_paths
+- no_stop_file
+- semantic_done_check_pass
+- ci_pass_if_configured
+RED:
+auto_pr_if_authorized: true
+auto_merge: false
+requires:
+- scoped_authorization_present
+- checks_pass
+- handoff_valid
+- claude_review_complete
+- artifact_policy_pass
+- no_stop_file
+- ci_pass_if_configured
+global_blockers:
+- STOP file present
+- forbidden path staged
+- raw data staged
+- heavy artifact staged
+- local DB staged
+- hidden failed run detected
+- test weakening detected
+- broker/live scope introduced
+- unsupported alpha/tradability claim introduced
+- semantic done-check failed
+
+phase_defaults:
+spec_required: true
+executor: Codex GPT-5.5 high
+reviewer: Claude Opus 4.8 xhigh
+verifier: Claude Sonnet 4.6
+handoff_required: true
+checks_required: true
+artifact_policy_required: true
+semantic_done_check_required: true
+explicit_staging_only: true
+review_required_for_yellow: true
+auto_pr: true
+auto_merge_for_green: true
+auto_merge_for_yellow_after_review: true
+max_repair_attempts: 3
+forbidden_global_changes:
+- broker integration
+- paper trading
+- live trading
+- order routing
+- production execution adapter
+- raw data commit
+- heavy artifact commit
+- local DB commit
+- alpha/tradability claim without evidence
+- candidate promotion without review
+- uncontrolled strategy explosion
+- execution-truth ambiguity
+- test weakening or gaming
+- hidden failed run
+
+run_outputs:
+run_level:
+- "runs/<run_id>/RUN_GOAL.md"
+- "runs/<run_id>/PHASE_PLAN.md"
+- "runs/<run_id>/prd.json"
+- "runs/<run_id>/progress.txt"
+- "runs/<run_id>/state.json"
+- "runs/<run_id>/events.jsonl"
+- "runs/<run_id>/costs.jsonl"
+- "runs/<run_id>/STOP"
+- "runs/<run_id>/RUN_SUMMARY.md"
+phase_level:
+- "runs/<run_id>/phases/<phase_id>/spec.md"
+- "runs/<run_id>/phases/<phase_id>/executor_prompt.md"
+- "runs/<run_id>/phases/<phase_id>/executor_notes.md"
+- "runs/<run_id>/phases/<phase_id>/handoff.md"
+- "runs/<run_id>/phases/<phase_id>/review.md"
+- "runs/<run_id>/phases/<phase_id>/verdict.json"
+- "runs/<run_id>/phases/<phase_id>/checks.json"
+- "runs/<run_id>/phases/<phase_id>/repair_attempts/"
+
+phases:
+
+* id: ASV1-P00
+  name: Repo and Harness Bootstrap Policy
+  lane: YELLOW
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+
+  * "git status --short"
+  * "test -f README.md"
+  * "test -f PROJECT_STATUS.md"
+  * "test -f .gitignore"
+  * "test -f ACTIVE_CAMPAIGN.md"
+  * "test -f campaigns/ALPHA_SYSTEM_V1/GOAL.md"
+  * "test -f campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md"
+  * "test -f campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md"
+  * "test -d campaigns/ALPHA_SYSTEM_V1"
+  * "test -d specs"
+  * "test -d handoffs"
+  * "test -d reviews"
+  * "test -d runs"
+  * "test -d evals"
+  * "test -d docs"
+  * "test -d decisions"
+  * "test -d configs"
+  * "test -d data/raw"
+  * "test -d data/canonical"
+  * "test -d data/factors"
+  * "test -d data/labels"
+  * "test -d data/cache"
+  * "test -d metadata"
+  * "test -d artifacts"
+  * "git check-ignore -v data/raw/example.parquet || true"
+  * "git check-ignore -v data/canonical/example.parquet || true"
+  * "git check-ignore -v data/factors/example.parquet || true"
+  * "git check-ignore -v data/labels/example.parquet || true"
+  * "git check-ignore -v metadata/alpha_system.sqlite || true"
+  * "git check-ignore -v artifacts/example_large_output.csv || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "README.md"
+  * "PROJECT_STATUS.md"
+  * ".gitignore"
+  * ".gitattributes"
+  * ".editorconfig"
+  * "ACTIVE_CAMPAIGN.md"
+  * "campaigns/ALPHA_SYSTEM_V1/GOAL.md"
+  * "campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md"
+  * "campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md"
+  * "specs/**"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**/.gitkeep"
+  * "evals/**/.gitkeep"
+  * "docs/**"
+  * "decisions/**"
+  * "configs/**/.gitkeep"
+  * "data/**/.gitkeep"
+  * "metadata/.gitkeep"
+  * "artifacts/**/.gitkeep"
+    forbidden_paths:
+  * "src/**"
+  * "tests/**"
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * policy files
+    * campaign files
+    * docs
+    * placeholder .gitkeep files if required
+      never_commit:
+    * raw data
+    * canonical data
+    * factor values
+    * label values
+    * local DB files
+    * heavy artifacts
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      notes:
+    * Initial repo policy only.
+    * No source implementation.
+    * No broker/live scope.
+
+* id: ASV1-P01
+  name: Frontier Harness Baseline Files
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P00
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "git status --short"
+  * "test -f AGENTS.md"
+  * "test -f CLAUDE.md"
+  * "test -f frontier.yaml"
+  * "test -f docs/HARNESS_WORKFLOW_2.md"
+  * "test -f docs/GIT_AND_ARTIFACT_DISCIPLINE.md"
+  * "test -f docs/STOP_AND_RESUME.md"
+  * "test -d .codex"
+  * "test -d .claude"
+  * "test -d .githooks"
+  * "test -d tools/frontier"
+  * "test -d tools/hooks"
+  * "test -d scripts/ralph"
+  * "grep -R "RUN_INIT" AGENTS.md CLAUDE.md frontier.yaml docs/HARNESS_WORKFLOW_2.md"
+  * "grep -R "PROJECT_OP_AUTHORIZED" AGENTS.md CLAUDE.md frontier.yaml docs/HARNESS_WORKFLOW_2.md"
+  * "grep -R "git add ." AGENTS.md CLAUDE.md docs/GIT_AND_ARTIFACT_DISCIPLINE.md || true"
+  * "grep -R "git add -A" AGENTS.md CLAUDE.md docs/GIT_AND_ARTIFACT_DISCIPLINE.md || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "AGENTS.md"
+  * "CLAUDE.md"
+  * "frontier.yaml"
+  * ".codex/**"
+  * ".claude/**"
+  * ".githooks/**"
+  * ".github/workflows/**"
+  * "tools/frontier/**"
+  * "tools/hooks/**"
+  * "scripts/ralph/**"
+  * "docs/HARNESS_WORKFLOW_2.md"
+  * "docs/GIT_AND_ARTIFACT_DISCIPLINE.md"
+  * "docs/STOP_AND_RESUME.md"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "src/**"
+  * "tests/**"
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * harness files
+    * policy docs
+    * hook scripts
+    * lightweight CI scaffolding if included
+    * small placeholders
+      never_commit:
+    * generated logs
+    * local run outputs
+    * caches
+    * DB files
+    * raw data
+    * generated artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      notes:
+    * Establishes Workflow 2 control surface.
+    * No research platform source implementation.
+
+* id: ASV1-P02
+  name: Architecture Baseline and Local-First PLAN.md
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P01
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "git status --short"
+  * "test -f docs/PLAN.md"
+  * "test -f docs/ARCHITECTURE.md"
+  * "test -f docs/LOCAL_FIRST_STACK.md"
+  * "test -f docs/RESEARCH_WORKFLOW.md"
+  * "test -f docs/DOMAIN_BOUNDARIES.md"
+  * "test -f docs/NO_LOOKAHEAD_POLICY.md"
+  * "test -f docs/BACKTEST_TIERS.md"
+  * "test -f docs/ARTIFACT_POLICY.md"
+  * "test -f docs/REPRODUCIBILITY_PRINCIPLES.md"
+  * "test -f docs/CLI_COMMANDS_TARGET.md"
+  * "test -f decisions/0001-local-first-stack.md"
+  * "test -f decisions/0002-reference-backtest-truth.md"
+  * "test -f decisions/0003-domain-boundary-separation.md"
+  * "test -f decisions/0004-no-broker-live-in-v1.md"
+  * "test -f decisions/0005-l2-readiness-design-only.md"
+  * "grep -R "Data is not factor" docs decisions"
+  * "grep -R "Reference" docs/BACKTEST_TIERS.md decisions/0002-reference-backtest-truth.md"
+  * "grep -R "Fast path" docs/BACKTEST_TIERS.md docs/ARCHITECTURE.md"
+  * "grep -R "No broker" docs decisions README.md || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "docs/PLAN.md"
+  * "docs/ARCHITECTURE.md"
+  * "docs/LOCAL_FIRST_STACK.md"
+  * "docs/RESEARCH_WORKFLOW.md"
+  * "docs/DOMAIN_BOUNDARIES.md"
+  * "docs/NO_LOOKAHEAD_POLICY.md"
+  * "docs/BACKTEST_TIERS.md"
+  * "docs/ARTIFACT_POLICY.md"
+  * "docs/REPRODUCIBILITY_PRINCIPLES.md"
+  * "docs/CLI_COMMANDS_TARGET.md"
+  * "decisions/0001-local-first-stack.md"
+  * "decisions/0002-reference-backtest-truth.md"
+  * "decisions/0003-domain-boundary-separation.md"
+  * "decisions/0004-no-broker-live-in-v1.md"
+  * "decisions/0005-l2-readiness-design-only.md"
+  * "README.md"
+  * "PROJECT_STATUS.md"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "src/**"
+  * "tests/**"
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * docs
+    * decision records
+    * small status updates
+    * handoff/review/run metadata
+      never_commit:
+    * source implementation
+    * generated data
+    * generated reports
+    * DB files
+    * caches
+    * logs
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      notes:
+    * Locks down local-first stack.
+    * Documents reference truth and fast path boundaries.
+    * No implementation.
+
+* id: ASV1-P03
+  name: Python Workspace and Package Skeleton
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P02
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pip install -e ".[dev]""
+  * "python -m pytest tests/unit"
+  * "python -m alpha_system --help"
+  * "python -m alpha_system.cli --help"
+  * "python -c "import alpha_system; print(alpha_system.**name**)""
+  * "git status --short"
+  * "python -m ruff check . || true"
+  * "python -m mypy src || true"
+  * "alpha --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "pyproject.toml"
+  * "src/alpha_system/**"
+  * "tests/unit/**"
+  * "tests/integration/**"
+  * "tests/no_lookahead/**"
+  * "tests/parity/**"
+  * "tests/performance/**"
+  * "tests/fixtures/**"
+  * "configs/**"
+  * "factors/**/.gitkeep"
+  * "strategies/**/.gitkeep"
+  * "docs/**"
+  * "README.md"
+  * "PROJECT_STATUS.md"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * source skeleton
+    * tests
+    * configs
+    * docs
+    * placeholders
+      never_commit:
+    * virtual environments
+    * pytest cache
+    * coverage outputs
+    * generated artifacts
+    * DB files
+    * data
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      notes:
+    * Importable package and CLI shell only.
+    * No domain logic beyond stubs.
+
+* id: ASV1-P04
+  name: Core Contracts and Schema Primitives
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P03
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/no_lookahead"
+  * "python -m alpha_system --help"
+  * "git status --short"
+  * "python -m ruff check . || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/core/contracts.py"
+  * "src/alpha_system/core/schema.py"
+  * "src/alpha_system/core/time.py"
+  * "src/alpha_system/core/enums.py"
+  * "src/alpha_system/data/contracts.py"
+  * "src/alpha_system/factors/contracts.py"
+  * "src/alpha_system/labels/contracts.py"
+  * "src/alpha_system/signals/contracts.py"
+  * "src/alpha_system/strategies/contracts.py"
+  * "src/alpha_system/management/contracts.py"
+  * "src/alpha_system/portfolio/contracts.py"
+  * "src/alpha_system/backtest/**"
+  * "src/alpha_system/experiments/contracts.py"
+  * "src/alpha_system/l2/contracts.py"
+  * "docs/CONTRACTS.md"
+  * "tests/unit/test_contract_fields.py"
+  * "tests/unit/test_contract_enums.py"
+  * "tests/no_lookahead/test_contract_timestamps.py"
+  * "tests/unit/test_strategy_boundary_contracts.py"
+  * "tests/unit/test_management_portfolio_contracts.py"
+  * "tests/unit/test_l2_design_contracts.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * contract source files
+    * docs
+    * tests
+    * tiny configs if needed
+      never_commit:
+    * data
+    * generated artifacts
+    * Parquet outputs
+    * DB files
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      notes:
+    * Defines InstrumentSpec, BarSpec, FactorSpec, LabelSpec, StrategySpec, ManagementSpec, PortfolioSpec, BacktestSpec, and ExperimentSpec primitives.
+    * No persistence or computation implementation.
+
+* id: ASV1-P05
+  name: SQLite Metadata Registry MVP
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P04
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration"
+  * "python -m alpha_system.cli registry status --help"
+  * "git status --short"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find . -type f \( -name "*.sqlite" -o -name "*.sqlite3" -o -name "*.db" -o -name "*.db-journal" -o -name "*.wal" \) -print"
+  * "alpha registry status --help || true"
+  * "python -m ruff check . || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/core/registry.py"
+  * "src/alpha_system/core/migrations.py"
+  * "src/alpha_system/core/hashing.py"
+  * "src/alpha_system/core/git_info.py"
+  * "src/alpha_system/core/run_ids.py"
+  * "src/alpha_system/core/migrations/**"
+  * "src/alpha_system/experiments/registry.py"
+  * "src/alpha_system/cli/registry.py"
+  * "docs/METADATA_REGISTRY.md"
+  * "configs/registry/default.yaml"
+  * "tests/unit/test_hashing.py"
+  * "tests/unit/test_git_info.py"
+  * "tests/unit/test_run_ids.py"
+  * "tests/integration/test_registry_init_tempdb.py"
+  * "tests/integration/test_registry_migrations_idempotent.py"
+  * "tests/integration/test_registry_required_tables.py"
+  * "tests/integration/test_registry_required_columns.py"
+  * "tests/integration/test_registry_status_cli.py"
+  * "tests/integration/test_no_committed_sqlite.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "data/**"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * migration files
+    * docs
+    * config examples
+    * tests
+    * tiny migration fixtures if required
+      never_commit:
+    * SQLite DB files
+    * SQLite journal files
+    * SQLite WAL files
+    * generated registry artifacts
+    * raw data
+    * heavy artifacts
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      required_tables:
+    * dataset_versions
+    * factor_registry
+    * factor_versions
+    * factor_validation_runs
+    * label_versions
+    * study_runs
+    * strategy_registry
+    * strategy_versions
+    * grid_runs
+    * ml_runs
+    * backtest_runs
+    * artifact_manifest
+    * promotion_decisions
+
+* id: ASV1-P06
+  name: Canonical 1-Minute Data Layer
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P04
+  * ASV1-P05
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "git status --short"
+  * "find data -type f ! -name ".gitkeep" -print"
+  * "find . -path "./tests/fixtures/*" -prune -o -type f \( -name "*.parquet" -o -name "*.csv" -o -name "*.jsonl" \) -print"
+  * "python -m ruff check . || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/data/bar_schema.py"
+  * "src/alpha_system/data/paths.py"
+  * "src/alpha_system/data/storage.py"
+  * "src/alpha_system/data/query.py"
+  * "src/alpha_system/data/build_bars.py"
+  * "src/alpha_system/data/validation.py"
+  * "src/alpha_system/data/versions.py"
+  * "docs/DATA_LAYER.md"
+  * "configs/data/example_1min.yaml"
+  * "tests/fixtures/data/**"
+  * "tests/unit/test_bar_schema.py"
+  * "tests/unit/test_data_paths.py"
+  * "tests/unit/test_data_versions.py"
+  * "tests/unit/test_bar_validation_required_fields.py"
+  * "tests/unit/test_bar_validation_ohlc.py"
+  * "tests/unit/test_bar_validation_spread.py"
+  * "tests/unit/test_bar_validation_duplicates.py"
+  * "tests/no_lookahead/test_bar_available_ts.py"
+  * "tests/integration/test_duckdb_query_fixture.py"
+  * "tests/integration/test_polars_lazy_fixture.py"
+  * "tests/integration/test_no_generated_data_committed.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures under tests/fixtures/data
+      never_commit:
+    * local raw data
+    * generated canonical data under data/canonical
+    * generated Parquet outputs outside test fixtures
+    * DB files
+    * generated reports
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      schema_required_fields:
+    * instrument_id
+    * session_id
+    * bar_index
+    * bar_start_ts
+    * bar_end_ts
+    * event_ts
+    * available_ts
+    * open
+    * high
+    * low
+    * close
+    * volume
+    * vwap
+    * trade_count
+    * bid
+    * ask
+    * spread
+    * source_version
+    * data_version
+    * quality_flags
+
+* id: ASV1-P07
+  name: Calendar, Session, and Data Quality Layer
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P06
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "git status --short"
+  * "find data -type f ! -name ".gitkeep" -print"
+  * "python -m ruff check . || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/data/calendar.py"
+  * "src/alpha_system/data/sessions.py"
+  * "src/alpha_system/data/quality.py"
+  * "src/alpha_system/data/sessionize.py"
+  * "configs/data/calendars/**"
+  * "docs/CALENDAR_AND_SESSIONS.md"
+  * "tests/unit/test_calendar_contract.py"
+  * "tests/unit/test_session_assignment.py"
+  * "tests/unit/test_timezone_handling.py"
+  * "tests/unit/test_half_day_sessions.py"
+  * "tests/unit/test_holiday_sessions.py"
+  * "tests/unit/test_bar_index_session_reset.py"
+  * "tests/unit/test_data_quality_missing_bars.py"
+  * "tests/unit/test_data_quality_duplicate_bars.py"
+  * "tests/unit/test_data_quality_out_of_session.py"
+  * "tests/no_lookahead/test_session_available_ts.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if needed
+      never_commit:
+    * vendor calendar dumps
+    * generated bar datasets
+    * local reports
+    * local DBs
+    * logs
+    * caches
+    * raw data
+    * canonical data
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      required_session_fields:
+    * calendar_id
+    * trading_date
+    * session_id
+    * open_ts
+    * close_ts
+    * is_holiday
+    * is_half_day
+    * session_type
+    * timezone
+    * quality_flags
+
+* id: ASV1-P08
+  name: Data Validation CLI and Local Fixture Policy
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P06
+  * ASV1-P07
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m alpha_system.cli data validate --help"
+  * "python -m alpha_system.cli data build-bars --help"
+  * "git status --short"
+  * "find data -type f ! -name ".gitkeep" -print"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "alpha data validate --help || true"
+  * "alpha data build-bars --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/cli/data.py"
+  * "src/alpha_system/data/fixture_policy.py"
+  * "src/alpha_system/data/cli_validation.py"
+  * "docs/DATA_VALIDATION_CLI.md"
+  * "docs/FIXTURE_POLICY.md"
+  * "configs/data/validation_example.yaml"
+  * "configs/data/build_bars_example.yaml"
+  * "tests/unit/test_data_cli_help.py"
+  * "tests/unit/test_fixture_policy.py"
+  * "tests/integration/test_data_validate_command.py"
+  * "tests/integration/test_build_bars_fixture_command.py"
+  * "tests/integration/test_data_cli_registry_tempdb.py"
+  * "tests/integration/test_data_artifact_policy.py"
+  * "tests/no_lookahead/test_data_cli_available_ts.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures
+      never_commit:
+    * local raw data
+    * generated canonical data
+    * full validation outputs
+    * local DB files
+    * logs
+    * caches
+    * temporary outputs
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha data validate"
+    * "alpha data build-bars"
+      notes:
+    * build-bars may be placeholder/refusal unless configured.
+    * tiny fixture validation only.
+
+* id: ASV1-P09
+  name: FactorSpec, Factor Registry, and Lifecycle
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P05
+  * ASV1-P08
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration"
+  * "python -m alpha_system.cli factor validate --help"
+  * "git status --short"
+  * "find data/factors -type f ! -name ".gitkeep" -print"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "alpha factor validate --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/factors/spec.py"
+  * "src/alpha_system/factors/registry.py"
+  * "src/alpha_system/factors/lifecycle.py"
+  * "src/alpha_system/factors/validation.py"
+  * "src/alpha_system/factors/dependency_spec.py"
+  * "src/alpha_system/cli/factor.py"
+  * "docs/FACTOR_REGISTRY.md"
+  * "configs/factors/examples/**"
+  * "tests/unit/test_factor_spec_fields.py"
+  * "tests/unit/test_factor_lifecycle.py"
+  * "tests/unit/test_factor_lifecycle_transitions.py"
+  * "tests/unit/test_factor_dependency_validation.py"
+  * "tests/unit/test_factor_hashes.py"
+  * "tests/unit/test_factor_promotion_requires_review.py"
+  * "tests/integration/test_factor_registry_tempdb.py"
+  * "tests/integration/test_factor_validate_cli.py"
+  * "tests/integration/test_factor_no_output_artifacts.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.db"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny examples
+      never_commit:
+    * computed factor values
+    * generated factor Parquet
+    * local factor stores
+    * local registry DBs
+    * raw data
+    * generated artifacts
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      lifecycle_states:
+    * draft
+    * candidate
+    * validated
+    * approved
+    * deprecated
+      materialization_rules:
+      draft_long_term_materialization_default_allowed: false
+      auto_promotion_allowed: false
+      approval_requires_review: true
+
+* id: ASV1-P10
+  name: Label Store MVP
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P05
+  * ASV1-P08
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_label_spec_fields.py tests/unit/test_forward_return_labels.py tests/unit/test_mfe_mae_labels.py tests/unit/test_stop_target_ordering_labels.py"
+  * "python -m pytest tests/no_lookahead/test_label_available_ts.py tests/no_lookahead/test_labels_not_factor_inputs.py tests/no_lookahead/test_labels_not_strategy_inputs.py"
+  * "git status --short"
+  * "find data/labels -type f ! -name ".gitkeep" -print"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/labels/spec.py"
+  * "src/alpha_system/labels/store.py"
+  * "src/alpha_system/labels/generation.py"
+  * "src/alpha_system/labels/alignment.py"
+  * "src/alpha_system/labels/validation.py"
+  * "src/alpha_system/labels/path_metrics.py"
+  * "docs/LABEL_STORE.md"
+  * "configs/labels/examples/**"
+  * "tests/unit/test_label_spec_fields.py"
+  * "tests/unit/test_forward_return_labels.py"
+  * "tests/unit/test_mfe_mae_labels.py"
+  * "tests/unit/test_stop_target_ordering_labels.py"
+  * "tests/unit/test_future_volatility_labels.py"
+  * "tests/unit/test_future_spread_liquidity_labels.py"
+  * "tests/no_lookahead/test_label_available_ts.py"
+  * "tests/no_lookahead/test_labels_not_factor_inputs.py"
+  * "tests/no_lookahead/test_labels_not_strategy_inputs.py"
+  * "tests/unit/test_label_session_boundaries.py"
+  * "tests/unit/test_label_half_day_behavior.py"
+  * "tests/integration/test_label_registry_tempdb.py"
+  * "tests/integration/test_label_no_output_artifacts.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/backtest/**"
+  * "src/alpha_system/portfolio/**"
+  * "src/alpha_system/execution/**"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if explicitly needed
+      never_commit:
+    * generated label stores
+    * local label Parquet
+    * local DB files
+    * raw data
+    * canonical data
+    * generated artifacts
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      standard_labels:
+    * forward_return_1m
+    * forward_return_3m
+    * forward_return_5m
+    * forward_return_10m
+    * forward_return_30m
+    * mfe_by_horizon
+    * mae_by_horizon
+    * target_before_stop
+    * stop_before_target
+    * future_realized_volatility
+    * future_spread_liquidity
+      required_fields:
+    * label_id
+    * instrument_id
+    * event_ts
+    * horizon
+    * label_type
+    * value
+    * path_metadata
+    * data_version
+    * label_available_ts
+      no_lookahead_rules:
+      label_available_ts_after_horizon: true
+      labels_not_factor_inputs: true
+      labels_not_strategy_inputs: true
+      point_in_time_factor_label_join_policy_required: true
+
+* id: ASV1-P11
+  name: Factor Compute SDK MVP
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P09
+  * ASV1-P10
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_factor_compute_deterministic.py tests/unit/test_factor_dependencies.py tests/unit/test_factor_warmup_behavior.py tests/unit/test_factor_session_reset.py"
+  * "python -m pytest tests/no_lookahead/test_factor_availability_lag.py tests/no_lookahead/test_factor_available_ts_propagation.py tests/no_lookahead/test_label_as_factor_input_rejected.py"
+  * "python -m alpha_system.cli factor validate --help"
+  * "python -m alpha_system.cli factor materialize --help"
+  * "git status --short"
+  * "find data/factors -type f ! -name ".gitkeep" -print"
+  * "find data/labels -type f ! -name ".gitkeep" -print"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha factor validate --help || true"
+  * "alpha factor materialize --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/factors/base.py"
+  * "src/alpha_system/factors/compute.py"
+  * "src/alpha_system/factors/dependencies.py"
+  * "src/alpha_system/factors/materialize.py"
+  * "src/alpha_system/factors/normalization.py"
+  * "src/alpha_system/factors/quality.py"
+  * "src/alpha_system/factors/io.py"
+  * "src/alpha_system/cli/factor.py"
+  * "factors/price_action/**"
+  * "factors/momentum/**"
+  * "factors/reversal/**"
+  * "factors/volatility/**"
+  * "factors/liquidity/**"
+  * "factors/order_flow/**"
+  * "factors/microstructure/**"
+  * "factors/researcher_sandbox/**"
+  * "docs/FACTOR_COMPUTE.md"
+  * "configs/factors/examples/**"
+  * "tests/unit/test_factor_compute_deterministic.py"
+  * "tests/unit/test_factor_dependencies.py"
+  * "tests/unit/test_factor_dependency_missing_input.py"
+  * "tests/unit/test_factor_warmup_behavior.py"
+  * "tests/unit/test_factor_session_reset.py"
+  * "tests/unit/test_factor_quality_flags.py"
+  * "tests/unit/test_factor_normalization.py"
+  * "tests/no_lookahead/test_factor_availability_lag.py"
+  * "tests/no_lookahead/test_factor_available_ts_propagation.py"
+  * "tests/no_lookahead/test_label_as_factor_input_rejected.py"
+  * "tests/integration/test_factor_materialize_tempdir.py"
+  * "tests/integration/test_draft_materialization_blocked.py"
+  * "tests/integration/test_factor_materialize_registry_tempdb.py"
+  * "tests/unit/test_factor_value_schema.py"
+  * "tests/integration/test_factor_materialize_cli_help.py"
+  * "tests/integration/test_factor_no_output_artifacts.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/backtest/**"
+  * "src/alpha_system/signals/**"
+  * "src/alpha_system/strategies/**"
+  * "src/alpha_system/portfolio/**"
+  * "src/alpha_system/execution/**"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if explicitly needed
+    * placeholder .gitkeep files for factor library directories if needed
+      never_commit:
+    * generated factor stores
+    * local Parquet factor values
+    * local manifests from real runs
+    * registry DB files
+    * raw data
+    * canonical data
+    * label values
+    * generated heavy artifacts
+    * logs
+    * caches
+    * temp files
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha factor validate"
+    * "alpha factor materialize"
+      required_compute_controls:
+    * dependency resolution
+    * warmup handling
+    * session reset handling
+    * availability lag handling
+    * deterministic synthetic example factors
+    * draft computation without permanent materialization
+      materialization_rules:
+      draft_long_term_materialization_default_allowed: false
+      labels_as_factor_inputs_allowed: false
+      output_path_must_be_local_only: true
+
+* id: ASV1-P12
+  name: Intraday Factor Diagnostics Engine
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P11
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_pearson_ic.py tests/unit/test_rank_ic.py tests/unit/test_ic_decay.py tests/unit/test_icir.py"
+  * "python -m pytest tests/unit/test_bucket_monotonicity.py tests/unit/test_bucket_tail_expectancy.py tests/unit/test_event_study_counts.py"
+  * "python -m pytest tests/no_lookahead/test_diagnostics_label_availability.py tests/no_lookahead/test_diagnostics_factor_label_alignment.py"
+  * "python -m alpha_system.cli study run --help"
+  * "git status --short"
+  * "find artifacts/factor_studies -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha study run --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/research/diagnostics.py"
+  * "src/alpha_system/research/ic.py"
+  * "src/alpha_system/research/buckets.py"
+  * "src/alpha_system/research/events.py"
+  * "src/alpha_system/research/regimes.py"
+  * "src/alpha_system/research/execution_filters.py"
+  * "src/alpha_system/research/management_features.py"
+  * "src/alpha_system/research/study_config.py"
+  * "src/alpha_system/research/study_outputs.py"
+  * "src/alpha_system/research/stability.py"
+  * "src/alpha_system/research/correlation.py"
+  * "src/alpha_system/cli/study.py"
+  * "docs/FACTOR_DIAGNOSTICS.md"
+  * "configs/studies/examples/**"
+  * "tests/unit/test_pearson_ic.py"
+  * "tests/unit/test_rank_ic.py"
+  * "tests/unit/test_ic_decay.py"
+  * "tests/unit/test_ic_by_calendar_period.py"
+  * "tests/unit/test_icir.py"
+  * "tests/unit/test_bucket_monotonicity.py"
+  * "tests/unit/test_bucket_tail_expectancy.py"
+  * "tests/unit/test_bucket_u_shape_profile.py"
+  * "tests/unit/test_event_study_counts.py"
+  * "tests/unit/test_false_breakout_rate.py"
+  * "tests/unit/test_event_target_before_stop.py"
+  * "tests/unit/test_regime_filter_uplift.py"
+  * "tests/unit/test_regime_filter_coverage.py"
+  * "tests/unit/test_execution_filter_sensitivity.py"
+  * "tests/unit/test_management_feature_metrics.py"
+  * "tests/unit/test_stability_correlation_utilities.py"
+  * "tests/no_lookahead/test_diagnostics_label_availability.py"
+  * "tests/no_lookahead/test_diagnostics_factor_label_alignment.py"
+  * "tests/integration/test_study_run_tempdir.py"
+  * "tests/integration/test_study_registry_tempdb.py"
+  * "tests/integration/test_study_cli_help.py"
+  * "tests/unit/test_study_no_tradability_claims.py"
+  * "tests/unit/test_study_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/factor_studies/**"
+  * "artifacts/strategy_grids/**"
+  * "artifacts/management_studies/**"
+  * "artifacts/execution_validations/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/backtest/**"
+  * "src/alpha_system/execution/**"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny expected-output fixtures if explicitly needed
+      never_commit:
+    * full diagnostics outputs
+    * large CSVs
+    * generated plots except tiny curated fixtures
+    * local study artifact directories
+    * local DB files
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha study run"
+      diagnostics_required:
+      directional:
+
+      * Pearson IC
+      * Rank IC
+      * IC by horizon
+      * IC decay
+      * IC by day/week/month
+      * ICIR
+      * bucket monotonicity
+        nonlinear_bucket:
+      * bucket forward returns
+      * tail expectancy
+      * U-shape profile
+      * extreme bucket hit rate
+      * MFE/MAE by bucket
+        event_trigger:
+      * event study
+      * conditional forward returns
+      * sample size
+      * false breakout rate
+      * target-before-stop probability
+      * post-event MFE/MAE
+        regime:
+      * with-filter vs without-filter uplift
+      * coverage
+      * false rejection rate
+      * conditional strategy improvement
+        execution_filter:
+      * spread sensitivity
+      * liquidity sensitivity
+      * slippage sensitivity
+      * volume participation
+      * adverse selection proxy
+        management_features:
+      * target-before-stop
+      * time-to-target
+      * time-to-stop
+      * breakeven usefulness
+      * trailing stop usefulness
+        claims_policy:
+        tradability_claims_allowed: false
+        profitability_claims_allowed: false
+        diagnostics_as_pnl_truth_allowed: false
+
+* id: ASV1-P13
+  name: Factor Card and Report Generation
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P12
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration"
+  * "python -m pytest tests/unit/test_factor_card_sections.py tests/unit/test_factor_card_metadata.py tests/unit/test_report_prohibited_claims.py"
+  * "git status --short"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/reports/factor_card.py"
+  * "src/alpha_system/reports/study_report.py"
+  * "src/alpha_system/reports/report_models.py"
+  * "src/alpha_system/reports/prohibited_claims.py"
+  * "src/alpha_system/reports/templates/**"
+  * "src/alpha_system/cli/report.py"
+  * "docs/FACTOR_CARDS.md"
+  * "docs/REPORT_LANGUAGE_POLICY.md"
+  * "configs/reports/factor_card.yaml"
+  * "tests/unit/test_factor_card_sections.py"
+  * "tests/unit/test_factor_card_metadata.py"
+  * "tests/unit/test_factor_card_stability_sections.py"
+  * "tests/unit/test_factor_card_warnings.py"
+  * "tests/unit/test_factor_card_recommendations.py"
+  * "tests/unit/test_factor_card_review_status.py"
+  * "tests/unit/test_report_prohibited_claims.py"
+  * "tests/unit/test_report_language_policy.py"
+  * "tests/integration/test_factor_card_fixture_output.py"
+  * "tests/integration/test_study_report_fixture_output.py"
+  * "tests/unit/test_report_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/backtest/**"
+  * "src/alpha_system/execution/**"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * templates
+    * docs
+    * configs
+    * tests
+    * tiny expected report fixtures if explicitly needed
+      never_commit:
+    * full generated report bundles
+    * large HTML
+    * large plots
+    * generated artifact directories
+    * local DBs
+    * raw data
+    * canonical data
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      report_sections_required:
+    * time-of-day stability
+    * session segment stability
+    * monthly stability
+    * volatility regime stability
+    * liquidity regime stability
+    * correlation to existing factors
+    * factor cluster id
+    * promotion recommendation
+    * sample size
+    * warnings
+    * data version
+    * factor version
+    * label version
+    * run manifest path
+    * no-lookahead validation status
+    * review status
+      allowed_recommendations:
+    * reject
+    * needs_more_data
+    * candidate_for_strategy_test
+    * candidate_for_review
+    * do_not_promote
+      prohibited_claims:
+    * profitable
+    * tradable
+    * production-ready
+    * guaranteed alpha
+    * market-beating
+    * approved without review
+      cli_note:
+      report_build_minimal_allowed: true
+      full_review_bundle_deferred_to_ASV1_P27: true
+
+* id: ASV1-P14
+  name: Signal Store and StrategySpec Layer
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P11
+  * ASV1-P13
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_signal_schema.py tests/unit/test_strategy_spec_fields.py tests/unit/test_strategy_forbidden_responsibilities.py"
+  * "python -m pytest tests/no_lookahead/test_strategy_no_label_inputs.py tests/no_lookahead/test_strategy_no_raw_adhoc_inputs.py tests/no_lookahead/test_signal_available_ts.py"
+  * "git status --short"
+  * "find data -path "*signals*" -type f -print || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/signals/spec.py"
+  * "src/alpha_system/signals/store.py"
+  * "src/alpha_system/signals/validation.py"
+  * "src/alpha_system/signals/io.py"
+  * "src/alpha_system/strategies/spec.py"
+  * "src/alpha_system/strategies/templates.py"
+  * "src/alpha_system/strategies/validation.py"
+  * "strategies/templates/**"
+  * "strategies/researcher_sandbox/**"
+  * "docs/SIGNALS_AND_STRATEGIES.md"
+  * "docs/STRATEGY_BOUNDARIES.md"
+  * "configs/strategies/examples/**"
+  * "tests/unit/test_signal_schema.py"
+  * "tests/unit/test_signal_available_ts_fields.py"
+  * "tests/unit/test_strategy_spec_fields.py"
+  * "tests/unit/test_strategy_factor_dependencies.py"
+  * "tests/unit/test_strategy_forbidden_responsibilities.py"
+  * "tests/no_lookahead/test_strategy_no_label_inputs.py"
+  * "tests/no_lookahead/test_strategy_no_raw_adhoc_inputs.py"
+  * "tests/no_lookahead/test_signal_available_ts.py"
+  * "tests/unit/test_template_strategy_deterministic.py"
+  * "tests/integration/test_strategy_registry_tempdb.py"
+  * "tests/integration/test_signal_store_tempdir.py"
+  * "tests/unit/test_signal_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/backtest/**"
+  * "src/alpha_system/execution/**"
+  * "src/alpha_system/portfolio/**"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * strategy templates
+    * tests
+    * tiny deterministic fixtures if needed
+      never_commit:
+    * generated signal datasets
+    * local signal stores
+    * local DBs
+    * raw data
+    * canonical data
+    * generated heavy artifacts
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      strategy_forbidden_responsibilities:
+    * account equity
+    * position sizing
+    * fills
+    * order lifecycle
+    * slippage
+    * commission
+    * partial take profit accounting
+    * portfolio aggregation
+      strategy_outputs:
+    * entry signal
+    * exit signal
+    * direction
+    * optional confidence score
+    * optional desired exposure
+    * required factor dependencies
+      leakage_policy:
+      labels_as_live_inputs_allowed: false
+      raw_adhoc_inputs_allowed: false
+
+* id: ASV1-P15
+  name: Reference 1-Minute Backtest Truth
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P14
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_reference_next_bar_entry.py tests/unit/test_reference_next_bar_exit.py tests/no_lookahead/test_no_same_bar_signal_execution.py"
+  * "python -m pytest tests/unit/test_same_bar_stop_target_conservative.py tests/unit/test_reference_accounting.py tests/unit/test_trade_journal_schema.py tests/unit/test_equity_curve_schema.py"
+  * "python -m alpha_system.cli backtest run --help"
+  * "git status --short"
+  * "find artifacts/execution_validations -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha backtest run --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/backtest/reference.py"
+  * "src/alpha_system/backtest/orders.py"
+  * "src/alpha_system/backtest/fills.py"
+  * "src/alpha_system/backtest/accounting.py"
+  * "src/alpha_system/backtest/trades.py"
+  * "src/alpha_system/backtest/equity.py"
+  * "src/alpha_system/backtest/results.py"
+  * "src/alpha_system/backtest/engine_config.py"
+  * "src/alpha_system/cli/backtest.py"
+  * "docs/REFERENCE_BACKTEST.md"
+  * "docs/BACKTEST_TRUTH_POLICY.md"
+  * "configs/execution/reference_1min.yaml"
+  * "tests/unit/test_reference_next_bar_entry.py"
+  * "tests/unit/test_reference_next_bar_exit.py"
+  * "tests/no_lookahead/test_no_same_bar_signal_execution.py"
+  * "tests/unit/test_same_bar_stop_target_conservative.py"
+  * "tests/unit/test_reference_accounting.py"
+  * "tests/unit/test_trade_journal_schema.py"
+  * "tests/unit/test_equity_curve_schema.py"
+  * "tests/unit/test_eod_flat_behavior.py"
+  * "tests/no_lookahead/test_backtest_data_latency.py"
+  * "tests/no_lookahead/test_backtest_signal_availability.py"
+  * "tests/integration/test_reference_backtest_fixture.py"
+  * "tests/integration/test_backtest_registry_tempdb.py"
+  * "tests/integration/test_backtest_cli_help.py"
+  * "tests/unit/test_backtest_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/execution_validations/**"
+  * "artifacts/strategy_grids/**"
+  * "artifacts/management_studies/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/backtest/fast_path.py"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures
+      never_commit:
+    * full trade logs
+    * full equity curves
+    * generated execution artifacts
+    * local DB files
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha backtest run"
+      truth_policy:
+      reference_engine_is_truth: true
+      fast_path_allowed: false
+      second_pnl_truth_allowed: false
+      default_execution: next_bar_conservative
+      same_bar_stop_target_policy: conservative
+      no_same_bar_signal_execution_default: true
+      broker_live_scope_allowed: false
+
+* id: ASV1-P16
+  name: Cost, Slippage, and Conservative Execution Semantics
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P15
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_fixed_commission.py tests/unit/test_per_unit_commission.py tests/unit/test_bps_cost.py tests/unit/test_half_full_spread_cost.py"
+  * "python -m pytest tests/unit/test_slippage_bps.py tests/unit/test_spread_sensitive_slippage.py tests/unit/test_volume_participation_cap.py tests/unit/test_conservative_fill_price.py"
+  * "git status --short"
+  * "find artifacts/execution_validations -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/backtest/costs.py"
+  * "src/alpha_system/backtest/slippage.py"
+  * "src/alpha_system/backtest/liquidity.py"
+  * "src/alpha_system/backtest/fill_models.py"
+  * "src/alpha_system/backtest/execution_config.py"
+  * "src/alpha_system/backtest/conservative_semantics.py"
+  * "docs/COST_AND_SLIPPAGE.md"
+  * "docs/CONSERVATIVE_EXECUTION_SEMANTICS.md"
+  * "configs/execution/cost_models/**"
+  * "tests/unit/test_fixed_commission.py"
+  * "tests/unit/test_per_unit_commission.py"
+  * "tests/unit/test_bps_cost.py"
+  * "tests/unit/test_half_full_spread_cost.py"
+  * "tests/unit/test_slippage_bps.py"
+  * "tests/unit/test_spread_sensitive_slippage.py"
+  * "tests/unit/test_volume_participation_cap.py"
+  * "tests/unit/test_liquidity_rejection.py"
+  * "tests/unit/test_adverse_selection_proxy_hook.py"
+  * "tests/unit/test_conservative_fill_price.py"
+  * "tests/unit/test_missing_bid_ask_behavior.py"
+  * "tests/unit/test_zero_cost_only_explicit_fixture.py"
+  * "tests/integration/test_reference_backtest_cost_model.py"
+  * "tests/integration/test_reference_backtest_slippage_model.py"
+  * "tests/no_lookahead/test_cost_model_no_same_bar_optimism.py"
+  * "tests/unit/test_execution_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/execution_validations/**"
+  * "artifacts/strategy_grids/**"
+  * "artifacts/management_studies/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+  * "src/alpha_system/l2/replay*"
+  * "src/alpha_system/backtest/fast_path.py"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if required
+      never_commit:
+    * generated execution outputs
+    * trade logs
+    * equity logs
+    * execution validation artifacts
+    * local DBs
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cost_models:
+    * fixed commission
+    * per-share or per-contract commission
+    * bps cost
+    * half-spread assumption
+    * full-spread assumption
+    * configurable slippage bps
+    * spread-sensitive slippage
+    * volume participation cap
+    * liquidity rejection or penalty
+    * adverse-selection proxy hook
+      forbidden_execution_scope:
+      broker_specific_adapters: true
+      live_execution: true
+      paper_trading: true
+      l2_queue_modeling: true
+      silent_zero_cost_default: true
+
+* id: ASV1-P17
+  name: Position Management Module
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P16
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/test_management_spec_fields.py tests/unit/test_fixed_stop.py tests/unit/test_atr_stop.py tests/unit/test_target_r_multiple.py"
+  * "python -m pytest tests/unit/test_laddered_partials.py tests/unit/test_breakeven_stop.py tests/unit/test_trailing_stop.py tests/unit/test_same_bar_management_conservative.py"
+  * "python -m alpha_system.cli management grid --help"
+  * "git status --short"
+  * "find artifacts/management_studies -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find artifacts/execution_validations -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha management grid --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/management/spec.py"
+  * "src/alpha_system/management/stops.py"
+  * "src/alpha_system/management/targets.py"
+  * "src/alpha_system/management/partials.py"
+  * "src/alpha_system/management/trailing.py"
+  * "src/alpha_system/management/rules.py"
+  * "src/alpha_system/management/state.py"
+  * "src/alpha_system/management/validation.py"
+  * "src/alpha_system/management/integration.py"
+  * "src/alpha_system/cli/management.py"
+  * "docs/POSITION_MANAGEMENT.md"
+  * "docs/MANAGEMENT_OVERFIT_POLICY.md"
+  * "configs/management/examples/**"
+  * "tests/unit/test_management_spec_fields.py"
+  * "tests/unit/test_fixed_stop.py"
+  * "tests/unit/test_atr_stop.py"
+  * "tests/unit/test_volatility_stop.py"
+  * "tests/unit/test_target_r_multiple.py"
+  * "tests/unit/test_laddered_partials.py"
+  * "tests/unit/test_breakeven_stop.py"
+  * "tests/unit/test_trailing_stop.py"
+  * "tests/unit/test_time_exit.py"
+  * "tests/unit/test_eod_exit.py"
+  * "tests/unit/test_cooldown.py"
+  * "tests/unit/test_max_trades_per_day.py"
+  * "tests/unit/test_scale_in_scale_out_contracts.py"
+  * "tests/unit/test_max_holding_bars.py"
+  * "tests/unit/test_management_risk_per_trade.py"
+  * "tests/unit/test_management_max_position_percent.py"
+  * "tests/unit/test_same_bar_management_conservative.py"
+  * "tests/unit/test_management_rule_ordering.py"
+  * "tests/integration/test_management_reference_integration.py"
+  * "tests/integration/test_management_cli_help.py"
+  * "tests/unit/test_management_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/management_studies/**"
+  * "artifacts/execution_validations/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+  * "src/alpha_system/portfolio/allocation.py"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if required
+      never_commit:
+    * management grid outputs
+    * management study artifacts
+    * full trade logs
+    * generated equity curves
+    * generated execution outputs
+    * local DB files
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      management_features:
+    * fixed stop
+    * ATR stop
+    * volatility stop
+    * R-multiple target
+    * laddered partial take profit
+    * breakeven stop
+    * trailing stop
+    * time exit
+    * EOD exit
+    * max trades per day
+    * cooldown
+    * scale-in skeleton
+    * scale-out
+    * max holding bars
+      claims_policy:
+      management_overfit_claims_allowed: false
+      auto_approval_allowed: false
+
+* id: ASV1-P18
+  name: Portfolio Target and Sizing Layer
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P17
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration"
+  * "python -m pytest tests/unit/test_portfolio_spec_fields.py tests/unit/test_fixed_risk_sizing.py tests/unit/test_max_position_percent.py"
+  * "python -m pytest tests/unit/test_max_gross_exposure.py tests/unit/test_max_net_exposure.py tests/unit/test_signal_to_target_conversion.py"
+  * "git status --short"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/portfolio/spec.py"
+  * "src/alpha_system/portfolio/sizing.py"
+  * "src/alpha_system/portfolio/risk.py"
+  * "src/alpha_system/portfolio/targets.py"
+  * "src/alpha_system/portfolio/allocation.py"
+  * "src/alpha_system/portfolio/validation.py"
+  * "src/alpha_system/portfolio/integration.py"
+  * "docs/PORTFOLIO_LAYER.md"
+  * "docs/PORTFOLIO_BOUNDARIES.md"
+  * "configs/portfolio/examples/**"
+  * "tests/unit/test_portfolio_spec_fields.py"
+  * "tests/unit/test_fixed_risk_sizing.py"
+  * "tests/unit/test_max_position_percent.py"
+  * "tests/unit/test_max_gross_exposure.py"
+  * "tests/unit/test_max_net_exposure.py"
+  * "tests/unit/test_multi_symbol_limits.py"
+  * "tests/unit/test_signal_to_target_conversion.py"
+  * "tests/unit/test_insufficient_capital.py"
+  * "tests/unit/test_portfolio_target_schema.py"
+  * "tests/unit/test_future_sector_asset_constraints.py"
+  * "tests/unit/test_future_correlation_aware_allocation_contract.py"
+  * "tests/unit/test_portfolio_boundary_no_fills.py"
+  * "tests/integration/test_portfolio_reference_integration.py"
+  * "tests/unit/test_portfolio_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if required
+      never_commit:
+    * portfolio run outputs
+    * generated portfolio artifacts
+    * full trade logs
+    * generated equity outputs
+    * local DBs
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      portfolio_features:
+    * PortfolioSpec
+    * signal-to-target conversion
+    * fixed notional sizing
+    * risk-per-trade sizing
+    * max position percent
+    * max gross exposure
+    * max net exposure
+    * multi-symbol placeholder constraints
+    * capital allocation state
+    * portfolio target output schema
+      forbidden_ownership:
+      fills_slippage_commission: true
+      broker_account_sync: true
+      live_portfolio_state: true
+
+* id: ASV1-P19
+  name: Fast Path and Reference Parity
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P18
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/parity"
+  * "python -m pytest tests/parity tests/performance tests/unit/backtest"
+  * "git status --short"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/backtest/fast_path.py"
+  * "src/alpha_system/backtest/fast_arrays.py"
+  * "src/alpha_system/backtest/parity.py"
+  * "src/alpha_system/backtest/parity_cases.py"
+  * "src/alpha_system/backtest/fixtures.py"
+  * "docs/FAST_PATH_PARITY.md"
+  * "docs/FAST_PATH_LIMITATIONS.md"
+  * "tests/parity/**"
+  * "tests/performance/test_fast_path_smoke.py"
+  * "tests/unit/test_fast_path_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.npy"
+  * "**/*.npz"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+  * "src/alpha_system/l2/replay*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * tests
+    * tiny deterministic fixtures if required
+      never_commit:
+    * benchmark logs
+    * generated arrays
+    * local grid results
+    * fast-path outputs
+    * local DBs
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      parity_requirements:
+      reference_engine_is_truth: true
+      fast_path_acceleration_only: true
+      second_pnl_truth_allowed: false
+      grid_fast_path_gate_required: true
+      unsupported_features_fail_closed_or_reference_fallback: true
+      parity_domains:
+    * positions
+    * fills
+    * trades
+    * equity
+    * costs
+    * management where supported
+    * same-bar ambiguity
+    * EOD exit
+    * cooldown
+    * max holding bars
+
+* id: ASV1-P20
+  name: Strategy Grid Engine MVP
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P19
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/parity"
+  * "python -m pytest tests/unit/experiments tests/integration/test_grid_tiny_fixture.py tests/unit/cli/test_grid_cli.py || true"
+  * "python -m pytest tests/unit/test_grid_expansion_count.py tests/unit/test_grid_max_combination_rejection.py tests/unit/test_grid_deterministic_ordering.py"
+  * "python -m pytest tests/unit/test_grid_leaderboard_schema.py tests/unit/test_grid_output_schemas.py tests/unit/test_grid_manifest_fields.py"
+  * "python -m alpha_system.cli grid run --help"
+  * "git status --short"
+  * "find artifacts/strategy_grids -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find . -name "*.parquet" -not -path "./tests/fixtures/*" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha grid run --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/experiments/grid.py"
+  * "src/alpha_system/experiments/runner.py"
+  * "src/alpha_system/experiments/limits.py"
+  * "src/alpha_system/experiments/leaderboard.py"
+  * "src/alpha_system/experiments/grid_outputs.py"
+  * "src/alpha_system/experiments/grid_config.py"
+  * "src/alpha_system/experiments/grid_manifest.py"
+  * "src/alpha_system/cli/grid.py"
+  * "docs/GRID_ENGINE.md"
+  * "docs/GRID_OVERFIT_POLICY.md"
+  * "configs/grids/examples/**"
+  * "tests/unit/test_grid_expansion_count.py"
+  * "tests/unit/test_grid_max_combination_rejection.py"
+  * "tests/unit/test_grid_deterministic_ordering.py"
+  * "tests/unit/test_grid_rejected_configs.py"
+  * "tests/unit/test_grid_rejected_reasons.py"
+  * "tests/unit/test_grid_leaderboard_schema.py"
+  * "tests/unit/test_grid_output_schemas.py"
+  * "tests/unit/test_grid_manifest_fields.py"
+  * "tests/unit/test_grid_requires_versions.py"
+  * "tests/integration/test_grid_tiny_fixture.py"
+  * "tests/integration/test_grid_registry_tempdb.py"
+  * "tests/integration/test_grid_fast_path_parity_gate.py"
+  * "tests/integration/test_grid_reference_fallback.py"
+  * "tests/unit/cli/test_grid_cli.py"
+  * "tests/integration/test_grid_cli_help.py"
+  * "tests/unit/test_grid_artifact_policy.py"
+  * "tests/unit/test_grid_no_tradability_claims.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/strategy_grids/**"
+  * "artifacts/management_studies/**"
+  * "artifacts/execution_validations/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "**/full_grid_outputs/**"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+  * "src/alpha_system/l2/replay*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny fixture outputs if explicitly required
+      never_commit:
+    * full grid outputs
+    * local grid artifact directories
+    * temporary multiprocessing outputs
+    * local DBs
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * full trade logs
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha grid run"
+      grid_outputs:
+    * leaderboard.csv
+    * grid_summary.md
+    * monthly_breakdown.csv
+    * cost_sensitivity.csv
+    * top_configs.yaml
+    * rejected_configs.csv
+    * run_manifest.json
+      grid_types:
+    * factor parameter grid
+    * strategy signal grid
+    * execution cost grid
+    * risk sizing grid
+    * position management grid
+      controls:
+      combination_count_limits_required: true
+      rejected_configs_visible: true
+      fast_path_requires_parity: true
+      uncontrolled_grid_explosion_allowed: false
+      alpha_tradability_claims_allowed: false
+
+* id: ASV1-P21
+  name: Management Grid Engine
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P20
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration"
+  * "python -m pytest tests/unit/experiments/test_management_grid_expansion.py tests/unit/experiments/test_management_grid_limits.py tests/integration/test_management_grid_tiny_fixture.py tests/unit/cli/test_management_grid_cli.py || true"
+  * "python -m pytest tests/unit/test_survivor_eligibility_gate.py tests/unit/test_management_grid_max_combinations.py tests/unit/test_management_grid_no_auto_approval.py"
+  * "python -m alpha_system.cli management grid --help"
+  * "git status --short"
+  * "find artifacts/management_studies -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find . -name "*.parquet" -not -path "./tests/fixtures/*" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha management grid --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/experiments/management_grid.py"
+  * "src/alpha_system/experiments/survivors.py"
+  * "src/alpha_system/experiments/candidate_policy.py"
+  * "src/alpha_system/experiments/overfit_controls.py"
+  * "src/alpha_system/experiments/management_outputs.py"
+  * "src/alpha_system/cli/management.py"
+  * "docs/MANAGEMENT_GRID_WORKFLOW.md"
+  * "docs/SURVIVOR_POLICY.md"
+  * "configs/management/grid_examples/**"
+  * "tests/unit/experiments/test_management_grid_expansion.py"
+  * "tests/unit/experiments/test_management_grid_limits.py"
+  * "tests/integration/test_management_grid_tiny_fixture.py"
+  * "tests/unit/cli/test_management_grid_cli.py"
+  * "tests/unit/test_survivor_eligibility_gate.py"
+  * "tests/unit/test_survivor_record_schema.py"
+  * "tests/unit/test_management_grid_max_combinations.py"
+  * "tests/unit/test_management_grid_rejected_reasons.py"
+  * "tests/unit/test_management_grid_baseline_comparison.py"
+  * "tests/unit/test_management_grid_cost_sensitivity.py"
+  * "tests/unit/test_management_grid_monthly_breakdown.py"
+  * "tests/unit/test_management_grid_warnings.py"
+  * "tests/integration/test_management_grid_registry_tempdb.py"
+  * "tests/unit/test_management_grid_no_auto_approval.py"
+  * "tests/unit/test_management_grid_requires_review_status.py"
+  * "tests/integration/test_management_grid_cli_execution.py"
+  * "tests/unit/test_management_grid_artifact_policy.py"
+  * "tests/unit/test_management_grid_no_tradability_claims.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/management_studies/**"
+  * "artifacts/strategy_grids/**"
+  * "artifacts/execution_validations/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "**/full_trade_logs/**"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+  * "src/alpha_system/l2/replay*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny fixture summaries if explicitly required
+      never_commit:
+    * full management grid outputs
+    * generated management studies
+    * local DBs
+    * full trade logs
+    * generated equity curves
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha management grid"
+      required_controls:
+      ManagementGridSpec: true
+      management_parameter_expansion: true
+      laddered_partial_take_profit_grid: true
+      stop_target_trailing_breakeven_grid: true
+      max_hold_cooldown_grid: true
+      management_overfit_controls: true
+      survivor_gating_required: true
+      automatic_approval_allowed: false
+      promotion_decision_by_grid_allowed: false
+
+* id: ASV1-P22
+  name: Experiment Registry Hardening
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P21
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration"
+  * "python -m pytest tests/unit/experiments || true"
+  * "python -m pytest tests/unit/test_run_record_required_fields.py tests/unit/test_failed_run_recording.py tests/unit/test_artifact_manifest_schema.py"
+  * "python -m pytest tests/integration/test_registry_audit_missing_hashes.py tests/integration/test_registry_audit_missing_versions.py tests/integration/test_no_committed_sqlite.py"
+  * "python -m alpha_system.cli registry status --help"
+  * "git status --short"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/experiments/run_records.py"
+  * "src/alpha_system/experiments/artifact_manifest.py"
+  * "src/alpha_system/experiments/reproducibility.py"
+  * "src/alpha_system/experiments/promotion.py"
+  * "src/alpha_system/experiments/audit.py"
+  * "src/alpha_system/experiments/failure_records.py"
+  * "src/alpha_system/experiments/version_refs.py"
+  * "src/alpha_system/cli/registry.py"
+  * "docs/EXPERIMENT_REGISTRY.md"
+  * "docs/REPRODUCIBILITY_AUDIT.md"
+  * "tests/unit/test_run_record_required_fields.py"
+  * "tests/unit/test_failed_run_recording.py"
+  * "tests/unit/test_failure_records_visible.py"
+  * "tests/unit/test_artifact_manifest_schema.py"
+  * "tests/unit/test_artifact_manifest_hash_size.py"
+  * "tests/unit/test_artifact_path_policy.py"
+  * "tests/unit/test_promotion_requires_review.py"
+  * "tests/unit/test_promotion_decision_schema.py"
+  * "tests/unit/test_version_refs.py"
+  * "tests/integration/test_registry_audit_missing_hashes.py"
+  * "tests/integration/test_registry_audit_missing_versions.py"
+  * "tests/integration/test_registry_audit_forbidden_artifacts.py"
+  * "tests/integration/test_registry_all_tables_exercised.py"
+  * "tests/integration/test_duplicate_run_behavior.py"
+  * "tests/integration/test_no_committed_sqlite.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "**/full_trade_logs/**"
+  * "**/full_grid_outputs/**"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * tests
+    * tiny fixtures if explicitly required
+      never_commit:
+    * local SQLite DBs
+    * full manifests from local experiments
+    * generated artifacts
+    * raw data
+    * canonical data
+    * materialized factor stores
+    * materialized label stores
+    * generated signal stores
+    * logs
+    * caches
+    * temp files
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      provenance_required:
+    * run_id
+    * timestamp
+    * git_commit
+    * code_hash
+    * config_hash
+    * data_version
+    * factor_versions
+    * label_versions
+    * engine_version
+    * parameters
+    * artifact_paths
+    * decision_status
+      promotion_rules:
+      promotion_decision_record_required: true
+      approved_status_requires_review_metadata: true
+      candidate_promotion_without_review_allowed: false
+      failed_run_visibility_required: true
+
+* id: ASV1-P23
+  name: ML and Factor Combination MVP
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P22
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/models tests/unit/cli/test_ml_cli.py || true"
+  * "python -m pytest tests/unit/test_feature_set_requires_factor_versions.py tests/no_lookahead/test_ml_raw_column_rejection.py tests/no_lookahead/test_ml_label_leakage_rejection.py"
+  * "python -m pytest tests/unit/test_train_validation_split.py tests/unit/test_walk_forward_split.py tests/unit/test_purge_embargo_gap.py"
+  * "python -m alpha_system.cli ml run --help"
+  * "git status --short"
+  * "find artifacts/ml_experiments -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find . -type f \( -name "*.pkl" -o -name "*.joblib" -o -name "*.pickle" -o -name "*.onnx" \) -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha ml run --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/experiments/ml.py"
+  * "src/alpha_system/experiments/feature_sets.py"
+  * "src/alpha_system/experiments/splits.py"
+  * "src/alpha_system/experiments/model_specs.py"
+  * "src/alpha_system/experiments/scoring.py"
+  * "src/alpha_system/experiments/ml_outputs.py"
+  * "src/alpha_system/experiments/ml_registry.py"
+  * "src/alpha_system/cli/ml.py"
+  * "docs/ML_LAYER.md"
+  * "docs/ML_LEAKAGE_POLICY.md"
+  * "configs/ml/examples/**"
+  * "tests/unit/models/**"
+  * "tests/unit/cli/test_ml_cli.py"
+  * "tests/unit/test_feature_set_requires_factor_versions.py"
+  * "tests/unit/test_feature_set_schema.py"
+  * "tests/no_lookahead/test_ml_raw_column_rejection.py"
+  * "tests/no_lookahead/test_ml_label_leakage_rejection.py"
+  * "tests/no_lookahead/test_ml_label_availability.py"
+  * "tests/unit/test_train_validation_split.py"
+  * "tests/unit/test_walk_forward_split.py"
+  * "tests/unit/test_purge_embargo_gap.py"
+  * "tests/unit/test_model_spec_registration.py"
+  * "tests/unit/test_linear_model_spec.py"
+  * "tests/unit/test_future_model_type_placeholders.py"
+  * "tests/integration/test_ml_run_registry_tempdb.py"
+  * "tests/unit/test_ml_score_output_schema.py"
+  * "tests/unit/test_score_to_portfolio_contract.py"
+  * "tests/unit/test_ml_artifact_policy.py"
+  * "tests/unit/test_ml_no_tradability_claims.py"
+  * "tests/integration/test_ml_cli_help.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/ml_experiments/**"
+  * "**/*.pkl"
+  * "**/*.pickle"
+  * "**/*.joblib"
+  * "**/*.onnx"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if explicitly required
+      never_commit:
+    * trained model binaries
+    * large predictions
+    * score datasets
+    * ML experiment directories
+    * local DBs
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha ml run"
+      contracts:
+    * FeatureSetSpec
+    * LabelSpec integration
+    * ModelSpec
+    * train-validation split
+    * walk-forward split
+    * purge-embargo utilities
+    * score-to-portfolio conversion
+    * ML run registry integration
+      allowed_model_scope:
+    * simple linear score
+    * IC-weighted score
+    * ridge/lasso interface if dependency acceptable
+    * orthogonalized score skeleton
+      leakage_policy:
+      consumes_factor_versions_only: true
+      raw_adhoc_columns_allowed: false
+      labels_as_features_allowed: false
+      live_inference_allowed: false
+
+* id: ASV1-P24
+  name: Multi-Symbol Universe Support
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P23
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit tests/integration tests/no_lookahead"
+  * "python -m pytest tests/unit/data tests/unit/research/test_cross_sectional_rank.py tests/integration/test_multi_symbol_tiny_fixture.py || true"
+  * "python -m pytest tests/unit/test_universe_config_validation.py tests/unit/test_instrument_metadata_required_fields.py tests/unit/test_multi_symbol_session_alignment.py"
+  * "git status --short"
+  * "find data -type f ! -name ".gitkeep" -print"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find . -name "*.parquet" -not -path "./tests/fixtures/*" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/data/universe.py"
+  * "src/alpha_system/core/instruments.py"
+  * "src/alpha_system/core/instrument_master.py"
+  * "src/alpha_system/experiments/universe_runner.py"
+  * "src/alpha_system/portfolio/universe_constraints.py"
+  * "src/alpha_system/research/cross_sectional.py"
+  * "configs/universes/examples/**"
+  * "docs/UNIVERSES_AND_MULTI_ASSET.md"
+  * "docs/INSTRUMENT_MASTER.md"
+  * "tests/unit/data/**"
+  * "tests/unit/research/test_cross_sectional_rank.py"
+  * "tests/integration/test_multi_symbol_tiny_fixture.py"
+  * "tests/unit/test_universe_config_validation.py"
+  * "tests/unit/test_instrument_metadata_required_fields.py"
+  * "tests/unit/test_instrument_master_active_dates.py"
+  * "tests/unit/test_universe_active_date_filtering.py"
+  * "tests/unit/test_multi_symbol_session_alignment.py"
+  * "tests/unit/test_multi_symbol_timezone_handling.py"
+  * "tests/unit/test_per_symbol_missing_data_flags.py"
+  * "tests/unit/test_multi_symbol_portfolio_limits.py"
+  * "tests/unit/test_future_sector_asset_constraints.py"
+  * "tests/unit/test_future_correlation_aware_allocation_contract.py"
+  * "tests/integration/test_universe_registry_hash.py"
+  * "tests/integration/test_universe_runner_fixture.py"
+  * "tests/unit/test_universe_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny deterministic fixtures if explicitly required
+      never_commit:
+    * real multi-symbol datasets
+    * generated universe outputs
+    * local DBs
+    * generated artifacts
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      universe_features:
+    * UniverseSpec
+    * instrument master helpers
+    * symbol-to-instrument-id mapping
+    * multi-symbol data loading
+    * cross-sectional timestamp alignment
+    * multi-symbol factor diagnostics compatibility
+    * cross-sectional rank utility
+    * multi-symbol portfolio constraints
+      tiny_fixture_only: true
+      assumptions_forbidden:
+      single_timezone_for_all_instruments: true
+      single_calendar_for_all_instruments: true
+      ignored_currency_multiplier_metadata: true
+
+* id: ASV1-P25
+  name: L2 Readiness Schema and Design
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P24
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit/l2 tests/unit tests/no_lookahead || true"
+  * "python -m pytest tests/unit/test_l2_snapshot_required_fields.py tests/unit/test_l2_delta_required_fields.py tests/no_lookahead/test_l2_timestamp_ordering.py"
+  * "git status --short"
+  * "find data -path "*l2*" -type f -print || true"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/l2/schemas.py"
+  * "src/alpha_system/l2/design.py"
+  * "src/alpha_system/l2/timestamps.py"
+  * "src/alpha_system/l2/validation.py"
+  * "docs/L2_READINESS.md"
+  * "docs/FUTURE_L2_REPLAY.md"
+  * "docs/L2_SCOPE_BOUNDARIES.md"
+  * "configs/data/l2_examples/**"
+  * "tests/unit/l2/**"
+  * "tests/unit/test_l2_snapshot_required_fields.py"
+  * "tests/unit/test_l2_delta_required_fields.py"
+  * "tests/no_lookahead/test_l2_timestamp_ordering.py"
+  * "tests/unit/test_l2_available_ts_required.py"
+  * "tests/unit/test_l2_receive_ts_semantics.py"
+  * "tests/unit/test_l2_side_enum.py"
+  * "tests/unit/test_l2_update_action_enum.py"
+  * "tests/unit/test_l2_book_level_validation.py"
+  * "tests/unit/test_l2_data_version_required.py"
+  * "tests/unit/test_l2_quality_flags_required.py"
+  * "tests/unit/test_l2_snapshot_delta_consistency_contract.py"
+  * "tests/unit/test_l2_design_only_scope.py"
+  * "tests/unit/test_l2_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/l2/replay.py"
+  * "src/alpha_system/l2/queue_model.py"
+  * "src/alpha_system/l2/passive_fills.py"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source schema files
+    * design docs
+    * configs
+    * tests
+    * tiny synthetic examples if required
+      never_commit:
+    * real L2 data
+    * order book datasets
+    * replay outputs
+    * local DBs
+    * generated artifacts
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      l2_scope:
+      design_only: true
+      full_l2_replay_allowed: false
+      queue_model_allowed: false
+      passive_fill_simulation_allowed: false
+      real_l2_data_allowed: false
+      required_fields:
+      snapshot:
+
+      * instrument_id
+      * session_id
+      * event_timestamp
+      * receive_timestamp
+      * available_timestamp
+      * book_level
+      * side
+      * price
+      * size
+      * order_count_if_available
+      * data_version
+      * quality_flags
+        event_delta:
+      * instrument_id
+      * session_id
+      * event_timestamp
+      * receive_timestamp
+      * available_timestamp
+      * sequence_id_if_available
+      * action_update_type
+      * book_level_if_applicable
+      * side
+      * price
+      * size
+      * order_count_if_available
+      * data_version
+      * quality_flags
+
+* id: ASV1-P26
+  name: L2-Derived Feature Pipeline Skeleton
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P25
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit/l2 tests/unit tests/no_lookahead || true"
+  * "python -m pytest tests/unit/test_l2_feature_spec_schema.py tests/unit/test_l2_top_of_book_spread.py tests/unit/test_l2_depth_imbalance.py tests/no_lookahead/test_l2_feature_available_ts.py"
+  * "git status --short"
+  * "find data -path "*l2*" -type f -print || true"
+  * "find data/factors -type f ! -name ".gitkeep" -print"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/l2/features.py"
+  * "src/alpha_system/l2/feature_specs.py"
+  * "src/alpha_system/l2/quality.py"
+  * "src/alpha_system/l2/fixtures.py"
+  * "src/alpha_system/l2/feature_validation.py"
+  * "docs/L2_DERIVED_FEATURES.md"
+  * "docs/L2_FEATURE_SCOPE_POLICY.md"
+  * "configs/factors/microstructure/l2_feature_examples.yaml"
+  * "tests/unit/l2/**"
+  * "tests/unit/test_l2_feature_spec_schema.py"
+  * "tests/unit/test_l2_top_of_book_spread.py"
+  * "tests/unit/test_l2_top1_imbalance.py"
+  * "tests/unit/test_l2_top5_imbalance.py"
+  * "tests/unit/test_l2_depth_imbalance.py"
+  * "tests/unit/test_l2_microprice.py"
+  * "tests/unit/test_l2_event_rate_feature_contract.py"
+  * "tests/no_lookahead/test_l2_feature_available_ts.py"
+  * "tests/no_lookahead/test_l2_feature_no_label_leakage.py"
+  * "tests/unit/test_l2_quality_flag_propagation.py"
+  * "tests/unit/test_l2_missing_level_handling.py"
+  * "tests/unit/test_l2_feature_design_only_scope.py"
+  * "tests/unit/test_l2_feature_no_materialization_by_default.py"
+  * "tests/unit/test_l2_feature_artifact_policy.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/l2/replay.py"
+  * "src/alpha_system/l2/book_reconstruction.py"
+  * "src/alpha_system/l2/queue_model.py"
+  * "src/alpha_system/l2/passive_fills.py"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny synthetic fixtures if explicitly required
+      never_commit:
+    * real L2 datasets
+    * generated feature stores
+    * materialized L2 factors
+    * replay outputs
+    * local DBs
+    * logs
+    * caches
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      l2_feature_scope:
+      production_l2_processing_allowed: false
+      materialized_l2_factor_store_default_allowed: false
+      microstructure_alpha_claim_allowed: false
+      production_book_reconstruction_allowed: false
+      feature_skeletons:
+    * L2-derived feature spec
+    * top1 imbalance skeleton
+    * top5 imbalance skeleton
+    * spread feature
+    * microprice skeleton
+    * aggregation interface from synthetic L2 fixture to 1min feature
+    * FactorSpec future input integration
+
+* id: ASV1-P27
+  name: Review Bundles, Source Maps, and Audit Reports
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P26
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest tests/unit/reports tests/unit tests/integration || true"
+  * "python -m pytest tests/unit/test_source_map_contents.py tests/unit/test_review_bundle_required_files.py tests/unit/test_review_bundle_artifact_policy.py"
+  * "python -m alpha_system.cli report build --help"
+  * "git status --short"
+  * "find artifacts/review_bundles -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find artifacts -type f -size +1M -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha report build --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "src/alpha_system/reports/review_bundle.py"
+  * "src/alpha_system/reports/source_map.py"
+  * "src/alpha_system/reports/audit_report.py"
+  * "src/alpha_system/reports/release_report.py"
+  * "src/alpha_system/reports/bundle_validation.py"
+  * "src/alpha_system/reports/claim_checks.py"
+  * "src/alpha_system/cli/report.py"
+  * "docs/REVIEW_BUNDLES.md"
+  * "docs/SOURCE_MAPS.md"
+  * "docs/AUDIT_REPORTS.md"
+  * "configs/reports/review_bundle.yaml"
+  * "tests/unit/reports/**"
+  * "tests/unit/test_source_map_contents.py"
+  * "tests/unit/test_source_map_includes_configs.py"
+  * "tests/unit/test_review_bundle_required_files.py"
+  * "tests/unit/test_review_bundle_required_versions.py"
+  * "tests/unit/test_review_bundle_missing_artifact_warning.py"
+  * "tests/unit/test_review_bundle_failed_run_visibility.py"
+  * "tests/unit/test_review_bundle_rejected_configs_visibility.py"
+  * "tests/unit/test_review_bundle_promotion_status.py"
+  * "tests/unit/test_review_bundle_prohibited_claims.py"
+  * "tests/unit/test_review_bundle_summary_schema.py"
+  * "tests/unit/test_review_bundle_artifact_policy.py"
+  * "tests/integration/test_report_build_cli_help.py"
+  * "tests/integration/test_review_bundle_fixture.py"
+  * "tests/integration/test_review_bundle_registry_tempdb.py"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/review_bundles/**"
+  * "artifacts/strategy_grids/**"
+  * "artifacts/management_studies/**"
+  * "artifacts/ml_experiments/**"
+  * "artifacts/execution_validations/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * source files
+    * docs
+    * configs
+    * tests
+    * tiny fixture report outputs if explicitly required
+      never_commit:
+    * full review bundles
+    * generated bundle directories
+    * large artifacts
+    * local DBs
+    * raw data
+    * canonical data
+    * generated factor stores
+    * generated label stores
+    * generated signal stores
+    * full grid outputs
+    * full trade logs
+    * model outputs
+    * logs
+    * caches
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      cli_commands:
+    * "alpha report build"
+      audit_checks:
+    * no raw data
+    * no heavy artifacts
+    * no broker/live files
+    * no alpha-claim language
+    * required provenance fields
+    * artifact manifest validity
+    * source map generation
+    * handoff validation enhancements
+
+* id: ASV1-P28
+  name: Researcher and AI Agent Onboarding
+  lane: GREEN
+  dependencies:
+
+  * ASV1-P27
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Sonnet 4.6
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "test -f docs/ONBOARDING.md"
+  * "test -f docs/RESEARCHER_GUIDE.md"
+  * "test -f docs/AI_AGENT_GUIDE.md"
+  * "test -f docs/CLI_REFERENCE.md"
+  * "test -f docs/EXAMPLE_WORKFLOWS.md"
+  * "test -f docs/TROUBLESHOOTING.md"
+  * "test -f docs/RESEARCH_INTERPRETATION_POLICY.md"
+  * "grep -R "broker/live trading" docs AGENTS.md CLAUDE.md README.md || true"
+  * "grep -R "git add ." docs AGENTS.md CLAUDE.md README.md || true"
+  * "grep -R "git add -A" docs AGENTS.md CLAUDE.md README.md || true"
+  * "git status --short"
+  * "find data -type f ! -name ".gitkeep" -print"
+  * "find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "markdownlint docs README.md AGENTS.md CLAUDE.md || true"
+    handoff_required: true
+    review_required: false
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "docs/ONBOARDING.md"
+  * "docs/RESEARCHER_GUIDE.md"
+  * "docs/AI_AGENT_GUIDE.md"
+  * "docs/CLI_REFERENCE.md"
+  * "docs/EXAMPLE_WORKFLOWS.md"
+  * "docs/TROUBLESHOOTING.md"
+  * "docs/RESEARCH_INTERPRETATION_POLICY.md"
+  * "docs/PLAN.md"
+  * "docs/ARCHITECTURE.md"
+  * "AGENTS.md"
+  * "CLAUDE.md"
+  * "README.md"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "src/**"
+  * "tests/**"
+  * "data/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+    artifact_policy:
+    commit_only:
+
+    * docs
+    * AGENTS.md
+    * CLAUDE.md
+    * README.md
+    * handoffs
+    * reviews if requested
+    * run metadata if small
+      never_commit:
+    * source behavior changes
+    * test weakening
+    * generated outputs
+    * data
+    * DBs
+    * logs
+    * caches
+    * artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      docs_required:
+    * researcher quickstart
+    * AI Agent workflow
+    * new factor workflow
+    * new strategy workflow
+    * grid workflow
+    * ML workflow
+    * management workflow
+    * no-lookahead checklist
+    * common mistakes
+    * artifact policy
+    * local-first setup
+    * WSL2 path rules
+      review_policy:
+      claude_review_optional: true
+      if_skipped_record_reason: true
+
+* id: ASV1-P29
+  name: End-to-End Local v0.1 Validation and Campaign Closeout
+  lane: YELLOW
+  dependencies:
+
+  * ASV1-P28
+    spec_required: true
+    executor: Codex GPT-5.5 high
+    reviewer: Claude Opus 4.8 xhigh
+    verifier: Claude Sonnet 4.6
+    checks:
+  * "python -m pytest"
+  * "python -m alpha_system.cli registry status --help"
+  * "python -m alpha_system.cli data validate --help"
+  * "python -m alpha_system.cli data build-bars --help"
+  * "python -m alpha_system.cli factor validate --help"
+  * "python -m alpha_system.cli factor materialize --help"
+  * "python -m alpha_system.cli study run --help"
+  * "python -m alpha_system.cli backtest run --help"
+  * "python -m alpha_system.cli grid run --help"
+  * "python -m alpha_system.cli management grid --help"
+  * "python -m alpha_system.cli ml run --help"
+  * "python -m alpha_system.cli report build --help"
+  * "git status --short"
+  * "find metadata -type f ! -name ".gitkeep" -print"
+  * "find data -type f ! -name ".gitkeep" ! -path "*/tests/fixtures/*" -print"
+  * "find artifacts -type f -size +1M -print 2>/dev/null || true"
+  * "git ls-files | grep -E '(^data/.*\.(parquet|csv|jsonl|db|sqlite)$|^metadata/.*\.(sqlite|db)$|^artifacts/)' || true"
+  * "find . -name "*.parquet" -not -path "./tests/fixtures/*" -print"
+  * "test -f docs/V0_1_VALIDATION.md"
+  * "test -f docs/V0_1_RELEASE_NOTES.md"
+  * "test -f docs/KNOWN_LIMITATIONS.md"
+  * "test -f docs/NEXT_CAMPAIGN_CANDIDATES.md"
+  * "test -f campaigns/ALPHA_SYSTEM_V1/CLOSEOUT.md"
+  * "test -f tests/integration/test_end_to_end_v0_1.py"
+  * "python -m compileall src"
+  * "python -m ruff check src tests || true"
+  * "python -m mypy src || true"
+  * "alpha registry status --help || true"
+  * "alpha data validate --help || true"
+  * "alpha data build-bars --help || true"
+  * "alpha factor validate --help || true"
+  * "alpha factor materialize --help || true"
+  * "alpha study run --help || true"
+  * "alpha backtest run --help || true"
+  * "alpha grid run --help || true"
+  * "alpha management grid --help || true"
+  * "alpha ml run --help || true"
+  * "alpha report build --help || true"
+    handoff_required: true
+    review_required: true
+    auto_pr: true
+    auto_merge: true
+    allowed_paths:
+  * "evals/v0_1/**"
+  * "docs/V0_1_VALIDATION.md"
+  * "docs/V0_1_RELEASE_NOTES.md"
+  * "docs/KNOWN_LIMITATIONS.md"
+  * "docs/NEXT_CAMPAIGN_CANDIDATES.md"
+  * "campaigns/ALPHA_SYSTEM_V1/CLOSEOUT.md"
+  * "tests/integration/test_end_to_end_v0_1.py"
+  * "configs/data/**"
+  * "configs/factors/**"
+  * "configs/labels/**"
+  * "configs/studies/**"
+  * "configs/strategies/**"
+  * "configs/grids/**"
+  * "configs/ml/**"
+  * "configs/management/**"
+  * "configs/portfolio/**"
+  * "configs/execution/**"
+  * "handoffs/**"
+  * "reviews/**"
+  * "runs/**"
+    forbidden_paths:
+  * "data/raw/**"
+  * "data/canonical/**"
+  * "data/factors/**"
+  * "data/labels/**"
+  * "data/cache/**"
+  * "metadata/*.sqlite"
+  * "metadata/*.sqlite3"
+  * "metadata/*.db"
+  * "metadata/*.db-journal"
+  * "metadata/*.wal"
+  * "artifacts/**"
+  * "**/*.parquet"
+  * "**/*.arrow"
+  * "**/*.feather"
+  * "**/*.pkl"
+  * "**/*.pickle"
+  * "**/*.joblib"
+  * "**/*.onnx"
+  * "**/*.db"
+  * "**/*.sqlite"
+  * "**/*.log"
+  * "**/full_trade_logs/**"
+  * "**/full_grid_outputs/**"
+  * "src/alpha_system/execution/broker*"
+  * "src/alpha_system/execution/live*"
+    artifact_policy:
+    commit_only:
+
+    * validation docs
+    * release notes
+    * known limitations
+    * next-campaign candidates
+    * closeout docs
+    * integration tests
+    * tiny fixture configs
+    * small curated validation summaries if below size threshold
+      never_commit:
+    * release SQLite DB
+    * generated factor values
+    * generated label values
+    * generated signal stores
+    * full grid outputs
+    * management grid outputs
+    * full trade logs
+    * full equity curves
+    * generated review bundle directory
+    * logs
+    * cache
+    * raw datasets
+    * canonical datasets
+    * large Parquet files
+    * local model artifacts
+    * heavy artifacts
+      explicit_staging_only: true
+      no_git_add_dot: true
+      no_git_add_A: true
+      validation_workflow:
+    * validate data
+    * register synthetic factor
+    * compute draft factor
+    * create labels
+    * run diagnostics
+    * generate factor card
+    * run synthetic strategy grid
+    * run management grid
+    * run ML smoke
+    * build review bundle
+    * release validation summary
+    * campaign closeout
+    * semantic done-check
+      final_verdicts:
+    * COMPLETE
+    * COMPLETE_WITH_WARNINGS
+    * BLOCKED
+      claims_policy:
+      real_data_required: false
+      alpha_claims_allowed: false
+      tradability_claims_allowed: false
+      fixture_results_as_market_evidence_allowed: false
+
+acceptance_gates:
+harness_foundation:
+phases:
+- ASV1-P00
+- ASV1-P01
+- ASV1-P02
+- ASV1-P03
+requires:
+- campaign_files_present
+- frontier_baseline_present
+- architecture_docs_present
+- package_skeleton_imports
+- artifact_policy_active
+- WSL2_path_policy_documented
+- explicit_staging_policy_active
+contracts_data_registry:
+phases:
+- ASV1-P04
+- ASV1-P05
+- ASV1-P06
+- ASV1-P07
+- ASV1-P08
+requires:
+- core_contracts_present
+- sqlite_schema_tempdb_tests_pass
+- canonical_1min_schema_present
+- session_quality_tests_pass
+- data_cli_smoke_pass
+- available_ts_tests_pass
+- no_raw_or_canonical_data_committed
+factor_label_diagnostics:
+phases:
+- ASV1-P09
+- ASV1-P10
+- ASV1-P11
+- ASV1-P12
+- ASV1-P13
+requires:
+- factor_registry_present
+- factor_lifecycle_tests_pass
+- label_store_present
+- label_available_ts_tests_pass
+- factor_sdk_present
+- diagnostics_tests_pass
+- factor_card_generation_pass
+- no_factor_label_outputs_committed
+strategy_backtest_management_portfolio:
+phases:
+- ASV1-P14
+- ASV1-P15
+- ASV1-P16
+- ASV1-P17
+- ASV1-P18
+requires:
+- strategy_spec_present
+- signal_store_present
+- reference_truth_tests_pass
+- cost_slippage_tests_pass
+- conservative_execution_tests_pass
+- management_tests_pass
+- portfolio_tests_pass
+- no_second_pnl_truth
+fast_grid_experiment:
+phases:
+- ASV1-P19
+- ASV1-P20
+- ASV1-P21
+- ASV1-P22
+requires:
+- fast_reference_parity_pass
+- fast_path_acceleration_only
+- grid_limits_pass
+- management_grid_limits_pass
+- experiment_registry_provenance_pass
+- failed_runs_visible
+- no_unbounded_grid_outputs_committed
+ml_multiasset_l2_ready:
+phases:
+- ASV1-P23
+- ASV1-P24
+- ASV1-P25
+- ASV1-P26
+requires:
+- ml_mvp_tests_pass
+- ml_uses_factor_versions_only
+- multi_symbol_tests_pass
+- l2_schema_tests_pass
+- l2_feature_skeleton_tests_pass
+- l2_design_only_scope_preserved
+- no_real_l2_data_committed
+release_closeout:
+phases:
+- ASV1-P27
+- ASV1-P28
+- ASV1-P29
+requires:
+- review_bundle_tests_pass
+- source_map_tests_pass
+- onboarding_docs_present
+- end_to_end_v0_1_validation_pass
+- artifact_audit_pass
+- semantic_done_check_pass
+- final_verdict_recorded
+
+risk_controls:
+no_lookahead:
+required: true
+test_roots:
+- "tests/no_lookahead"
+blocked_if:
+- no-lookahead tests missing after relevant phases
+- available_ts missing in data/factor/signal schemas
+- label_available_ts missing in label schemas
+- same-bar execution optimism introduced
+detection:
+- no_lookahead_test_suite
+- Claude review
+- semantic_done_check
+no_raw_data:
+required: true
+blocked_patterns:
+- "data/raw/**"
+- "data/canonical/**"
+- "data/factors/**"
+- "data/labels/**"
+- "**/*.parquet"
+exceptions:
+- "tests/fixtures/** when tiny synthetic fixture and documented"
+detection:
+- git status audit
+- git ls-files audit
+- artifact policy checks
+no_heavy_artifacts:
+required: true
+size_threshold_policy: block_large_files_unless_explicitly_local_only
+blocked_artifact_types:
+- full trade logs
+- raw grid outputs
+- management grid raw outputs
+- generated review bundles
+- model binaries
+- benchmark logs
+- large parquet files
+- large databases
+detection:
+- "find artifacts -type f -size +1M -print"
+- artifact manifest audit
+- handoff artifact confirmation
+no_broker_live:
+required: true
+blocked_scope:
+- broker integration
+- live trading
+- paper trading adapter
+- order routing
+- real-time account sync
+- live market data dependency
+allowed_scope:
+- docs stating out-of-scope
+- future campaign notes without implementation
+detection:
+- source path audit
+- dependency audit
+- Claude review
+no_alpha_claims:
+required: true
+blocked_claims:
+- alpha without evidence
+- tradability
+- profitability
+- market-beating
+- production-ready strategy
+- live-ready
+- robust without evidence
+detection:
+- prohibited claim tests
+- report claim checks
+- doc grep
+- Claude review
+no_candidate_promotion_without_review:
+required: true
+rules:
+approved_status_requires_review_metadata: true
+validated_status_requires_validation_artifact: true
+promotion_decision_record_required: true
+auto_promotion_allowed: false
+detection:
+- lifecycle tests
+- registry audit
+- promotion decision tests
+no_test_weakening:
+required: true
+rules:
+test_removals_require_explicit_phase_scope: true
+test_relaxations_require_explicit_phase_scope: true
+review_required_for_test_changes: true
+fake_completion_forbidden: true
+detection:
+- diff review
+- Claude review
+- semantic done-check
+reference_truth:
+required: true
+rules:
+reference_engine_required_before_fast_path: true
+reference_engine_is_canonical_truth: true
+second_pnl_truth_allowed: false
+backtest_is_not_live_trading: true
+detection:
+- reference truth tests
+- parity tests
+- Claude review
+fast_path_requires_parity:
+required: true
+rules:
+fast_path_acceleration_only: true
+grid_use_requires_parity_pass: true
+unsupported_features_fail_closed_or_reference_fallback: true
+detection:
+- tests/parity
+- grid fast-path gate tests
+- handoff parity matrix
+grid_explosion_limits:
+required: true
+rules:
+grid_expansion_must_enforce_combination_count_limits: true
+rejected_configs_must_be_visible: true
+unbounded_cartesian_products_forbidden: true
+detection:
+- grid expansion tests
+- grid limit tests
+- artifact audit
+local_wsl2_path:
+required: true
+allowed_repo_root: "~/projects/alpha_system"
+forbidden_paths:
+- "/mnt/c"
+- "OneDrive"
+- "Dropbox"
+- "Google Drive"
+- "Windows-synced folders"
+detection:
+- RUN_INIT preflight
+- worktree path audit
+- handoff confirmation
+sqlite_db_not_committed:
+required: true
+blocked_patterns:
+- "metadata/*.sqlite"
+- "metadata/*.sqlite3"
+- "metadata/*.db"
+- "metadata/*.db-journal"
+- "metadata/*.wal"
+- "**/*.sqlite"
+- "**/*.db"
+detection:
+- find metadata audit
+- git ls-files audit
+- artifact policy checks
+parquet_not_committed_outside_tiny_fixtures:
+required: true
+blocked_patterns:
+- "**/*.parquet"
+- "**/*.arrow"
+- "**/*.feather"
+allowed_exceptions:
+- "tests/fixtures/** when explicitly tiny synthetic documented fixture"
+detection:
+- "find . -name "*.parquet" -not -path "./tests/fixtures/*" -print"
+- git ls-files audit
+
+stop_conditions:
+
+* name: STOP file active
+  condition: "runs/<run_id>/STOP indicates active stop"
+  action: stop_before_new_phase_or_merge
+* name: raw data staged
+  condition: "files under data/raw, data/canonical, data/factors, or data/labels staged outside allowed fixtures"
+  action: block_merge_and_repair
+* name: heavy artifact staged
+  condition: "large artifacts, full grid outputs, full trade logs, generated bundles, or model binaries staged"
+  action: block_merge_and_repair
+* name: broker/live trading code introduced
+  condition: "broker integration, live trading, paper trading adapter, order routing, or account sync implementation appears"
+  action: block_merge_and_escalate
+* name: tests weakened without explicit phase scope
+  condition: "tests removed, skipped, or relaxed without explicit authorization and review"
+  action: block_merge_and_rework
+* name: Claude review BLOCKED
+  condition: "review verdict is BLOCKED"
+  action: blocked_handoff_and_stop
+* name: repair attempts exceeded
+  condition: "repair loop exceeds configured max attempts"
+  action: blocked_handoff_and_stop
+* name: campaign YAML invalid
+  condition: "campaign.yaml fails YAML parse after all parts concatenated"
+  action: block_campaign_execution_until_fixed
+* name: phase dependency missing
+  condition: "selected phase dependencies are incomplete or blocked"
+  action: stop_phase_selection
+* name: reference truth ambiguity introduced
+  condition: "more than one PnL truth or fast path treated as truth"
+  action: block_merge_and_rework
+* name: fast path used before parity
+  condition: "grid or experiment uses fast path without required parity tests passing"
+  action: block_merge_and_rework
+* name: alpha/tradability claim detected
+  condition: "unqualified alpha, tradability, profitability, market-beating, production-ready, or live-ready claim appears"
+  action: block_merge_and_rework
+* name: runtime SQLite DB staged
+  condition: "metadata/*.sqlite, metadata/*.db, or SQLite journal/WAL file staged"
+  action: block_merge_and_repair
+* name: generated Parquet staged outside allowed tiny fixtures
+  condition: "*.parquet, *.arrow, or *.feather staged outside tests/fixtures documented exception"
+  action: block_merge_and_repair
+* name: active repo/worktree under forbidden Windows path
+  condition: "active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced folder"
+  action: stop_run_init_or_worktree_create
+* name: hidden failed runs detected
+  condition: "failed steps not represented in run manifest, handoff, checks, or registry where required"
+  action: block_merge_and_rework
+* name: candidate promoted without review
+  condition: "factor/strategy/candidate status approved or validated without required review metadata"
+  action: block_merge_and_rework
+* name: L2 replay scope introduced
+  condition: "full L2 replay, queue model, passive fill simulation, or real L2 data ingestion introduced before future campaign"
+  action: block_merge_and_rework
+

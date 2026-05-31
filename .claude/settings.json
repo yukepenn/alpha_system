@@ -1,0 +1,13 @@
+{
+  "project": "alpha_system",
+  "profile": "trading_research",
+  "template_version": "3.0.0",
+  "requires_human_review": true,
+  "auto_merge": false,
+  "hooks": {
+    "PreToolUse": ".claude/hooks/pre-tool-use.sh",
+    "PostToolUse": ".claude/hooks/post-tool-use.sh",
+    "Stop": ".claude/hooks/stop-hook.sh",
+    "Notification": ".claude/hooks/notification.sh"
+  }
+}
