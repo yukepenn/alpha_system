@@ -5,9 +5,48 @@
   "requires_human_review": true,
   "auto_merge": false,
   "hooks": {
-    "PreToolUse": ".claude/hooks/pre-tool-use.sh",
-    "PostToolUse": ".claude/hooks/post-tool-use.sh",
-    "Stop": ".claude/hooks/stop-hook.sh",
-    "Notification": ".claude/hooks/notification.sh"
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-tool-use.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-tool-use.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/notification.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/stop-hook.sh"
+          }
+        ]
+      }
+    ]
   }
 }
