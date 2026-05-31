@@ -1,5 +1,3 @@
-===== FILE: campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md =====
-
 # ALPHA_SYSTEM_V1 Phase Plan
 
 ## Purpose
@@ -344,6 +342,9 @@ Create or update:
 * `campaigns/ALPHA_SYSTEM_V1/GOAL.md`
 * `campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md`
 * `campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md`
+* `campaigns/ALPHA_SYSTEM_V1/campaign.yaml`
+* `campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md`
+* `campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md`
 * `ACTIVE_CAMPAIGN.md`
 * top-level placeholder directories:
 
@@ -365,7 +366,7 @@ Create or update:
 
 Allowed placeholders:
 
-* `.gitkeep` files in empty local-only directories when required to preserve structure.
+* `.gitkeep` or `README.md` files in empty local-only directories when required to preserve structure.
 
 The phase must document:
 
@@ -405,6 +406,9 @@ Expected new or updated files:
 * `campaigns/ALPHA_SYSTEM_V1/GOAL.md`
 * `campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md`
 * `campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md`
+* `campaigns/ALPHA_SYSTEM_V1/campaign.yaml`
+* `campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md`
+* `campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md`
 
 Expected directories:
 
@@ -455,6 +459,9 @@ test -f ACTIVE_CAMPAIGN.md
 test -f campaigns/ALPHA_SYSTEM_V1/GOAL.md
 test -f campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md
 test -f campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
+test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
+test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
+test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
 test -d specs
 test -d handoffs
 test -d reviews
@@ -482,7 +489,7 @@ If hooks or artifact policy scripts are not yet available, record that they are 
 
 ### Artifact Policy
 
-Commit only policy files, campaign files, docs, and placeholder `.gitkeep` files if needed.
+Commit only policy files, campaign files, docs, and placeholder `.gitkeep` or `README.md` files if needed.
 
 Do not commit:
 
@@ -1322,9 +1329,9 @@ Design-only fields for:
 * price,
 * size,
 * order count if available,
-* event timestamp,
-* receive timestamp,
-* available timestamp,
+* `event_ts`,
+* `receive_ts`,
+* `available_ts`,
 * data version,
 * quality flags.
 
@@ -1796,7 +1803,7 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration
 python -m alpha_system.cli registry status --help
 git status --short
-find metadata -type f ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 find . -type f \( -name "*.sqlite" -o -name "*.sqlite3" -o -name "*.db" -o -name "*.db-journal" -o -name "*.wal" \) -print
 ```
 
@@ -2082,7 +2089,7 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration tests/no_lookahead
 git status --short
-find data -type f ! -name ".gitkeep" -print
+find data -type f ! -name README.md ! -name ".gitkeep" -print
 find . -path "./tests/fixtures/*" -prune -o -type f \( -name "*.parquet" -o -name "*.csv" -o -name "*.jsonl" \) -print
 ```
 
@@ -2327,7 +2334,7 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration tests/no_lookahead
 git status --short
-find data -type f ! -name ".gitkeep" -print
+find data -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -2624,8 +2631,8 @@ python -m pytest tests/unit tests/integration tests/no_lookahead
 python -m alpha_system.cli data validate --help
 python -m alpha_system.cli data build-bars --help
 git status --short
-find data -type f ! -name ".gitkeep" -print
-find metadata -type f ! -name ".gitkeep" -print
+find data -type f ! -name README.md ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -2917,8 +2924,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration
 python -m alpha_system.cli factor validate --help
 git status --short
-find data/factors -type f ! -name ".gitkeep" -print
-find metadata -type f ! -name ".gitkeep" -print
+find data/factors -type f ! -name README.md ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -3185,8 +3192,8 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration tests/no_lookahead
 git status --short
-find data/labels -type f ! -name ".gitkeep" -print
-find metadata -type f ! -name ".gitkeep" -print
+find data/labels -type f ! -name README.md ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -3515,9 +3522,9 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/no_lookahead
 python -m alpha_system.cli factor materialize --help
 git status --short
-find data/factors -type f ! -name ".gitkeep" -print
-find data/labels -type f ! -name ".gitkeep" -print
-find metadata -type f ! -name ".gitkeep" -print
+find data/factors -type f ! -name README.md ! -name ".gitkeep" -print
+find data/labels -type f ! -name README.md ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -3903,8 +3910,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/no_lookahead
 python -m alpha_system.cli study run --help
 git status --short
-find artifacts/factor_studies -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/factor_studies -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -4192,7 +4199,7 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration
 git status --short
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
 ```
 
 If lint/type tools are configured:
@@ -4372,8 +4379,8 @@ StrategySpec must not directly handle:
 Signal records must include enough timing metadata to support no-lookahead validation:
 
 * instrument id,
-* event timestamp,
-* available timestamp,
+* `event_ts`,
+* `available_ts`,
 * session id,
 * bar index,
 * signal type,
@@ -4473,7 +4480,7 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/no_lookahead
 git status --short
 find data -path "*signals*" -type f -print || true
-find metadata -type f ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -4775,8 +4782,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/no_lookahead
 python -m alpha_system.cli backtest run --help
 git status --short
-find artifacts/execution_validations -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/execution_validations -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -5052,8 +5059,8 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration tests/no_lookahead
 git status --short
-find artifacts/execution_validations -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/execution_validations -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -5370,9 +5377,9 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/no_lookahead
 python -m alpha_system.cli management grid --help
 git status --short
-find artifacts/management_studies -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find artifacts/execution_validations -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/management_studies -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find artifacts/execution_validations -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -5657,8 +5664,8 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration
 git status --short
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -5921,8 +5928,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/parity
 python -m pytest tests/performance || true
 git status --short
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -6245,8 +6252,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/parity
 python -m alpha_system.cli grid run --help
 git status --short
-find artifacts/strategy_grids -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/strategy_grids -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -6542,8 +6549,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration
 python -m alpha_system.cli management grid --help
 git status --short
-find artifacts/management_studies -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/management_studies -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -6857,8 +6864,8 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration
 git status --short
-find metadata -type f ! -name ".gitkeep" -print
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
 ```
 
 If lint/type tools are configured:
@@ -7186,8 +7193,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration tests/no_lookahead
 python -m alpha_system.cli ml run --help
 git status --short
-find artifacts/ml_experiments -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/ml_experiments -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 find . -type f \( -name "*.pkl" -o -name "*.joblib" -o -name "*.pickle" -o -name "*.onnx" \) -print
 ```
 
@@ -7483,9 +7490,9 @@ Ralph must run and record:
 ```bash
 python -m pytest tests/unit tests/integration tests/no_lookahead
 git status --short
-find data -type f ! -name ".gitkeep" -print
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find data -type f ! -name README.md ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -7642,9 +7649,9 @@ L2 snapshot schema must include:
 
 * instrument id,
 * session id,
-* event timestamp,
-* receive timestamp,
-* available timestamp,
+* `event_ts`,
+* `receive_ts`,
+* `available_ts`,
 * book level,
 * side,
 * price,
@@ -7657,9 +7664,9 @@ L2 event/delta schema must include:
 
 * instrument id,
 * session id,
-* event timestamp,
-* receive timestamp,
-* available timestamp,
+* `event_ts`,
+* `receive_ts`,
+* `available_ts`,
 * sequence id if available,
 * action/update type,
 * book level if applicable,
@@ -7767,8 +7774,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/no_lookahead
 git status --short
 find data -path "*l2*" -type f -print || true
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -8021,9 +8028,9 @@ Ralph must run and record:
 python -m pytest tests/unit tests/no_lookahead
 git status --short
 find data -path "*l2*" -type f -print || true
-find data/factors -type f ! -name ".gitkeep" -print
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find data/factors -type f ! -name README.md ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If lint/type tools are configured:
@@ -8341,8 +8348,8 @@ Ralph must run and record:
 python -m pytest tests/unit tests/integration
 python -m alpha_system.cli report build --help
 git status --short
-find artifacts/review_bundles -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find artifacts/review_bundles -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If console script is available:
@@ -8624,9 +8631,9 @@ grep -R "broker/live trading" docs AGENTS.md CLAUDE.md README.md || true
 grep -R "git add ." docs AGENTS.md CLAUDE.md README.md || true
 grep -R "git add -A" docs AGENTS.md CLAUDE.md README.md || true
 git status --short
-find data -type f ! -name ".gitkeep" -print
-find artifacts -type f ! -name ".gitkeep" -print 2>/dev/null || true
-find metadata -type f ! -name ".gitkeep" -print
+find data -type f ! -name README.md ! -name ".gitkeep" -print
+find artifacts -type f ! -name README.md ! -name ".gitkeep" -print 2>/dev/null || true
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
 ```
 
 If markdown lint is available, run it and record results:
@@ -8919,9 +8926,16 @@ python -m alpha_system.cli management grid --help
 python -m alpha_system.cli ml run --help
 python -m alpha_system.cli report build --help
 git status --short
-find metadata -type f ! -name ".gitkeep" -print
-find data -type f ! -name ".gitkeep" ! -path "*/tests/fixtures/*" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
+find data -type f ! -name README.md ! -name ".gitkeep" ! -path "*/tests/fixtures/*" -print
 git ls-files | grep -E '(^data/.*\.(parquet|csv|jsonl|db|sqlite)$|^metadata/.*\.(sqlite|db)$|^artifacts/)' || true
+test -f ACTIVE_CAMPAIGN.md
+test -f campaigns/ALPHA_SYSTEM_V1/GOAL.md
+test -f campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
+test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
+test -f campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md
+test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
+test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
 test -f docs/V0_1_VALIDATION.md
 test -f docs/V0_1_RELEASE_NOTES.md
 test -f docs/KNOWN_LIMITATIONS.md

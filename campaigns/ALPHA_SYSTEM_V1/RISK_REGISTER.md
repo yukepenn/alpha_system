@@ -1,5 +1,3 @@
-===== FILE: campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md =====
-
 # ALPHA_SYSTEM_V1 Risk Register
 
 ## Purpose
@@ -1903,7 +1901,7 @@ Medium.
 
 ### Detection Methods
 
-* `find metadata -type f ! -name ".gitkeep"`,
+* `find metadata -type f ! -name README.md ! -name ".gitkeep"`,
 * `find . -name "*.sqlite" -o -name "*.db"`,
 * git ls-files audit,
 * artifact policy checks.
@@ -1956,6 +1954,7 @@ Medium.
 ### Mitigations
 
 * Parquet files forbidden outside documented tiny fixtures.
+* Phase-level Parquet/Arrow/Feather forbidden globs must apply after the documented `tests/fixtures/**` tiny synthetic exception.
 * Local data directories ignored.
 * Fixture exception requires documentation and small size.
 * Merge gate artifact audit.

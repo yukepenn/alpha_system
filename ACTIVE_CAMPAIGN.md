@@ -2,15 +2,13 @@
 
 Project: `alpha_system`
 
-No active campaign is selected yet.
+Campaign: `campaigns/ALPHA_SYSTEM_V1`
+Workflow: `workflow2`
+Run: `not_started`
+Status: `planning`
 
-When work begins, link the current campaign directory here and keep the status current.
+Current phase: `ASV1-P00` — Repo and Harness Bootstrap Policy
 
-Expected format:
+Ralph must update this pointer as phases complete, block, or require repair.
 
-```text
-Campaign: campaigns/<CAMPAIGN_ID>
-Workflow: workflow1 | workflow2
-Run: runs/<RUN_ID>
-Status: planning | running | blocked | complete
-```
+Broker/live trading, paper trading, order routing, raw data commits, heavy artifact commits, local DB commits, and alpha/tradability claims without evidence remain out of scope.

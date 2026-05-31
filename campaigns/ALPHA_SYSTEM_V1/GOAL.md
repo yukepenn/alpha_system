@@ -928,7 +928,7 @@ The campaign must configure and preserve local-only behavior for:
 * local ML model artifacts,
 * local release-validation outputs.
 
-These paths may contain placeholder `.gitkeep` files only when explicitly allowed by phase scope and artifact policy.
+These paths may contain placeholder `.gitkeep` or `README.md` files only when explicitly allowed by phase scope and artifact policy.
 
 ## Commit-Eligible Curated Files
 
@@ -1071,9 +1071,9 @@ Required future schema coverage:
 * price,
 * size,
 * order count if available,
-* event timestamp,
-* receive timestamp,
-* available timestamp,
+* `event_ts`,
+* `receive_ts`,
+* `available_ts`,
 * data version,
 * quality flags.
 

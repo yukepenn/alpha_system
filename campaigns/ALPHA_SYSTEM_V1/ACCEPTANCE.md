@@ -39,7 +39,7 @@ The campaign is accepted when all of the following are true:
 1. `ACTIVE_CAMPAIGN.md` identifies `ALPHA_SYSTEM_V1` as the active campaign or records its completion status.
 2. `campaigns/ALPHA_SYSTEM_V1/GOAL.md` exists and defines the campaign objective, non-goals, architecture principles, local-first stack, Workflow 2 assumptions, success definition, and final outcome.
 3. `campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md` exists and defines campaign-level, layer-level, release-validation, and semantic done-check acceptance gates.
-4. Later campaign control files are generated before execution proceeds beyond Prompt 1, including:
+4. Campaign control files are present before execution proceeds beyond bootstrap, including:
 
    * `campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md`
    * `campaigns/ALPHA_SYSTEM_V1/campaign.yaml`
@@ -223,9 +223,9 @@ Accepted when future L2 schemas are design-ready with:
 * price,
 * size,
 * order count if available,
-* event timestamp,
-* receive timestamp,
-* available timestamp,
+* `event_ts`,
+* `receive_ts`,
+* `available_ts`,
 * data version,
 * quality flags.
 
@@ -971,7 +971,7 @@ Accepted when:
 
 * L2 snapshot schema exists with required fields.
 * L2 delta/event schema exists with required fields.
-* Event timestamp, receive timestamp, and available timestamp are distinct.
+* `event_ts`, `receive_ts`, and `available_ts` are distinct.
 * Side, book level, price, size, order count, data version, and quality flags are represented.
 * Timestamp ordering is tested.
 * Side enum is tested.
@@ -1219,14 +1219,14 @@ The campaign must not be accepted by any of the following shortcuts:
 
 Final artifact audit must verify that committed files do not include:
 
-* `data/raw/**` except allowed `.gitkeep`,
-* `data/canonical/**` except allowed `.gitkeep`,
-* `data/factors/**` except allowed `.gitkeep`,
-* `data/labels/**` except allowed `.gitkeep`,
-* `data/cache/**` except allowed `.gitkeep`,
+* `data/raw/**` except allowed `.gitkeep` or `README.md`,
+* `data/canonical/**` except allowed `.gitkeep` or `README.md`,
+* `data/factors/**` except allowed `.gitkeep` or `README.md`,
+* `data/labels/**` except allowed `.gitkeep` or `README.md`,
+* `data/cache/**` except allowed `.gitkeep` or `README.md`,
 * `metadata/*.sqlite`,
 * `metadata/*.db`,
-* generated files under `artifacts/**` except allowed `.gitkeep` or explicitly curated tiny summaries,
+* generated files under `artifacts/**` except allowed `.gitkeep`, `README.md`, or explicitly curated tiny summaries,
 * large Parquet files,
 * large CSVs,
 * generated logs,
