@@ -16,6 +16,7 @@ FORBIDDEN_SUFFIXES = {
     ".sqlite",
     ".db",
     ".duckdb",
+    ".log",
     ".pt",
     ".pth",
     ".onnx",
@@ -28,8 +29,15 @@ DEFAULT_PLACEHOLDER_DIRS = [
     "data/cache/**",
     "data/canonical/**",
     "data/factors/**",
-    "artifacts/raw/**",
+    "data/labels/**",
+    "metadata/**",
+    "artifacts/**",
 ]
+FORBIDDEN_PREFIXES = (
+    ".frontier/upgrade_reports",
+    "logs",
+    "runs",
+)
 SECRET_TOKENS = {"secret", "secrets"}
 SECRET_TOOLING_TOKENS = {"canary", "forbidden", "guard", "policy", "scan", "scanner", "scanning"}
 TOKEN_TOKENS = {"token", "tokens"}
@@ -77,7 +85,11 @@ def is_forbidden_part(part: str) -> bool:
 
 
 def check_path(path: Path) -> bool:
-    return not any(is_forbidden_part(part) for part in path_parts(path))
+    parts = path_parts(path)
+    normalized = "/".join(parts)
+    if any(normalized == prefix or normalized.startswith(prefix + "/") for prefix in FORBIDDEN_PREFIXES):
+        return False
+    return not any(is_forbidden_part(part) for part in parts)
 
 
 def matches_any(path: str, patterns: list[str]) -> bool:

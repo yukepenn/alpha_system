@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import re
 from pathlib import PurePosixPath
 
 
 FORBIDDEN_SUFFIXES = {
+    ".key",
+    ".pem",
     ".parquet",
     ".feather",
     ".sqlite",
@@ -20,18 +23,26 @@ FORBIDDEN_SUFFIXES = {
     ".pkl",
     ".joblib",
 }
-FORBIDDEN_PARTS = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "cache"}
-RAW_DATA_PREFIXES = {"data/raw", "raw", "artifacts/raw"}
+FORBIDDEN_PARTS = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "cache", "logs"}
+FORBIDDEN_PREFIXES = (".frontier/upgrade_reports", "logs", "runs")
+LOCAL_ONLY_PREFIXES = {"data/raw", "raw", "data/cache", "data/canonical", "data/factors", "data/labels", "metadata", "artifacts"}
 PLACEHOLDER_EXCEPTIONS = ("**/.gitkeep", "**/README.md")
 PLACEHOLDER_DIRS = (
     "data/raw/**",
     "data/cache/**",
     "data/canonical/**",
     "data/factors/**",
-    "artifacts/raw/**",
+    "data/labels/**",
+    "metadata/**",
+    "artifacts/**",
 )
 CURATED_SUFFIXES = {".md", ".json", ".csv"}
 CURATED_PREFIXES = {"docs", "reviews", "handoffs", "specs", "campaigns", "evals", "decisions"}
+SECRET_TOKENS = {"secret", "secrets"}
+SECRET_TOOLING_TOKENS = {"canary", "forbidden", "guard", "policy", "scan", "scanner", "scanning"}
+TOKEN_TOKENS = {"token", "tokens"}
+CREDENTIAL_TOKENS = {"credential", "credentials"}
+TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
 def normalized(path: str) -> str:
@@ -44,6 +55,41 @@ def normalized(path: str) -> str:
 def is_curated_summary(path: str) -> bool:
     parsed = PurePosixPath(normalized(path))
     return parsed.suffix.lower() in CURATED_SUFFIXES and parsed.parts and parsed.parts[0] in CURATED_PREFIXES
+
+
+def effective_name(name: str) -> str:
+    lowered = name.lower()
+    return lowered[:-3] if lowered.endswith(".j2") else lowered
+
+
+def name_tokens(name: str) -> list[str]:
+    return TOKEN_RE.findall(effective_name(name))
+
+
+def has_private_key_tokens(tokens: list[str]) -> bool:
+    return any(left == "private" and right == "key" for left, right in zip(tokens, tokens[1:]))
+
+
+def has_secret_artifact_tokens(tokens: list[str]) -> bool:
+    if not SECRET_TOKENS.intersection(tokens):
+        return False
+    return not SECRET_TOOLING_TOKENS.intersection(tokens)
+
+
+def is_forbidden_part(part: str) -> bool:
+    name = effective_name(part)
+    if name == ".env" or name.startswith(".env."):
+        return True
+    if PurePosixPath(name).suffix.lower() in FORBIDDEN_SUFFIXES:
+        return True
+
+    tokens = name_tokens(part)
+    return (
+        bool(CREDENTIAL_TOKENS.intersection(tokens))
+        or bool(TOKEN_TOKENS.intersection(tokens))
+        or has_private_key_tokens(tokens)
+        or has_secret_artifact_tokens(tokens)
+    )
 
 
 def matches_any(path: str, patterns: tuple[str, ...]) -> bool:
@@ -65,16 +111,18 @@ def is_placeholder_exception(path: str) -> bool:
 
 def forbidden(path: str) -> bool:
     clean = normalized(path)
+    if any(clean == prefix or clean.startswith(prefix + "/") for prefix in FORBIDDEN_PREFIXES):
+        return True
     if is_placeholder_exception(clean):
-        return False
-    if is_curated_summary(clean):
         return False
     parsed = PurePosixPath(clean)
     if parsed.suffix.lower() in FORBIDDEN_SUFFIXES:
         return True
-    if any(part in FORBIDDEN_PARTS for part in parsed.parts):
+    if any(part in FORBIDDEN_PARTS or is_forbidden_part(part) for part in parsed.parts):
         return True
-    return any(clean == prefix or clean.startswith(prefix + "/") for prefix in RAW_DATA_PREFIXES)
+    if is_curated_summary(clean):
+        return False
+    return any(clean == prefix or clean.startswith(prefix + "/") for prefix in LOCAL_ONLY_PREFIXES)
 
 
 def main(argv: list[str] | None = None) -> int:

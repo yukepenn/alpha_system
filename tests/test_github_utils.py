@@ -13,9 +13,13 @@ from tools.frontier.github_utils import (
     classify_ci_checks,
     create_pr,
     find_existing_pr,
+    get_pr_changed_files,
     inspect_branch_protection,
+    list_pr_diff_files,
+    list_pr_checks,
     merge_pr,
     parse_github_remote,
+    view_pr,
     wait_for_ci,
 )
 
@@ -79,6 +83,51 @@ def test_existing_pr_detection() -> None:
 
     assert pr is not None
     assert pr["number"] == 7
+
+
+def test_list_pr_checks_uses_stable_supported_fields() -> None:
+    runner = FakeRunner([Result(["gh"], stdout="[]")])
+
+    checks = list_pr_checks("3", runner=runner)
+
+    assert checks == []
+    assert runner.commands
+    command = runner.commands[0]
+    fields = command[command.index("--json") + 1]
+    assert fields == "name,state,link,bucket,workflow,event,startedAt,completedAt,description"
+    assert "conclusion" not in fields
+
+
+def test_view_pr_requests_head_ref_oid_for_resume() -> None:
+    runner = FakeRunner([Result(["gh"], stdout=json.dumps({"number": 3, "state": "OPEN", "headRefOid": "a" * 40}))])
+
+    result = view_pr("3", runner=runner)
+
+    assert result.ok
+    assert result.metadata["pr"]["headRefOid"] == "a" * 40
+    fields = runner.commands[0][runner.commands[0].index("--json") + 1]
+    assert "headRefOid" in fields
+
+
+def test_pr_diff_files_uses_name_only() -> None:
+    runner = FakeRunner([Result(["gh"], stdout="docs/a.md\n")])
+
+    result = list_pr_diff_files("3", runner=runner)
+
+    assert result.ok
+    assert result.metadata["artifact_source"] == "pr_diff"
+    assert result.metadata["files"] == ["docs/a.md"]
+    assert runner.commands[0][:4] == ["gh", "pr", "diff", "3"]
+    assert "--name-only" in runner.commands[0]
+
+
+def test_get_pr_changed_files_returns_name_only_diff() -> None:
+    runner = FakeRunner([Result(["gh"], stdout="docs/a.md\nsrc/b.py\n")])
+
+    files = get_pr_changed_files("3", runner=runner, repo="owner/repo")
+
+    assert files == ["docs/a.md", "src/b.py"]
+    assert runner.commands[0] == ["gh", "pr", "diff", "3", "--name-only", "--repo", "owner/repo"]
 
 
 def test_create_pr_missing_gh_is_blocked(tmp_path, monkeypatch) -> None:
@@ -186,6 +235,12 @@ def test_ci_classification_success_failure_pending_timeout() -> None:
     assert classify_ci_checks([], timed_out=True).state == "TIMED_OUT"
 
 
+def test_ci_classification_uses_state_and_bucket_without_conclusion() -> None:
+    assert classify_ci_checks([{"name": "validate", "state": "SUCCESS", "bucket": "pass"}]).state == CI_SUCCESS
+    assert classify_ci_checks([{"name": "validate", "state": "FAILURE", "bucket": "fail"}]).state == CI_FAILURE
+    assert classify_ci_checks([{"name": "validate", "state": "QUEUED", "bucket": "pending"}]).state == CI_PENDING
+
+
 def test_ci_required_check_missing_is_not_found() -> None:
     result = classify_ci_checks([{"name": "lint", "conclusion": "success"}], required_checks=["test"])
 
@@ -194,11 +249,25 @@ def test_ci_required_check_missing_is_not_found() -> None:
 
 
 def test_wait_for_ci_success_with_mock_runner() -> None:
-    runner = FakeRunner([Result(["gh"], stdout=json.dumps([{"name": "test", "conclusion": "success"}]))])
+    runner = FakeRunner([Result(["gh"], stdout=json.dumps([{"name": "test", "state": "SUCCESS", "bucket": "pass"}]))])
 
     result = wait_for_ci("3", timeout_seconds=1, poll_seconds=1, required_checks=["test"], runner=runner)
 
     assert result.state == CI_SUCCESS
+
+
+def test_wait_for_ci_polls_not_found_until_required_check_appears() -> None:
+    runner = FakeRunner(
+        [
+            Result(["gh"], stdout="[]"),
+            Result(["gh"], stdout=json.dumps([{"name": "test", "state": "SUCCESS", "bucket": "pass"}])),
+        ]
+    )
+
+    result = wait_for_ci("3", timeout_seconds=1, poll_seconds=0, required_checks=["test"], runner=runner)
+
+    assert result.state == CI_SUCCESS
+    assert len(runner.commands) == 2
 
 
 def test_branch_protection_present(monkeypatch) -> None:

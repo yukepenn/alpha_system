@@ -214,8 +214,11 @@ git:
 
 artifacts:
   allow_commit:
+    - ".gitignore"
     - "AGENTS.md"
     - "CLAUDE.md"
+    - "README.md"
+    - "PROJECT_STATUS.md"
     - "frontier.yaml"
     - "ACTIVE_CAMPAIGN.md"
     - ".codex/**"
@@ -234,6 +237,25 @@ artifacts:
     - "src/**"
     - "tests/**"
     - "configs/**"
+    - "data/**/README.md"
+    - "data/**/.gitkeep"
+    - "metadata/README.md"
+    - "metadata/.gitkeep"
+    - "artifacts/**/README.md"
+    - "artifacts/**/.gitkeep"
+
+  placeholder_exceptions:
+    - "**/.gitkeep"
+    - "**/README.md"
+
+  placeholder_dirs:
+    - "data/raw/**"
+    - "data/cache/**"
+    - "data/canonical/**"
+    - "data/factors/**"
+    - "data/labels/**"
+    - "metadata/**"
+    - "artifacts/**"
 
   forbid_commit:
     - "**/.env"
@@ -265,7 +287,15 @@ artifacts:
     - "**/*_private_key.*"
     - "**/*-private-key.*"
     - "**/data/raw/**"
+    - "**/data/cache/**"
+    - "**/data/canonical/**"
+    - "**/data/factors/**"
+    - "**/data/labels/**"
     - "**/cache/**"
+    - "**/logs/**"
+    - ".frontier/upgrade_reports/**"
+    - "runs/**"
+    - "logs/**"
     - "**/.pytest_cache/**"
     - "**/__pycache__/**"
     - "**/*.parquet"

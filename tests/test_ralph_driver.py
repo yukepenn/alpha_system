@@ -169,6 +169,211 @@ def write_passed_phase_artifacts(run_dir: Path, phase_id: str = "P00") -> Path:
     return phase_dir
 
 
+def write_merge_resume_artifacts(
+    run_dir: Path,
+    phase_id: str = "P00",
+    *,
+    branch: str = "auto/sample/p00-fixture",
+    sha: str = "c" * 40,
+    pr_number: int = 7,
+    changed_files: list[str] | None = None,
+) -> Path:
+    changed_files = changed_files or ["docs/a.md"]
+    phase_dir = write_passed_phase_artifacts(run_dir, phase_id)
+    ralph_driver.write_json(
+        phase_dir / "git_phase.json",
+        {
+            "dry_run": False,
+            "branch": branch,
+            "commit_sha": sha,
+            "changed_files": changed_files,
+            "blocked_files": [],
+        },
+    )
+    (phase_dir / "changed_files.txt").write_text("\n".join(changed_files) + "\n", encoding="utf-8")
+    (phase_dir / "branch.txt").write_text(branch + "\n", encoding="utf-8")
+    (phase_dir / "commit_sha.txt").write_text(sha + "\n", encoding="utf-8")
+    ralph_driver.write_json(
+        phase_dir / "push_branch.json",
+        {
+            "dry_run": False,
+            "branch": branch,
+            "remote": "origin",
+            "return_code": 0,
+            "pushed": True,
+        },
+    )
+    ralph_driver.write_json(
+        phase_dir / "remote_branch.json",
+        {
+            "exists": True,
+            "remote_sha": sha,
+            "local_sha": sha,
+            "matches": True,
+            "return_code": 0,
+            "branch": branch,
+            "remote": "origin",
+        },
+    )
+    ralph_driver.write_json(
+        phase_dir / "pr_create.json",
+        {
+            "action": "create_pr",
+            "dry_run": False,
+            "blocked": False,
+            "return_code": 0,
+            "metadata": {"number": pr_number, "head": branch, "base": "main"},
+        },
+    )
+    ralph_driver.write_json(
+        phase_dir / "ci_status.json",
+        {
+            "state": "SUCCESS",
+            "checks": [{"name": "validate", "state": "SUCCESS", "bucket": "pass"}],
+            "required_checks": [],
+            "missing_required": [],
+            "blocking_checks": [],
+        },
+    )
+    ralph_driver.write_json(
+        phase_dir / "branch_protection.json",
+        {
+            "status": "PASS",
+            "protected": True,
+            "branch": "main",
+            "required_checks": [],
+            "configured_required_checks": [],
+            "missing_required_checks": [],
+        },
+    )
+    return phase_dir
+
+
+def stub_live_pr(
+    monkeypatch,
+    *,
+    sha: str = "c" * 40,
+    diff_files: list[str] | None = None,
+    state: str = "OPEN",
+) -> None:
+    diff_files = diff_files or ["docs/a.md"]
+
+    def fake_view_pr(pr_number, root=ralph_driver.ROOT):
+        del root
+        return GitHubResult(
+            "view_pr",
+            False,
+            ["gh", "pr", "view", str(pr_number), "--json", "headRefOid"],
+            stdout=json.dumps({"number": pr_number, "state": state, "headRefOid": sha}),
+            metadata={"pr": {"number": pr_number, "state": state, "headRefOid": sha}},
+        )
+
+    def fake_pr_diff(pr_number, root=ralph_driver.ROOT):
+        del root
+        return GitHubResult(
+            "pr_diff",
+            False,
+            ["gh", "pr", "diff", str(pr_number), "--name-only"],
+            stdout="\n".join(diff_files) + "\n",
+            metadata={"artifact_source": "pr_diff", "files": diff_files},
+        )
+
+    monkeypatch.setattr(ralph_driver, "view_pr", fake_view_pr)
+    monkeypatch.setattr(ralph_driver, "list_pr_diff_files", fake_pr_diff)
+
+
+def prepare_merge_gate_resume_run(
+    tmp_path: Path,
+    monkeypatch,
+    *,
+    sha: str = "c" * 40,
+    changed_files: list[str] | None = None,
+) -> tuple[Path, Path]:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_ALLOW_AUTOMERGE", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = ralph_driver.MERGE_GATE_BLOCKED
+    phase["branch"] = "auto/sample/p00-fixture"
+    phase["commit_sha"] = sha
+    phase["pr_number"] = 7
+    state["status"] = ralph_driver.MERGE_GATE_BLOCKED
+    state["current_phase_id"] = "P00"
+    state["codex_called_by_driver"] = False
+    state["claude_called_by_driver"] = False
+    phase_dir = write_merge_resume_artifacts(run_dir, sha=sha, changed_files=changed_files)
+    ralph_driver.write_state(run_dir, state)
+    (run_dir / "STOP").write_text("previous merge gate stop\n", encoding="utf-8")
+    return run_dir, phase_dir
+
+
+def stub_successful_resume_gates(monkeypatch, *, order: list[str] | None = None) -> None:
+    order = order if order is not None else []
+    monkeypatch.setattr(ralph_driver, "detect_default_branch", lambda root=ralph_driver.ROOT: "main")
+    monkeypatch.setattr(
+        ralph_driver,
+        "wait_for_ci",
+        lambda *args, **kwargs: order.append("ci")
+        or ralph_driver.classify_ci_checks(
+            [{"name": "validate", "state": "SUCCESS", "bucket": "pass"}],
+            required_checks=[],
+        ),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "inspect_branch_protection",
+        lambda **kwargs: order.append("branch_protection")
+        or BranchProtectionResult(
+            "PASS",
+            True,
+            kwargs["branch"],
+            [],
+            [],
+            [],
+            message="test",
+        ),
+    )
+    real_gate = ralph_driver.evaluate_merge_gate
+
+    def recording_gate(**kwargs):
+        order.append("merge_gate")
+        return real_gate(**kwargs)
+
+    monkeypatch.setattr(ralph_driver, "evaluate_merge_gate", recording_gate)
+    monkeypatch.setattr(
+        ralph_driver,
+        "perform_merge",
+        lambda **kwargs: order.append("merge")
+        or GitHubResult(
+            "merge_pr",
+            False,
+            ["gh", "pr", "merge", str(kwargs["pr_number"])],
+            return_code=0,
+        ),
+    )
+
+
+def run_merge_gate_resume(run_dir: Path) -> int:
+    return ralph_driver.main(
+        [
+            "resume",
+            "--campaign-id",
+            SAMPLE_CAMPAIGN_ID,
+            "--run-dir",
+            str(run_dir),
+            "--phase-id",
+            "P00",
+            "--from-stage",
+            "merge_gate",
+            "--provider-wired",
+            "--no-provider-replay",
+        ]
+    )
+
+
 def stub_validation(monkeypatch) -> None:
     monkeypatch.setattr(
         ralph_driver,
@@ -590,7 +795,7 @@ def test_resume_from_push_block_retries_gates_without_provider_or_new_commit(tmp
         ralph_driver,
         "wait_for_ci",
         lambda *args, **kwargs: ralph_driver.classify_ci_checks(
-            [{"name": "validate", "conclusion": "success"}],
+            [{"name": "validate", "state": "SUCCESS", "bucket": "pass"}],
             required_checks=[],
         ),
     )
@@ -623,6 +828,366 @@ def test_resume_from_push_block_retries_gates_without_provider_or_new_commit(tmp
     assert (phase_dir / "remote_branch.json").is_file()
     assert (phase_dir / "pr_body.md").is_file()
     assert (phase_dir / "pr_create.md").is_file()
+
+
+def test_provider_usage_limit_writes_waiting_handoff_not_blocked(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    monkeypatch.setattr(
+        ralph_driver,
+        "claude_headless",
+        lambda *args, **kwargs: ralph_driver.CommandResult(("claude",), 0, "# Spec\n", ""),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "codex_noninteractive",
+        lambda *args, **kwargs: ralph_driver.CommandResult(
+            ("codex", "exec"),
+            1,
+            "",
+            "Codex limit reached; retry after reset.",
+        ),
+    )
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    phase_dir = run_dir / "phases/P00"
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.WAITING_CODEX_LIMIT
+    assert updated["phases"][0]["status"] == ralph_driver.WAITING_CODEX_LIMIT
+    assert updated["phases"][0]["resume_stage"] == "execute"
+    assert (phase_dir / "provider_limit.json").is_file()
+    assert (phase_dir / "provider_limit_handoff.md").is_file()
+    assert not (phase_dir / "verdict.json").exists()
+    assert "BLOCKED" not in (phase_dir / "provider_limit.md").read_text(encoding="utf-8")
+
+
+def test_generic_provider_nonzero_remains_blocked(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    monkeypatch.setattr(
+        ralph_driver,
+        "claude_headless",
+        lambda *args, **kwargs: ralph_driver.CommandResult(("claude",), 0, "# Spec\n", ""),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "codex_noninteractive",
+        lambda *args, **kwargs: ralph_driver.CommandResult(("codex", "exec"), 1, "", "syntax error"),
+    )
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    phase_dir = run_dir / "phases/P00"
+    updated = state_json(run_dir)
+    assert updated["status"] == "STOPPED"
+    assert updated["phases"][0]["status"] == "BLOCKED"
+    assert not (phase_dir / "provider_limit.json").exists()
+    assert json.loads((phase_dir / "verdict.json").read_text(encoding="utf-8"))["verdict"] == "BLOCKED"
+
+
+def test_resume_from_merge_gate_no_provider_replay_runs_only_deterministic_gates(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_ALLOW_AUTOMERGE", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = ralph_driver.MERGE_GATE_BLOCKED
+    phase["branch"] = "auto/sample/p00-fixture"
+    phase["commit_sha"] = "c" * 40
+    phase["pr_number"] = 7
+    state["status"] = ralph_driver.MERGE_GATE_BLOCKED
+    state["current_phase_id"] = "P00"
+    state["codex_called_by_driver"] = False
+    state["claude_called_by_driver"] = False
+    phase_dir = write_merge_resume_artifacts(run_dir)
+    ralph_driver.write_state(run_dir, state)
+    (run_dir / "STOP").write_text("previous merge gate stop\n", encoding="utf-8")
+    stub_live_pr(monkeypatch, sha="c" * 40, diff_files=["docs/a.md"])
+
+    def provider_called(*args, **kwargs):
+        raise AssertionError("resume from merge_gate must not call Claude or Codex")
+
+    monkeypatch.setattr(ralph_driver, "claude_headless", provider_called)
+    monkeypatch.setattr(ralph_driver, "codex_noninteractive", provider_called)
+    monkeypatch.setattr(ralph_driver, "detect_default_branch", lambda root=tmp_path: "main")
+    order: list[str] = []
+
+    monkeypatch.setattr(
+        ralph_driver,
+        "wait_for_ci",
+        lambda *args, **kwargs: order.append("ci")
+        or ralph_driver.classify_ci_checks(
+            [{"name": "validate", "state": "SUCCESS", "bucket": "pass"}],
+            required_checks=[],
+        ),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "inspect_branch_protection",
+        lambda **kwargs: order.append("branch_protection")
+        or BranchProtectionResult(
+            "PASS",
+            True,
+            kwargs["branch"],
+            [],
+            [],
+            [],
+            message="test",
+        ),
+    )
+    real_gate = ralph_driver.evaluate_merge_gate
+
+    def recording_gate(**kwargs):
+        order.append("merge_gate")
+        return real_gate(**kwargs)
+
+    monkeypatch.setattr(ralph_driver, "evaluate_merge_gate", recording_gate)
+    monkeypatch.setattr(
+        ralph_driver,
+        "perform_merge",
+        lambda **kwargs: order.append("merge")
+        or GitHubResult(
+            "merge_pr",
+            False,
+            ["gh", "pr", "merge", str(kwargs["pr_number"])],
+            return_code=0,
+        ),
+    )
+
+    status = ralph_driver.main(
+        [
+            "resume",
+            "--campaign-id",
+            SAMPLE_CAMPAIGN_ID,
+            "--run-dir",
+            str(run_dir),
+            "--phase-id",
+            "P00",
+            "--from-stage",
+            "merge_gate",
+            "--provider-wired",
+            "--no-provider-replay",
+        ]
+    )
+
+    assert status == 0
+    assert order == ["ci", "branch_protection", "merge_gate", "merge"]
+    updated = state_json(run_dir)
+    assert updated["phases"][0]["status"] == "PASS"
+    assert updated["status"] == "STOPPED"
+    assert updated["auto_merge_performed"] is True
+    assert updated["codex_called_by_driver"] is False
+    assert updated["claude_called_by_driver"] is False
+    assert (phase_dir / "merge_result.json").is_file()
+    artifact_policy = json.loads((phase_dir / "resume_artifact_policy.json").read_text(encoding="utf-8"))
+    assert artifact_policy["artifact_source"] == "pr_diff"
+    assert artifact_policy["changed_files"] == ["docs/a.md"]
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "RUN_RESUME_STAGE" in events
+    assert "RESUME_CI_RERUN" in events
+    assert "RESUME_BRANCH_PROTECTION_RERUN" in events
+    assert "RESUME_MERGE_GATE_RERUN" in events
+    assert "RESUME_PERFORM_MERGE" in events
+    assert "Targeted resume from merge_gate completed" in (run_dir / "RUN_SUMMARY.md").read_text(encoding="utf-8")
+
+
+def test_merge_gate_resume_ignores_untracked_upgrade_reports_not_in_pr_diff(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch)
+    (tmp_path / ".frontier/upgrade_reports").mkdir(parents=True)
+    (tmp_path / ".frontier/upgrade_reports/local.json").write_text("{}\n", encoding="utf-8")
+    stub_live_pr(monkeypatch, diff_files=["docs/a.md"])
+    stub_successful_resume_gates(monkeypatch)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 0
+    artifact_policy = json.loads((phase_dir / "resume_artifact_policy.json").read_text(encoding="utf-8"))
+    assert artifact_policy["artifact_source"] == "pr_diff"
+    assert artifact_policy["blocked_files"] == []
+    assert state_json(run_dir)["phases"][0]["status"] == "PASS"
+
+
+def test_merge_gate_resume_ignores_stale_run_changed_files_when_pr_diff_succeeds(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(
+        tmp_path,
+        monkeypatch,
+        changed_files=[".frontier/upgrade_reports/stale.json"],
+    )
+    stub_live_pr(monkeypatch, diff_files=["docs/a.md"])
+    stub_successful_resume_gates(monkeypatch)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 0
+    artifact_policy = json.loads((phase_dir / "resume_artifact_policy.json").read_text(encoding="utf-8"))
+    assert artifact_policy["artifact_source"] == "pr_diff"
+    assert artifact_policy["changed_files"] == ["docs/a.md"]
+    assert artifact_policy["blocked_files"] == []
+
+
+def test_merge_gate_resume_falls_back_to_run_artifacts_when_pr_diff_unavailable(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(
+        tmp_path,
+        monkeypatch,
+        changed_files=["docs/fallback.md"],
+    )
+    stub_live_pr(monkeypatch, diff_files=["docs/a.md"])
+
+    def fake_pr_diff(pr_number, root=ralph_driver.ROOT):
+        del root
+        return GitHubResult(
+            "pr_diff",
+            False,
+            ["gh", "pr", "diff", str(pr_number), "--name-only"],
+            return_code=1,
+            stderr="temporary gh failure",
+            blocked=True,
+        )
+
+    monkeypatch.setattr(ralph_driver, "list_pr_diff_files", fake_pr_diff)
+    stub_successful_resume_gates(monkeypatch)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 0
+    artifact_policy = json.loads((phase_dir / "resume_artifact_policy.json").read_text(encoding="utf-8"))
+    assert artifact_policy["artifact_source"] == "run_artifacts_fallback"
+    assert artifact_policy["changed_files"] == ["docs/fallback.md"]
+    assert artifact_policy["blocked_files"] == []
+    assert "RESUME_PR_DIFF_FALLBACK" in (run_dir / "events.jsonl").read_text(encoding="utf-8")
+
+
+def test_merge_gate_resume_blocks_live_pr_diff_upgrade_report(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch)
+    stub_live_pr(monkeypatch, diff_files=[".frontier/upgrade_reports/report.json"])
+    order: list[str] = []
+    stub_successful_resume_gates(monkeypatch, order=order)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 1
+    artifact_policy = json.loads((phase_dir / "resume_artifact_policy.json").read_text(encoding="utf-8"))
+    assert artifact_policy["artifact_source"] == "pr_diff"
+    assert ".frontier/upgrade_reports/report.json" in artifact_policy["blocked_files"]
+    assert order == ["ci", "branch_protection", "merge_gate"]
+    assert state_json(run_dir)["phases"][0]["status"] == ralph_driver.MERGE_GATE_BLOCKED
+
+
+def test_merge_gate_resume_head_ref_mismatch_blocks_by_default(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch, sha="c" * 40)
+    stub_live_pr(monkeypatch, sha="d" * 40, diff_files=["docs/a.md"])
+    monkeypatch.setattr(
+        ralph_driver,
+        "wait_for_ci",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("CI must not run on head mismatch.")),
+    )
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 1
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.RESUME_PRECONDITION_FAILED
+    head_check = json.loads((phase_dir / "resume_head_check.json").read_text(encoding="utf-8"))
+    assert head_check["status"] == "MISMATCH"
+    assert "headRefOid does not match" in (phase_dir / "resume_precondition_failed.md").read_text(encoding="utf-8")
+
+
+def test_merge_gate_resume_head_ref_mismatch_requires_override(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch, sha="c" * 40)
+    monkeypatch.setenv("FRONTIER_ALLOW_RESUME_HEAD_MISMATCH", "1")
+    stub_live_pr(monkeypatch, sha="d" * 40, diff_files=["docs/a.md"])
+    stub_successful_resume_gates(monkeypatch)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 0
+    head_check = json.loads((phase_dir / "resume_head_check.json").read_text(encoding="utf-8"))
+    assert head_check["status"] == "MISMATCH"
+    assert head_check["override_allowed"] is True
+    assert "RESUME_HEAD_MISMATCH_OVERRIDDEN" in (run_dir / "events.jsonl").read_text(encoding="utf-8")
+
+
+def test_merge_gate_resume_already_merged_pr_marks_phase_complete(tmp_path, monkeypatch) -> None:
+    run_dir, _phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch)
+    stub_live_pr(monkeypatch, state="MERGED", diff_files=[".frontier/upgrade_reports/report.json"])
+    monkeypatch.setattr(
+        ralph_driver,
+        "wait_for_ci",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("CI must not run for an already merged PR.")),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "perform_merge",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("Merge must not run for an already merged PR.")),
+    )
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 0
+    updated = state_json(run_dir)
+    assert updated["phases"][0]["status"] == "PASS"
+    assert updated["phases"][0]["merged"] is True
+    assert "RESUME_PR_ALREADY_MERGED" in (run_dir / "events.jsonl").read_text(encoding="utf-8")
+
+
+def test_resume_from_merge_gate_refuses_missing_prior_artifacts(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = ralph_driver.MERGE_GATE_BLOCKED
+    state["status"] = ralph_driver.MERGE_GATE_BLOCKED
+    state["current_phase_id"] = "P00"
+    phase_dir = run_dir / "phases/P00"
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "spec.md").write_text("# Existing Spec\n", encoding="utf-8")
+    (phase_dir / "executor_output.md").write_text("# Existing Execution\n", encoding="utf-8")
+    (phase_dir / "validation.md").write_text("# Validation\n", encoding="utf-8")
+    ralph_driver.write_state(run_dir, state)
+
+    status = ralph_driver.main(
+        [
+            "resume",
+            "--campaign-id",
+            SAMPLE_CAMPAIGN_ID,
+            "--run-dir",
+            str(run_dir),
+            "--phase-id",
+            "P00",
+            "--from-stage",
+            "merge_gate",
+            "--provider-wired",
+            "--no-provider-replay",
+        ]
+    )
+
+    assert status == 1
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.RESUME_PRECONDITION_FAILED
+    failure = (phase_dir / "resume_precondition_failed.md").read_text(encoding="utf-8")
+    assert "review: review.md" in failure
+    assert "review: verdict.json" in failure
+    assert "done_check: done_check.json" in failure
+    assert "pr: pr_create.json" in failure
 
 
 def test_claude_headless_streams_large_review_prompt(tmp_path, monkeypatch) -> None:
@@ -733,6 +1298,7 @@ def test_just_command_semantics_are_provider_wired() -> None:
     run_next = recipe_body(text, "frontier-run-next")
     run_mock = recipe_body(text, "frontier-run-campaign-mock")
     next_mock = recipe_body(text, "frontier-run-next-mock")
+    resume_campaign = recipe_body(text, "frontier-resume-campaign")
     ledger = recipe_body(text, "frontier-run-campaign-ledger")
     overnight = recipe_body(text, "frontier-run-overnight")
     heartbeat = recipe_body(text, "frontier-heartbeat")
@@ -746,6 +1312,9 @@ def test_just_command_semantics_are_provider_wired() -> None:
     assert "--provider-wired" in run_mock
     assert "FRONTIER_MOCK_PROVIDERS=1" in next_mock
     assert "FRONTIER_MAX_PHASES=1" in next_mock
+    assert "--from-stage" in resume_campaign
+    assert "--no-provider-replay" in resume_campaign
+    assert "FRONTIER_NO_PROVIDER_REPLAY=1" in resume_campaign
     assert "--ledger-only" in ledger
     assert "FRONTIER_RUN_MODE=overnight" in overnight
     assert "heartbeat.json" in heartbeat

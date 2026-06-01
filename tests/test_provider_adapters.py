@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from tools.frontier.command_runner import CommandResult
-from tools.frontier.provider_adapters import ClaudeProviderAdapter, CodexProviderAdapter, MockProviderAdapter
+from tools.frontier.provider_adapters import (
+    PROVIDER_BLOCKED,
+    WAITING_CLAUDE_LIMIT,
+    WAITING_CODEX_LIMIT,
+    WAITING_PROVIDER_LIMIT,
+    ClaudeProviderAdapter,
+    CodexProviderAdapter,
+    MockProviderAdapter,
+    classify_provider_nonzero,
+)
 from tools.frontier.provider_config import load_provider_config
 
 
@@ -86,3 +95,25 @@ def test_codex_prompt_uses_stdin_for_large_prompts(tmp_path, monkeypatch) -> Non
     assert kwargs["stdin_text"] == prompt
     assert prompt not in command
     assert sum(len(part) for part in command) < 1000
+
+
+def test_provider_usage_limits_classify_as_waiting_limit_statuses() -> None:
+    samples = [
+        "usage limit reached",
+        "rate limit exceeded",
+        "quota exceeded",
+        "5-hour limit resets at 12:00",
+        "too many requests 429 retry after 60",
+        "Claude Code usage limit reached",
+        "Codex limit reached",
+    ]
+
+    for sample in samples:
+        assert classify_provider_nonzero("provider", "", sample, 1) == WAITING_PROVIDER_LIMIT
+        assert classify_provider_nonzero("claude", "", sample, 1) == WAITING_CLAUDE_LIMIT
+        assert classify_provider_nonzero("codex", "", sample, 1) == WAITING_CODEX_LIMIT
+
+
+def test_generic_provider_nonzero_remains_blocked() -> None:
+    assert classify_provider_nonzero("codex", "", "syntax error", 1) == PROVIDER_BLOCKED
+    assert classify_provider_nonzero("claude", "", "connection reset by peer", 1) == PROVIDER_BLOCKED

@@ -84,6 +84,9 @@ frontier-run-workflow2-goal:
 frontier-resume $run_id:
     python tools/frontier/ralph_driver.py resume --run-id "$run_id" --provider-wired
 
+frontier-resume-campaign $campaign_id $run_dir $phase_id $from_stage="merge_gate":
+    FRONTIER_NO_PROVIDER_REPLAY=1 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --run-dir "$run_dir" --phase-id "$phase_id" --from-stage "$from_stage" --provider-wired --no-provider-replay
+
 frontier-stop $run_id:
     touch "runs/$run_id/STOP"
 
