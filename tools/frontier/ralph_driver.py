@@ -1,11 +1,12 @@
 """Local Ralph Workflow 2 driver for alpha_system.
 
 This module intentionally avoids GitHub operations, merge operations,
-deployment, trading, broker calls, browser access, and destructive cleanup.
+deployment, live trading, paper trading, broker calls, browser access, and
+destructive cleanup.
 
 It includes a deterministic local toy campaign for Workflow 2 readiness, a
-ledger-only ALPHA_SYSTEM_V1 mode, and a provider-wired local conductor for
-ALPHA_SYSTEM_V1 that can be exercised with deterministic mock providers.
+generic ledger-only mode, and a generic provider-wired local conductor that can
+be exercised with deterministic mock providers.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,9 +23,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 TOY_CAMPAIGN_ID = "G005_WORKFLOW2_TOY"
-ALPHA_SYSTEM_V1_CAMPAIGN_ID = "ALPHA_SYSTEM_V1"
 LEDGER_ONLY_DRIVER = "ralph_frontier_strict_ledger_only_v1"
 PROVIDER_WIRED_DRIVER = "ralph_frontier_provider_wired_mvc_v1"
+SCAFFOLD_DRIVER = "ralph_frontier_strict_scaffold"
 DEFAULT_MAX_REPAIR_ATTEMPTS = 1
 REQUIRED_CAMPAIGN_FILES = (
     "GOAL.md",
@@ -35,13 +35,6 @@ REQUIRED_CAMPAIGN_FILES = (
     "RISK_REGISTER.md",
     "RUNBOOK.md",
 )
-ASV1_PHASE_RE = re.compile(r"ASV1-P\d{2}")
-ASV1_TABLE_ROW_RE = re.compile(
-    r"^\|\s*(ASV1-P\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|",
-    re.MULTILINE,
-)
-ASV1_SECTION_RE = re.compile(r"^##\s+(ASV1-P\d{2})\s+[\u2014-]\s+(.+?)\s*$", re.MULTILINE)
-EXPECTED_ASV1_PHASE_IDS = tuple(f"ASV1-P{index:02d}" for index in range(30))
 PASSING_VERDICTS = {"PASS", "PASS_WITH_WARNINGS"}
 FORBIDDEN_GIT_ADD_DOT = "git add" + " ."
 FORBIDDEN_GIT_ADD_ALL = "git add" + " -A"
@@ -153,7 +146,7 @@ def nested_int(data: dict[str, Any], path: tuple[str, ...]) -> int | None:
     return parse_positive_int(current, ".".join(path))
 
 
-def campaign_phase_limit(campaign: "LedgerCampaign") -> int:
+def campaign_phase_limit(campaign: LedgerCampaign) -> int:
     for path in (
         ("workflow2", "max_phases"),
         ("workflow", "max_phases"),
@@ -167,7 +160,7 @@ def campaign_phase_limit(campaign: "LedgerCampaign") -> int:
 
 
 def resolve_max_phases(
-    campaign: "LedgerCampaign",
+    campaign: LedgerCampaign,
     explicit_max_phases: int | None,
 ) -> tuple[int, str]:
     if explicit_max_phases is not None:
@@ -257,7 +250,7 @@ def load_campaign_yaml(campaign_id: str, campaign_dir: Path) -> dict[str, Any]:
     try:
         import yaml
     except ImportError as error:
-        raise ValueError("PyYAML is required to parse campaign.yaml for ledger-only runs.") from error
+        raise ValueError("PyYAML is required to parse campaign.yaml for Workflow 2 runs.") from error
 
     try:
         data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
@@ -273,151 +266,82 @@ def load_campaign_yaml(campaign_id: str, campaign_dir: Path) -> dict[str, Any]:
     phases = data.get("phases")
     if not isinstance(phases, list):
         raise ValueError(f"Campaign {campaign_id} campaign.yaml must contain a phases list.")
+    if not phases:
+        raise ValueError(f"Campaign {campaign_id} campaign.yaml must contain at least one phase.")
     return data
 
 
-def yaml_phase_index(campaign_yaml: dict[str, Any], campaign_id: str) -> dict[str, dict[str, Any]]:
-    phases = campaign_yaml.get("phases")
-    if not isinstance(phases, list):
-        raise ValueError(f"Campaign {campaign_id} campaign.yaml must contain a phases list.")
-
-    indexed: dict[str, dict[str, Any]] = {}
-    for offset, phase in enumerate(phases, start=1):
-        if not isinstance(phase, dict):
-            raise ValueError(f"Campaign {campaign_id} phase entry {offset} must be a mapping.")
-        phase_id = phase.get("id") or phase.get("phase_id")
-        if not isinstance(phase_id, str) or not phase_id:
-            raise ValueError(f"Campaign {campaign_id} phase entry {offset} is missing an id.")
-        if phase_id in indexed:
-            raise ValueError(f"Campaign {campaign_id} campaign.yaml repeats phase id {phase_id}.")
-        indexed[phase_id] = phase
-    return indexed
-
-
-def clean_cell(value: str | None) -> str | None:
+def clean_text(value: Any) -> str | None:
     if value is None:
         return None
-    cleaned = re.sub(r"\s+", " ", value.replace("`", "")).strip()
+    cleaned = " ".join(str(value).replace("`", "").split()).strip()
     return cleaned or None
 
 
-def parse_dependencies(raw: str | None, *, phase_id: str) -> tuple[str, ...]:
-    cleaned = clean_cell(raw)
-    if cleaned is None:
+def parse_phase_dependencies(raw: Any, *, campaign_id: str, phase_id: str) -> tuple[str, ...]:
+    if raw is None:
         return ()
-    normalized = cleaned.lower().strip(".")
-    if normalized in {"none", "n/a", "na", "[]"}:
-        return ()
-    dependencies = tuple(ASV1_PHASE_RE.findall(cleaned))
-    if not dependencies:
-        raise ValueError(f"Could not parse dependencies for {phase_id}: {raw!r}")
-    return dependencies
-
-
-def section_field(section_text: str, heading: str) -> str | None:
-    heading_match = re.search(rf"^###\s+{re.escape(heading)}\s*$", section_text, re.MULTILINE)
-    if not heading_match:
-        return None
-    start = heading_match.end()
-    next_heading = re.search(r"^###\s+", section_text[start:], re.MULTILINE)
-    end = start + next_heading.start() if next_heading else len(section_text)
-    return section_text[start:end].strip()
-
-
-def first_content_line(text: str | None) -> str | None:
-    if text is None:
-        return None
-    for line in text.splitlines():
-        cleaned = clean_cell(line.lstrip("*- "))
+    if not isinstance(raw, list):
+        raise ValueError(f"Campaign {campaign_id} dependencies for {phase_id} must be a list.")
+    dependencies: list[str] = []
+    for dependency in raw:
+        cleaned = clean_text(dependency)
         if cleaned:
-            return cleaned
-    return None
+            dependencies.append(cleaned)
+    return tuple(dependencies)
 
 
-def parse_asv1_phase_plan(
-    phase_plan_text: str,
-    campaign_yaml: dict[str, Any] | None = None,
-) -> tuple[LedgerPhase, ...]:
-    yaml_phases = yaml_phase_index(campaign_yaml, ALPHA_SYSTEM_V1_CAMPAIGN_ID) if campaign_yaml else {}
+def parse_campaign_phases(campaign_yaml: dict[str, Any], campaign_id: str) -> tuple[LedgerPhase, ...]:
+    raw_phases = campaign_yaml.get("phases")
+    if not isinstance(raw_phases, list):
+        raise ValueError(f"Campaign {campaign_id} campaign.yaml must contain a phases list.")
+
+    default_lane = clean_text(campaign_yaml.get("default_lane"))
     phases: list[LedgerPhase] = []
-
-    for match in ASV1_TABLE_ROW_RE.finditer(phase_plan_text):
-        phase_id = match.group(1).strip()
-        name = clean_cell(match.group(2))
-        lane = clean_cell(match.group(3))
-        dependencies = parse_dependencies(match.group(4), phase_id=phase_id)
-        phases.append(LedgerPhase(phase_id, name, lane, dependencies))
-
-    if not phases:
-        matches = list(ASV1_SECTION_RE.finditer(phase_plan_text))
-        for index, match in enumerate(matches):
-            phase_id = match.group(1).strip()
-            section_start = match.end()
-            section_end = matches[index + 1].start() if index + 1 < len(matches) else len(phase_plan_text)
-            section_text = phase_plan_text[section_start:section_end]
-            name = first_content_line(section_field(section_text, "Phase Name")) or clean_cell(match.group(2))
-            lane = first_content_line(section_field(section_text, "Lane"))
-            dependencies = parse_dependencies(section_field(section_text, "Dependencies"), phase_id=phase_id)
-            phases.append(LedgerPhase(phase_id, name, lane, dependencies))
-
-    if not phases:
-        raise ValueError("PHASE_PLAN.md does not contain any ASV1-PXX phase entries.")
-
     seen: set[str] = set()
+    for offset, raw_phase in enumerate(raw_phases, start=1):
+        if not isinstance(raw_phase, dict):
+            raise ValueError(f"Campaign {campaign_id} phase entry {offset} must be a mapping.")
+        phase_id = clean_text(raw_phase.get("id") or raw_phase.get("phase_id"))
+        if not phase_id:
+            raise ValueError(f"Campaign {campaign_id} phase entry {offset} is missing an id.")
+        if phase_id in seen:
+            raise ValueError(f"Campaign {campaign_id} campaign.yaml repeats phase id {phase_id}.")
+        seen.add(phase_id)
+
+        dependencies = parse_phase_dependencies(
+            raw_phase.get("dependencies", raw_phase.get("depends_on", [])),
+            campaign_id=campaign_id,
+            phase_id=phase_id,
+        )
+        phases.append(
+            LedgerPhase(
+                phase_id=phase_id,
+                name=clean_text(raw_phase.get("name") or raw_phase.get("title")),
+                lane=clean_text(raw_phase.get("lane")) or default_lane,
+                dependencies=dependencies,
+            )
+        )
+
+    phase_ids = {phase.phase_id for phase in phases}
     for phase in phases:
-        if phase.phase_id in seen:
-            raise ValueError(f"PHASE_PLAN.md repeats phase id {phase.phase_id}.")
-        seen.add(phase.phase_id)
-
-        yaml_phase = yaml_phases.get(phase.phase_id)
-        if campaign_yaml is not None and yaml_phase is None:
-            raise ValueError(f"PHASE_PLAN.md lists {phase.phase_id}, but campaign.yaml does not.")
-        if yaml_phase is None:
-            continue
-
-        yaml_name = clean_cell(str(yaml_phase.get("name"))) if yaml_phase.get("name") is not None else None
-        yaml_lane = clean_cell(str(yaml_phase.get("lane"))) if yaml_phase.get("lane") is not None else None
-        yaml_dependencies_raw = yaml_phase.get("dependencies", [])
-        if not isinstance(yaml_dependencies_raw, list):
-            raise ValueError(f"campaign.yaml dependencies for {phase.phase_id} must be a list.")
-        yaml_dependencies = tuple(str(dependency) for dependency in yaml_dependencies_raw)
-
-        if phase.name and yaml_name and phase.name != yaml_name:
+        unknown = [dependency for dependency in phase.dependencies if dependency not in phase_ids]
+        if unknown:
             raise ValueError(
-                f"PHASE_PLAN.md and campaign.yaml disagree on name for {phase.phase_id}: "
-                f"{phase.name!r} != {yaml_name!r}."
+                f"Campaign {campaign_id} phase {phase.phase_id} has unknown dependencies: "
+                f"{', '.join(unknown)}."
             )
-        if phase.lane and yaml_lane and phase.lane.upper() != yaml_lane.upper():
-            raise ValueError(
-                f"PHASE_PLAN.md and campaign.yaml disagree on lane for {phase.phase_id}: "
-                f"{phase.lane!r} != {yaml_lane!r}."
-            )
-        if phase.dependencies != yaml_dependencies:
-            raise ValueError(
-                f"PHASE_PLAN.md and campaign.yaml disagree on dependencies for {phase.phase_id}: "
-                f"{list(phase.dependencies)!r} != {list(yaml_dependencies)!r}."
-            )
-
+        if phase.phase_id in phase.dependencies:
+            raise ValueError(f"Campaign {campaign_id} phase {phase.phase_id} depends on itself.")
     return tuple(phases)
 
 
-def validate_asv1_phase_sequence(phases: tuple[LedgerPhase, ...]) -> None:
-    phase_ids = tuple(phase.phase_id for phase in phases)
-    if phase_ids != EXPECTED_ASV1_PHASE_IDS:
-        raise ValueError(
-            "ALPHA_SYSTEM_V1 PHASE_PLAN.md must contain ASV1-P00 through ASV1-P29 in order."
-        )
-
-
 def load_ledger_campaign(campaign_id: str) -> LedgerCampaign:
-    if campaign_id != ALPHA_SYSTEM_V1_CAMPAIGN_ID:
-        raise ValueError(f"Ledger-only support is implemented only for {ALPHA_SYSTEM_V1_CAMPAIGN_ID}.")
     campaign_dir = require_campaign_files(campaign_id)
     goal_text = (campaign_dir / "GOAL.md").read_text(encoding="utf-8")
     phase_plan_text = (campaign_dir / "PHASE_PLAN.md").read_text(encoding="utf-8")
     campaign_yaml = load_campaign_yaml(campaign_id, campaign_dir)
-    phases = parse_asv1_phase_plan(phase_plan_text, campaign_yaml)
-    validate_asv1_phase_sequence(phases)
+    phases = parse_campaign_phases(campaign_yaml, campaign_id)
     return LedgerCampaign(campaign_id, goal_text, phase_plan_text, campaign_yaml, phases)
 
 
@@ -874,7 +798,11 @@ def phase_label(phase: dict[str, Any]) -> str:
     return f"{phase['phase_id']} - {name}" if name else phase["phase_id"]
 
 
-def spec_generation_prompt(phase: dict[str, Any]) -> str:
+def campaign_file_list(campaign_id: str) -> str:
+    return "\n".join(f"- campaigns/{campaign_id}/{name}" for name in REQUIRED_CAMPAIGN_FILES)
+
+
+def spec_generation_prompt(phase: dict[str, Any], campaign_id: str) -> str:
     dependencies = ", ".join(phase.get("dependencies") or []) or "none"
     return f"""You are Claude running in headless mode for Frontier Workflow 2.
 
@@ -882,14 +810,10 @@ Read these repository files before producing output:
 - AGENTS.md
 - CLAUDE.md
 - frontier.yaml
-- campaigns/ALPHA_SYSTEM_V1/GOAL.md
-- campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
-- campaigns/ALPHA_SYSTEM_V1/campaign.yaml
-- campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md
-- campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
-- campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
+{campaign_file_list(campaign_id)}
 
 Generate a concrete phase spec for exactly one phase:
+- Campaign: {campaign_id}
 - Phase: {phase_label(phase)}
 - Lane: {phase.get("lane") or "unknown"}
 - Dependencies: {dependencies}
@@ -898,7 +822,7 @@ Requirements:
 - Obey the allowed and forbidden scope in the campaign files.
 - Keep the spec local-first and safe.
 - Do not implement anything.
-- Do not introduce live trading, paper trading, broker calls, IBKR actions, destructive cleanup, deployment, PR creation, or auto-merge.
+- Do not introduce live trading, paper trading, broker calls, destructive cleanup, deployment, PR creation, or auto-merge.
 - Make validation commands explicit and safe for this phase.
 - Require explicit staging only; forbid `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, and force push.
 - Output markdown only.
@@ -911,7 +835,7 @@ def executor_prompt(phase: dict[str, Any], spec_text: str, phase_dir: Path) -> s
 Execute exactly the generated phase spec below for {phase_label(phase)}. Do not broaden scope.
 
 Safety rules:
-- Do not perform live trading, paper trading, broker operations, IBKR actions, order routing, production deployment, PR creation, auto-merge, or destructive cleanup.
+- Do not perform live trading, paper trading, broker operations, order routing, production deployment, PR creation, auto-merge, or destructive cleanup.
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
 - Keep generated local-only artifacts out of git.
@@ -927,14 +851,20 @@ Generated spec:
 """
 
 
-def review_prompt(phase: dict[str, Any], spec_text: str, executor_text: str, validation_text: str) -> str:
+def review_prompt(
+    phase: dict[str, Any],
+    campaign_id: str,
+    spec_text: str,
+    executor_text: str,
+    validation_text: str,
+) -> str:
     return f"""You are Claude reviewing one Frontier Workflow 2 phase.
 
 Review phase {phase_label(phase)} against:
 - AGENTS.md
 - CLAUDE.md
 - frontier.yaml
-- campaigns/ALPHA_SYSTEM_V1 files
+- campaigns/{campaign_id} files
 - the generated phase spec
 - executor output
 - validation output
@@ -945,7 +875,7 @@ VERDICT: PASS_WITH_WARNINGS
 VERDICT: REWORK
 VERDICT: BLOCKED
 
-Be conservative. Block broker/live/paper/IBKR scope, destructive operations, hidden failed runs, test weakening, artifact policy violations, unsupported alpha claims, and scope drift.
+Be conservative. Block broker/live/paper scope, destructive operations, hidden failed runs, test weakening, artifact policy violations, unsupported claims, and scope drift.
 
 Generated spec:
 
@@ -967,7 +897,7 @@ def repair_prompt(phase: dict[str, Any], spec_text: str, review_text: str, valid
 Repair only valid in-scope findings for {phase_label(phase)}. Do not broaden scope.
 
 Safety rules:
-- Do not perform live trading, paper trading, broker operations, IBKR actions, order routing, production deployment, PR creation, auto-merge, or destructive cleanup.
+- Do not perform live trading, paper trading, broker operations, order routing, production deployment, PR creation, auto-merge, or destructive cleanup.
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
 
@@ -1005,7 +935,7 @@ Allowed:
 
 Forbidden:
 - Production source changes.
-- Live trading, paper trading, broker operations, IBKR actions, order routing, deployment, PR creation, auto-merge, or destructive cleanup.
+- Live trading, paper trading, broker operations, order routing, deployment, PR creation, auto-merge, or destructive cleanup.
 
 ## Validation
 
@@ -1048,7 +978,7 @@ def provider_handoff_text(phase: dict[str, Any], verdict: str, mock_enabled: boo
 
 ## Safety
 
-- No GitHub operation, PR creation, auto-merge, deployment, broker operation, paper trading, live trading, or IBKR action was performed by the conductor.
+- No GitHub operation, PR creation, auto-merge, deployment, broker operation, paper trading, or live trading was performed by the conductor.
 
 ## Validation
 
@@ -1130,7 +1060,7 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
     write_state(run_dir, state)
     progress(run_dir, f"Selected {phase_id}.")
 
-    spec_prompt_text = spec_generation_prompt(phase)
+    spec_prompt_text = spec_generation_prompt(phase, state["campaign_id"])
     (phase_dir / "spec_prompt.md").write_text(spec_prompt_text, encoding="utf-8")
     if mock_enabled:
         spec_text = mock_spec_text(phase)
@@ -1184,7 +1114,13 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
     append_event(run_dir, state, "VALIDATED", phase_id=phase_id)
     write_state(run_dir, state)
 
-    review_prompt_text = review_prompt(phase, spec_text, executor_text, validation_text)
+    review_prompt_text = review_prompt(
+        phase,
+        state["campaign_id"],
+        spec_text,
+        executor_text,
+        validation_text,
+    )
     (phase_dir / "review_prompt.md").write_text(review_prompt_text, encoding="utf-8")
     if mock_enabled:
         review_text = mock_review_text(phase)
@@ -1254,7 +1190,13 @@ def run_provider_repair_once(
         write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_validation")
         return "BLOCKED"
 
-    review_prompt_text = review_prompt(phase, spec_text, repair_text, repair_validation_text)
+    review_prompt_text = review_prompt(
+        phase,
+        state["campaign_id"],
+        spec_text,
+        repair_text,
+        repair_validation_text,
+    )
     (phase_dir / "review_prompt.md").write_text(review_prompt_text, encoding="utf-8")
     if mock_enabled:
         repaired_review_text = mock_review_text(phase)
@@ -1328,8 +1270,6 @@ def continue_provider_wired_run(
 
 def run_provider_wired_campaign(campaign_id: str, max_phases: int | None) -> int:
     try:
-        if campaign_id != ALPHA_SYSTEM_V1_CAMPAIGN_ID:
-            raise ValueError(f"Provider-wired support is implemented only for {ALPHA_SYSTEM_V1_CAMPAIGN_ID}.")
         campaign = load_ledger_campaign(campaign_id)
         resolved_max_phases, source = resolve_max_phases(campaign, max_phases)
         run_dir = initialize_provider_wired_run(campaign, resolved_max_phases, source)
@@ -1585,7 +1525,7 @@ def init_scaffold_run(campaign_id: str, goal: str | None, lane: str) -> Path:
         "run_id": run_id,
         "campaign_id": campaign_id,
         "workflow": "workflow2",
-        "driver": "ralph_frontier_strict_scaffold",
+        "driver": SCAFFOLD_DRIVER,
         "status": "RUNNING",
         "current_phase_id": None,
         "current_micro_attempt": 0,
@@ -1607,7 +1547,10 @@ def init_scaffold_run(campaign_id: str, goal: str | None, lane: str) -> Path:
     )
     (run_dir / "costs.jsonl").write_text("", encoding="utf-8")
     (run_dir / "progress.txt").write_text("Run initialized. Provider execution is not wired yet.\n", encoding="utf-8")
-    (run_dir / "prd.json").write_text(json.dumps({"goal": goal, "campaign_id": campaign_id}, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "prd.json").write_text(
+        json.dumps({"goal": goal, "campaign_id": campaign_id}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     (run_dir / "RUN_GOAL.md").write_text(f"# Run Goal\n\n{goal or campaign_id}\n", encoding="utf-8")
     (run_dir / "RUN_SUMMARY.md").write_text(
         "# Run Summary\n\nStatus: initialized scaffold. No provider execution was performed.\n",
@@ -1625,13 +1568,18 @@ def run_campaign(
     provider_wired: bool = False,
     max_phases: int | None = None,
 ) -> int:
+    if ledger_only:
+        if not campaign_id:
+            print("Ledger-only mode requires --campaign-id.")
+            return 2
+        return run_ledger_only_campaign(campaign_id)
+    if provider_wired:
+        if not campaign_id:
+            print("Provider-wired mode requires --campaign-id.")
+            return 2
+        return run_provider_wired_campaign(campaign_id, max_phases)
     if campaign_id == TOY_CAMPAIGN_ID:
         return run_toy_campaign(campaign_id)
-    if campaign_id == ALPHA_SYSTEM_V1_CAMPAIGN_ID:
-        if ledger_only:
-            return run_ledger_only_campaign(campaign_id)
-        if provider_wired or not ledger_only:
-            return run_provider_wired_campaign(campaign_id, max_phases)
 
     resolved_campaign = campaign_id or "AD_HOC_GOAL"
     run_dir = init_scaffold_run(resolved_campaign, goal, lane)
@@ -1697,10 +1645,10 @@ def resume(run_id: str, *, provider_wired: bool = False, max_phases: int | None 
 
     state = read_json(state_path)
     if state.get("driver") == PROVIDER_WIRED_DRIVER or (
-        provider_wired and state.get("campaign_id") == ALPHA_SYSTEM_V1_CAMPAIGN_ID
+        provider_wired and state.get("provider_wired") is True
     ):
         return resume_provider_wired_run(run_dir, state, max_phases)
-    if state.get("campaign_id") == ALPHA_SYSTEM_V1_CAMPAIGN_ID or state.get("driver") == LEDGER_ONLY_DRIVER:
+    if state.get("driver") == LEDGER_ONLY_DRIVER:
         return resume_ledger_only_run(run_dir, state)
     if state.get("campaign_id") != TOY_CAMPAIGN_ID:
         print(f"Resume scaffold for {run_id}. Inspect {run_dir / 'state.json'}")

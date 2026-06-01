@@ -18,10 +18,11 @@ Ralph strict autonomous campaign loop scaffold:
 campaign -> phase spec -> execute -> checks -> handoff -> review -> repair or merge gate -> done-check -> next phase
 ```
 
-ASV1-P00B wires the local minimum viable ALPHA_SYSTEM_V1 conductor:
-`frontier-run-campaign` is campaign-loop mode, while `frontier-run-next`
-or `FRONTIER_MAX_PHASES=1` runs one safe smoke/debug phase.
+The generic Workflow 2 MVP includes:
 
-ASV1-P00B also fixes the initial GitHub Actions CI bootstrap issue by
-installing minimal Python test dependencies and skipping pytest only when
-Python tests are genuinely absent.
+- `just frontier-run-campaign <campaign_id>` for provider-wired campaign-loop mode.
+- `FRONTIER_MAX_PHASES=1 just frontier-run-campaign <campaign_id>` or `just frontier-run-next <campaign_id>` for one-phase smoke/debug mode.
+- `just frontier-run-campaign-mock <campaign_id>` and `just frontier-run-next-mock <campaign_id>` for deterministic mock-provider runs.
+- `just frontier-run-campaign-ledger <campaign_id>` for ledger-only state and artifacts with no phase execution.
+
+The conductor never performs GitHub operations, PR creation, auto-merge, deployment, live trading, paper trading, or broker actions. Provider calls are only attempted outside mock mode, and mock mode remains the recommended bootstrap validation path.

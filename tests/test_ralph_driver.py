@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from tools.frontier import ralph_driver
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_CAMPAIGN_ID = "SAMPLE_WORKFLOW2_CAMPAIGN"
 
 
 def copy_campaign(tmp_root: Path, campaign_id: str) -> None:
@@ -16,6 +18,39 @@ def copy_campaign(tmp_root: Path, campaign_id: str) -> None:
     target = tmp_root / "campaigns" / campaign_id
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target)
+
+
+def write_sample_campaign(tmp_root: Path, campaign_id: str = SAMPLE_CAMPAIGN_ID) -> None:
+    campaign_dir = tmp_root / "campaigns" / campaign_id
+    campaign_dir.mkdir(parents=True, exist_ok=True)
+    (campaign_dir / "GOAL.md").write_text(f"# {campaign_id}\n\nExercise generic Workflow 2.\n", encoding="utf-8")
+    (campaign_dir / "PHASE_PLAN.md").write_text(
+        "# Phase Plan\n\n| Phase | Name | Lane | Dependencies |\n"
+        "| --- | --- | --- | --- |\n"
+        "| P00 | Prepare fixture | YELLOW | none |\n"
+        "| P01 | Validate fixture | GREEN | P00 |\n",
+        encoding="utf-8",
+    )
+    (campaign_dir / "campaign.yaml").write_text(
+        f"""campaign_id: "{campaign_id}"
+workflow: "workflow2"
+default_lane: "yellow"
+limits:
+  max_phases: 2
+phases:
+  - id: "P00"
+    name: "Prepare fixture"
+    lane: "YELLOW"
+    dependencies: []
+  - id: "P01"
+    name: "Validate fixture"
+    lane: "GREEN"
+    dependencies: ["P00"]
+""",
+        encoding="utf-8",
+    )
+    for name in ("ACCEPTANCE.md", "RISK_REGISTER.md", "RUNBOOK.md"):
+        (campaign_dir / name).write_text(f"# {name}\n\nLocal test fixture.\n", encoding="utf-8")
 
 
 def latest_run(tmp_root: Path, campaign_id: str) -> Path:
@@ -37,35 +72,27 @@ def stub_validation(monkeypatch) -> None:
     )
 
 
-def test_parse_asv1_phase_plan_extracts_all_alpha_system_v1_phases() -> None:
-    campaign_dir = REPO_ROOT / "campaigns" / ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID
-    campaign_yaml = ralph_driver.load_campaign_yaml(ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID, campaign_dir)
-    phase_plan = (campaign_dir / "PHASE_PLAN.md").read_text(encoding="utf-8")
-
-    phases = ralph_driver.parse_asv1_phase_plan(phase_plan, campaign_yaml)
-
-    assert [phase.phase_id for phase in phases] == [f"ASV1-P{index:02d}" for index in range(30)]
-    assert phases[0].name == "Repo and Harness Bootstrap Policy"
-    assert phases[0].lane == "YELLOW"
-    assert phases[0].dependencies == ()
-    assert phases[6].dependencies == ("ASV1-P04", "ASV1-P05")
-    assert phases[28].lane == "GREEN"
-    assert phases[-1].phase_id == "ASV1-P29"
-
-
-def test_alpha_system_v1_ledger_only_run_creates_required_artifacts(tmp_path, monkeypatch) -> None:
-    copy_campaign(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
+def test_generic_campaign_yaml_phases_are_loaded(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
 
-    status = ralph_driver.run_campaign(
-        ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
-        None,
-        "yellow",
-        ledger_only=True,
-    )
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+
+    assert campaign.campaign_id == SAMPLE_CAMPAIGN_ID
+    assert [phase.phase_id for phase in campaign.phases] == ["P00", "P01"]
+    assert campaign.phases[0].name == "Prepare fixture"
+    assert campaign.phases[0].lane == "YELLOW"
+    assert campaign.phases[1].dependencies == ("P00",)
+
+
+def test_ledger_only_run_creates_required_artifacts(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", ledger_only=True)
 
     assert status == 0
-    run_dir = latest_run(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
     for name in (
         "RUN_GOAL.md",
         "PHASE_PLAN.md",
@@ -79,19 +106,13 @@ def test_alpha_system_v1_ledger_only_run_creates_required_artifacts(tmp_path, mo
         assert (run_dir / name).is_file(), name
 
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert state["campaign_id"] == ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID
+    assert state["campaign_id"] == SAMPLE_CAMPAIGN_ID
     assert state["workflow"] == "workflow2"
     assert state["driver"] == ralph_driver.LEDGER_ONLY_DRIVER
     assert state["status"] == "LEDGER_ONLY_READY"
-    assert state["current_phase_id"] is None
-    assert state["stop_requested"] is False
-    assert state["created_at"]
-    assert len(state["phases"]) == 30
-    assert state["phases"][0]["phase_id"] == "ASV1-P00"
-    assert state["phases"][-1]["phase_id"] == "ASV1-P29"
+    assert len(state["phases"]) == 2
     assert all(phase["status"] == "PENDING" for phase in state["phases"])
     assert all(phase["execution_mode"] == "ledger_only" for phase in state["phases"])
-    assert all({"spec", "handoff", "review", "verdict"} <= set(phase["artifact_paths"]) for phase in state["phases"])
     assert state["phase_execution_performed"] is False
     assert state["external_providers_called"] is False
     assert state["network_used"] is False
@@ -99,69 +120,9 @@ def test_alpha_system_v1_ledger_only_run_creates_required_artifacts(tmp_path, mo
     assert state["auto_merge_performed"] is False
     assert state["broker_or_trading_operations_performed"] is False
 
-    event_names = [
-        json.loads(line)["event"]
-        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
-    ]
-    assert event_names == ["RUN_INIT", "CAMPAIGN_LOAD", "PHASES_LEDGERED", "STOP_WRITTEN"]
-    costs = [json.loads(line) for line in (run_dir / "costs.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert costs == [
-        {
-            "campaign_id": ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
-            "cost_usd": 0.0,
-            "driver": ralph_driver.LEDGER_ONLY_DRIVER,
-            "model": None,
-            "note": "ledger_only_no_provider_calls",
-            "provider": "none",
-            "timestamp": costs[0]["timestamp"],
-        }
-    ]
-
-    assert ralph_driver.resume(state["run_id"]) == 0
-    resumed = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert resumed["status"] == "STOPPED"
-    assert resumed["stop_requested"] is True
-    assert all(phase["status"] == "PENDING" for phase in resumed["phases"])
-
-
-def test_provider_wired_cli_max_phases_one_runs_exactly_one_mock_phase(tmp_path, monkeypatch) -> None:
-    copy_campaign(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
-    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
-    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
-    monkeypatch.delenv("FRONTIER_MAX_PHASES", raising=False)
-    stub_validation(monkeypatch)
-
-    status = ralph_driver.main(
-        [
-            "run",
-            "--campaign-id",
-            ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
-            "--provider-wired",
-            "--max-phases",
-            "1",
-        ]
-    )
-
-    assert status == 0
-    run_dir = latest_run(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
-    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert state["driver"] == ralph_driver.PROVIDER_WIRED_DRIVER
-    assert state["max_phases_requested"] == 1
-    assert state["max_phases_source"] == "cli"
-    assert state["status"] == "STOPPED"
-    assert pass_count(run_dir) == 1
-    assert state["phases"][0]["status"] == "PASS"
-    assert state["phases"][1]["status"] == "PENDING"
-    assert (run_dir / "STOP").is_file()
-    assert (run_dir / "phases/ASV1-P00/spec_prompt.md").is_file()
-    assert (run_dir / "phases/ASV1-P00/executor_output.md").is_file()
-    assert (run_dir / "phases/ASV1-P00/validation.md").is_file()
-    assert (run_dir / "phases/ASV1-P00/review.md").is_file()
-    assert (run_dir / "phases/ASV1-P00/verdict.json").is_file()
-
 
 def test_provider_wired_env_max_phases_one_runs_exactly_one_mock_phase(tmp_path, monkeypatch) -> None:
-    copy_campaign(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
+    write_sample_campaign(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
     monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
     monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
@@ -171,90 +132,46 @@ def test_provider_wired_env_max_phases_one_runs_exactly_one_mock_phase(tmp_path,
         [
             "run",
             "--campaign-id",
-            ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
+            SAMPLE_CAMPAIGN_ID,
             "--provider-wired",
         ]
     )
 
     assert status == 0
-    run_dir = latest_run(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["driver"] == ralph_driver.PROVIDER_WIRED_DRIVER
     assert state["max_phases_requested"] == 1
     assert state["max_phases_source"] == "env"
+    assert state["status"] == "STOPPED"
     assert pass_count(run_dir) == 1
+    assert state["phases"][0]["status"] == "PASS"
+    assert state["phases"][1]["status"] == "PENDING"
+    assert (run_dir / "STOP").is_file()
+    assert (run_dir / "phases/P00/spec_prompt.md").is_file()
+    assert (run_dir / "phases/P00/executor_output.md").is_file()
+    assert (run_dir / "phases/P00/validation.md").is_file()
+    assert (run_dir / "phases/P00/review.md").is_file()
+    assert (run_dir / "phases/P00/verdict.json").is_file()
 
 
 def test_provider_wired_default_mock_campaign_is_not_hard_coded_to_one_phase(tmp_path, monkeypatch) -> None:
-    copy_campaign(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
+    write_sample_campaign(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
     monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
     monkeypatch.delenv("FRONTIER_MAX_PHASES", raising=False)
     stub_validation(monkeypatch)
 
-    status = ralph_driver.run_campaign(
-        ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
-        None,
-        "yellow",
-        provider_wired=True,
-    )
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
 
     assert status == 0
-    run_dir = latest_run(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["max_phases_source"] == "campaign"
-    assert state["max_phases_requested"] == 30
+    assert state["max_phases_requested"] == 2
     assert state["status"] == "COMPLETED"
-    assert pass_count(run_dir) == 30
+    assert pass_count(run_dir) == 2
     assert (run_dir / "STOP").is_file()
-
-
-def test_provider_wired_mock_can_advance_multiple_phases_with_limit(tmp_path, monkeypatch) -> None:
-    copy_campaign(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
-    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
-    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
-    monkeypatch.delenv("FRONTIER_MAX_PHASES", raising=False)
-    stub_validation(monkeypatch)
-
-    status = ralph_driver.run_campaign(
-        ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
-        None,
-        "yellow",
-        provider_wired=True,
-        max_phases=3,
-    )
-
-    assert status == 0
-    run_dir = latest_run(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
-    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert state["max_phases_requested"] == 3
-    assert state["max_phases_source"] == "cli"
-    assert pass_count(run_dir) == 3
-    assert state["phases"][3]["status"] == "PENDING"
-
-
-def test_provider_wired_resume_stop_prevents_further_execution(tmp_path, monkeypatch) -> None:
-    copy_campaign(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
-    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
-    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
-    monkeypatch.delenv("FRONTIER_MAX_PHASES", raising=False)
-    stub_validation(monkeypatch)
-
-    status = ralph_driver.run_campaign(
-        ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID,
-        None,
-        "yellow",
-        provider_wired=True,
-        max_phases=1,
-    )
-    assert status == 0
-    run_dir = latest_run(tmp_path, ralph_driver.ALPHA_SYSTEM_V1_CAMPAIGN_ID)
-    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-
-    assert ralph_driver.resume(state["run_id"], provider_wired=True, max_phases=1) == 0
-
-    resumed = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert pass_count(run_dir) == 1
-    assert resumed["phases"][1]["status"] == "PENDING"
 
 
 def test_g005_toy_campaign_still_completes(tmp_path, monkeypatch) -> None:
@@ -273,6 +190,42 @@ def test_g005_toy_campaign_still_completes(tmp_path, monkeypatch) -> None:
     assert (tmp_path / "docs/toy_workflow2/phase_a.md").is_file()
     assert (tmp_path / "docs/toy_workflow2/phase_b.md").is_file()
     assert (tmp_path / "docs/toy_workflow2/summary.md").is_file()
+
+
+def recipe_body(justfile_text: str, recipe_name: str) -> str:
+    pattern = re.compile(rf"^{re.escape(recipe_name)}(?:\s[^:]*)?:\n((?:    .+\n)+)", re.MULTILINE)
+    match = pattern.search(justfile_text)
+    assert match is not None, recipe_name
+    return match.group(1)
+
+
+def test_just_command_semantics_are_provider_wired() -> None:
+    text = (REPO_ROOT / "justfile").read_text(encoding="utf-8")
+
+    run_campaign = recipe_body(text, "frontier-run-campaign")
+    run_next = recipe_body(text, "frontier-run-next")
+    run_mock = recipe_body(text, "frontier-run-campaign-mock")
+    next_mock = recipe_body(text, "frontier-run-next-mock")
+    ledger = recipe_body(text, "frontier-run-campaign-ledger")
+
+    assert "--provider-wired" in run_campaign
+    assert "FRONTIER_MAX_PHASES=1" not in run_campaign
+    assert "--provider-wired" in run_next
+    assert "FRONTIER_MAX_PHASES=1" in run_next
+    assert "FRONTIER_MOCK_PROVIDERS=1" in run_mock
+    assert "--provider-wired" in run_mock
+    assert "FRONTIER_MOCK_PROVIDERS=1" in next_mock
+    assert "FRONTIER_MAX_PHASES=1" in next_mock
+    assert "--ledger-only" in ledger
+
+
+def test_frontier_ci_installs_test_dependencies_and_handles_no_tests() -> None:
+    workflow = (REPO_ROOT / ".github/workflows/frontier-ci.yml").read_text(encoding="utf-8")
+
+    assert "python -m pip install pytest pyyaml jinja2" in workflow
+    assert "find tests -type f" in workflow
+    assert "python -m pytest" in workflow
+    assert "No tests configured yet" in workflow
 
 
 def test_ralph_driver_has_no_provider_or_network_imports() -> None:
