@@ -305,6 +305,21 @@ def commit_phase_changes(
     commands: list[list[str]] = []
     commands.extend(checkout_or_create_branch(root, branch, dry_run=dry_run))
     commands.extend(stage_paths(root, allowed, dry_run=dry_run))
+    if not dry_run:
+        cached_allowed, cached_blocked = curate_commit_paths(
+            staged_files(root),
+            allow_patterns=allow_patterns,
+            forbid_patterns=forbid_patterns,
+            placeholder_exceptions=placeholder_exceptions,
+            placeholder_dirs=placeholder_dirs,
+        )
+        if cached_blocked:
+            blocked_list = ", ".join(cached_blocked)
+            raise RuntimeError(
+                "Blocked forbidden paths in git diff --cached --name-only before commit: "
+                f"{blocked_list}"
+            )
+        allowed = cached_allowed
     stat = diff_stat(root)
     sha: str | None = None
     pushed = False
