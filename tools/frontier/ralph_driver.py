@@ -28,9 +28,20 @@ if str(ROOT) not in sys.path:
 
 from tools.frontier.command_runner import CommandRunner
 from tools.frontier.config import load_config
-from tools.frontier.git_utils import commit_phase_changes, write_git_phase_artifacts
+from tools.frontier.git_utils import (
+    RemoteBranchResult,
+    PushBranchResult,
+    commit_phase_changes,
+    git,
+    push_phase_branch,
+    verify_remote_branch,
+    write_git_phase_artifacts,
+    write_push_branch_artifacts,
+    write_remote_branch_artifacts,
+)
 from tools.frontier.github_utils import (
     CI_SUCCESS,
+    GitHubResult,
     classify_ci_checks,
     create_pr,
     detect_default_branch,
@@ -38,6 +49,7 @@ from tools.frontier.github_utils import (
     wait_for_ci,
     write_branch_protection_artifacts,
     write_ci_status_artifacts,
+    write_pr_create_artifacts,
 )
 from tools.frontier.merge_gate import evaluate_merge_gate, perform_merge, write_merge_gate_artifacts
 from tools.frontier.provider_adapters import ClaudeProviderAdapter, CodexProviderAdapter
@@ -59,6 +71,18 @@ REQUIRED_CAMPAIGN_FILES = (
     "RUNBOOK.md",
 )
 PASSING_VERDICTS = {"PASS", "PASS_WITH_WARNINGS"}
+PUSH_BLOCKED = "PUSH_BLOCKED"
+REMOTE_BRANCH_BLOCKED = "REMOTE_BRANCH_BLOCKED"
+PR_CREATE_BLOCKED = "PR_CREATE_BLOCKED"
+CI_BLOCKED = "CI_BLOCKED"
+MERGE_GATE_BLOCKED = "MERGE_GATE_BLOCKED"
+GATE_BLOCKED_STATUSES = {
+    PUSH_BLOCKED,
+    REMOTE_BRANCH_BLOCKED,
+    PR_CREATE_BLOCKED,
+    CI_BLOCKED,
+    MERGE_GATE_BLOCKED,
+}
 FORBIDDEN_GIT_ADD_DOT = "git add" + " ."
 FORBIDDEN_GIT_ADD_ALL = "git add" + " -A"
 
@@ -853,7 +877,7 @@ def provider_phase_dir(run_dir: Path, phase: dict[str, Any]) -> Path:
 
 
 def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
-    resumable = {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"}
+    resumable = {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"} | GATE_BLOCKED_STATUSES
     current = state.get("current_phase_id")
     if current:
         for phase in state["phases"]:
@@ -869,7 +893,7 @@ def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
 
 def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | None = None) -> None:
     passing = [phase for phase in state["phases"] if phase["status"] in PASSING_VERDICTS]
-    blocked = [phase for phase in state["phases"] if phase["status"] in {"BLOCKED", "REWORK"}]
+    blocked = [phase for phase in state["phases"] if phase["status"] in {"BLOCKED", "REWORK"} | GATE_BLOCKED_STATUSES]
     pending = [phase for phase in state["phases"] if phase["status"] == "PENDING"]
     lines = [
         "# Run Summary",
@@ -900,7 +924,8 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
     if blocked:
         lines.extend(["", "## Blocked Or Rework", ""])
         for phase in blocked:
-            lines.append(f"- {phase['phase_id']}: {phase['status']}")
+            reason = f" - {phase.get('status_reason')}" if phase.get("status_reason") else ""
+            lines.append(f"- {phase['phase_id']}: {phase['status']}{reason}")
     lines.extend(
         [
             "",
@@ -960,6 +985,8 @@ def finish_provider_phase(
     reason: str | None = None,
 ) -> None:
     set_provider_phase_status(phase, status)
+    if status in PASSING_VERDICTS:
+        phase.pop("status_reason", None)
     phase["completed_at"] = utc_now()
     state["current_phase_id"] = None
     state["current_micro_attempt"] = 0
@@ -984,6 +1011,36 @@ def block_provider_run(
     write_provider_stop(run_dir, state, reason)
     write_state(run_dir, state)
     write_provider_summary(run_dir, state, reason)
+
+
+def current_gate_blocked_phase(state: dict[str, Any]) -> dict[str, Any] | None:
+    current = state.get("current_phase_id")
+    for phase in state.get("phases", []):
+        if phase.get("status") in GATE_BLOCKED_STATUSES and (current in {None, phase.get("phase_id")}):
+            return phase
+    return None
+
+
+def block_provider_gate(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    status: str,
+    reason: str,
+    *,
+    event: str,
+    source: str,
+) -> None:
+    set_provider_phase_status(phase, status)
+    phase["status_reason"] = reason
+    state["status"] = status
+    state["stop_requested"] = True
+    state["current_phase_id"] = phase["phase_id"]
+    append_event(run_dir, state, event, phase_id=phase["phase_id"], status=status, source=source, reason=reason)
+    write_provider_stop(run_dir, state, reason)
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, reason)
+    progress(run_dir, f"{phase['phase_id']} stopped at {status}: {reason}")
 
 
 def phase_label(phase: dict[str, Any]) -> str:
@@ -1498,6 +1555,92 @@ def write_github_result(path: Path, result: Any) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def read_json_if_exists(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def read_stripped_if_exists(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    value = path.read_text(encoding="utf-8").strip()
+    return value or None
+
+
+def phase_branch_from_artifacts(
+    phase_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+) -> str:
+    git_phase = read_json_if_exists(phase_dir / "git_phase.json")
+    branch = (
+        phase.get("branch")
+        or read_stripped_if_exists(phase_dir / "branch.txt")
+        or git_phase.get("branch")
+        or phase_branch_name(state["campaign_id"], phase["phase_id"], phase.get("name"))
+    )
+    return str(branch)
+
+
+def recover_phase_commit_sha(
+    phase_dir: Path,
+    phase: dict[str, Any],
+    *,
+    branch: str,
+    execution_root: Path,
+) -> str | None:
+    git_phase = read_json_if_exists(phase_dir / "git_phase.json")
+    candidates = [
+        phase.get("commit_sha"),
+        read_stripped_if_exists(phase_dir / "commit_sha.txt"),
+        git_phase.get("commit_sha"),
+    ]
+    for candidate in candidates:
+        if candidate:
+            return str(candidate)
+    for ref in (branch, "HEAD"):
+        result = git(execution_root, "rev-parse", ref)
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    return None
+
+
+def ensure_phase_head(root: Path, branch: str, commit_sha: str | None) -> str | None:
+    if not commit_sha:
+        return "No local commit SHA is available for this phase."
+    head = git(root, "rev-parse", "HEAD")
+    if head.returncode == 0 and head.stdout.strip() == commit_sha:
+        return None
+    checkout = git(root, "checkout", branch)
+    if checkout.returncode != 0:
+        return checkout.stderr.strip() or checkout.stdout.strip() or f"Could not check out {branch} before push."
+    head = git(root, "rev-parse", "HEAD")
+    if head.returncode != 0 or head.stdout.strip() != commit_sha:
+        return f"Local HEAD does not match recorded commit {commit_sha} after checking out {branch}."
+    return None
+
+
+def dry_remote_branch_result(branch: str, *, remote: str, local_sha: str | None) -> RemoteBranchResult:
+    return RemoteBranchResult(
+        exists=False,
+        remote_sha="",
+        local_sha=local_sha or "",
+        matches=False,
+        stdout="",
+        stderr="",
+        return_code=0,
+        branch=branch,
+        remote=remote,
+        command=["git", "ls-remote", "--heads", remote, f"refs/heads/{branch}"],
+        dry_run=True,
+    )
+
+
 def post_phase_git_github(
     run_dir: Path,
     state: dict[str, Any],
@@ -1509,25 +1652,52 @@ def post_phase_git_github(
     phase_dir = provider_phase_dir(run_dir, phase)
     config = load_config(ROOT / "frontier.yaml")
     lane = str(phase.get("lane") or "green").lower()
-    branch = phase.get("branch") or phase_branch_name(state["campaign_id"], phase["phase_id"], phase.get("name"))
+    branch = phase_branch_from_artifacts(phase_dir, state, phase)
     mock_enabled = bool(state.get("mock_providers"))
     dry_git = mock_enabled and os.environ.get("FRONTIER_MOCK_COMMIT") != "1"
-    push_enabled = not mock_enabled and os.environ.get("FRONTIER_PUSH", "1") != "0"
+    resuming_gate = phase.get("status") in GATE_BLOCKED_STATUSES
 
-    git_result = commit_phase_changes(
-        root=execution_root,
-        campaign_id=state["campaign_id"],
-        phase_id=phase["phase_id"],
-        summary=phase.get("name") or phase["phase_id"],
-        branch=branch,
-        config=config,
-        dry_run=dry_git,
-        push=push_enabled,
-    )
-    write_git_phase_artifacts(phase_dir, git_result)
+    if resuming_gate:
+        git_result_data = read_json_if_exists(phase_dir / "git_phase.json")
+        commit_sha = recover_phase_commit_sha(phase_dir, phase, branch=branch, execution_root=execution_root)
+        if commit_sha is None and not dry_git:
+            reason = (
+                "PUSH_BLOCKED: local commit is missing. Restore the phase branch/commit or rerun the "
+                "phase explicitly; resume will not rerun Claude or Codex automatically."
+            )
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                PUSH_BLOCKED,
+                reason,
+                event="BRANCH_PUSH_BLOCKED",
+                source="branch_push_blocked",
+            )
+            return False
+        changed = list(git_result_data.get("changed_files", [])) if isinstance(git_result_data.get("changed_files"), list) else []
+        blocked = list(git_result_data.get("blocked_files", [])) if isinstance(git_result_data.get("blocked_files"), list) else []
+    else:
+        git_result = commit_phase_changes(
+            root=execution_root,
+            campaign_id=state["campaign_id"],
+            phase_id=phase["phase_id"],
+            summary=phase.get("name") or phase["phase_id"],
+            branch=branch,
+            config=config,
+            dry_run=dry_git,
+            push=False,
+        )
+        write_git_phase_artifacts(phase_dir, git_result)
+        commit_sha = git_result.commit_sha
+        changed = git_result.changed_files
+        blocked = git_result.blocked_files
+
     phase["branch"] = branch
-    phase["commit_sha"] = git_result.commit_sha
-    append_event(run_dir, state, "GIT_PHASE_RECORDED", phase_id=phase["phase_id"], dry_run=git_result.dry_run)
+    phase["commit_sha"] = commit_sha
+    (phase_dir / "branch.txt").write_text(branch + "\n", encoding="utf-8")
+    (phase_dir / "commit_sha.txt").write_text((commit_sha or "") + "\n", encoding="utf-8")
+    append_event(run_dir, state, "GIT_PHASE_RECORDED", phase_id=phase["phase_id"], dry_run=dry_git)
 
     github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
     project_config = config.get("project") if isinstance(config.get("project"), dict) else {}
@@ -1535,25 +1705,171 @@ def post_phase_git_github(
     ci_status = CI_SUCCESS if mock_enabled else "NOT_FOUND"
     pr_number: str | int | None = None
     pr_result = None
+    auto_pr_requested = phase_auto_pr_allowed(config, phase) or os.environ.get("FRONTIER_CREATE_PR") == "1"
     pr_dry_run = mock_enabled or os.environ.get("FRONTIER_CREATE_PR") == "0" or not phase_auto_pr_allowed(config, phase)
     if os.environ.get("FRONTIER_CREATE_PR") == "1":
         pr_dry_run = False
-    if phase_auto_pr_allowed(config, phase) or os.environ.get("FRONTIER_CREATE_PR") == "1":
+    if auto_pr_requested:
         state["github_operations_performed"] = True
-        base = str(project_config.get("default_branch") or "main") if mock_enabled else detect_default_branch(root=execution_root)
-        title = f"{state['campaign_id']}/{phase['phase_id']}: {phase.get('name') or phase['phase_id']}"
-        provisional_gate = f"Merge gate will be evaluated after PR/CI. Verdict: {verdict}."
-        body = pr_body_text(run_dir, phase_dir, state, phase, verdict, provisional_gate)
-        pr_result = create_pr(title=title, body=body, base=base, head=branch, root=execution_root, dry_run=pr_dry_run)
-        write_github_result(phase_dir / "pr_create.json", pr_result)
+
+    remote = str(github_config.get("remote") or "origin")
+    branch_pushed = False
+    remote_result = dry_remote_branch_result(branch, remote=remote, local_sha=commit_sha)
+    branch_push_required = auto_pr_requested and not pr_dry_run
+    if auto_pr_requested:
+        if branch_push_required and not commit_sha:
+            reason = (
+                "PUSH_BLOCKED: local commit is missing. Restore the phase branch/commit or rerun the "
+                "phase explicitly; resume will not rerun Claude or Codex automatically."
+            )
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                PUSH_BLOCKED,
+                reason,
+                event="BRANCH_PUSH_BLOCKED",
+                source="branch_push_blocked",
+            )
+            return False
+        if branch_push_required and os.environ.get("FRONTIER_PUSH") == "0":
+            push_result = PushBranchResult(
+                dry_run=True,
+                branch=branch,
+                remote=remote,
+                command=["git", "push", "-u", remote, f"HEAD:refs/heads/{branch}"],
+                instructions="FRONTIER_PUSH=0 prevented branch push before real PR creation.",
+            )
+            write_push_branch_artifacts(phase_dir, push_result)
+            reason = (
+                "PUSH_BLOCKED: FRONTIER_PUSH=0 prevented branch push before PR creation. "
+                "Enable push or disable real PR creation, then resume the run."
+            )
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                PUSH_BLOCKED,
+                reason,
+                event="BRANCH_PUSH_BLOCKED",
+                source="branch_push_blocked",
+            )
+            return False
+        if branch_push_required:
+            head_error = ensure_phase_head(execution_root, branch, commit_sha)
+            if head_error:
+                push_result = PushBranchResult(
+                    dry_run=False,
+                    branch=branch,
+                    remote=remote,
+                    command=["git", "push", "-u", remote, f"HEAD:refs/heads/{branch}"],
+                    return_code=1,
+                    stderr=head_error,
+                    instructions="Network/auth push failed. Fix git push output and resume the run.",
+                )
+                write_push_branch_artifacts(phase_dir, push_result)
+                reason = f"PUSH_BLOCKED: push branch failed. {push_result.instructions}"
+                block_provider_gate(
+                    run_dir,
+                    state,
+                    phase,
+                    PUSH_BLOCKED,
+                    reason,
+                    event="BRANCH_PUSH_BLOCKED",
+                    source="branch_push_blocked",
+                )
+                return False
+            state["network_used"] = True
+            push_result = push_phase_branch(execution_root, branch, remote=remote, dry_run=False)
+            write_push_branch_artifacts(phase_dir, push_result)
+            if not push_result.ok:
+                reason = f"PUSH_BLOCKED: push branch failed. {push_result.instructions or push_result.stderr}"
+                block_provider_gate(
+                    run_dir,
+                    state,
+                    phase,
+                    PUSH_BLOCKED,
+                    reason,
+                    event="BRANCH_PUSH_BLOCKED",
+                    source="branch_push_blocked",
+                )
+                return False
+            branch_pushed = True
+            append_event(run_dir, state, "BRANCH_PUSHED", phase_id=phase["phase_id"], branch=branch, remote=remote)
+            remote_result = verify_remote_branch(execution_root, branch, remote=remote)
+            write_remote_branch_artifacts(phase_dir, remote_result)
+            if not remote_result.exists:
+                reason = "REMOTE_BRANCH_BLOCKED: remote branch missing after push. Fix git remote visibility and resume the run."
+                block_provider_gate(
+                    run_dir,
+                    state,
+                    phase,
+                    REMOTE_BRANCH_BLOCKED,
+                    reason,
+                    event="REMOTE_BRANCH_BLOCKED",
+                    source="remote_branch_blocked",
+                )
+                return False
+            if not remote_result.matches:
+                reason = (
+                    "REMOTE_BRANCH_BLOCKED: remote branch SHA mismatch. "
+                    f"local={remote_result.local_sha or 'unknown'} remote={remote_result.remote_sha or 'unknown'}."
+                )
+                block_provider_gate(
+                    run_dir,
+                    state,
+                    phase,
+                    REMOTE_BRANCH_BLOCKED,
+                    reason,
+                    event="REMOTE_BRANCH_BLOCKED",
+                    source="remote_branch_blocked",
+                )
+                return False
+        else:
+            push_result = push_phase_branch(execution_root, branch, remote=remote, dry_run=True)
+            write_push_branch_artifacts(phase_dir, push_result)
+            write_remote_branch_artifacts(phase_dir, remote_result)
+
+    base = (
+        str(project_config.get("default_branch") or "main")
+        if mock_enabled or pr_dry_run
+        else detect_default_branch(root=execution_root)
+    )
+    title = f"{state['campaign_id']}/{phase['phase_id']}: {phase.get('name') or phase['phase_id']}"
+    provisional_gate = f"Merge gate will be evaluated after PR/CI. Verdict: {verdict}."
+    body = pr_body_text(run_dir, phase_dir, state, phase, verdict, provisional_gate)
+    body_file = phase_dir / "pr_body.md"
+    body_file.write_text(body, encoding="utf-8")
+    pr_result = create_pr(
+        title=title,
+        body=body,
+        base=base,
+        head=branch,
+        body_file=body_file,
+        branch_pushed=branch_pushed,
+        remote_sha=remote_result.remote_sha,
+        local_sha=remote_result.local_sha or commit_sha,
+        root=execution_root,
+        dry_run=pr_dry_run,
+    )
+    write_pr_create_artifacts(phase_dir, pr_result)
+    if auto_pr_requested:
         if pr_result.ok and not pr_result.dry_run:
             state["prs_created"] = True
             pr_meta = pr_result.metadata.get("pr") if isinstance(pr_result.metadata, dict) else {}
             pr_number = pr_result.metadata.get("number") or (pr_meta or {}).get("number")
             phase["pr_number"] = pr_number
         elif pr_result.blocked:
-            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="pr_create_blocked")
-            block_provider_run(run_dir, state, phase, "BLOCKED", "PR_CREATE_BLOCKED: " + (pr_result.instructions or pr_result.stderr))
+            reason = "PR_CREATE_BLOCKED: " + (pr_result.instructions or pr_result.stderr)
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                PR_CREATE_BLOCKED,
+                reason,
+                event="PR_CREATE_BLOCKED",
+                source="pr_create_blocked",
+            )
             return False
 
     if pr_number is not None and not mock_enabled:
@@ -1575,7 +1891,16 @@ def post_phase_git_github(
     write_ci_status_artifacts(phase_dir, ci_result)
     phase["ci_status"] = ci_status
     if github_config.get("require_ci", True) and ci_status != CI_SUCCESS:
-        block_provider_run(run_dir, state, phase, "BLOCKED", f"CI status was {ci_status}.")
+        reason = f"CI_BLOCKED: CI status was {ci_status}."
+        block_provider_gate(
+            run_dir,
+            state,
+            phase,
+            CI_BLOCKED,
+            reason,
+            event="CI_BLOCKED",
+            source="ci_blocked",
+        )
         return False
 
     base_branch = str(project_config.get("default_branch") or "main") if mock_enabled else detect_default_branch(root=execution_root)
@@ -1595,7 +1920,7 @@ def post_phase_git_github(
         verdict_data = read_json(verdict_path)
         if verdict_data.get("severity") == "critical":
             critical = list(verdict_data.get("findings", []))
-    merge_changed_files = [] if dry_git else git_result.changed_files
+    merge_changed_files = [] if dry_git else changed
     gate = evaluate_merge_gate(
         campaign_id=state["campaign_id"],
         phase_id=phase["phase_id"],
@@ -1603,7 +1928,7 @@ def post_phase_git_github(
         verdict=verdict,
         ci_status=ci_status,
         changed_files=merge_changed_files,
-        artifact_policy={"ok": dry_git or not git_result.blocked_files, "blocked_files": git_result.blocked_files},
+        artifact_policy={"ok": dry_git or not blocked, "blocked_files": blocked},
         config=config,
         env=os.environ,
         dry_run=merge_dry_run or pr_number is None,
@@ -1614,7 +1939,16 @@ def post_phase_git_github(
     write_merge_gate_artifacts(phase_dir, gate)
     phase["merge_gate_status"] = gate.status
     if gate.status not in PASSING_VERDICTS:
-        block_provider_run(run_dir, state, phase, "BLOCKED", "Merge gate blocked: " + "; ".join(gate.reasons))
+        reason = "MERGE_GATE_BLOCKED: " + "; ".join(gate.reasons)
+        block_provider_gate(
+            run_dir,
+            state,
+            phase,
+            MERGE_GATE_BLOCKED,
+            reason,
+            event="MERGE_GATE_BLOCKED",
+            source="merge_gate_blocked",
+        )
         return False
     if pr_number is not None:
         merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
@@ -1623,7 +1957,16 @@ def post_phase_git_github(
             state["auto_merge_performed"] = True
             append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
         elif merge_result.blocked and gate.merge_allowed:
-            block_provider_run(run_dir, state, phase, "BLOCKED", merge_result.instructions or merge_result.stderr)
+            reason = "MERGE_GATE_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                MERGE_GATE_BLOCKED,
+                reason,
+                event="MERGE_GATE_BLOCKED",
+                source="merge_gate_blocked",
+            )
             return False
     return True
 
@@ -1640,17 +1983,29 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
     execution_root = ROOT
 
     if state.get("worktree_mode"):
-        manager = WorktreeManager(ROOT, runtime_config().worktree_root)
-        plan = manager.create(state["campaign_id"], phase_id, phase.get("name"), dry_run=mock_enabled)
-        phase["branch"] = plan.branch
-        phase["worktree_path"] = plan.path
-        if not mock_enabled:
-            execution_root = Path(plan.path)
-        (phase_dir / "worktree_plan.json").write_text(
-            json.dumps(plan.__dict__, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        append_event(run_dir, state, "WORKTREE_PLAN", phase_id=phase_id, branch=plan.branch, path=plan.path)
+        if phase.get("branch") and phase.get("worktree_path"):
+            if not mock_enabled:
+                execution_root = Path(str(phase["worktree_path"]))
+            append_event(
+                run_dir,
+                state,
+                "WORKTREE_RESUME",
+                phase_id=phase_id,
+                branch=phase["branch"],
+                path=phase["worktree_path"],
+            )
+        else:
+            manager = WorktreeManager(ROOT, runtime_config().worktree_root)
+            plan = manager.create(state["campaign_id"], phase_id, phase.get("name"), dry_run=mock_enabled)
+            phase["branch"] = plan.branch
+            phase["worktree_path"] = plan.path
+            if not mock_enabled:
+                execution_root = Path(plan.path)
+            (phase_dir / "worktree_plan.json").write_text(
+                json.dumps(plan.__dict__, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            append_event(run_dir, state, "WORKTREE_PLAN", phase_id=phase_id, branch=plan.branch, path=plan.path)
 
     reason = check_run_budget(run_dir, state)
     if reason:
@@ -1813,34 +2168,40 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
     (phase_dir / "handoff.md").write_text(handoff_text, encoding="utf-8")
     workflow2 = runtime_config().raw.get("workflow2", {})
     if not isinstance(workflow2, dict) or bool(workflow2.get("semantic_done_check_required", True)):
-        if stop_requested(run_dir):
-            block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before done-check.")
-            return False
-        done_prompt = done_check_prompt(
-            phase,
-            state["campaign_id"],
-            spec_text,
-            executor_text,
-            validation_text,
-            review_text,
-            verdict,
-            handoff_text,
-        )
-        (phase_dir / "done_check_prompt.md").write_text(done_prompt, encoding="utf-8")
-        if mock_enabled:
-            done_text = mock_done_check_text(phase)
-            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_done_check")
+        existing_done = read_json_if_exists(phase_dir / "done_check.json")
+        if existing_done.get("verdict"):
+            done_text = _read_phase_text(phase_dir / "done_check.md")
+            done_verdict = str(existing_done.get("verdict"))
+            append_event(run_dir, state, "DONE_CHECK_REUSED", phase_id=phase_id, verdict=done_verdict)
         else:
-            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_done_check")
-            result = claude_headless(done_prompt, root=execution_root)
-            done_text = result.stdout if result.returncode == 0 else command_block(result)
-            if result.returncode != 0:
-                (phase_dir / "done_check.md").write_text(done_text, encoding="utf-8")
-                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="done_check_error")
-                block_provider_run(run_dir, state, phase, "BLOCKED", "Claude done-check returned nonzero.")
+            if stop_requested(run_dir):
+                block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before done-check.")
                 return False
-        done_verdict = write_done_check_result(phase_dir, state, phase, done_text)
-        append_event(run_dir, state, "DONE_CHECK", phase_id=phase_id, verdict=done_verdict)
+            done_prompt = done_check_prompt(
+                phase,
+                state["campaign_id"],
+                spec_text,
+                executor_text,
+                validation_text,
+                review_text,
+                verdict,
+                handoff_text,
+            )
+            (phase_dir / "done_check_prompt.md").write_text(done_prompt, encoding="utf-8")
+            if mock_enabled:
+                done_text = mock_done_check_text(phase)
+                append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_done_check")
+            else:
+                append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_done_check")
+                result = claude_headless(done_prompt, root=execution_root)
+                done_text = result.stdout if result.returncode == 0 else command_block(result)
+                if result.returncode != 0:
+                    (phase_dir / "done_check.md").write_text(done_text, encoding="utf-8")
+                    write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="done_check_error")
+                    block_provider_run(run_dir, state, phase, "BLOCKED", "Claude done-check returned nonzero.")
+                    return False
+            done_verdict = write_done_check_result(phase_dir, state, phase, done_text)
+            append_event(run_dir, state, "DONE_CHECK", phase_id=phase_id, verdict=done_verdict)
         if done_verdict == "REWORK":
             verdict = run_provider_repair_loop(
                 run_dir, state, phase, spec_text, done_text, validation_text, execution_root=execution_root
@@ -2464,8 +2825,19 @@ def resume_provider_wired_run(
     if state.get("status") == "COMPLETED":
         print(f"Run {state['run_id']} is already completed.")
         return 0
-    if (run_dir / "STOP").exists():
-        return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
+    stop_path = run_dir / "STOP"
+    if stop_path.exists():
+        gate_phase = current_gate_blocked_phase(state)
+        if gate_phase is None:
+            return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
+        stop_path.unlink()
+        append_event(
+            run_dir,
+            state,
+            "RUN_RESUME_GATE_RETRY",
+            phase_id=gate_phase["phase_id"],
+            gate_status=gate_phase.get("status"),
+        )
     try:
         campaign = load_ledger_campaign(state["campaign_id"])
         resolved_max_phases, source = resolve_max_phases(campaign, max_phases)

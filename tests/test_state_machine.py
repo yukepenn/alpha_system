@@ -6,10 +6,15 @@ import pytest
 
 from tools.frontier.state_machine import (
     BLOCKED,
+    CI_BLOCKED,
     EXECUTED,
+    MERGE_GATE_BLOCKED,
     PASS,
     PENDING,
+    PR_CREATE_BLOCKED,
+    PUSH_BLOCKED,
     REPAIRED,
+    REMOTE_BRANCH_BLOCKED,
     REVIEWED,
     REWORK,
     SPEC_READY,
@@ -40,6 +45,13 @@ def test_active_status_can_stop_when_requested() -> None:
     phase = {"phase_id": "P01", "status": SPEC_READY}
     transition_phase(phase, STOPPED, stop_requested=True)
     assert phase["status"] == STOPPED
+
+
+def test_reviewed_phase_can_enter_transport_gate_statuses() -> None:
+    for status in [PUSH_BLOCKED, REMOTE_BRANCH_BLOCKED, PR_CREATE_BLOCKED, CI_BLOCKED, MERGE_GATE_BLOCKED]:
+        phase = {"phase_id": "P01", "status": REVIEWED}
+        transition_phase(phase, status)
+        assert phase["status"] == status
 
 
 def test_state_load_save_and_resume(tmp_path) -> None:

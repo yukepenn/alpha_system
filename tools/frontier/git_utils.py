@@ -39,6 +39,48 @@ class GitPhaseResult:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class PushBranchResult:
+    dry_run: bool
+    branch: str
+    remote: str
+    command: list[str]
+    return_code: int = 0
+    stdout: str = ""
+    stderr: str = ""
+    pushed: bool = False
+    instructions: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.dry_run or (self.return_code == 0 and self.pushed)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class RemoteBranchResult:
+    exists: bool
+    remote_sha: str
+    local_sha: str
+    matches: bool
+    stdout: str
+    stderr: str
+    return_code: int
+    branch: str = ""
+    remote: str = "origin"
+    command: list[str] = field(default_factory=list)
+    dry_run: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.dry_run or (self.return_code == 0 and self.exists and self.matches)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     blocked = {
         ("reset", "--hard"),
@@ -66,6 +108,23 @@ def repo_name(root: Path = ROOT) -> str:
 def sanitize_component(value: str, *, fallback: str = "frontier") -> str:
     cleaned = SLUG_RE.sub("-", value.strip()).strip(".-_/").lower()
     return cleaned[:80] or fallback
+
+
+def validate_branch_name(branch: str) -> str:
+    if not branch or branch.strip() != branch:
+        raise ValueError("Branch name must be non-empty and must not contain surrounding whitespace.")
+    if branch in {"HEAD", "@", "."} or branch.startswith("-"):
+        raise ValueError(f"Unsafe branch name: {branch!r}")
+    forbidden_tokens = ("..", "//", "@{")
+    forbidden_chars = set(" ~^:?*[\\")
+    if any(token in branch for token in forbidden_tokens) or any(char in forbidden_chars for char in branch):
+        raise ValueError(f"Unsafe branch name: {branch!r}")
+    if branch.startswith("/") or branch.endswith("/") or branch.endswith("."):
+        raise ValueError(f"Unsafe branch name: {branch!r}")
+    for component in branch.split("/"):
+        if component in {"", ".", ".."} or component.startswith(".") or component.endswith(".lock"):
+            raise ValueError(f"Unsafe branch name: {branch!r}")
+    return branch
 
 
 def _status_paths(status_text: str) -> list[str]:
@@ -140,14 +199,78 @@ def commit_staged(root: Path, message: str, *, dry_run: bool = False) -> tuple[s
     return sha or None, [command]
 
 
-def push_branch(root: Path, branch: str, *, dry_run: bool = False) -> tuple[bool, list[list[str]]]:
-    command = ["git", "push", "-u", "origin", branch]
+def push_phase_branch(root: Path, branch: str, *, remote: str = "origin", dry_run: bool = False) -> PushBranchResult:
+    validate_branch_name(branch)
+    if not remote or remote.startswith("-") or any(char.isspace() for char in remote):
+        raise ValueError(f"Unsafe git remote name: {remote!r}")
+    command = ["git", "push", "-u", remote, f"HEAD:refs/heads/{branch}"]
     if dry_run:
-        return False, [command]
-    result = git(root, "push", "-u", "origin", branch)
+        return PushBranchResult(True, branch, remote, command, pushed=False)
+    result = git(root, "push", "-u", remote, f"HEAD:refs/heads/{branch}")
+    instructions = None
     if result.returncode != 0:
+        instructions = "Network/auth push failed. Fix git push output and resume the run."
+    return PushBranchResult(
+        False,
+        branch,
+        remote,
+        command,
+        result.returncode,
+        result.stdout,
+        result.stderr,
+        pushed=result.returncode == 0,
+        instructions=instructions,
+    )
+
+
+def verify_remote_branch(root: Path, branch: str, *, remote: str = "origin") -> RemoteBranchResult:
+    validate_branch_name(branch)
+    if not remote or remote.startswith("-") or any(char.isspace() for char in remote):
+        raise ValueError(f"Unsafe git remote name: {remote!r}")
+    local = git(root, "rev-parse", branch)
+    local_sha = local.stdout.strip() if local.returncode == 0 else ""
+    local_error = local.stderr.strip() or local.stdout.strip()
+    if not local_sha:
+        head = git(root, "rev-parse", "HEAD")
+        if head.returncode == 0 and head.stdout.strip():
+            local_sha = head.stdout.strip()
+            local_error = ""
+    ref = f"refs/heads/{branch}"
+    command = ["git", "ls-remote", "--heads", remote, ref]
+    result = git(root, "ls-remote", "--heads", remote, ref)
+    remote_sha = ""
+    exists = False
+    if result.returncode == 0:
+        for line in result.stdout.splitlines():
+            sha, _, name = line.partition("\t")
+            if name == ref and sha:
+                remote_sha = sha.strip()
+                exists = True
+                break
+    stderr = result.stderr
+    return_code = result.returncode
+    if local_error:
+        stderr = (stderr + "\n" if stderr else "") + local_error
+        return_code = local.returncode if return_code == 0 else return_code
+    return RemoteBranchResult(
+        exists=exists,
+        remote_sha=remote_sha,
+        local_sha=local_sha,
+        matches=bool(exists and remote_sha and local_sha and remote_sha == local_sha),
+        stdout=result.stdout,
+        stderr=stderr,
+        return_code=return_code,
+        branch=branch,
+        remote=remote,
+        command=command,
+    )
+
+
+def push_branch(root: Path, branch: str, *, dry_run: bool = False) -> tuple[bool, list[list[str]]]:
+    result = push_phase_branch(root, branch, dry_run=dry_run)
+    if not result.ok and not dry_run:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip())
-    return True, [command]
+    return result.pushed, [result.command]
 
 
 def commit_phase_changes(
@@ -225,3 +348,50 @@ def write_git_phase_artifacts(phase_dir: Path, result: GitPhaseResult) -> None:
         (phase_dir / "commit_sha.txt").write_text(result.commit_sha + "\n", encoding="utf-8")
     else:
         (phase_dir / "commit_sha.txt").write_text("", encoding="utf-8")
+
+
+def write_push_branch_artifacts(phase_dir: Path, result: PushBranchResult) -> None:
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "push_branch.json").write_text(
+        json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        "# Branch Push",
+        "",
+        f"Branch: {result.branch}",
+        f"Remote: {result.remote}",
+        f"Dry run: {str(result.dry_run).lower()}",
+        f"Pushed: {str(result.pushed).lower()}",
+        f"Return code: {result.return_code}",
+        f"Command: `{' '.join(result.command)}`",
+        "",
+    ]
+    if result.instructions:
+        lines.extend(["## Instructions", "", result.instructions, ""])
+    if result.stdout:
+        lines.extend(["## stdout", "", "```text", result.stdout.rstrip(), "```", ""])
+    if result.stderr:
+        lines.extend(["## stderr", "", "```text", result.stderr.rstrip(), "```", ""])
+    (phase_dir / "push_branch.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def write_remote_branch_artifacts(phase_dir: Path, result: RemoteBranchResult) -> None:
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "remote_branch.json").write_text(
+        json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        "# Remote Branch",
+        "",
+        f"Branch: {result.branch}",
+        f"Remote: {result.remote}",
+        f"Dry run: {str(result.dry_run).lower()}",
+        f"Exists: {str(result.exists).lower()}",
+        f"Matches local: {str(result.matches).lower()}",
+        f"Local SHA: {result.local_sha or 'unknown'}",
+        f"Remote SHA: {result.remote_sha or 'unknown'}",
+        f"Return code: {result.return_code}",
+    ]
+    (phase_dir / "remote_branch.md").write_text("\n".join(lines) + "\n", encoding="utf-8")

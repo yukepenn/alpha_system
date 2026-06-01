@@ -218,11 +218,56 @@ def find_existing_pr(
     return first if isinstance(first, dict) else None
 
 
+def _metadata(
+    *,
+    base: str,
+    head: str,
+    head_owner: str | None = None,
+    branch_pushed: bool | None = None,
+    remote_sha: str | None = None,
+    local_sha: str | None = None,
+    body_file: Path | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {"head": head, "base": base}
+    if head_owner:
+        data["head_owner"] = head_owner
+    if branch_pushed is not None:
+        data["branch_pushed"] = branch_pushed
+    if remote_sha is not None:
+        data["remote_sha"] = remote_sha
+    if local_sha is not None:
+        data["local_sha"] = local_sha
+    if body_file is not None:
+        data["body_file"] = str(body_file)
+    return data
+
+
 def _env_forces_dry_run(name: str) -> bool | None:
     raw = os.environ.get(name)
     if raw is None or raw == "":
         return None
     return raw.lower() not in {"1", "true", "yes", "on"}
+
+
+def _pr_create_command(*, base: str, head: str, title: str, body_file: Path) -> list[str]:
+    return ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body-file", str(body_file)]
+
+
+def _pr_number_from_url(url: str) -> int | None:
+    tail = url.rstrip("/").rsplit("/", 1)[-1]
+    return int(tail) if tail.isdigit() else None
+
+
+def _should_retry_with_owner(result: Any) -> bool:
+    text = f"{getattr(result, 'stdout', '')}\n{getattr(result, 'stderr', '')}".lower()
+    tokens = (
+        "head sha can't be blank",
+        "base sha can't be blank",
+        "head ref must be a branch",
+        "no commits between",
+        "could not resolve to a branch",
+    )
+    return any(token in text for token in tokens)
 
 
 def create_pr(
@@ -231,16 +276,34 @@ def create_pr(
     body: str,
     base: str,
     head: str | None = None,
+    body_file: Path | None = None,
+    head_owner: str | None = None,
+    branch_pushed: bool | None = None,
+    remote_sha: str | None = None,
+    local_sha: str | None = None,
     root: Path = ROOT,
     dry_run: bool = True,
     runner: CommandRunner | None = None,
 ) -> GitHubResult:
     head = head or current_branch(root)
-    command = ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body", body]
+    body_file = body_file or (root / "pr_body.md")
+    body_file.parent.mkdir(parents=True, exist_ok=True)
+    body_file.write_text(body, encoding="utf-8")
+    requested_head = f"{head_owner}:{head}" if head_owner else head
+    command = _pr_create_command(base=base, head=requested_head, title=title, body_file=body_file)
+    metadata = _metadata(
+        base=base,
+        head=head,
+        head_owner=head_owner,
+        branch_pushed=branch_pushed,
+        remote_sha=remote_sha,
+        local_sha=local_sha,
+        body_file=body_file,
+    )
     forced = _env_forces_dry_run("FRONTIER_CREATE_PR")
     effective_dry_run = dry_run if forced is None else forced
     if effective_dry_run:
-        return GitHubResult("create_pr", True, command, metadata={"head": head, "base": base})
+        return GitHubResult("create_pr", True, command, metadata=metadata)
 
     auth = gh_auth_status(root=root, runner=runner)
     if auth.blocked:
@@ -253,28 +316,84 @@ def create_pr(
             auth.stderr,
             blocked=True,
             instructions=auth.instructions,
-            metadata={"head": head, "base": base},
+            metadata=metadata,
         )
 
-    existing = find_existing_pr(head, base=base, root=root, runner=runner)
+    existing = find_existing_pr(requested_head, base=base, root=root, runner=runner)
     if existing:
+        metadata.update({"existing": True, "pr": existing, "number": existing.get("number")})
         return GitHubResult(
             "create_pr",
             False,
             command,
-            metadata={"existing": True, "pr": existing, "number": existing.get("number")},
+            metadata=metadata,
         )
 
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
-    metadata: dict[str, Any] = {"head": head, "base": base}
     url = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
     if url:
         metadata["url"] = url
+        number = _pr_number_from_url(url)
+        if number is not None:
+            metadata["number"] = number
     if result.return_code == 0:
-        created = find_existing_pr(head, base=base, root=root, runner=runner)
+        created = find_existing_pr(requested_head, base=base, root=root, runner=runner)
         if created:
             metadata["pr"] = created
             metadata["number"] = created.get("number")
+    elif head_owner is None and _should_retry_with_owner(result):
+        repo = detect_repo_owner_name(root)
+        if repo is not None:
+            owner, _name = repo
+            owner_head = f"{owner}:{head}"
+            owner_existing = find_existing_pr(owner_head, base=base, root=root, runner=runner)
+            if owner_existing:
+                metadata.update(
+                    {
+                        "existing": True,
+                        "pr": owner_existing,
+                        "number": owner_existing.get("number"),
+                        "head_owner": owner,
+                        "initial_return_code": result.return_code,
+                        "initial_stderr": result.stderr,
+                    }
+                )
+                retry_command = _pr_create_command(base=base, head=owner_head, title=title, body_file=body_file)
+                return GitHubResult("create_pr", False, retry_command, metadata=metadata)
+            retry_command = _pr_create_command(base=base, head=owner_head, title=title, body_file=body_file)
+            retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=300)
+            metadata.update(
+                {
+                    "head_owner": owner,
+                    "initial_return_code": result.return_code,
+                    "initial_stdout": result.stdout,
+                    "initial_stderr": result.stderr,
+                }
+            )
+            retry_url = retry.stdout.strip().splitlines()[-1] if retry.stdout.strip() else ""
+            if retry_url:
+                metadata["url"] = retry_url
+                number = _pr_number_from_url(retry_url)
+                if number is not None:
+                    metadata["number"] = number
+            if retry.return_code == 0:
+                created = find_existing_pr(owner_head, base=base, root=root, runner=runner)
+                if created:
+                    metadata["pr"] = created
+                    metadata["number"] = created.get("number")
+            return GitHubResult(
+                "create_pr",
+                False,
+                retry_command,
+                retry.return_code,
+                retry.stdout,
+                retry.stderr,
+                blocked=retry.return_code != 0,
+                instructions=None
+                if retry.return_code == 0
+                else "Fix `gh pr create` output above, then resume the run.",
+                metadata=metadata,
+            )
     return GitHubResult(
         "create_pr",
         False,
@@ -288,6 +407,38 @@ def create_pr(
         else "Fix `gh pr create` output above, then resume the run.",
         metadata=metadata,
     )
+
+
+def write_pr_create_artifacts(phase_dir: Path, result: GitHubResult) -> None:
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "pr_create.json").write_text(
+        json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    metadata = result.metadata if isinstance(result.metadata, dict) else {}
+    lines = [
+        "# PR Creation",
+        "",
+        f"Dry run: {str(result.dry_run).lower()}",
+        f"Blocked: {str(result.blocked).lower()}",
+        f"Return code: {result.return_code}",
+        f"Base: {metadata.get('base', '')}",
+        f"Head: {metadata.get('head', '')}",
+        f"Head owner: {metadata.get('head_owner', '') or 'not used'}",
+        f"Branch pushed: {str(metadata.get('branch_pushed', False)).lower()}",
+        f"Local SHA: {metadata.get('local_sha', '') or 'unknown'}",
+        f"Remote SHA: {metadata.get('remote_sha', '') or 'unknown'}",
+        f"Existing PR: {str(metadata.get('existing', False)).lower()}",
+        f"PR number: {metadata.get('number', '') or 'unknown'}",
+        f"Command: `{' '.join(result.command)}`",
+    ]
+    if result.instructions:
+        lines.extend(["", "## Instructions", "", result.instructions])
+    if result.stdout:
+        lines.extend(["", "## stdout", "", "```text", result.stdout.rstrip(), "```"])
+    if result.stderr:
+        lines.extend(["", "## stderr", "", "```text", result.stderr.rstrip(), "```"])
+    (phase_dir / "pr_create.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def list_pr_checks(

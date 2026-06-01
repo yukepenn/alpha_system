@@ -46,12 +46,25 @@ def test_parse_github_remote() -> None:
     assert parse_github_remote("https://github.com/owner/repo.git") == ("owner", "repo")
 
 
-def test_dry_run_pr_does_not_call_network() -> None:
+def test_dry_run_pr_does_not_call_network(tmp_path) -> None:
     runner = FakeRunner([])
-    result = create_pr(title="Title", body="Body", base="main", head="branch", dry_run=True, runner=runner)
+    body_file = tmp_path / "pr_body.md"
+    result = create_pr(
+        title="Title",
+        body="Body",
+        base="main",
+        head="branch",
+        body_file=body_file,
+        root=tmp_path,
+        dry_run=True,
+        runner=runner,
+    )
 
     assert result.dry_run
     assert result.command[:3] == ["gh", "pr", "create"]
+    assert "--body-file" in result.command
+    assert "--body" not in result.command
+    assert body_file.read_text(encoding="utf-8") == "Body"
     assert runner.commands == []
 
 
@@ -68,14 +81,90 @@ def test_existing_pr_detection() -> None:
     assert pr["number"] == 7
 
 
-def test_create_pr_missing_gh_is_blocked(monkeypatch) -> None:
+def test_create_pr_missing_gh_is_blocked(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
     runner = FakeRunner([Result(["gh", "auth", "status"], return_code=127, stderr="not found")])
 
-    result = create_pr(title="Title", body="Body", base="main", head="branch", dry_run=False, runner=runner)
+    result = create_pr(
+        title="Title",
+        body="Body",
+        base="main",
+        head="branch",
+        body_file=tmp_path / "pr_body.md",
+        root=tmp_path,
+        dry_run=False,
+        runner=runner,
+    )
 
     assert result.blocked
     assert "gh auth login" in (result.instructions or "")
+
+
+def test_create_pr_uses_body_file_and_reuses_existing_pr(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "list"], stdout=json.dumps([{"number": 7, "headRefName": "branch"}])),
+        ]
+    )
+
+    result = create_pr(
+        title="Title",
+        body="Large body",
+        base="main",
+        head="branch",
+        body_file=tmp_path / "pr_body.md",
+        branch_pushed=True,
+        remote_sha="a" * 40,
+        local_sha="a" * 40,
+        root=tmp_path,
+        dry_run=False,
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.metadata["existing"] is True
+    assert result.metadata["branch_pushed"] is True
+    assert "--body-file" in result.command
+    assert "Large body" not in result.command
+    assert runner.commands[-1][:4] == ["gh", "pr", "list", "--head"]
+
+
+def test_create_pr_retries_owner_head_after_head_lookup_failure(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
+    monkeypatch.setattr(github_utils, "detect_repo_owner_name", lambda root=github_utils.ROOT: ("owner", "repo"))
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "list"], stdout="[]"),
+            Result(
+                ["gh", "pr", "create"],
+                return_code=1,
+                stderr="GraphQL: Head sha can't be blank, Head ref must be a branch.",
+            ),
+            Result(["gh", "pr", "list"], stdout="[]"),
+            Result(["gh", "pr", "create"], stdout="https://github.com/owner/repo/pull/9\n"),
+            Result(["gh", "pr", "list"], stdout=json.dumps([{"number": 9, "headRefName": "branch"}])),
+        ]
+    )
+
+    result = create_pr(
+        title="Title",
+        body="Body",
+        base="main",
+        head="branch",
+        body_file=tmp_path / "pr_body.md",
+        root=tmp_path,
+        dry_run=False,
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.metadata["head_owner"] == "owner"
+    assert result.metadata["number"] == 9
+    assert "--head" in result.command
+    assert "owner:branch" in result.command
 
 
 def test_dry_run_merge_does_not_call_network() -> None:

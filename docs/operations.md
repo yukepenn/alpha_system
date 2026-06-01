@@ -51,7 +51,7 @@ In the morning, inspect `runs/<run_id>/RUN_SUMMARY.md`, `events.jsonl`, `heartbe
 just frontier-resume <run_id>
 ```
 
-Resume reuses durable phase artifacts. A run interrupted after spec generation resumes from `SPEC_READY`; after execution it resumes from validation/review; after review it resumes from done-check and downstream gates.
+Resume reuses durable phase artifacts. A run interrupted after spec generation resumes from `SPEC_READY`; after execution it resumes from validation/review; after review it resumes from done-check and downstream gates. Runs stopped at `PUSH_BLOCKED`, `REMOTE_BRANCH_BLOCKED`, `PR_CREATE_BLOCKED`, `CI_BLOCKED`, or `MERGE_GATE_BLOCKED` retry from the failed GitHub gate without rerunning Claude spec generation, Codex execution, or creating a new commit when `commit_sha.txt` is present.
 
 ## Auth For Real Operations
 
@@ -61,7 +61,11 @@ claude -p "ping"
 printf 'ping\n' | codex exec --sandbox workspace-write -
 ```
 
-Real PR creation follows `frontier.yaml` (`git.auto_create_pr` and `workflow2.auto_pr`) and can be forced off with `FRONTIER_CREATE_PR=0`. Real auto-merge for green/yellow requires lane `auto_merge: true`, CI success, passing verdicts, artifact policy success, branch protection validation, and authenticated `gh`. Red lane additionally requires `FRONTIER_RED_AUTHORIZED=1` and matching scope.
+Real PR creation follows `frontier.yaml` (`git.auto_create_pr` and `workflow2.auto_pr`) and can be forced off with `FRONTIER_CREATE_PR=0`. Before `gh pr create`, Workflow 2 pushes the exact phase branch with a non-force `git push -u origin HEAD:refs/heads/<branch>` command, verifies the branch exists remotely, and verifies remote/local commit SHAs match. Push/auth failures stop as `PUSH_BLOCKED`; missing branches or SHA mismatches stop as `REMOTE_BRANCH_BLOCKED`; `gh pr create` failures stop as `PR_CREATE_BLOCKED`.
+
+PR bodies are written to `runs/<run_id>/phases/<phase_id>/pr_body.md` and passed to `gh pr create` with `--body-file`. The gate also writes `push_branch.json`, `push_branch.md`, `remote_branch.json`, `pr_create.json`, and `pr_create.md`.
+
+Real auto-merge for green/yellow requires lane `auto_merge: true`, CI success, passing verdicts, artifact policy success, branch protection validation, and authenticated `gh`. Red lane additionally requires `FRONTIER_RED_AUTHORIZED=1` and matching scope.
 
 Emergency kill:
 
