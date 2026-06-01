@@ -1,7 +1,7 @@
 {
   "project": "alpha_system",
   "profile": "trading_research",
-  "template_version": "3.0.0",
+  "template_version": "0.3.0-rc1",
   "requires_human_review": true,
   "auto_merge": false,
   "hooks": {

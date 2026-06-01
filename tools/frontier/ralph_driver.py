@@ -1,8 +1,9 @@
 """Local Ralph Workflow 2 driver for alpha_system.
 
-This module intentionally avoids GitHub operations, merge operations,
-deployment, live trading, paper trading, broker calls, browser access, and
-destructive cleanup.
+This module performs generic harness orchestration only. GitHub and merge
+operations go through local ``gh`` helpers and lane gates; deployment, live
+trading, paper trading, broker calls, browser access, and destructive cleanup
+are intentionally out of scope.
 
 It includes a deterministic local toy campaign for Workflow 2 readiness, a
 generic ledger-only mode, and a generic provider-wired local conductor that can
@@ -12,16 +13,38 @@ be exercised with deterministic mock providers.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
-import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.frontier.command_runner import CommandRunner
+from tools.frontier.config import load_config
+from tools.frontier.git_utils import commit_phase_changes, write_git_phase_artifacts
+from tools.frontier.github_utils import (
+    CI_SUCCESS,
+    classify_ci_checks,
+    create_pr,
+    detect_default_branch,
+    inspect_branch_protection,
+    wait_for_ci,
+    write_branch_protection_artifacts,
+    write_ci_status_artifacts,
+)
+from tools.frontier.merge_gate import evaluate_merge_gate, perform_merge, write_merge_gate_artifacts
+from tools.frontier.provider_adapters import ClaudeProviderAdapter, CodexProviderAdapter
+from tools.frontier.provider_config import ProviderRuntimeConfig, load_provider_config
+from tools.frontier.verdict import ReviewVerdict, parse_done_check_text, parse_review_text
+from tools.frontier.worktree_manager import WorktreeManager, phase_branch_name, worktree_mode_enabled
+
 TOY_CAMPAIGN_ID = "G005_WORKFLOW2_TOY"
 LEDGER_ONLY_DRIVER = "ralph_frontier_strict_ledger_only_v1"
 PROVIDER_WIRED_DRIVER = "ralph_frontier_provider_wired_mvc_v1"
@@ -115,7 +138,11 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 
 
 def mock_providers_enabled() -> bool:
-    return os.environ.get("FRONTIER_MOCK_PROVIDERS") == "1"
+    return load_provider_config(ROOT).mock_providers
+
+
+def runtime_config() -> ProviderRuntimeConfig:
+    return load_provider_config(ROOT)
 
 
 def parse_positive_int(value: str | int, source: str) -> int:
@@ -171,18 +198,9 @@ def resolve_max_phases(
     return campaign_phase_limit(campaign), "campaign"
 
 
-def run_local_command(command: list[str]) -> CommandResult:
-    try:
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    except FileNotFoundError as error:
-        return CommandResult(tuple(command), 127, "", str(error))
-    return CommandResult(tuple(command), result.returncode, result.stdout, result.stderr)
+def run_local_command(command: list[str], *, root: Path = ROOT) -> CommandResult:
+    result = CommandRunner(root).run(command)
+    return CommandResult(tuple(result.command), result.return_code, result.stdout, result.stderr)
 
 
 def command_block(result: CommandResult) -> str:
@@ -217,11 +235,112 @@ def append_event(run_dir: Path, state: dict[str, Any], event: str, **details: An
 def write_state(run_dir: Path, state: dict[str, Any]) -> None:
     state["updated_at"] = utc_now()
     write_json(run_dir / "state.json", state)
+    write_heartbeat(run_dir, state)
 
 
 def progress(run_dir: Path, message: str) -> None:
     with (run_dir / "progress.txt").open("a", encoding="utf-8") as handle:
         handle.write(f"{utc_now()} {message}\n")
+
+
+def write_heartbeat(run_dir: Path, state: dict[str, Any]) -> None:
+    heartbeat = {
+        "run_id": state.get("run_id"),
+        "campaign_id": state.get("campaign_id"),
+        "status": state.get("status"),
+        "current_phase_id": state.get("current_phase_id"),
+        "updated_at": utc_now(),
+        "pid": os.getpid(),
+    }
+    write_json(run_dir / "heartbeat.json", heartbeat)
+
+
+@contextlib.contextmanager
+def run_lock(run_dir: Path):
+    lock_path = run_dir / "RUN.lock"
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as error:
+        raise RuntimeError(f"Run lock already exists: {lock_path}") from error
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"pid": os.getpid(), "created_at": utc_now()}, sort_keys=True) + "\n")
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def env_or_config_number(env_name: str, config_value: Any, default: float) -> float:
+    raw = os.environ.get(env_name)
+    value = raw if raw not in {None, ""} else config_value
+    if value in {None, ""}:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def provider_budget_limits() -> dict[str, float]:
+    workflow2 = runtime_config().raw.get("workflow2", {})
+    if not isinstance(workflow2, dict):
+        workflow2 = {}
+    return {
+        "max_run_minutes": env_or_config_number(
+            "FRONTIER_MAX_RUN_MINUTES", workflow2.get("max_run_minutes"), 720
+        ),
+        "max_phase_minutes": env_or_config_number(
+            "FRONTIER_MAX_PHASE_MINUTES", workflow2.get("max_phase_minutes"), 120
+        ),
+        "max_estimated_usd": env_or_config_number(
+            "FRONTIER_MAX_ESTIMATED_USD", workflow2.get("max_estimated_usd"), 0
+        ),
+    }
+
+
+def parse_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def elapsed_minutes_since(value: str | None) -> float:
+    started = parse_timestamp(value)
+    if started is None:
+        return 0.0
+    return (datetime.now(UTC) - started).total_seconds() / 60
+
+
+def stop_requested(run_dir: Path) -> bool:
+    return (run_dir / "STOP").exists()
+
+
+def check_run_budget(run_dir: Path, state: dict[str, Any]) -> str | None:
+    limits = provider_budget_limits()
+    if elapsed_minutes_since(state.get("started_at")) > limits["max_run_minutes"]:
+        return f"Max run minutes exceeded: {limits['max_run_minutes']}."
+    if float(state.get("estimated_cost_usd", 0.0)) > limits["max_estimated_usd"] > 0:
+        return f"Max estimated cost exceeded: {limits['max_estimated_usd']}."
+    if stop_requested(run_dir):
+        return "STOP file exists."
+    return None
+
+
+def phase_elapsed_minutes(phase: dict[str, Any]) -> float:
+    return elapsed_minutes_since(phase.get("started_at"))
+
+
+def check_phase_budget(phase: dict[str, Any]) -> str | None:
+    limits = provider_budget_limits()
+    if phase_elapsed_minutes(phase) > limits["max_phase_minutes"]:
+        return f"Max phase minutes exceeded: {limits['max_phase_minutes']}."
+    return None
 
 
 def require_toy_campaign(campaign_id: str | None) -> str:
@@ -393,10 +512,16 @@ def provider_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
             "executor_prompt": f"{phase_artifact_root}/executor_prompt.md",
             "executor_output": f"{phase_artifact_root}/executor_output.md",
             "validation": f"{phase_artifact_root}/validation.md",
-            "handoff": f"{phase_artifact_root}/handoff.md",
             "review_prompt": f"{phase_artifact_root}/review_prompt.md",
             "review": f"{phase_artifact_root}/review.md",
             "verdict": f"{phase_artifact_root}/verdict.json",
+            "done_check_prompt": f"{phase_artifact_root}/done_check_prompt.md",
+            "done_check": f"{phase_artifact_root}/done_check.md",
+            "done_check_json": f"{phase_artifact_root}/done_check.json",
+            "handoff": f"{phase_artifact_root}/handoff.md",
+            "git_phase": f"{phase_artifact_root}/git_phase.json",
+            "ci_status": f"{phase_artifact_root}/ci_status.json",
+            "merge_gate": f"{phase_artifact_root}/merge_gate.json",
         },
     }
 
@@ -428,7 +553,11 @@ def initialize_toy_run(campaign_id: str) -> Path:
         "phases": [phase_state(phase) for phase in TOY_PHASES],
         "stop_requested": False,
         "started_at": utc_now(),
+        "created_at": utc_now(),
         "updated_at": utc_now(),
+        "attempts": {phase.phase_id: 0 for phase in TOY_PHASES},
+        "provider_mode": "none",
+        "lane_policy_snapshot": {},
         "completed_at": None,
         "last_event_id": 0,
         "external_providers_called": False,
@@ -544,6 +673,9 @@ def initialize_ledger_only_run(campaign_id: str) -> Path:
         "created_at": created_at,
         "started_at": created_at,
         "updated_at": created_at,
+        "attempts": {phase.phase_id: 0 for phase in campaign.phases},
+        "provider_mode": "none",
+        "lane_policy_snapshot": runtime_config().lane_policies,
         "completed_at": None,
         "last_event_id": 0,
         "phase_execution_performed": False,
@@ -585,6 +717,7 @@ def append_cost_record(
     phase_id: str | None,
     note: str,
 ) -> None:
+    state["estimated_cost_usd"] = float(state.get("estimated_cost_usd", 0.0))
     record = {
         "timestamp": utc_now(),
         "run_id": state["run_id"],
@@ -594,6 +727,7 @@ def append_cost_record(
         "provider": provider,
         "model": model,
         "cost_usd": 0.0,
+        "estimated_usd": 0.0,
         "note": note,
     }
     with (run_dir / "costs.jsonl").open("a", encoding="utf-8") as handle:
@@ -604,6 +738,8 @@ def initialize_provider_wired_run(
     campaign: LedgerCampaign,
     max_phases: int,
     max_phases_source: str,
+    *,
+    worktree_mode: bool | None = None,
 ) -> Path:
     campaign_id = campaign.campaign_id
     run_id = run_id_for(campaign_id)
@@ -618,7 +754,11 @@ def initialize_provider_wired_run(
     (run_dir / "progress.txt").write_text("Provider-wired Workflow 2 run initialized.\n", encoding="utf-8")
     (run_dir / "costs.jsonl").write_text("", encoding="utf-8")
 
-    mock_enabled = mock_providers_enabled()
+    config = runtime_config()
+    mock_enabled = config.mock_providers
+    resolved_worktree_mode = worktree_mode_enabled(worktree_mode, ROOT)
+    workflow2 = config.raw.get("workflow2", {}) if isinstance(config.raw.get("workflow2"), dict) else {}
+    max_repairs = int(os.environ.get("FRONTIER_MAX_REPAIR_ATTEMPTS") or workflow2.get("max_repair_attempts_default", 2))
     state: dict[str, Any] = {
         "schema_version": "frontier-run-state-v3",
         "run_id": run_id,
@@ -637,10 +777,18 @@ def initialize_provider_wired_run(
         "last_event_id": 0,
         "provider_wired": True,
         "mock_providers": mock_enabled,
+        "provider_mode": config.provider_mode,
+        "provider_timeout_seconds": config.provider_timeout_seconds,
+        "worktree_mode": resolved_worktree_mode,
+        "worktree_root": str(config.worktree_root) if config.worktree_root else None,
         "max_phases_requested": max_phases,
         "max_phases_source": max_phases_source,
         "campaign_phase_limit": campaign_phase_limit(campaign),
-        "max_repair_attempts": DEFAULT_MAX_REPAIR_ATTEMPTS,
+        "max_repair_attempts": max_repairs,
+        "estimated_cost_usd": 0.0,
+        "attempts": {phase.phase_id: 0 for phase in campaign.phases},
+        "repair_attempts": {phase.phase_id: 0 for phase in campaign.phases},
+        "lane_policy_snapshot": config.lane_policies,
         "phase_execution_performed": False,
         "external_providers_called": False,
         "network_used": False,
@@ -672,7 +820,15 @@ def provider_phase_dir(run_dir: Path, phase: dict[str, Any]) -> Path:
 
 
 def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
+    resumable = {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"}
+    current = state.get("current_phase_id")
+    if current:
+        for phase in state["phases"]:
+            if phase["phase_id"] == current and phase.get("status") in resumable:
+                return phase
     for phase in state["phases"]:
+        if phase["status"] in resumable:
+            return phase
         if phase["status"] == "PENDING":
             return phase
     return None
@@ -692,8 +848,12 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
         f"Status: {state['status']}",
         f"Provider-wired: {str(state.get('provider_wired', False)).lower()}",
         f"Mock providers: {str(state.get('mock_providers', False)).lower()}",
+        f"Provider mode: {state.get('provider_mode', 'unknown')}",
+        f"Worktree mode: {str(state.get('worktree_mode', False)).lower()}",
         f"Max phases requested: {state.get('max_phases_requested', len(state['phases']))}",
         f"Max phases source: {state.get('max_phases_source', 'unknown')}",
+        f"Max repair attempts: {state.get('max_repair_attempts', DEFAULT_MAX_REPAIR_ATTEMPTS)}",
+        f"Estimated cost USD: {state.get('estimated_cost_usd', 0.0)}",
         f"Passing phases: {len(passing)}/{len(state['phases'])}",
         f"Pending phases: {len(pending)}",
         "",
@@ -717,9 +877,9 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
             f"- Network used: {str(state.get('network_used', False)).lower()}",
             f"- Codex execution called by driver: {str(state.get('codex_called_by_driver', False)).lower()}",
             f"- Claude execution called by driver: {str(state.get('claude_called_by_driver', False)).lower()}",
-            "- GitHub operations performed: false",
-            "- PRs created: false",
-            "- Auto-merge performed: false",
+            f"- GitHub operations performed: {str(state.get('github_operations_performed', False)).lower()}",
+            f"- PRs created: {str(state.get('prs_created', False)).lower()}",
+            f"- Auto-merge performed: {str(state.get('auto_merge_performed', False)).lower()}",
             "- Deployment performed: false",
             "- Live or paper trading performed: false",
             "- Broker calls performed: false",
@@ -891,6 +1051,91 @@ Validation output:
 """
 
 
+def done_check_prompt(
+    phase: dict[str, Any],
+    campaign_id: str,
+    spec_text: str,
+    executor_text: str,
+    validation_text: str,
+    review_text: str,
+    verdict: str,
+    handoff_text: str,
+) -> str:
+    return f"""You are Claude performing a semantic done-check for one Frontier Workflow 2 phase.
+
+Compare:
+- AGENTS.md
+- frontier.yaml
+- campaigns/{campaign_id} files
+- generated phase spec
+- changed files and executor output
+- validation output
+- review output and verdict
+- handoff
+
+Return markdown. Include exactly one done-check line using one of:
+DONE_CHECK: PASS
+DONE_CHECK: PASS_WITH_WARNINGS
+DONE_CHECK: REWORK
+DONE_CHECK: BLOCKED
+
+Be conservative. Require rework for missed phase requirements, incomplete validation, scope drift, or unsupported handoff claims. Block broker/live/paper scope, destructive operations, hidden failed runs, and unsafe automation.
+
+Phase: {phase_label(phase)}
+Review verdict: {verdict}
+
+Generated spec:
+
+{spec_text}
+
+Executor output:
+
+{executor_text}
+
+Validation output:
+
+{validation_text}
+
+Review output:
+
+{review_text}
+
+Handoff:
+
+{handoff_text}
+"""
+
+
+def campaign_done_check_prompt(campaign_id: str, state: dict[str, Any], run_summary: str) -> str:
+    phase_lines = "\n".join(f"- {phase['phase_id']}: {phase['status']}" for phase in state.get("phases", []))
+    return f"""You are Claude performing the final semantic campaign done-check for Frontier Workflow 2.
+
+Compare:
+- campaigns/{campaign_id}/GOAL.md
+- campaigns/{campaign_id}/ACCEPTANCE.md
+- campaigns/{campaign_id}/PHASE_PLAN.md
+- all phase verdicts and done-checks
+- RUN_SUMMARY.md
+- docs/PROJECT_STATUS or PROGRESS if present
+
+Return markdown. Include exactly one done-check line using one of:
+DONE_CHECK: PASS
+DONE_CHECK: PASS_WITH_WARNINGS
+DONE_CHECK: REWORK
+DONE_CHECK: BLOCKED
+
+Campaign: {campaign_id}
+
+Phase statuses:
+
+{phase_lines}
+
+Current RUN_SUMMARY:
+
+{run_summary}
+"""
+
+
 def repair_prompt(phase: dict[str, Any], spec_text: str, review_text: str, validation_text: str) -> str:
     return f"""You are Codex performing one bounded repair attempt for Frontier Workflow 2.
 
@@ -966,8 +1211,29 @@ def mock_review_text(phase: dict[str, Any]) -> str:
     )
 
 
+def mock_done_check_text(phase: dict[str, Any]) -> str:
+    return (
+        f"# Mock Done Check: {phase['phase_id']}\n\n"
+        "Deterministic mock-provider artifacts satisfy the mock phase contract.\n\n"
+        "DONE_CHECK: PASS\n"
+    )
+
+
+def mock_campaign_done_check_text(campaign_id: str) -> str:
+    return (
+        f"# Mock Campaign Done Check: {campaign_id}\n\n"
+        "All executed mock-provider phases reached a passing terminal status.\n\n"
+        "DONE_CHECK: PASS\n"
+    )
+
+
 def provider_handoff_text(phase: dict[str, Any], verdict: str, mock_enabled: bool) -> str:
     mode = "mock-provider" if mock_enabled else "provider-wired"
+    automation = (
+        "Mock mode did not perform GitHub, PR, merge, deployment, broker, paper, or live trading operations."
+        if mock_enabled
+        else "GitHub PR, CI, and merge-gate automation may run only when frontier.yaml lane policy and local CLI auth allow it."
+    )
     return f"""# {phase['phase_id']} Handoff
 
 ## Scope Completed
@@ -978,7 +1244,7 @@ def provider_handoff_text(phase: dict[str, Any], verdict: str, mock_enabled: boo
 
 ## Safety
 
-- No GitHub operation, PR creation, auto-merge, deployment, broker operation, paper trading, or live trading was performed by the conductor.
+- {automation}
 
 ## Validation
 
@@ -986,22 +1252,26 @@ def provider_handoff_text(phase: dict[str, Any], verdict: str, mock_enabled: boo
 """
 
 
-def claude_headless(prompt: str) -> CommandResult:
-    return run_local_command(["claude", "-p", prompt])
+def claude_headless(prompt: str, *, root: Path = ROOT) -> CommandResult:
+    config = load_provider_config(root)
+    response = ClaudeProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
+    return CommandResult(tuple(response.command), response.return_code, response.stdout, response.stderr)
 
 
-def codex_noninteractive(prompt: str) -> CommandResult:
-    return run_local_command(["codex", "exec", "--sandbox", "workspace-write", prompt])
+def codex_noninteractive(prompt: str, *, root: Path = ROOT) -> CommandResult:
+    config = load_provider_config(root)
+    response = CodexProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
+    return CommandResult(tuple(response.command), response.return_code, response.stdout, response.stderr)
 
 
 def write_provider_failure(path: Path, title: str, result: CommandResult) -> None:
     path.write_text(f"# {title}\n\n{command_block(result)}\n", encoding="utf-8")
 
 
-def run_validation_commands() -> tuple[bool, str]:
+def run_validation_commands(*, root: Path = ROOT) -> tuple[bool, str]:
     results = [
-        run_local_command(["just", "frontier-doctor"]),
-        run_local_command(["just", "verify-canaries"]),
+        run_local_command(["just", "frontier-doctor"], root=root),
+        run_local_command(["just", "verify-canaries"], root=root),
     ]
     ok = all(result.returncode == 0 for result in results)
     body = ["# Validation", ""]
@@ -1010,14 +1280,15 @@ def run_validation_commands() -> tuple[bool, str]:
     return ok, "\n".join(body)
 
 
+def run_phase_validation(root: Path) -> tuple[bool, str]:
+    try:
+        return run_validation_commands(root=root)
+    except TypeError:
+        return run_validation_commands()
+
+
 def parse_review_verdict(text: str) -> str:
-    if "VERDICT: PASS_WITH_WARNINGS" in text:
-        return "PASS_WITH_WARNINGS"
-    if "VERDICT: PASS" in text:
-        return "PASS"
-    if "VERDICT: REWORK" in text:
-        return "REWORK"
-    return "BLOCKED"
+    return parse_review_text(text).verdict
 
 
 def write_provider_verdict(
@@ -1027,7 +1298,12 @@ def write_provider_verdict(
     verdict: str,
     *,
     source: str,
+    parsed: ReviewVerdict | None = None,
 ) -> None:
+    findings = parsed.findings if parsed else []
+    required_repairs = parsed.required_repairs if parsed else []
+    warnings = parsed.warnings if parsed else []
+    severity = parsed.severity if parsed else ("critical" if verdict == "BLOCKED" else "none")
     write_json(
         phase_dir / "verdict.json",
         {
@@ -1036,6 +1312,11 @@ def write_provider_verdict(
             "run_id": state["run_id"],
             "phase_id": phase["phase_id"],
             "verdict": verdict,
+            "severity": severity,
+            "findings": findings,
+            "required_repairs": required_repairs,
+            "warnings": warnings,
+            "raw_review_path": parsed.raw_review_path if parsed else None,
             "source": source,
             "mock_providers": state.get("mock_providers", False),
             "external_providers_called": state.get("external_providers_called", False),
@@ -1046,177 +1327,640 @@ def write_provider_verdict(
     )
 
 
+def write_done_check_result(
+    phase_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    text: str,
+) -> str:
+    path = phase_dir / "done_check.md"
+    path.write_text(text, encoding="utf-8")
+    parsed = parse_done_check_text(text, path)
+    write_json(
+        phase_dir / "done_check.json",
+        {
+            "schema_version": "frontier-done-check-v1",
+            "campaign_id": state["campaign_id"],
+            "run_id": state["run_id"],
+            "phase_id": phase["phase_id"],
+            "verdict": parsed.verdict,
+            "findings": parsed.findings,
+            "warnings": parsed.warnings,
+            "raw_path": parsed.raw_path,
+            "mock_providers": state.get("mock_providers", False),
+            "parsed_at": utc_now(),
+        },
+    )
+    return parsed.verdict
+
+
+def phase_required_checks(phase: dict[str, Any], config: dict[str, Any]) -> list[str]:
+    github = config.get("github") if isinstance(config.get("github"), dict) else {}
+    checks = github.get("required_checks") or []
+    return [str(check) for check in checks if check]
+
+
+def max_repair_attempts_for_phase(state: dict[str, Any], phase: dict[str, Any]) -> int:
+    override = os.environ.get("FRONTIER_MAX_REPAIR_ATTEMPTS")
+    if override:
+        return parse_positive_int(override, "FRONTIER_MAX_REPAIR_ATTEMPTS")
+    lane = str(phase.get("lane") or "green").lower()
+    policy = state.get("lane_policy_snapshot", {}).get(lane, {})
+    if isinstance(policy, dict) and policy.get("max_repair_attempts") is not None:
+        return parse_positive_int(policy["max_repair_attempts"], f"lanes.{lane}.max_repair_attempts")
+    return parse_positive_int(state.get("max_repair_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS), "max_repair_attempts")
+
+
+def pr_body_text(
+    run_dir: Path,
+    phase_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    verdict: str,
+    merge_gate_summary: str,
+) -> str:
+    validation = (phase_dir / "validation.md").read_text(encoding="utf-8") if (phase_dir / "validation.md").exists() else ""
+    review = (phase_dir / "review.md").read_text(encoding="utf-8") if (phase_dir / "review.md").exists() else ""
+    handoff = phase_dir / "handoff.md"
+    return f"""## Phase Summary
+
+- Campaign: `{state['campaign_id']}`
+- Phase: `{phase['phase_id']}`
+- Run: `{state['run_id']}`
+- Verdict: `{verdict}`
+
+## Validation Summary
+
+Validation artifacts are in `{phase_dir.relative_to(ROOT)}/validation.md`.
+
+```text
+{validation[:2000]}
+```
+
+## Review Verdict
+
+```text
+{review[:2000]}
+```
+
+## Merge Gate Summary
+
+{merge_gate_summary}
+
+## Handoff
+
+`{handoff.relative_to(ROOT)}`
+
+## Run Artifacts
+
+- `{run_dir.relative_to(ROOT)}/RUN_SUMMARY.md`
+- `{phase_dir.relative_to(ROOT)}/verdict.json`
+- `{phase_dir.relative_to(ROOT)}/done_check.json`
+- `{phase_dir.relative_to(ROOT)}/ci_status.json`
+- `{phase_dir.relative_to(ROOT)}/merge_gate.json`
+
+## Non-Runs
+
+- No live trading, paper trading, broker operation, or production deployment is part of this generic harness.
+
+## Limitations
+
+- Provider execution uses local Claude/Codex CLIs; no direct API keys are handled by the harness.
+- Real merge remains gated by frontier.yaml, CI, branch protection validation, and local `gh` authentication.
+"""
+
+
+def phase_auto_pr_allowed(config: dict[str, Any], phase: dict[str, Any]) -> bool:
+    workflow2 = config.get("workflow2") if isinstance(config.get("workflow2"), dict) else {}
+    git_config = config.get("git") if isinstance(config.get("git"), dict) else {}
+    lane = str(phase.get("lane") or "green").lower()
+    lanes = config.get("lanes") if isinstance(config.get("lanes"), dict) else {}
+    lane_policy = lanes.get(lane, {}) if isinstance(lanes, dict) else {}
+    return bool(workflow2.get("auto_pr", workflow2.get("allow_auto_pr", True))) and bool(
+        git_config.get("auto_create_pr", True)
+    ) and bool(lane_policy.get("auto_pr", False))
+
+
+def write_github_result(path: Path, result: Any) -> None:
+    if hasattr(result, "to_dict"):
+        data = result.to_dict()
+    else:
+        data = result
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def post_phase_git_github(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    verdict: str,
+    *,
+    execution_root: Path = ROOT,
+) -> bool:
+    phase_dir = provider_phase_dir(run_dir, phase)
+    config = load_config(ROOT / "frontier.yaml")
+    lane = str(phase.get("lane") or "green").lower()
+    branch = phase.get("branch") or phase_branch_name(state["campaign_id"], phase["phase_id"], phase.get("name"))
+    mock_enabled = bool(state.get("mock_providers"))
+    dry_git = mock_enabled and os.environ.get("FRONTIER_MOCK_COMMIT") != "1"
+    push_enabled = not mock_enabled and os.environ.get("FRONTIER_PUSH", "1") != "0"
+
+    git_result = commit_phase_changes(
+        root=execution_root,
+        campaign_id=state["campaign_id"],
+        phase_id=phase["phase_id"],
+        summary=phase.get("name") or phase["phase_id"],
+        branch=branch,
+        config=config,
+        dry_run=dry_git,
+        push=push_enabled,
+    )
+    write_git_phase_artifacts(phase_dir, git_result)
+    phase["branch"] = branch
+    phase["commit_sha"] = git_result.commit_sha
+    append_event(run_dir, state, "GIT_PHASE_RECORDED", phase_id=phase["phase_id"], dry_run=git_result.dry_run)
+
+    github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
+    project_config = config.get("project") if isinstance(config.get("project"), dict) else {}
+    required_checks = phase_required_checks(phase, config)
+    ci_status = CI_SUCCESS if mock_enabled else "NOT_FOUND"
+    pr_number: str | int | None = None
+    pr_result = None
+    pr_dry_run = mock_enabled or os.environ.get("FRONTIER_CREATE_PR") == "0" or not phase_auto_pr_allowed(config, phase)
+    if os.environ.get("FRONTIER_CREATE_PR") == "1":
+        pr_dry_run = False
+    if phase_auto_pr_allowed(config, phase) or os.environ.get("FRONTIER_CREATE_PR") == "1":
+        state["github_operations_performed"] = True
+        base = str(project_config.get("default_branch") or "main") if mock_enabled else detect_default_branch(root=execution_root)
+        title = f"{state['campaign_id']}/{phase['phase_id']}: {phase.get('name') or phase['phase_id']}"
+        provisional_gate = f"Merge gate will be evaluated after PR/CI. Verdict: {verdict}."
+        body = pr_body_text(run_dir, phase_dir, state, phase, verdict, provisional_gate)
+        pr_result = create_pr(title=title, body=body, base=base, head=branch, root=execution_root, dry_run=pr_dry_run)
+        write_github_result(phase_dir / "pr_create.json", pr_result)
+        if pr_result.ok and not pr_result.dry_run:
+            state["prs_created"] = True
+            pr_meta = pr_result.metadata.get("pr") if isinstance(pr_result.metadata, dict) else {}
+            pr_number = pr_result.metadata.get("number") or (pr_meta or {}).get("number")
+            phase["pr_number"] = pr_number
+        elif pr_result.blocked:
+            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="pr_create_blocked")
+            block_provider_run(run_dir, state, phase, "BLOCKED", "PR_CREATE_BLOCKED: " + (pr_result.instructions or pr_result.stderr))
+            return False
+
+    if pr_number is not None and not mock_enabled:
+        ci_result = wait_for_ci(
+            pr_number,
+            timeout_seconds=int(github_config.get("ci_timeout_seconds", 900)),
+            poll_seconds=int(github_config.get("ci_poll_seconds", 15)),
+            required_checks=required_checks,
+            root=execution_root,
+        )
+    elif mock_enabled:
+        ci_result = classify_ci_checks(
+            [{"name": check or "mock-ci", "state": "COMPLETED", "conclusion": "success"} for check in (required_checks or ["mock-ci"])],
+            required_checks=required_checks,
+        )
+    else:
+        ci_result = classify_ci_checks([], required_checks=required_checks)
+    ci_status = ci_result.state
+    write_ci_status_artifacts(phase_dir, ci_result)
+    phase["ci_status"] = ci_status
+    if github_config.get("require_ci", True) and ci_status != CI_SUCCESS:
+        block_provider_run(run_dir, state, phase, "BLOCKED", f"CI status was {ci_status}.")
+        return False
+
+    base_branch = str(project_config.get("default_branch") or "main") if mock_enabled else detect_default_branch(root=execution_root)
+    merge_dry_run = mock_enabled or os.environ.get("FRONTIER_MERGE_DRY_RUN") == "1"
+    bp_result = inspect_branch_protection(
+        branch=base_branch,
+        required_checks=required_checks,
+        require_branch_protection=bool(github_config.get("require_branch_protection", True)),
+        root=execution_root,
+        dry_run=merge_dry_run and bool(github_config.get("allow_unprotected_dry_run", True)),
+    )
+    write_branch_protection_artifacts(phase_dir, bp_result)
+
+    critical = []
+    verdict_path = phase_dir / "verdict.json"
+    if verdict_path.exists():
+        verdict_data = read_json(verdict_path)
+        if verdict_data.get("severity") == "critical":
+            critical = list(verdict_data.get("findings", []))
+    merge_changed_files = [] if dry_git else git_result.changed_files
+    gate = evaluate_merge_gate(
+        campaign_id=state["campaign_id"],
+        phase_id=phase["phase_id"],
+        lane=lane,
+        verdict=verdict,
+        ci_status=ci_status,
+        changed_files=merge_changed_files,
+        artifact_policy={"ok": dry_git or not git_result.blocked_files, "blocked_files": git_result.blocked_files},
+        config=config,
+        env=os.environ,
+        dry_run=merge_dry_run or pr_number is None,
+        branch_protection=bp_result,
+        critical_findings=critical,
+        stop_requested=stop_requested(run_dir),
+    )
+    write_merge_gate_artifacts(phase_dir, gate)
+    phase["merge_gate_status"] = gate.status
+    if gate.status not in PASSING_VERDICTS:
+        block_provider_run(run_dir, state, phase, "BLOCKED", "Merge gate blocked: " + "; ".join(gate.reasons))
+        return False
+    if pr_number is not None:
+        merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
+        write_github_result(phase_dir / "merge_result.json", merge_result)
+        if merge_result.ok and not merge_result.dry_run:
+            state["auto_merge_performed"] = True
+            append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
+        elif merge_result.blocked and gate.merge_allowed:
+            block_provider_run(run_dir, state, phase, "BLOCKED", merge_result.instructions or merge_result.stderr)
+            return False
+    return True
+
+
+def _read_phase_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
 def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str, Any]) -> bool:
     mock_enabled = bool(state.get("mock_providers"))
     phase_id = phase["phase_id"]
     phase_dir = provider_phase_dir(run_dir, phase)
     phase_dir.mkdir(parents=True, exist_ok=True)
+    execution_root = ROOT
 
-    state["status"] = "RUNNING"
-    state["current_phase_id"] = phase_id
-    state["current_micro_attempt"] = 1
-    phase["started_at"] = utc_now()
-    append_event(run_dir, state, "PHASE_SELECT", phase_id=phase_id)
-    write_state(run_dir, state)
-    progress(run_dir, f"Selected {phase_id}.")
+    if state.get("worktree_mode"):
+        manager = WorktreeManager(ROOT, runtime_config().worktree_root)
+        plan = manager.create(state["campaign_id"], phase_id, phase.get("name"), dry_run=mock_enabled)
+        phase["branch"] = plan.branch
+        phase["worktree_path"] = plan.path
+        if not mock_enabled:
+            execution_root = Path(plan.path)
+        (phase_dir / "worktree_plan.json").write_text(
+            json.dumps(plan.__dict__, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        append_event(run_dir, state, "WORKTREE_PLAN", phase_id=phase_id, branch=plan.branch, path=plan.path)
 
-    spec_prompt_text = spec_generation_prompt(phase, state["campaign_id"])
-    (phase_dir / "spec_prompt.md").write_text(spec_prompt_text, encoding="utf-8")
-    if mock_enabled:
-        spec_text = mock_spec_text(phase)
-        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_spec")
-    else:
-        state["claude_called_by_driver"] = True
-        state["external_providers_called"] = True
-        state["network_used"] = True
-        append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="spec_generation")
-        result = claude_headless(spec_prompt_text)
-        if result.returncode != 0:
-            write_provider_failure(phase_dir / "spec.md", "Claude Spec Generation Failed", result)
-            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="spec_generation_error")
-            block_provider_run(run_dir, state, phase, "BLOCKED", "Claude spec generation failed.")
-            return False
-        spec_text = result.stdout
-    (phase_dir / "spec.md").write_text(spec_text, encoding="utf-8")
-    set_provider_phase_status(phase, "SPEC_READY")
-    append_event(run_dir, state, "SPEC_READY", phase_id=phase_id)
-    write_state(run_dir, state)
-
-    exec_prompt_text = executor_prompt(phase, spec_text, phase_dir)
-    (phase_dir / "executor_prompt.md").write_text(exec_prompt_text, encoding="utf-8")
-    if mock_enabled:
-        executor_text = mock_executor_text(phase, phase_dir)
-        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_codex_execute")
-    else:
-        state["codex_called_by_driver"] = True
-        state["external_providers_called"] = True
-        state["network_used"] = True
-        append_cost_record(run_dir, state, provider="codex", model=None, phase_id=phase_id, note="phase_execution")
-        result = codex_noninteractive(exec_prompt_text)
-        executor_text = command_block(result)
-        if result.returncode != 0:
-            (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
-            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="executor_error")
-            block_provider_run(run_dir, state, phase, "BLOCKED", "Codex executor returned nonzero.")
-            return False
-    (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
-    set_provider_phase_status(phase, "EXECUTED")
-    append_event(run_dir, state, "EXECUTED", phase_id=phase_id)
-    write_state(run_dir, state)
-
-    validation_ok, validation_text = run_validation_commands()
-    (phase_dir / "validation.md").write_text(validation_text, encoding="utf-8")
-    if not validation_ok:
-        write_provider_verdict(phase_dir, state, phase, "REWORK", source="validation")
-        block_provider_run(run_dir, state, phase, "REWORK", "Validation failed.")
+    reason = check_run_budget(run_dir, state)
+    if reason:
+        block_provider_run(run_dir, state, phase, "BLOCKED", reason)
         return False
-    set_provider_phase_status(phase, "VALIDATED")
-    append_event(run_dir, state, "VALIDATED", phase_id=phase_id)
-    write_state(run_dir, state)
 
-    review_prompt_text = review_prompt(
-        phase,
-        state["campaign_id"],
-        spec_text,
-        executor_text,
-        validation_text,
-    )
-    (phase_dir / "review_prompt.md").write_text(review_prompt_text, encoding="utf-8")
-    if mock_enabled:
-        review_text = mock_review_text(phase)
-        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_review")
+    status = phase.get("status", "PENDING")
+    if status == "PENDING":
+        state["status"] = "RUNNING"
+        state["current_phase_id"] = phase_id
+        state["current_micro_attempt"] = 1
+        state.setdefault("attempts", {})
+        state["attempts"][phase_id] = int(state["attempts"].get(phase_id, 0)) + 1
+        phase["started_at"] = utc_now()
+        append_event(run_dir, state, "PHASE_SELECT", phase_id=phase_id)
+        write_state(run_dir, state)
+        progress(run_dir, f"Selected {phase_id}.")
     else:
-        append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_review")
-        result = claude_headless(review_prompt_text)
-        review_text = result.stdout if result.returncode == 0 else command_block(result)
-        if result.returncode != 0:
-            (phase_dir / "review.md").write_text(review_text, encoding="utf-8")
-            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="claude_review_error")
-            block_provider_run(run_dir, state, phase, "BLOCKED", "Claude review returned nonzero.")
-            return False
-    (phase_dir / "review.md").write_text(review_text, encoding="utf-8")
-    verdict = parse_review_verdict(review_text)
-    write_provider_verdict(phase_dir, state, phase, verdict, source="review")
-    set_provider_phase_status(phase, "REVIEWED")
-    append_event(run_dir, state, "REVIEWED", phase_id=phase_id, verdict=verdict)
-    write_state(run_dir, state)
+        append_event(run_dir, state, "PHASE_RESUME", phase_id=phase_id, status=status)
 
-    if verdict == "REWORK":
-        verdict = run_provider_repair_once(run_dir, state, phase, spec_text, review_text, validation_text)
+    if phase.get("status") == "PENDING":
+        if stop_requested(run_dir):
+            block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before spec generation.")
+            return False
+        spec_prompt_text = spec_generation_prompt(phase, state["campaign_id"])
+        (phase_dir / "spec_prompt.md").write_text(spec_prompt_text, encoding="utf-8")
+        if mock_enabled:
+            spec_text = mock_spec_text(phase)
+            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_spec")
+        else:
+            state["claude_called_by_driver"] = True
+            state["external_providers_called"] = True
+            state["network_used"] = True
+            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="spec_generation")
+            result = claude_headless(spec_prompt_text)
+            if result.returncode != 0:
+                write_provider_failure(phase_dir / "spec.md", "Claude Spec Generation Failed", result)
+                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="spec_generation_error")
+                block_provider_run(run_dir, state, phase, "BLOCKED", "Claude spec generation failed.")
+                return False
+            spec_text = result.stdout
+        (phase_dir / "spec.md").write_text(spec_text, encoding="utf-8")
+        set_provider_phase_status(phase, "SPEC_READY")
+        append_event(run_dir, state, "SPEC_READY", phase_id=phase_id)
+        write_state(run_dir, state)
+        write_provider_summary(run_dir, state, f"{phase_id} spec ready.")
+    else:
+        spec_text = _read_phase_text(phase_dir / "spec.md")
+
+    if phase.get("status") == "SPEC_READY":
+        if stop_requested(run_dir):
+            block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before execution.")
+            return False
+        phase_reason = check_phase_budget(phase)
+        if phase_reason:
+            block_provider_run(run_dir, state, phase, "BLOCKED", phase_reason)
+            return False
+        exec_prompt_text = executor_prompt(phase, spec_text, phase_dir)
+        (phase_dir / "executor_prompt.md").write_text(exec_prompt_text, encoding="utf-8")
+        if mock_enabled:
+            executor_text = mock_executor_text(phase, phase_dir)
+            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_codex_execute")
+        else:
+            state["codex_called_by_driver"] = True
+            state["external_providers_called"] = True
+            state["network_used"] = True
+            append_cost_record(run_dir, state, provider="codex", model=None, phase_id=phase_id, note="phase_execution")
+            result = codex_noninteractive(exec_prompt_text, root=execution_root)
+            executor_text = command_block(result)
+            if result.returncode != 0:
+                (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
+                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="executor_error")
+                block_provider_run(run_dir, state, phase, "BLOCKED", "Codex executor returned nonzero.")
+                return False
+        (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
+        set_provider_phase_status(phase, "EXECUTED")
+        append_event(run_dir, state, "EXECUTED", phase_id=phase_id)
+        write_state(run_dir, state)
+        write_provider_summary(run_dir, state, f"{phase_id} executed.")
+    else:
+        executor_text = _read_phase_text(phase_dir / "executor_output.md")
+
+    if phase.get("status") in {"EXECUTED", "REPAIRED"}:
+        if stop_requested(run_dir):
+            block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before validation.")
+            return False
+        validation_ok, validation_text = run_phase_validation(execution_root)
+        (phase_dir / "validation.md").write_text(validation_text, encoding="utf-8")
+        if not validation_ok:
+            write_provider_verdict(phase_dir, state, phase, "REWORK", source="validation")
+            set_provider_phase_status(phase, "REWORK")
+            verdict = run_provider_repair_loop(
+                run_dir,
+                state,
+                phase,
+                spec_text,
+                "Validation failed before Claude review.",
+                validation_text,
+                execution_root=execution_root,
+            )
+            if verdict not in PASSING_VERDICTS:
+                block_provider_run(run_dir, state, phase, "BLOCKED", "Repair attempts exhausted after validation failure.")
+                return False
+        else:
+            set_provider_phase_status(phase, "VALIDATED")
+            append_event(run_dir, state, "VALIDATED", phase_id=phase_id)
+            write_state(run_dir, state)
+            write_provider_summary(run_dir, state, f"{phase_id} validated.")
+    validation_text = _read_phase_text(phase_dir / "validation.md")
+
+    if phase.get("status") == "VALIDATED":
+        if stop_requested(run_dir):
+            block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before review.")
+            return False
+        review_prompt_text = review_prompt(
+            phase,
+            state["campaign_id"],
+            spec_text,
+            executor_text,
+            validation_text,
+        )
+        (phase_dir / "review_prompt.md").write_text(review_prompt_text, encoding="utf-8")
+        if mock_enabled:
+            review_text = mock_review_text(phase)
+            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_review")
+        else:
+            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_review")
+            result = claude_headless(review_prompt_text, root=execution_root)
+            review_text = result.stdout if result.returncode == 0 else command_block(result)
+            if result.returncode != 0:
+                (phase_dir / "review.md").write_text(review_text, encoding="utf-8")
+                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="claude_review_error")
+                block_provider_run(run_dir, state, phase, "BLOCKED", "Claude review returned nonzero.")
+                return False
+        review_path = phase_dir / "review.md"
+        review_path.write_text(review_text, encoding="utf-8")
+        parsed_verdict = parse_review_text(review_text, review_path)
+        verdict = parsed_verdict.verdict
+        write_provider_verdict(phase_dir, state, phase, verdict, source="review", parsed=parsed_verdict)
+        set_provider_phase_status(phase, "REVIEWED")
+        append_event(run_dir, state, "REVIEWED", phase_id=phase_id, verdict=verdict)
+        write_state(run_dir, state)
+        write_provider_summary(run_dir, state, f"{phase_id} reviewed with {verdict}.")
+    else:
+        review_text = _read_phase_text(phase_dir / "review.md")
+        verdict = read_json(phase_dir / "verdict.json").get("verdict", "BLOCKED") if (phase_dir / "verdict.json").exists() else "BLOCKED"
+
+    if verdict == "REWORK" or phase.get("status") == "REWORK":
+        verdict = run_provider_repair_loop(
+            run_dir, state, phase, spec_text, review_text, validation_text, execution_root=execution_root
+        )
     if verdict not in PASSING_VERDICTS:
         block_provider_run(run_dir, state, phase, "BLOCKED", f"Review verdict was {verdict}.")
         return False
 
-    (phase_dir / "handoff.md").write_text(provider_handoff_text(phase, verdict, mock_enabled), encoding="utf-8")
+    handoff_text = provider_handoff_text(phase, verdict, mock_enabled)
+    (phase_dir / "handoff.md").write_text(handoff_text, encoding="utf-8")
+    workflow2 = runtime_config().raw.get("workflow2", {})
+    if not isinstance(workflow2, dict) or bool(workflow2.get("semantic_done_check_required", True)):
+        if stop_requested(run_dir):
+            block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before done-check.")
+            return False
+        done_prompt = done_check_prompt(
+            phase,
+            state["campaign_id"],
+            spec_text,
+            executor_text,
+            validation_text,
+            review_text,
+            verdict,
+            handoff_text,
+        )
+        (phase_dir / "done_check_prompt.md").write_text(done_prompt, encoding="utf-8")
+        if mock_enabled:
+            done_text = mock_done_check_text(phase)
+            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_done_check")
+        else:
+            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_done_check")
+            result = claude_headless(done_prompt, root=execution_root)
+            done_text = result.stdout if result.returncode == 0 else command_block(result)
+            if result.returncode != 0:
+                (phase_dir / "done_check.md").write_text(done_text, encoding="utf-8")
+                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="done_check_error")
+                block_provider_run(run_dir, state, phase, "BLOCKED", "Claude done-check returned nonzero.")
+                return False
+        done_verdict = write_done_check_result(phase_dir, state, phase, done_text)
+        append_event(run_dir, state, "DONE_CHECK", phase_id=phase_id, verdict=done_verdict)
+        if done_verdict == "REWORK":
+            verdict = run_provider_repair_loop(
+                run_dir, state, phase, spec_text, done_text, validation_text, execution_root=execution_root
+            )
+            if verdict not in PASSING_VERDICTS:
+                block_provider_run(run_dir, state, phase, "BLOCKED", "Repair attempts exhausted after done-check.")
+                return False
+        elif done_verdict == "BLOCKED":
+            block_provider_run(run_dir, state, phase, "BLOCKED", "Done-check returned BLOCKED.")
+            return False
+        elif done_verdict == "PASS_WITH_WARNINGS" and verdict == "PASS":
+            verdict = "PASS_WITH_WARNINGS"
+            write_provider_verdict(phase_dir, state, phase, verdict, source="done_check_warning")
+
+    if not post_phase_git_github(run_dir, state, phase, verdict, execution_root=execution_root):
+        return False
     finish_provider_phase(run_dir, state, phase, verdict, event="PHASE_PASS")
     return True
 
 
-def run_provider_repair_once(
+def run_provider_repair_loop(
     run_dir: Path,
     state: dict[str, Any],
     phase: dict[str, Any],
     spec_text: str,
     review_text: str,
     validation_text: str,
+    *,
+    execution_root: Path = ROOT,
 ) -> str:
     phase_id = phase["phase_id"]
     phase_dir = provider_phase_dir(run_dir, phase)
     mock_enabled = bool(state.get("mock_providers"))
-    repair_prompt_text = repair_prompt(phase, spec_text, review_text, validation_text)
-    (phase_dir / "repair_prompt.md").write_text(repair_prompt_text, encoding="utf-8")
-    append_event(run_dir, state, "REPAIR_START", phase_id=phase_id, attempt=1)
-    write_state(run_dir, state)
+    max_attempts = max_repair_attempts_for_phase(state, phase)
+    state.setdefault("repair_attempts", {})
+    start_attempt = int(state["repair_attempts"].get(phase_id, 0))
+    current_review_text = review_text
+    current_validation_text = validation_text
 
-    if mock_enabled:
-        repair_text = f"# Mock Repair Output: {phase_id}\n\nNo repair was needed in mock mode.\n"
-        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_codex_repair")
-    else:
-        state["codex_called_by_driver"] = True
-        state["external_providers_called"] = True
-        state["network_used"] = True
-        append_cost_record(run_dir, state, provider="codex", model=None, phase_id=phase_id, note="repair_execution")
-        result = codex_noninteractive(repair_prompt_text)
-        repair_text = command_block(result)
-        if result.returncode != 0:
-            (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
-            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_error")
+    for attempt in range(start_attempt + 1, max_attempts + 1):
+        if stop_requested(run_dir):
+            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_stop")
             return "BLOCKED"
-    (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+        state["repair_attempts"][phase_id] = attempt
+        state["current_micro_attempt"] = attempt + 1
+        set_provider_phase_status(phase, "REWORK")
+        attempt_dir = phase_dir / "repair_attempts" / f"{attempt:03d}"
+        attempt_dir.mkdir(parents=True, exist_ok=True)
+        repair_prompt_text = repair_prompt(phase, spec_text, current_review_text, current_validation_text)
+        (attempt_dir / "repair_prompt.md").write_text(repair_prompt_text, encoding="utf-8")
+        (phase_dir / "repair_prompt.md").write_text(repair_prompt_text, encoding="utf-8")
+        append_event(run_dir, state, "REPAIR_START", phase_id=phase_id, attempt=attempt)
+        write_state(run_dir, state)
 
-    validation_ok, repair_validation_text = run_validation_commands()
-    (phase_dir / "repair_validation.md").write_text(repair_validation_text, encoding="utf-8")
-    if not validation_ok:
-        write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_validation")
-        return "BLOCKED"
+        if mock_enabled:
+            repair_text = f"# Mock Repair Output: {phase_id}\n\nMock repair attempt {attempt} completed.\n"
+            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_codex_repair")
+        else:
+            state["codex_called_by_driver"] = True
+            state["external_providers_called"] = True
+            state["network_used"] = True
+            append_cost_record(run_dir, state, provider="codex", model=None, phase_id=phase_id, note="repair_execution")
+            result = codex_noninteractive(repair_prompt_text, root=execution_root)
+            repair_text = command_block(result)
+            if result.returncode != 0:
+                (attempt_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+                (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_error")
+                return "BLOCKED"
+        (attempt_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+        (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
 
-    review_prompt_text = review_prompt(
-        phase,
-        state["campaign_id"],
-        spec_text,
-        repair_text,
-        repair_validation_text,
+        validation_ok, repair_validation_text = run_phase_validation(execution_root)
+        (attempt_dir / "repair_validation.md").write_text(repair_validation_text, encoding="utf-8")
+        (phase_dir / "repair_validation.md").write_text(repair_validation_text, encoding="utf-8")
+        if not validation_ok:
+            write_json(
+                attempt_dir / "repair_verdict.json",
+                {
+                    "verdict": "REWORK",
+                    "source": "repair_validation",
+                    "attempt": attempt,
+                    "parsed_at": utc_now(),
+                },
+            )
+            current_validation_text = repair_validation_text
+            append_event(run_dir, state, "REPAIR_VALIDATION_REWORK", phase_id=phase_id, attempt=attempt)
+            continue
+
+        review_prompt_text = review_prompt(
+            phase,
+            state["campaign_id"],
+            spec_text,
+            repair_text,
+            repair_validation_text,
+        )
+        (attempt_dir / "repair_review_prompt.md").write_text(review_prompt_text, encoding="utf-8")
+        if mock_enabled:
+            repaired_review_text = mock_review_text(phase)
+            append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_repair_review")
+        else:
+            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="repair_review")
+            result = claude_headless(review_prompt_text, root=execution_root)
+            repaired_review_text = result.stdout if result.returncode == 0 else command_block(result)
+            if result.returncode != 0:
+                (attempt_dir / "repair_review.md").write_text(repaired_review_text, encoding="utf-8")
+                write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_review_error")
+                return "BLOCKED"
+        review_path = attempt_dir / "repair_review.md"
+        review_path.write_text(repaired_review_text, encoding="utf-8")
+        (phase_dir / "review.md").write_text(repaired_review_text, encoding="utf-8")
+        parsed_verdict = parse_review_text(repaired_review_text, review_path)
+        verdict = parsed_verdict.verdict
+        write_json(
+            attempt_dir / "repair_verdict.json",
+            {
+                **parsed_verdict.to_dict(),
+                "campaign_id": state["campaign_id"],
+                "run_id": state["run_id"],
+                "phase_id": phase_id,
+                "attempt": attempt,
+                "parsed_at": utc_now(),
+            },
+        )
+        write_provider_verdict(phase_dir, state, phase, verdict, source="repair_review", parsed=parsed_verdict)
+        append_event(run_dir, state, "REPAIR_REVIEWED", phase_id=phase_id, attempt=attempt, verdict=verdict)
+        write_state(run_dir, state)
+        current_review_text = repaired_review_text
+        current_validation_text = repair_validation_text
+        if verdict in PASSING_VERDICTS:
+            set_provider_phase_status(phase, "REVIEWED")
+            return verdict
+
+    write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_exhausted")
+    append_event(run_dir, state, "REPAIR_EXHAUSTED", phase_id=phase_id, max_attempts=max_attempts)
+    write_state(run_dir, state)
+    return "BLOCKED"
+
+
+def run_campaign_done_check(run_dir: Path, state: dict[str, Any]) -> str:
+    mock_enabled = bool(state.get("mock_providers"))
+    run_summary = _read_phase_text(run_dir / "RUN_SUMMARY.md")
+    prompt = campaign_done_check_prompt(state["campaign_id"], state, run_summary)
+    (run_dir / "campaign_done_check_prompt.md").write_text(prompt, encoding="utf-8")
+    if mock_enabled:
+        text = mock_campaign_done_check_text(state["campaign_id"])
+        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=None, note="mock_campaign_done_check")
+    else:
+        append_cost_record(run_dir, state, provider="claude", model=None, phase_id=None, note="campaign_done_check")
+        result = claude_headless(prompt)
+        text = result.stdout if result.returncode == 0 else command_block(result)
+        if result.returncode != 0:
+            text = text + "\n\nDONE_CHECK: BLOCKED\n"
+    path = run_dir / "campaign_done_check.md"
+    path.write_text(text, encoding="utf-8")
+    parsed = parse_done_check_text(text, path)
+    write_json(
+        run_dir / "campaign_done_check.json",
+        {
+            "schema_version": "frontier-campaign-done-check-v1",
+            "campaign_id": state["campaign_id"],
+            "run_id": state["run_id"],
+            "verdict": parsed.verdict,
+            "findings": parsed.findings,
+            "warnings": parsed.warnings,
+            "raw_path": parsed.raw_path,
+            "mock_providers": mock_enabled,
+            "parsed_at": utc_now(),
+        },
     )
-    (phase_dir / "review_prompt.md").write_text(review_prompt_text, encoding="utf-8")
-    if mock_enabled:
-        repaired_review_text = mock_review_text(phase)
-        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_repair_review")
-    else:
-        append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="repair_review")
-        result = claude_headless(review_prompt_text)
-        repaired_review_text = result.stdout if result.returncode == 0 else command_block(result)
-        if result.returncode != 0:
-            (phase_dir / "review.md").write_text(repaired_review_text, encoding="utf-8")
-            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_review_error")
-            return "BLOCKED"
-    (phase_dir / "review.md").write_text(repaired_review_text, encoding="utf-8")
-    verdict = parse_review_verdict(repaired_review_text)
-    if verdict not in PASSING_VERDICTS:
-        verdict = "BLOCKED"
-    write_provider_verdict(phase_dir, state, phase, verdict, source="repair_review")
-    append_event(run_dir, state, "REPAIR_REVIEWED", phase_id=phase_id, verdict=verdict)
-    write_state(run_dir, state)
-    return verdict
+    append_event(run_dir, state, "CAMPAIGN_DONE_CHECK", verdict=parsed.verdict)
+    return parsed.verdict
 
 
 def continue_provider_wired_run(
@@ -1229,14 +1973,38 @@ def continue_provider_wired_run(
     if max_phases_source is not None:
         state["max_phases_source"] = max_phases_source
     state.setdefault("mock_providers", mock_providers_enabled())
+    state.setdefault("provider_mode", "mock" if state.get("mock_providers") else "external")
+    state.setdefault("attempts", {phase.get("phase_id"): 0 for phase in state.get("phases", [])})
+    state.setdefault("repair_attempts", {phase.get("phase_id"): 0 for phase in state.get("phases", [])})
+    state.setdefault("lane_policy_snapshot", runtime_config().lane_policies)
+    state.setdefault("estimated_cost_usd", 0.0)
     executed = 0
 
     while True:
         if (run_dir / "STOP").exists():
             return provider_stop_without_execution(run_dir, state, "STOP file exists before next phase.")
+        budget_reason = check_run_budget(run_dir, state)
+        if budget_reason:
+            state["status"] = "STOPPED"
+            state["stop_requested"] = True
+            append_event(run_dir, state, "RUN_BUDGET_STOP", reason=budget_reason)
+            write_provider_stop(run_dir, state, budget_reason)
+            write_state(run_dir, state)
+            write_provider_summary(run_dir, state, budget_reason)
+            print(f"Stopped provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
+            return 0
 
         phase = next_pending_provider_phase(state)
         if phase is None:
+            done_verdict = run_campaign_done_check(run_dir, state)
+            if done_verdict not in PASSING_VERDICTS:
+                state["status"] = "BLOCKED"
+                state["stop_requested"] = True
+                write_provider_stop(run_dir, state, f"Campaign done-check returned {done_verdict}.")
+                write_state(run_dir, state)
+                write_provider_summary(run_dir, state, f"Campaign done-check returned {done_verdict}.")
+                print(f"Campaign done-check blocked run at {run_dir.relative_to(ROOT)}")
+                return 0
             state["status"] = "COMPLETED"
             state["stop_requested"] = False
             state["current_phase_id"] = None
@@ -1268,13 +2036,27 @@ def continue_provider_wired_run(
         executed += 1
 
 
-def run_provider_wired_campaign(campaign_id: str, max_phases: int | None) -> int:
+def run_provider_wired_campaign(
+    campaign_id: str,
+    max_phases: int | None,
+    *,
+    worktree_mode: bool | None = None,
+) -> int:
     try:
         campaign = load_ledger_campaign(campaign_id)
         resolved_max_phases, source = resolve_max_phases(campaign, max_phases)
-        run_dir = initialize_provider_wired_run(campaign, resolved_max_phases, source)
+        run_dir = initialize_provider_wired_run(
+            campaign,
+            resolved_max_phases,
+            source,
+            worktree_mode=worktree_mode,
+        )
         state = read_json(run_dir / "state.json")
-        return continue_provider_wired_run(run_dir, state, resolved_max_phases, source)
+        with run_lock(run_dir):
+            return continue_provider_wired_run(run_dir, state, resolved_max_phases, source)
+    except RuntimeError as error:
+        print(error)
+        return 1
     except ValueError as error:
         print(error)
         return 2
@@ -1304,7 +2086,7 @@ def doc_body(phase: ToyPhase) -> str:
         "- Phase B output: docs/toy_workflow2/phase_b.md\n"
         "- Summary output: docs/toy_workflow2/summary.md\n"
         "- External providers: none\n"
-        "- Auto-merge: not implemented\n"
+        "- Auto-merge: not exercised by the local toy path\n"
     )
 
 
@@ -1532,8 +2314,12 @@ def init_scaffold_run(campaign_id: str, goal: str | None, lane: str) -> Path:
         "lane": lane,
         "phases": [],
         "stop_requested": False,
+        "created_at": utc_now(),
         "started_at": utc_now(),
         "updated_at": utc_now(),
+        "attempts": {},
+        "provider_mode": "none",
+        "lane_policy_snapshot": runtime_config().lane_policies,
         "completed_at": None,
         "last_event_id": 1,
         "external_providers_called": False,
@@ -1567,6 +2353,7 @@ def run_campaign(
     ledger_only: bool = False,
     provider_wired: bool = False,
     max_phases: int | None = None,
+    worktree_mode: bool | None = None,
 ) -> int:
     if ledger_only:
         if not campaign_id:
@@ -1577,7 +2364,7 @@ def run_campaign(
         if not campaign_id:
             print("Provider-wired mode requires --campaign-id.")
             return 2
-        return run_provider_wired_campaign(campaign_id, max_phases)
+        return run_provider_wired_campaign(campaign_id, max_phases, worktree_mode=worktree_mode)
     if campaign_id == TOY_CAMPAIGN_ID:
         return run_toy_campaign(campaign_id)
 
@@ -1616,7 +2403,15 @@ def resume_ledger_only_run(run_dir: Path, state: dict[str, Any]) -> int:
     return 0
 
 
-def resume_provider_wired_run(run_dir: Path, state: dict[str, Any], max_phases: int | None) -> int:
+def resume_provider_wired_run(
+    run_dir: Path,
+    state: dict[str, Any],
+    max_phases: int | None,
+    worktree_mode: bool | None = None,
+) -> int:
+    if state.get("status") == "COMPLETED":
+        print(f"Run {state['run_id']} is already completed.")
+        return 0
     if (run_dir / "STOP").exists():
         return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
     try:
@@ -1630,13 +2425,30 @@ def resume_provider_wired_run(run_dir: Path, state: dict[str, Any], max_phases: 
     state["completed_at"] = None
     state.setdefault("provider_wired", True)
     state.setdefault("mock_providers", mock_providers_enabled())
+    state.setdefault("provider_mode", "mock" if state.get("mock_providers") else "external")
+    state.setdefault("attempts", {phase.get("phase_id"): 0 for phase in state.get("phases", [])})
+    state.setdefault("repair_attempts", {phase.get("phase_id"): 0 for phase in state.get("phases", [])})
+    state.setdefault("lane_policy_snapshot", runtime_config().lane_policies)
+    if worktree_mode is not None:
+        state["worktree_mode"] = worktree_mode
     append_event(run_dir, state, "RUN_RESUME", mode="provider_wired", max_phases=resolved_max_phases)
     write_state(run_dir, state)
     progress(run_dir, "Provider-wired run resumed.")
-    return continue_provider_wired_run(run_dir, state, resolved_max_phases, source)
+    try:
+        with run_lock(run_dir):
+            return continue_provider_wired_run(run_dir, state, resolved_max_phases, source)
+    except RuntimeError as error:
+        print(error)
+        return 1
 
 
-def resume(run_id: str, *, provider_wired: bool = False, max_phases: int | None = None) -> int:
+def resume(
+    run_id: str,
+    *,
+    provider_wired: bool = False,
+    max_phases: int | None = None,
+    worktree_mode: bool | None = None,
+) -> int:
     run_dir = ROOT / "runs" / run_id
     state_path = run_dir / "state.json"
     if not state_path.exists():
@@ -1647,7 +2459,7 @@ def resume(run_id: str, *, provider_wired: bool = False, max_phases: int | None 
     if state.get("driver") == PROVIDER_WIRED_DRIVER or (
         provider_wired and state.get("provider_wired") is True
     ):
-        return resume_provider_wired_run(run_dir, state, max_phases)
+        return resume_provider_wired_run(run_dir, state, max_phases, worktree_mode)
     if state.get("driver") == LEDGER_ONLY_DRIVER:
         return resume_ledger_only_run(run_dir, state)
     if state.get("campaign_id") != TOY_CAMPAIGN_ID:
@@ -1680,10 +2492,16 @@ def main(argv: list[str] | None = None) -> int:
     run_mode.add_argument("--ledger-only", action="store_true")
     run_mode.add_argument("--provider-wired", action="store_true")
     run_parser.add_argument("--max-phases", type=int)
+    worktree_group = run_parser.add_mutually_exclusive_group()
+    worktree_group.add_argument("--worktree-mode", action="store_true")
+    worktree_group.add_argument("--no-worktree", action="store_true")
     resume_parser = subparsers.add_parser("resume", help="Resume a stopped toy run or inspect a scaffold run.")
     resume_parser.add_argument("--run-id", required=True)
     resume_parser.add_argument("--provider-wired", action="store_true")
     resume_parser.add_argument("--max-phases", type=int)
+    resume_worktree_group = resume_parser.add_mutually_exclusive_group()
+    resume_worktree_group.add_argument("--worktree-mode", action="store_true")
+    resume_worktree_group.add_argument("--no-worktree", action="store_true")
     args = parser.parse_args(argv)
 
     if args.command == "run":
@@ -1694,9 +2512,15 @@ def main(argv: list[str] | None = None) -> int:
             ledger_only=args.ledger_only,
             provider_wired=args.provider_wired,
             max_phases=args.max_phases,
+            worktree_mode=True if args.worktree_mode else False if args.no_worktree else None,
         )
     if args.command == "resume":
-        return resume(args.run_id, provider_wired=args.provider_wired, max_phases=args.max_phases)
+        return resume(
+            args.run_id,
+            provider_wired=args.provider_wired,
+            max_phases=args.max_phases,
+            worktree_mode=True if args.worktree_mode else False if args.no_worktree else None,
+        )
     parser.print_help()
     return 0
 

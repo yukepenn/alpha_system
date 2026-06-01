@@ -1,19 +1,632 @@
-"""GitHub helper scaffold.
+"""GitHub CLI helpers for Frontier Workflow 2.
 
-This module intentionally avoids live GitHub API calls until project-specific
-credentials, permissions, and merge policy are implemented.
+All network-facing behavior goes through the local ``gh`` CLI. Tests can pass a
+mock ``CommandRunner`` and never touch the network.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import re
+import sys
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Mapping
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.frontier.command_runner import CommandRunner
+from tools.frontier.git_utils import current_branch, git, remote_url
+
+
+GITHUB_RE = re.compile(r"(?:github\.com[:/])([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
+CI_SUCCESS = "SUCCESS"
+CI_FAILURE = "FAILURE"
+CI_PENDING = "PENDING"
+CI_TIMED_OUT = "TIMED_OUT"
+CI_NOT_FOUND = "NOT_FOUND"
+CI_STATES = {CI_SUCCESS, CI_FAILURE, CI_PENDING, CI_TIMED_OUT, CI_NOT_FOUND}
+PASSING_CONCLUSIONS = {"success", "neutral", "skipped"}
+FAILING_CONCLUSIONS = {
+    "failure",
+    "cancelled",
+    "timed_out",
+    "action_required",
+    "startup_failure",
+    "stale",
+}
+PENDING_STATES = {"pending", "queued", "in_progress", "waiting", "requested", "expected"}
+
+
+@dataclass(frozen=True)
+class GitHubResult:
+    action: str
+    dry_run: bool
+    command: list[str]
+    return_code: int = 0
+    stdout: str = ""
+    stderr: str = ""
+    blocked: bool = False
+    instructions: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        return self.return_code == 0 and not self.blocked
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CIStatusResult:
+    state: str
+    checks: list[dict[str, Any]]
+    required_checks: list[str]
+    missing_required: list[str]
+    blocking_checks: list[str]
+    timed_out: bool = False
+    message: str = ""
+
+    @property
+    def success(self) -> bool:
+        return self.state == CI_SUCCESS
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class BranchProtectionResult:
+    status: str
+    protected: bool
+    branch: str
+    required_checks: list[str]
+    configured_required_checks: list[str]
+    missing_required_checks: list[str]
+    permission_error: bool = False
+    dry_run: bool = False
+    message: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "PASS"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def parse_github_remote(url: str | None) -> tuple[str, str] | None:
+    if not url:
+        return None
+    match = GITHUB_RE.search(url.strip())
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def detect_repo_owner_name(root: Path = ROOT) -> tuple[str, str] | None:
+    return parse_github_remote(remote_url(root))
+
+
+def detect_repo_remote(root: Path = ROOT) -> str | None:
+    parsed = detect_repo_owner_name(root)
+    if parsed is None:
+        return None
+    return "/".join(parsed)
+
+
+def detect_current_branch(root: Path = ROOT) -> str:
+    return current_branch(root)
+
+
+def _runner(root: Path, runner: CommandRunner | None) -> CommandRunner:
+    return runner or CommandRunner(root)
+
+
+def _run_gh(
+    command: list[str],
+    *,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+    timeout_seconds: int = 120,
+) -> Any:
+    return _runner(root, runner).run(command, timeout_seconds=timeout_seconds)
+
+
+def gh_auth_status(*, root: Path = ROOT, runner: CommandRunner | None = None) -> GitHubResult:
+    command = ["gh", "auth", "status"]
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=60)
+    if result.return_code == 127:
+        return GitHubResult(
+            "gh_auth_status",
+            False,
+            command,
+            result.return_code,
+            result.stdout,
+            result.stderr,
+            blocked=True,
+            instructions="Install GitHub CLI: https://cli.github.com/ and run `gh auth login`.",
+        )
+    if result.return_code != 0:
+        return GitHubResult(
+            "gh_auth_status",
+            False,
+            command,
+            result.return_code,
+            result.stdout,
+            result.stderr,
+            blocked=True,
+            instructions="Authenticate GitHub CLI with `gh auth login` before real PR, CI, or merge operations.",
+        )
+    return GitHubResult("gh_auth_status", False, command, result.return_code, result.stdout, result.stderr)
+
+
+def detect_default_branch(*, root: Path = ROOT, runner: CommandRunner | None = None) -> str:
+    command = ["gh", "repo", "view", "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name"]
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=60)
+    if result.return_code == 0 and result.stdout.strip():
+        return result.stdout.strip()
+
+    fallback = git(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    if fallback.returncode == 0 and "/" in fallback.stdout.strip():
+        return fallback.stdout.strip().split("/", 1)[1]
+    configured = git(root, "config", "--get", "init.defaultBranch")
+    if configured.returncode == 0 and configured.stdout.strip():
+        return configured.stdout.strip()
+    return "main"
+
+
+def find_existing_pr(
+    head: str,
+    *,
+    base: str | None = None,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+) -> dict[str, Any] | None:
+    command = [
+        "gh",
+        "pr",
+        "list",
+        "--head",
+        head,
+        "--state",
+        "open",
+        "--json",
+        "number,title,url,headRefName,baseRefName,state",
+        "--limit",
+        "20",
+    ]
+    if base:
+        command.extend(["--base", base])
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
+    if result.return_code != 0:
+        return None
+    try:
+        data = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, list) or not data:
+        return None
+    first = data[0]
+    return first if isinstance(first, dict) else None
+
+
+def _env_forces_dry_run(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return None
+    return raw.lower() not in {"1", "true", "yes", "on"}
+
+
+def create_pr(
+    *,
+    title: str,
+    body: str,
+    base: str,
+    head: str | None = None,
+    root: Path = ROOT,
+    dry_run: bool = True,
+    runner: CommandRunner | None = None,
+) -> GitHubResult:
+    head = head or current_branch(root)
+    command = ["gh", "pr", "create", "--base", base, "--head", head, "--title", title, "--body", body]
+    forced = _env_forces_dry_run("FRONTIER_CREATE_PR")
+    effective_dry_run = dry_run if forced is None else forced
+    if effective_dry_run:
+        return GitHubResult("create_pr", True, command, metadata={"head": head, "base": base})
+
+    auth = gh_auth_status(root=root, runner=runner)
+    if auth.blocked:
+        return GitHubResult(
+            "create_pr",
+            False,
+            command,
+            auth.return_code,
+            auth.stdout,
+            auth.stderr,
+            blocked=True,
+            instructions=auth.instructions,
+            metadata={"head": head, "base": base},
+        )
+
+    existing = find_existing_pr(head, base=base, root=root, runner=runner)
+    if existing:
+        return GitHubResult(
+            "create_pr",
+            False,
+            command,
+            metadata={"existing": True, "pr": existing, "number": existing.get("number")},
+        )
+
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
+    metadata: dict[str, Any] = {"head": head, "base": base}
+    url = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
+    if url:
+        metadata["url"] = url
+    if result.return_code == 0:
+        created = find_existing_pr(head, base=base, root=root, runner=runner)
+        if created:
+            metadata["pr"] = created
+            metadata["number"] = created.get("number")
+    return GitHubResult(
+        "create_pr",
+        False,
+        command,
+        result.return_code,
+        result.stdout,
+        result.stderr,
+        blocked=result.return_code != 0,
+        instructions=None
+        if result.return_code == 0
+        else "Fix `gh pr create` output above, then resume the run.",
+        metadata=metadata,
+    )
+
+
+def list_pr_checks(
+    pr: str | int,
+    *,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+) -> list[dict[str, Any]]:
+    command = [
+        "gh",
+        "pr",
+        "checks",
+        str(pr),
+        "--json",
+        "name,state,conclusion,link,bucket,workflow",
+    ]
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
+    if result.return_code != 0:
+        return [
+            {
+                "name": "gh pr checks",
+                "state": "ERROR",
+                "conclusion": "failure",
+                "stderr": result.stderr,
+                "return_code": result.return_code,
+            }
+        ]
+    try:
+        data = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError:
+        return [{"name": "gh pr checks", "state": "ERROR", "conclusion": "failure", "stdout": result.stdout}]
+    return data if isinstance(data, list) else []
+
+
+def get_pr_checks(pr: str, *, root: Path = ROOT, runner: CommandRunner | None = None) -> list[dict[str, Any]]:
+    return list_pr_checks(pr, root=root, runner=runner)
+
+
+def _check_name(check: Mapping[str, Any]) -> str:
+    return str(check.get("name") or check.get("workflow") or "").strip()
+
+
+def classify_ci_checks(
+    checks: list[dict[str, Any]],
+    *,
+    required_checks: list[str] | None = None,
+    timed_out: bool = False,
+) -> CIStatusResult:
+    required = [name for name in (required_checks or []) if name]
+    if timed_out:
+        return CIStatusResult(CI_TIMED_OUT, checks, required, [], [], True, "Timed out waiting for CI.")
+    if not checks:
+        return CIStatusResult(CI_NOT_FOUND, checks, required, required, [], False, "No check runs were found.")
+
+    by_name = {_check_name(check): check for check in checks if _check_name(check)}
+    missing = [name for name in required if name not in by_name]
+    relevant = [by_name[name] for name in required if name in by_name] if required else checks
+    if missing:
+        return CIStatusResult(CI_NOT_FOUND, checks, required, missing, missing, False, "Required checks were not found.")
+    if not relevant:
+        return CIStatusResult(CI_NOT_FOUND, checks, required, required, [], False, "No relevant check runs were found.")
+
+    blocking: list[str] = []
+    pending = False
+    for check in relevant:
+        name = _check_name(check) or "unnamed check"
+        conclusion = str(check.get("conclusion") or "").lower()
+        state = str(check.get("state") or check.get("bucket") or "").lower()
+        token = conclusion or state
+        if token in FAILING_CONCLUSIONS or state == "error":
+            blocking.append(name)
+        elif token in PASSING_CONCLUSIONS:
+            continue
+        elif state in PENDING_STATES or token in PENDING_STATES or not token:
+            pending = True
+        else:
+            pending = True
+    if blocking:
+        return CIStatusResult(CI_FAILURE, checks, required, [], blocking, False, "One or more checks failed.")
+    if pending:
+        return CIStatusResult(CI_PENDING, checks, required, [], [], False, "One or more checks are still pending.")
+    return CIStatusResult(CI_SUCCESS, checks, required, [], [], False, "All required checks passed.")
+
+
+def checks_green(checks: list[dict[str, Any]]) -> bool:
+    return classify_ci_checks(checks).success
+
+
+def wait_for_ci(
+    pr: str | int,
+    *,
+    timeout_seconds: int = 900,
+    poll_seconds: int = 15,
+    required_checks: list[str] | None = None,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+) -> CIStatusResult:
+    deadline = time.monotonic() + timeout_seconds
+    last_checks: list[dict[str, Any]] = []
+    while time.monotonic() <= deadline:
+        last_checks = list_pr_checks(pr, root=root, runner=runner)
+        status = classify_ci_checks(last_checks, required_checks=required_checks)
+        if status.state != CI_PENDING:
+            return status
+        time.sleep(poll_seconds)
+    return classify_ci_checks(last_checks, required_checks=required_checks, timed_out=True)
+
+
+def write_ci_status_artifacts(phase_dir: Path, result: CIStatusResult) -> None:
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "ci_status.json").write_text(
+        json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        "# CI Status",
+        "",
+        f"State: {result.state}",
+        f"Timed out: {str(result.timed_out).lower()}",
+        f"Required checks: {', '.join(result.required_checks) or 'none configured'}",
+        f"Missing required checks: {', '.join(result.missing_required) or 'none'}",
+        f"Blocking checks: {', '.join(result.blocking_checks) or 'none'}",
+        "",
+        result.message,
+    ]
+    (phase_dir / "ci_status.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def inspect_branch_protection(
+    *,
+    branch: str,
+    required_checks: list[str] | None = None,
+    require_branch_protection: bool = True,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+    dry_run: bool = False,
+) -> BranchProtectionResult:
+    configured = [name for name in (required_checks or []) if name]
+    if dry_run:
+        return BranchProtectionResult(
+            "DRY_RUN",
+            False,
+            branch,
+            [],
+            configured,
+            [],
+            dry_run=True,
+            message="Branch protection inspection skipped in dry-run mode.",
+        )
+
+    repo = detect_repo_owner_name(root)
+    if repo is None:
+        return BranchProtectionResult(
+            "BLOCKED",
+            False,
+            branch,
+            [],
+            configured,
+            configured,
+            message="Could not detect GitHub owner/repo from origin remote.",
+        )
+    auth = gh_auth_status(root=root, runner=runner)
+    if auth.blocked:
+        return BranchProtectionResult(
+            "BLOCKED",
+            False,
+            branch,
+            [],
+            configured,
+            configured,
+            permission_error=True,
+            message=auth.instructions or "GitHub CLI is not authenticated.",
+        )
+
+    owner, name = repo
+    command = ["gh", "api", f"repos/{owner}/{name}/branches/{branch}/protection"]
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
+    if result.return_code != 0:
+        stderr = result.stderr.lower()
+        permission_error = "resource not accessible" in stderr or "forbidden" in stderr or "403" in stderr
+        if require_branch_protection:
+            return BranchProtectionResult(
+                "BLOCKED",
+                False,
+                branch,
+                [],
+                configured,
+                configured,
+                permission_error=permission_error,
+                message=result.stderr.strip() or "Branch protection is missing or inaccessible.",
+            )
+        return BranchProtectionResult(
+            "WARN",
+            False,
+            branch,
+            [],
+            configured,
+            configured,
+            permission_error=permission_error,
+            message=result.stderr.strip() or "Branch protection is missing or inaccessible.",
+        )
+
+    try:
+        raw = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return BranchProtectionResult(
+            "BLOCKED",
+            False,
+            branch,
+            [],
+            configured,
+            configured,
+            message="Could not parse branch protection response.",
+        )
+    status_checks = raw.get("required_status_checks") if isinstance(raw, dict) else {}
+    contexts = status_checks.get("contexts", []) if isinstance(status_checks, dict) else []
+    checks = status_checks.get("checks", []) if isinstance(status_checks, dict) else []
+    required = [str(item) for item in contexts if item]
+    for check in (checks if isinstance(checks, list) else []):
+        if isinstance(check, dict) and check.get("context"):
+            required.append(str(check["context"]))
+    required = sorted(set(required))
+    missing = [name for name in configured if name not in required]
+    if missing:
+        return BranchProtectionResult(
+            "BLOCKED",
+            True,
+            branch,
+            required,
+            configured,
+            missing,
+            message="Configured required checks are not enforced by branch protection.",
+            raw=raw if isinstance(raw, dict) else {},
+        )
+    return BranchProtectionResult(
+        "PASS",
+        True,
+        branch,
+        required,
+        configured,
+        [],
+        message="Branch protection requirements match Frontier configuration.",
+        raw=raw if isinstance(raw, dict) else {},
+    )
+
+
+def write_branch_protection_artifacts(phase_dir: Path, result: BranchProtectionResult) -> None:
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "branch_protection.json").write_text(
+        json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        "# Branch Protection",
+        "",
+        f"Status: {result.status}",
+        f"Branch: {result.branch}",
+        f"Protected: {str(result.protected).lower()}",
+        f"Permission error: {str(result.permission_error).lower()}",
+        f"Configured required checks: {', '.join(result.configured_required_checks) or 'none'}",
+        f"Protected required checks: {', '.join(result.required_checks) or 'none'}",
+        f"Missing required checks: {', '.join(result.missing_required_checks) or 'none'}",
+        "",
+        result.message,
+    ]
+    (phase_dir / "branch_protection.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def merge_pr(
+    pr: str | int,
+    *,
+    method: str = "squash",
+    root: Path = ROOT,
+    dry_run: bool = True,
+    runner: CommandRunner | None = None,
+) -> GitHubResult:
+    command = ["gh", "pr", "merge", str(pr), f"--{method}", "--delete-branch"]
+    if os.environ.get("FRONTIER_DISABLE_AUTOMERGE") == "1":
+        return GitHubResult(
+            "merge_pr",
+            True,
+            command,
+            blocked=True,
+            instructions="FRONTIER_DISABLE_AUTOMERGE=1 prevented merge.",
+        )
+    if os.environ.get("FRONTIER_MERGE_DRY_RUN") == "1" or dry_run:
+        return GitHubResult("merge_pr", True, command)
+
+    auth = gh_auth_status(root=root, runner=runner)
+    if auth.blocked:
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            auth.return_code,
+            auth.stdout,
+            auth.stderr,
+            blocked=True,
+            instructions=auth.instructions,
+        )
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
+    return GitHubResult(
+        "merge_pr",
+        False,
+        command,
+        result.return_code,
+        result.stdout,
+        result.stderr,
+        blocked=result.return_code != 0,
+        instructions=None if result.return_code == 0 else "Inspect `gh pr merge` output and merge manually or resume.",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="GitHub integration scaffold.")
+    parser = argparse.ArgumentParser(description="GitHub utilities for Frontier Workflow 2.")
+    parser.add_argument("--detect-repo", action="store_true")
+    parser.add_argument("--default-branch", action="store_true")
     parser.add_argument("--preview-pr", action="store_true")
-    parser.parse_args(argv)
-    print("GitHub integration scaffold: no API call was made.")
+    parser.add_argument("--base", default="main")
+    parser.add_argument("--head")
+    parser.add_argument("--title", default="Frontier automated PR")
+    args = parser.parse_args(argv)
+    if args.detect_repo:
+        print(detect_repo_remote(ROOT) or "")
+        return 0
+    if args.default_branch:
+        print(detect_default_branch(root=ROOT))
+        return 0
+    if args.preview_pr:
+        result = create_pr(
+            title=args.title,
+            body="Dry-run preview.",
+            base=args.base,
+            head=args.head,
+            dry_run=True,
+        )
+        print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+        return 0
+    parser.print_help()
     return 0
 
 

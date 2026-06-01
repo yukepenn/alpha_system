@@ -1,19 +1,52 @@
-"""Artifact guard for generated projects."""
+"""Block heavy, raw, generated, cache, and model artifacts."""
 
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
+from pathlib import PurePosixPath
 
 
-FORBIDDEN_SUFFIXES = {".parquet", ".feather", ".sqlite", ".db", ".duckdb", ".log", ".pt", ".pth", ".onnx", ".pkl", ".joblib"}
-FORBIDDEN_PARTS = {"data/raw", "cache", "node_modules", ".venv", "__pycache__", ".pytest_cache"}
+FORBIDDEN_SUFFIXES = {
+    ".parquet",
+    ".feather",
+    ".sqlite",
+    ".db",
+    ".duckdb",
+    ".log",
+    ".pt",
+    ".pth",
+    ".onnx",
+    ".pkl",
+    ".joblib",
+}
+FORBIDDEN_PARTS = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "cache"}
+RAW_DATA_PREFIXES = {"data/raw", "raw", "artifacts/raw"}
+CURATED_SUFFIXES = {".md", ".json", ".csv"}
+CURATED_PREFIXES = {"docs", "reviews", "handoffs", "specs", "campaigns", "evals", "decisions"}
+
+
+def normalized(path: str) -> str:
+    value = path.replace("\\", "/")
+    while value.startswith("./"):
+        value = value[2:]
+    return value
+
+
+def is_curated_summary(path: str) -> bool:
+    parsed = PurePosixPath(normalized(path))
+    return parsed.suffix.lower() in CURATED_SUFFIXES and parsed.parts and parsed.parts[0] in CURATED_PREFIXES
 
 
 def forbidden(path: str) -> bool:
-    normalized = path.replace("\\", "/")
-    suffix = Path(path).suffix.lower()
-    return suffix in FORBIDDEN_SUFFIXES or any(part in normalized for part in FORBIDDEN_PARTS)
+    clean = normalized(path)
+    if is_curated_summary(clean):
+        return False
+    parsed = PurePosixPath(clean)
+    if parsed.suffix.lower() in FORBIDDEN_SUFFIXES:
+        return True
+    if any(part in FORBIDDEN_PARTS for part in parsed.parts):
+        return True
+    return any(clean == prefix or clean.startswith(prefix + "/") for prefix in RAW_DATA_PREFIXES)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.frontier.config import FrontierConfigError, assert_valid_config, load_config
 
 
 def doctor() -> int:
@@ -26,13 +30,12 @@ def check_config() -> int:
     if not config.exists():
         print("frontier.yaml is missing.")
         return 1
-    text = config.read_text(encoding="utf-8")
-    required_tokens = ["schema_version:", "workflow1:", "workflow2:", "lanes:"]
-    missing = [token for token in required_tokens if token not in text]
-    if missing:
-        print("frontier.yaml is missing required sections: " + ", ".join(missing))
+    try:
+        assert_valid_config(load_config(config), root=ROOT, check_commands=False)
+    except FrontierConfigError as error:
+        print(f"frontier.yaml is invalid: {error}")
         return 1
-    print("frontier.yaml looks like a Frontier v3 control plane.")
+    print("frontier.yaml is valid.")
     return 0
 
 

@@ -1,25 +1,128 @@
-"""Run Frontier safety canary scaffolds."""
+"""Run Frontier negative canaries against hook guards in temporary repos."""
 
 from __future__ import annotations
 
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CANARY_DIR = ROOT / "evals" / "canaries"
+HOOKS = ROOT / "tools" / "hooks"
+
+
+@dataclass(frozen=True)
+class Canary:
+    name: str
+    command: list[str]
+    paths: dict[str, str]
+    expect_block: bool = True
+
+
+def write_files(base: Path, paths: dict[str, str]) -> None:
+    for relative, text in paths.items():
+        path = base / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
+def run_canary(canary: Canary) -> tuple[bool, str]:
+    with tempfile.TemporaryDirectory(prefix=f"frontier-canary-{canary.name}-") as raw_tmp:
+        tmp = Path(raw_tmp)
+        subprocess.run(["git", "init"], cwd=tmp, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        write_files(tmp, canary.paths)
+        result = subprocess.run(canary.command, cwd=tmp, text=True, capture_output=True, check=False)
+        blocked = result.returncode != 0
+        passed = blocked if canary.expect_block else not blocked
+        detail = result.stdout + result.stderr
+        return passed, detail.strip()
+
+
+def scenarios() -> list[Canary]:
+    py = sys.executable
+    return [
+        Canary(
+            "forbidden_git_add_dot",
+            [py, str(HOOKS / "forbidden_pattern_guard.py"), "scripts/bad.sh"],
+            {"scripts/bad.sh": "#!/usr/bin/env bash\ngit add" + " .\n"},
+        ),
+        Canary(
+            "policy_doc_mentions_forbidden_command",
+            [py, str(HOOKS / "forbidden_pattern_guard.py"), "docs/policy.md"],
+            {"docs/policy.md": "Policy text: do not use " + "git add" + " . in automation.\n"},
+            expect_block=False,
+        ),
+        Canary(
+            "forbidden_test_tamper",
+            [py, str(HOOKS / "test_tamper_guard.py"), "tests/test_bad.py"],
+            {"tests/test_bad.py": "import pytest\n\n@pytest.mark.skip(reason='bad')\ndef test_bad():\n    assert True\n"},
+        ),
+        Canary(
+            "forbidden_secret",
+            [py, str(HOOKS / "secret_scan.py"), ".env", "credentials/token.txt"],
+            {".env": "TOKEN=example\n", "credentials/token.txt": "example\n"},
+        ),
+        Canary(
+            "forbidden_large_binary",
+            [py, str(HOOKS / "artifact_guard.py"), "models/model.onnx"],
+            {"models/model.onnx": "not really binary\n"},
+        ),
+        Canary(
+            "forbidden_destructive_op",
+            [py, str(HOOKS / "forbidden_pattern_guard.py"), "scripts/cleanup.sh"],
+            {"scripts/cleanup.sh": "#!/usr/bin/env bash\nrm -rf /tmp/frontier-example\n"},
+        ),
+        Canary(
+            "forbidden_boundary_import",
+            [py, str(HOOKS / "boundary_guard.py"), "../outside.txt"],
+            {},
+        ),
+        Canary(
+            "forbidden_raw_data_commit",
+            [py, str(HOOKS / "artifact_guard.py"), "data/raw/input.csv"],
+            {"data/raw/input.csv": "raw,value\n1,2\n"},
+        ),
+        Canary(
+            "forbidden_scope_drift",
+            [py, str(HOOKS / "forbidden_pattern_guard.py"), "src/runtime_ops.py"],
+            {"src/runtime_ops.py": "def run():\n    PLACE_LIVE_ORDER = True\n    return PLACE_LIVE_ORDER\n"},
+        ),
+        Canary(
+            "generated_scaffold_allowed",
+            [
+                py,
+                str(HOOKS / "secret_scan.py"),
+                "tools/hooks/secret_scan.py",
+                "docs/artifact_policy.md",
+                "reviews/summary.json",
+            ],
+            {
+                "tools/hooks/secret_scan.py": "# scanner fixture\n",
+                "docs/artifact_policy.md": "Mention forbidden artifacts safely.\n",
+                "reviews/summary.json": "{}\n",
+            },
+            expect_block=False,
+        ),
+    ]
 
 
 def main() -> int:
-    if not CANARY_DIR.exists():
-        print("No canary directory found.")
+    failures: list[str] = []
+    for canary in scenarios():
+        passed, detail = run_canary(canary)
+        if passed:
+            print(f"PASS {canary.name}")
+        else:
+            print(f"FAIL {canary.name}")
+            if detail:
+                print(detail)
+            failures.append(canary.name)
+    if failures:
+        print("Canary failures: " + ", ".join(failures))
         return 1
-    scenarios = sorted(path for path in CANARY_DIR.iterdir() if path.is_dir())
-    if not scenarios:
-        print("No canary scenarios found.")
-        return 1
-    for scenario in scenarios:
-        print(f"Canary scaffold present: {scenario.name}")
-    print("Canary runner scaffold passed. Implement project-specific negative tests as the harness matures.")
+    print("All Frontier canaries passed.")
     return 0
 
 

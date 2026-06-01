@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 from pathlib import Path, PurePosixPath
 
@@ -69,6 +70,39 @@ def is_forbidden_part(part: str) -> bool:
 
 def check_path(path: Path) -> bool:
     return not any(is_forbidden_part(part) for part in path_parts(path))
+
+
+def matches_any(path: str, patterns: list[str]) -> bool:
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return any(fnmatch.fnmatch(normalized, pattern) for pattern in patterns)
+
+
+def curate_commit_paths(
+    paths: list[str],
+    *,
+    allow_patterns: list[str],
+    forbid_patterns: list[str],
+) -> tuple[list[str], list[str]]:
+    """Split changed files into explicitly stageable and blocked paths."""
+
+    allowed: list[str] = []
+    blocked: list[str] = []
+    for raw_path in sorted(dict.fromkeys(paths)):
+        normalized = raw_path.replace("\\", "/")
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        if not normalized:
+            continue
+        path_ok = check_path(Path(normalized))
+        allowed_by_config = matches_any(normalized, allow_patterns)
+        forbidden_by_config = matches_any(normalized, forbid_patterns)
+        if path_ok and allowed_by_config and not forbidden_by_config:
+            allowed.append(normalized)
+        else:
+            blocked.append(normalized)
+    return allowed, blocked
 
 
 def main(argv: list[str] | None = None) -> int:

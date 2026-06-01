@@ -1,6 +1,6 @@
 schema_version: "frontier-harness-v3"
-harness_version: "3.0.0"
-generated_at: "2026-05-31T21:48:47+00:00"
+harness_version: "0.3.0-rc1"
+generated_at: "2026-06-01T03:38:45+00:00"
 
 project:
   name: "alpha_system"
@@ -66,6 +66,19 @@ commands:
   audit_boundaries: "python tools/verify.py --boundaries"
   validate_artifacts: "python tools/verify.py --artifacts"
 
+providers:
+  timeout_seconds: 1800
+  mock:
+    enabled: false
+  claude:
+    cmd: "claude"
+    headless_args: ["-p"]
+    output_format: null
+  codex:
+    cmd: "codex"
+    exec_args: ["exec"]
+    sandbox: "workspace-write"
+
 lanes:
   green:
     description: "Low-risk automatic lane."
@@ -75,7 +88,10 @@ lanes:
     require_claude_review: false
     auto_pr: true
     auto_merge: true
+    auto_merge_dry_run: false
     max_micro_loops: 4
+    max_repair_attempts: 2
+    max_phases: 30
     max_phase_minutes: 90
     max_changed_files: 80
     required_checks: ["smoke", "lint", "test"]
@@ -91,7 +107,10 @@ lanes:
     require_claude_review: true
     auto_pr: true
     auto_merge: true
+    auto_merge_dry_run: false
     max_micro_loops: 3
+    max_repair_attempts: 2
+    max_phases: 20
     max_phase_minutes: 180
     max_changed_files: 150
     required_checks: ["smoke", "lint", "typecheck", "test", "verify_canaries"]
@@ -110,8 +129,11 @@ lanes:
     auto_pr: true
     auto_merge: false
     can_auto_merge_when_authorized: true
+    auto_merge_dry_run: true
     allow_runtime_ops: true
     max_micro_loops: 2
+    max_repair_attempts: 1
+    max_phases: 10
     max_phase_minutes: 150
     required_env:
       - "PROJECT_OP_AUTHORIZED"
@@ -138,8 +160,18 @@ workflow2:
   allow_auto_execute: true
   allow_auto_repair: true
   allow_auto_review: true
+  auto_pr: true
+  auto_merge: true
   allow_auto_pr: true
   allow_auto_merge: true
+  allow_auto_merge_dry_run: true
+  max_repair_attempts_default: 2
+  max_run_minutes: 720
+  max_phase_minutes: 120
+  max_estimated_usd: 0.0
+  worktree_mode: false
+  worktree_mode_recommended: true
+  default_worktree_mode: false
   max_phases: 30
   max_micro_loops_default: 3
   semantic_done_check_required: true
@@ -151,6 +183,18 @@ workflow2:
     repeated_error_iterations: 2
     no_new_passing_check_iterations: 2
     same_review_findings_iterations: 2
+
+github:
+  auto_create_pr: true
+  ci_timeout_seconds: 900
+  ci_poll_seconds: 15
+  required_checks: ["validate"]
+  require_ci: true
+  require_branch_protection: true
+  allow_unprotected_green_merge: false
+  allow_unprotected_dry_run: true
+  allow_no_check_dry_run: true
+  merge_method: "squash"
 
 git:
   hooks_path: ".githooks"

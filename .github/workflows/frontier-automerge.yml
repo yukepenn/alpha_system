@@ -14,4 +14,4 @@ jobs:
       - name: Preview merge gate
         run: |
           python tools/frontier/merge_gate.py --dry-run
-          echo "Automerge is scaffolded. Wire repository rules before enabling real merges."
+          echo "Real merge requires lane policy, CI success, verdict success, artifact policy, branch protection, and gh auth. Red requires FRONTIER_RED_AUTHORIZED=1."
