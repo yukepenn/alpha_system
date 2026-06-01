@@ -58,7 +58,7 @@ Resume reuses durable phase artifacts. A run interrupted after spec generation r
 ```bash
 gh auth status
 claude -p "ping"
-codex exec --sandbox workspace-write "ping"
+printf 'ping\n' | codex exec --sandbox workspace-write -
 ```
 
 Real PR creation follows `frontier.yaml` (`git.auto_create_pr` and `workflow2.auto_pr`) and can be forced off with `FRONTIER_CREATE_PR=0`. Real auto-merge for green/yellow requires lane `auto_merge: true`, CI success, passing verdicts, artifact policy success, branch protection validation, and authenticated `gh`. Red lane additionally requires `FRONTIER_RED_AUTHORIZED=1` and matching scope.

@@ -1,0 +1,84 @@
+# Python and local tooling
+.venv/
+venv/
+node_modules/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Logs, temp files, and caches
+**/*.log
+**/logs/
+**/tmp/
+**/temp/
+**/cache/
+
+# Local data and model artifacts
+**/*.parquet
+**/*.arrow
+**/*.feather
+**/*.pkl
+**/*.pickle
+**/*.joblib
+**/*.onnx
+**/*.npy
+**/*.npz
+**/*.pt
+**/*.pth
+
+# Local database files
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.db-journal
+**/*.wal
+metadata/*.sqlite
+metadata/*.sqlite3
+metadata/*.db
+metadata/*.db-journal
+metadata/*.wal
+
+# Local-only data directories: keep placeholders only.
+data/raw/**
+!data/raw/
+!data/raw/.gitkeep
+!data/raw/README.md
+
+data/canonical/**
+!data/canonical/
+!data/canonical/.gitkeep
+!data/canonical/README.md
+
+data/factors/**
+!data/factors/
+!data/factors/.gitkeep
+!data/factors/README.md
+
+data/labels/**
+!data/labels/
+!data/labels/.gitkeep
+!data/labels/README.md
+
+
+# Local metadata directory: keep placeholders only.
+metadata/**
+!metadata/
+!metadata/.gitkeep
+!metadata/README.md
+
+# Generated artifacts: keep placeholders only.
+artifacts/**
+!artifacts/
+!artifacts/**/
+!artifacts/**/.gitkeep
+!artifacts/**/README.md
+
+# Frontier / alpha_system local generated data
+data/cache/
+runs/*G005_WORKFLOW2_TOY*/
+runs/*ALPHA_SYSTEM_V1*/
+runs/acceptance_merge_gate/
+__pycache__/
+.pytest_cache/
+*.pyc

@@ -4,9 +4,9 @@ Use role aliases from `frontier.yaml` instead of scattering concrete model names
 
 Provider CLI routing:
 
-- Claude spec/review calls use `claude -p <prompt>`.
-- Codex execution/repair calls use `codex exec --sandbox workspace-write <prompt>`.
-- Claude semantic phase and campaign done-checks also use `claude -p <prompt>`.
+- Claude spec/review calls use `claude -p <short instruction>` with the full prompt on stdin.
+- Codex execution/repair calls use `codex exec --sandbox workspace-write -` with the full prompt on stdin.
+- Claude semantic phase and campaign done-checks also use stdin prompt transport.
 - `FRONTIER_MOCK_PROVIDERS=1` replaces provider calls with deterministic local output.
 
 Environment overrides:

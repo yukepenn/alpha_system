@@ -279,6 +279,39 @@ def test_resume_from_executed_continues_to_review(tmp_path, monkeypatch) -> None
     assert state_json(run_dir)["phases"][0]["status"] == "PASS"
 
 
+def test_claude_headless_streams_large_review_prompt(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.setenv("FRONTIER_CLAUDE_CMD", "claude")
+    calls = []
+
+    class FakeRunner:
+        def __init__(self, root: Path) -> None:
+            self.root = root
+
+        def run(self, command, **kwargs):
+            from tools.frontier.command_runner import CommandResult as RunnerResult
+
+            calls.append((list(command), kwargs))
+            return RunnerResult(
+                command=list(command),
+                return_code=0,
+                stdout="# Review\n\nVERDICT: PASS\n",
+                stderr="",
+                duration_ms=0,
+            )
+
+    monkeypatch.setattr(ralph_driver, "CommandRunner", FakeRunner)
+    prompt = "# Review Prompt\n\n" + ("x" * 200_000)
+
+    result = ralph_driver.claude_headless(prompt, root=tmp_path)
+
+    assert result.returncode == 0
+    command, kwargs = calls[0]
+    assert kwargs["stdin_text"] == prompt
+    assert prompt not in command
+    assert sum(len(part) for part in command) < 1000
+
+
 def test_run_lock_prevents_duplicate_driver(tmp_path) -> None:
     run_dir = tmp_path / "runs/run1"
     run_dir.mkdir(parents=True)
