@@ -69,6 +69,9 @@ frontier-run-next-mock $campaign_id="G005_WORKFLOW2_TOY":
 frontier-run-campaign-ledger $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --ledger-only
 
+frontier-run-overnight $campaign_id="G005_WORKFLOW2_TOY":
+    FRONTIER_RUN_MODE=overnight python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+
 frontier-run-workflow2 $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id"
 
@@ -84,6 +87,9 @@ frontier-resume $run_id:
 frontier-stop $run_id:
     touch "runs/$run_id/STOP"
 
+frontier-heartbeat $run_id:
+    cat "runs/$run_id/heartbeat.json"
+
 frontier-tail $run_id:
     tail -f "runs/$run_id/events.jsonl"
 
@@ -95,3 +101,6 @@ frontier-clean-worktrees:
 
 frontier-list-worktrees:
     git worktree list
+
+frontier-acceptance:
+    python tools/frontier/acceptance.py

@@ -1,0 +1,719 @@
+{
+  "applied": [],
+  "counts": {
+    "CREATE": 16,
+    "PRESERVE_PROJECT": 7,
+    "REPORT_CONFLICT": 1,
+    "UNCHANGED": 86,
+    "UPDATE": 31
+  },
+  "files": [
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/architect.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/done_checker.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/harness_maintainer.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/release_manager.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/researcher.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/reviewer.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/agents/verifier.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/hooks/notification.sh"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/hooks/post-tool-use.sh"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/hooks/pre-tool-use.sh"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/hooks/stop-hook.sh"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/rules/artifacts.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/rules/project_boundaries.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/rules/python.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/rules/security.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/rules/tests.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/settings.json"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/skills/frontier-audit/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/skills/frontier-campaign/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/skills/frontier-ralph/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/skills/frontier-review/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".claude/skills/frontier-spec/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": ".claude/skills/project-skill/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": ".claude/skills/project-skill/glossary.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": ".claude/skills/project-skill/lessons.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/agents/explorer.toml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/agents/fixer.toml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/agents/worker.toml"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/config.toml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/skills/frontier-execute/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/skills/frontier-handoff/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/skills/frontier-repair/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".codex/skills/frontier-verify/SKILL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".githooks/pre-commit"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".githooks/pre-push"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": ".github/pull_request_template.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": ".github/workflows/frontier-automerge.yml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".github/workflows/frontier-canaries.yml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".github/workflows/frontier-ci.yml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": ".github/workflows/frontier-nightly-audit.yml"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "ACTIVE_CAMPAIGN.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "AGENTS.md"
+    },
+    {
+      "action": "REPORT_CONFLICT",
+      "classification": "UNKNOWN",
+      "path": "CHANGELOG.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "CLAUDE.md"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "PROGRESS.md"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "PROJECT_STATUS.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/000-template/ACCEPTANCE.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/000-template/GOAL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/000-template/PHASE_PLAN.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/000-template/RISK_REGISTER.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/000-template/RUNBOOK.md"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/000-template/campaign.yaml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/G005_WORKFLOW2_TOY/ACCEPTANCE.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/G005_WORKFLOW2_TOY/GOAL.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/G005_WORKFLOW2_TOY/PHASE_PLAN.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/G005_WORKFLOW2_TOY/RISK_REGISTER.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/G005_WORKFLOW2_TOY/RUNBOOK.md"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/G005_WORKFLOW2_TOY/campaign.yaml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "campaigns/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "decisions/ADR-000-template.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "decisions/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "docs/architecture.md"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "docs/artifact_policy.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "docs/automation_lanes.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "docs/campaign_authoring.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "docs/model_routing.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "docs/operations.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "docs/validation.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "docs/workflow.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/behaviors/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/behaviors/heldout_behavior_001.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/behaviors/heldout_behavior_002.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_boundary_import/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_destructive_op/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_git_add_dot/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_large_binary/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_raw_data_commit/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_scope_drift/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_secret/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "evals/canaries/forbidden_test_tamper/README.md"
+    },
+    {
+      "action": "PRESERVE_PROJECT",
+      "classification": "PROJECT_SPECIFIC",
+      "path": "frontier.yaml"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "handoffs/000-template.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "handoffs/README.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "justfile"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "reviews/000-template.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "reviews/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERATED_ARTIFACT",
+      "path": "runs/.gitkeep"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERATED_ARTIFACT",
+      "path": "runs/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "scripts/ralph/CLAUDE.md"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "scripts/ralph/README.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "scripts/ralph/frontier_adapter.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "scripts/ralph/prompt.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "scripts/ralph/ralph.sh"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "specs/000-template.md"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "UNKNOWN",
+      "path": "specs/README.md"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_canaries.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_command_runner.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_frontier_config.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_git_utils.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_github_utils.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_hooks.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_merge_gate.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_provider_adapters.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_ralph_driver.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_state_machine.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_verdict.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tests/test_worktree_manager.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/acceptance.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/artifact_policy.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/bootstrap.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/campaign.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/campaign_schema.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/command_runner.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/config.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/cost_ledger.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/git_utils.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/github_utils.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/merge_gate.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/op_gate.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/phase.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/provider_adapters.py"
+    },
+    {
+      "action": "CREATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/provider_config.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/ralph_driver.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/report.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/review_schema.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/spec_schema.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/state_machine.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/verdict.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/frontier/worktree_manager.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/artifact_guard.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/boundary_guard.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/bulk_add_guard.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/canary_runner.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/forbidden_pattern_guard.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/pre_commit.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/pre_push.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/secret_scan.py"
+    },
+    {
+      "action": "UPDATE",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/hooks/test_tamper_guard.py"
+    },
+    {
+      "action": "UNCHANGED",
+      "classification": "GENERIC_HARNESS",
+      "path": "tools/verify.py"
+    }
+  ],
+  "generated_at": "deterministic",
+  "schema_version": "frontier-upgrade-plan-v1"
+}

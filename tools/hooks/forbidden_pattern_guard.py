@@ -1,4 +1,4 @@
-"""Forbidden pattern guard scaffold."""
+"""Detect forbidden operational patterns in executable/config files."""
 
 from __future__ import annotations
 
@@ -12,8 +12,15 @@ FORBIDDEN_SNIPPETS = [
     "git reset" + " --hard",
     "git push" + " --force",
     "git push" + " -f",
+    "rm -rf",
+    "rm -fr",
+    "PLACE_LIVE_ORDER",
+    "place_live_order",
+    "paper_trade",
+    "live_trade",
+    "broker_call",
 ]
-CHECK_SUFFIXES = {".py", ".sh", ".bash", ".zsh", ".toml", ".yml", ".yaml"}
+CHECK_SUFFIXES = {".py", ".sh", ".bash", ".zsh", ".toml", ".yml", ".yaml", ".js", ".ts"}
 CHECK_NAMES = {"justfile", "Justfile"}
 POLICY_ROOT_FILES = {"AGENTS.md", "CLAUDE.md", "frontier.yaml"}
 POLICY_PREFIXES = (
@@ -27,6 +34,7 @@ POLICY_PREFIXES = (
     "decisions/",
     "evals/",
 )
+SELF_ALLOW_PREFIXES = ("tools/hooks/",)
 
 
 def normalized_path(path: str) -> str:
@@ -38,22 +46,20 @@ def normalized_path(path: str) -> str:
 
 def is_policy_path(path: str) -> bool:
     normalized = normalized_path(path)
-    return normalized in POLICY_ROOT_FILES or any(
-        normalized.startswith(prefix) for prefix in POLICY_PREFIXES
-    )
+    return normalized in POLICY_ROOT_FILES or any(normalized.startswith(prefix) for prefix in POLICY_PREFIXES)
+
+
+def is_self_guard_path(path: str) -> bool:
+    normalized = normalized_path(path)
+    return any(normalized.startswith(prefix) for prefix in SELF_ALLOW_PREFIXES)
 
 
 def should_check(path: str) -> bool:
-    if is_policy_path(path):
+    if is_policy_path(path) or is_self_guard_path(path):
         return False
-
     normalized = normalized_path(path)
     parsed = PurePosixPath(normalized)
-    return (
-        parsed.name in CHECK_NAMES
-        or normalized.startswith(".githooks/")
-        or parsed.suffix in CHECK_SUFFIXES
-    )
+    return parsed.name in CHECK_NAMES or normalized.startswith(".githooks/") or parsed.suffix in CHECK_SUFFIXES
 
 
 def main(argv: list[str] | None = None) -> int:

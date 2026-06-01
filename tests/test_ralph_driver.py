@@ -6,6 +6,8 @@ import re
 import shutil
 from pathlib import Path
 
+import pytest
+
 from tools.frontier import ralph_driver
 
 
@@ -62,6 +64,10 @@ def latest_run(tmp_root: Path, campaign_id: str) -> Path:
 def pass_count(run_dir: Path) -> int:
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     return sum(1 for phase in state["phases"] if phase["status"] == "PASS")
+
+
+def state_json(run_dir: Path) -> dict:
+    return json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
 
 
 def stub_validation(monkeypatch) -> None:
@@ -153,6 +159,10 @@ def test_provider_wired_env_max_phases_one_runs_exactly_one_mock_phase(tmp_path,
     assert (run_dir / "phases/P00/validation.md").is_file()
     assert (run_dir / "phases/P00/review.md").is_file()
     assert (run_dir / "phases/P00/verdict.json").is_file()
+    assert (run_dir / "phases/P00/done_check.json").is_file()
+    assert (run_dir / "phases/P00/ci_status.json").is_file()
+    assert (run_dir / "phases/P00/merge_gate.json").is_file()
+    assert (run_dir / "heartbeat.json").is_file()
 
 
 def test_provider_wired_default_mock_campaign_is_not_hard_coded_to_one_phase(tmp_path, monkeypatch) -> None:
@@ -172,6 +182,144 @@ def test_provider_wired_default_mock_campaign_is_not_hard_coded_to_one_phase(tmp
     assert state["status"] == "COMPLETED"
     assert pass_count(run_dir) == 2
     assert (run_dir / "STOP").is_file()
+    assert (run_dir / "campaign_done_check.json").is_file()
+
+
+def test_mock_review_rework_then_repair_passes(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    stub_validation(monkeypatch)
+    responses = iter(
+        [
+            "# Review\n\n- Must repair mock issue.\n\nVERDICT: REWORK\n",
+            "# Review\n\n- Repair accepted.\n\nVERDICT: PASS\n",
+        ]
+    )
+    monkeypatch.setattr(ralph_driver, "mock_review_text", lambda phase: next(responses))
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    state = state_json(run_dir)
+    assert state["repair_attempts"]["P00"] == 1
+    assert state["phases"][0]["status"] == "PASS"
+    assert (run_dir / "phases/P00/repair_attempts/001/repair_verdict.json").is_file()
+
+
+def test_repair_attempts_are_capped(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    monkeypatch.setenv("FRONTIER_MAX_REPAIR_ATTEMPTS", "1")
+    stub_validation(monkeypatch)
+    monkeypatch.setattr(
+        ralph_driver,
+        "mock_review_text",
+        lambda phase: "# Review\n\n- Still incomplete.\n\nVERDICT: REWORK\n",
+    )
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    state = state_json(run_dir)
+    assert state["status"] == "STOPPED"
+    assert state["phases"][0]["status"] == "BLOCKED"
+    assert state["repair_attempts"]["P00"] == 1
+
+
+def test_resume_from_spec_ready_continues_without_regenerating_spec(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    stub_validation(monkeypatch)
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = "SPEC_READY"
+    state["current_phase_id"] = "P00"
+    phase_dir = run_dir / "phases/P00"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "spec.md").write_text("# Existing Spec\n", encoding="utf-8")
+    ralph_driver.write_state(run_dir, state)
+
+    status = ralph_driver.continue_provider_wired_run(run_dir, state, 1, "test")
+
+    assert status == 0
+    assert (phase_dir / "spec.md").read_text(encoding="utf-8") == "# Existing Spec\n"
+    assert state_json(run_dir)["phases"][0]["status"] == "PASS"
+
+
+def test_resume_from_executed_continues_to_review(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    stub_validation(monkeypatch)
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = "EXECUTED"
+    state["current_phase_id"] = "P00"
+    phase_dir = run_dir / "phases/P00"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "spec.md").write_text("# Existing Spec\n", encoding="utf-8")
+    (phase_dir / "executor_output.md").write_text("# Existing Execution\n", encoding="utf-8")
+    ralph_driver.write_state(run_dir, state)
+
+    status = ralph_driver.continue_provider_wired_run(run_dir, state, 1, "test")
+
+    assert status == 0
+    assert (phase_dir / "validation.md").is_file()
+    assert state_json(run_dir)["phases"][0]["status"] == "PASS"
+
+
+def test_run_lock_prevents_duplicate_driver(tmp_path) -> None:
+    run_dir = tmp_path / "runs/run1"
+    run_dir.mkdir(parents=True)
+
+    with ralph_driver.run_lock(run_dir):
+        with pytest.raises(RuntimeError):
+            with ralph_driver.run_lock(run_dir):
+                pass
+
+
+def test_stop_prevents_next_phase(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    (run_dir / "STOP").write_text("stop\n", encoding="utf-8")
+
+    status = ralph_driver.continue_provider_wired_run(run_dir, state, 1, "test")
+
+    assert status == 0
+    assert state_json(run_dir)["status"] == "STOPPED"
+    assert pass_count(run_dir) == 0
+
+
+def test_budget_stop(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_RUN_MINUTES", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    state["started_at"] = "2000-01-01T00:00:00Z"
+    ralph_driver.write_state(run_dir, state)
+
+    status = ralph_driver.continue_provider_wired_run(run_dir, state, 1, "test")
+
+    assert status == 0
+    assert state_json(run_dir)["status"] == "STOPPED"
 
 
 def test_g005_toy_campaign_still_completes(tmp_path, monkeypatch) -> None:
@@ -207,6 +355,9 @@ def test_just_command_semantics_are_provider_wired() -> None:
     run_mock = recipe_body(text, "frontier-run-campaign-mock")
     next_mock = recipe_body(text, "frontier-run-next-mock")
     ledger = recipe_body(text, "frontier-run-campaign-ledger")
+    overnight = recipe_body(text, "frontier-run-overnight")
+    heartbeat = recipe_body(text, "frontier-heartbeat")
+    acceptance = recipe_body(text, "frontier-acceptance")
 
     assert "--provider-wired" in run_campaign
     assert "FRONTIER_MAX_PHASES=1" not in run_campaign
@@ -217,6 +368,9 @@ def test_just_command_semantics_are_provider_wired() -> None:
     assert "FRONTIER_MOCK_PROVIDERS=1" in next_mock
     assert "FRONTIER_MAX_PHASES=1" in next_mock
     assert "--ledger-only" in ledger
+    assert "FRONTIER_RUN_MODE=overnight" in overnight
+    assert "heartbeat.json" in heartbeat
+    assert "tools/frontier/acceptance.py" in acceptance
 
 
 def test_frontier_ci_installs_test_dependencies_and_handles_no_tests() -> None:

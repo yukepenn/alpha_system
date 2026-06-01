@@ -1,7 +1,7 @@
 [project]
 name = "alpha_system"
 profile = "trading_research"
-template_version = "3.0.0"
+template_version = "0.3.0-rc1"
 
 [workspace]
 root_policy = "repo-local"

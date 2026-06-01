@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def append(run_id: str, provider: str, model: str, estimated_usd: float) -> int:
+def append(run_id: str, provider: str, model: str, estimated_usd: float, phase_id: str | None = None) -> int:
     path = ROOT / "runs" / run_id / "costs.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     record = {
@@ -19,6 +19,8 @@ def append(run_id: str, provider: str, model: str, estimated_usd: float) -> int:
         "provider": provider,
         "model": model,
         "estimated_usd": estimated_usd,
+        "cost_usd": estimated_usd,
+        "phase_id": phase_id,
     }
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record) + "\n")
@@ -32,8 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--provider", required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--estimated-usd", type=float, required=True)
+    parser.add_argument("--phase-id")
     args = parser.parse_args(argv)
-    return append(args.run_id, args.provider, args.model, args.estimated_usd)
+    return append(args.run_id, args.provider, args.model, args.estimated_usd, args.phase_id)
 
 
 if __name__ == "__main__":
