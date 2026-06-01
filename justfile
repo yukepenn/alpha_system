@@ -54,17 +54,32 @@ frontier-merge:
 frontier-new-campaign:
     python tools/frontier/campaign.py new --campaign-id "${FRONTIER_CAMPAIGN:?set FRONTIER_CAMPAIGN}"
 
-frontier-run-campaign $campaign_id="G005_WORKFLOW2_TOY":
-    python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id"
+frontier-run-campaign $campaign_id="ALPHA_SYSTEM_V1":
+    python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+
+frontier-run-next $campaign_id="ALPHA_SYSTEM_V1":
+    FRONTIER_MAX_PHASES=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+
+frontier-run-campaign-mock $campaign_id="ALPHA_SYSTEM_V1":
+    FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+
+frontier-run-next-mock $campaign_id="ALPHA_SYSTEM_V1":
+    FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+
+frontier-run-campaign-ledger $campaign_id="ALPHA_SYSTEM_V1":
+    python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --ledger-only
 
 frontier-run-workflow2 $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id"
+
+frontier-run-workflow2-toy:
+    python tools/frontier/ralph_driver.py run --campaign-id G005_WORKFLOW2_TOY
 
 frontier-run-workflow2-goal:
     python tools/frontier/ralph_driver.py run --goal "${FRONTIER_GOAL:?set FRONTIER_GOAL}" --lane "${FRONTIER_LANE:-yellow}"
 
 frontier-resume $run_id:
-    python tools/frontier/ralph_driver.py resume --run-id "$run_id"
+    python tools/frontier/ralph_driver.py resume --run-id "$run_id" --provider-wired
 
 frontier-stop $run_id:
     touch "runs/$run_id/STOP"

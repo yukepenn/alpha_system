@@ -12,9 +12,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pyyaml jinja2
       - name: Basic harness checks
         run: |
           test -f AGENTS.md
           test -f CLAUDE.md
           test -f frontier.yaml
-          python tools/verify.py --ci
+          python -m compileall tools
+          python tools/frontier/bootstrap.py doctor
+          python tools/hooks/canary_runner.py
+          python tools/verify.py --artifacts
+      - name: Python tests
+        run: |
+          if [ -d tests ] && find tests -type f \( -name 'test_*.py' -o -name '*_test.py' \) -print -quit | grep -q .; then
+            python -m pytest
+          else
+            echo "No tests configured yet"
+          fi
