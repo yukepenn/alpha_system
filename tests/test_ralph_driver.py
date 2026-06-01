@@ -382,6 +382,20 @@ def stub_validation(monkeypatch) -> None:
     )
 
 
+def test_spec_generation_prompt_requires_runs_local_only_artifact_policy() -> None:
+    phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW"}
+
+    prompt = ralph_driver.spec_generation_prompt(phase, SAMPLE_CAMPAIGN_ID)
+
+    assert "`runs/**` is local-only runtime state." in prompt
+    assert "run_dir artifacts are for local audit only." in prompt
+    assert "run-local `handoff.md` under `runs/<run_id>/...` must never be staged or committed." in prompt
+    assert "Commit-eligible handoff, if needed, must be under `handoffs/P00.md`" in prompt
+    assert "`runs/.gitkeep`, `runs/README.md`, and `runs/**` must not appear in Allowed Paths." in prompt
+    assert "If a campaign/spec asks for runs placeholders, resolve that as local-only and do not commit it." in prompt
+    assert "Do not list any `runs/` path under Allowed Paths" in prompt
+
+
 def test_executor_prompt_declares_review_boundary() -> None:
     phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW"}
     phase_dir = ralph_driver.ROOT / "runs/run1/phases/P00"
@@ -396,11 +410,38 @@ def test_executor_prompt_declares_review_boundary() -> None:
     assert "Do not merge." in prompt
     assert "Do not mark the phase PASS." in prompt
     assert "Write execution output and handoff only." in prompt
+    assert "Do not stage or commit anything under `runs/`." in prompt
+    assert "Do not stage run-local `handoff.md` under `runs/<run_id>/...`." in prompt
+    assert "Before commit, `git diff --cached --name-only` must contain no `runs/` path." in prompt
     assert (
         "The Ralph driver owns validation, review, done-check, verdict, repair, "
         "PR, CI, and merge gate."
         in prompt
     )
+
+
+def test_repair_prompt_forbids_staging_run_local_handoff() -> None:
+    phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW"}
+
+    prompt = ralph_driver.repair_prompt(phase, "# Spec\n", "# Review\n", "# Validation\n")
+
+    assert "Do not stage or commit anything under `runs/`." in prompt
+    assert "Do not stage run-local `handoff.md` under `runs/<run_id>/...`." in prompt
+    assert "Before commit, `git diff --cached --name-only` must contain no `runs/` path." in prompt
+
+
+def test_mock_p00_spec_keeps_runs_out_of_commit_eligible_allowed_paths() -> None:
+    phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW", "dependencies": []}
+
+    spec = ralph_driver.mock_spec_text(phase)
+    allowed_section = spec.split("Commit-Eligible Allowed Paths:", 1)[1].split("Local-Only Run Artifacts:", 1)[0]
+
+    assert "`runs/**` is local-only runtime state." in spec
+    assert "run-local `handoff.md` under `runs/<run_id>/...` must never be staged or committed." in spec
+    assert "runs/" not in allowed_section
+    assert "runs/.gitkeep" not in allowed_section
+    assert "runs/README.md" not in allowed_section
+    assert "runs/**" not in allowed_section
 
 
 def test_executor_created_review_and_verdict_are_quarantined(tmp_path, monkeypatch) -> None:

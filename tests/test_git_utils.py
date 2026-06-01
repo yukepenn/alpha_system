@@ -88,6 +88,42 @@ def test_commit_plan_excludes_forbidden_artifacts(tmp_path: Path, monkeypatch) -
     assert ["git", "push", "-u", "origin", "HEAD:refs/heads/auto/c1/p1"] in result.commands
 
 
+def test_commit_refuses_pre_staged_run_artifacts(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "tools.frontier.git_utils.status_porcelain",
+        lambda root: "?? docs/a.md\nA  runs/run1/phases/P00/handoff.md\n",
+    )
+    monkeypatch.setattr(
+        "tools.frontier.git_utils.checkout_or_create_branch",
+        lambda root, branch, dry_run=False: [["git", "checkout", "-B", branch]],
+    )
+    monkeypatch.setattr(
+        "tools.frontier.git_utils.stage_paths",
+        lambda root, paths, dry_run=False: [["git", "add", "--", path] for path in paths],
+    )
+    monkeypatch.setattr(
+        "tools.frontier.git_utils.staged_files",
+        lambda root: ["docs/a.md", "runs/run1/phases/P00/handoff.md"],
+    )
+    monkeypatch.setattr("tools.frontier.git_utils.diff_stat", lambda root: "")
+    monkeypatch.setattr(
+        "tools.frontier.git_utils.commit_staged",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("commit must not run")),
+    )
+
+    with pytest.raises(RuntimeError, match="git diff --cached --name-only"):
+        commit_phase_changes(
+            root=tmp_path,
+            campaign_id="C1",
+            phase_id="P1",
+            summary="summary",
+            branch="auto/c1/p1",
+            config=CONFIG,
+            dry_run=False,
+            push=False,
+        )
+
+
 def test_push_phase_branch_uses_safe_head_refspec(tmp_path: Path, monkeypatch) -> None:
     commands: list[tuple[str, ...]] = []
 

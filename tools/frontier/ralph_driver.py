@@ -1348,6 +1348,22 @@ def campaign_file_list(campaign_id: str) -> str:
     return "\n".join(f"- campaigns/{campaign_id}/{name}" for name in REQUIRED_CAMPAIGN_FILES)
 
 
+def run_artifact_spec_policy(phase_id: str) -> str:
+    return f"""- `runs/**` is local-only runtime state.
+- run_dir artifacts are for local audit only.
+- The run-local `handoff.md` under `runs/<run_id>/...` must never be staged or committed.
+- Commit-eligible handoff, if needed, must be under `handoffs/{phase_id}.md` (`handoffs/<PHASE_ID>.md`).
+- `runs/.gitkeep`, `runs/README.md`, and `runs/**` must not appear in Allowed Paths.
+- If a campaign/spec asks for runs placeholders, resolve that as local-only and do not commit it."""
+
+
+def executor_run_artifact_policy(phase_id: str) -> str:
+    return f"""- Do not stage or commit anything under `runs/`.
+- Do not stage run-local `handoff.md` under `runs/<run_id>/...`.
+- Before commit, `git diff --cached --name-only` must contain no `runs/` path.
+- If a commit-eligible handoff is needed, write it under `handoffs/{phase_id}.md`, not under `runs/`."""
+
+
 def spec_generation_prompt(phase: dict[str, Any], campaign_id: str) -> str:
     dependencies = ", ".join(phase.get("dependencies") or []) or "none"
     return f"""You are Claude running in headless mode for Frontier Workflow 2.
@@ -1371,6 +1387,10 @@ Requirements:
 - Do not introduce live trading, paper trading, broker calls, destructive cleanup, deployment, PR creation, or auto-merge.
 - Make validation commands explicit and safe for this phase.
 - Require explicit staging only; forbid `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, and force push.
+- Include a generated spec Artifact Policy section with these exact run-artifact rules:
+{run_artifact_spec_policy(phase["phase_id"])}
+- Separate commit-eligible Allowed Paths from local-only run artifacts.
+- Do not list any `runs/` path under Allowed Paths or any other commit-eligible path section.
 - Output markdown only.
 """
 
@@ -1392,6 +1412,8 @@ Safety rules:
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
 - Keep generated local-only artifacts out of git.
+- Run artifact commit rules:
+{executor_run_artifact_policy(phase["phase_id"])}
 - Run only validation that is safe and requested by the spec.
 - Write execution output and handoff only.
 - The Ralph driver owns validation, review, done-check, verdict, repair, PR, CI, and merge gate.
@@ -1546,6 +1568,8 @@ Safety rules:
 - Do not mark the phase PASS.
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
+- Run artifact commit rules:
+{executor_run_artifact_policy(phase["phase_id"])}
 - The Ralph driver owns validation, review, done-check, verdict, PR, CI, and merge gate.
 
 Generated spec:
@@ -1576,7 +1600,11 @@ Exercise the provider-wired Workflow 2 conductor in deterministic mock-provider 
 
 ## Scope
 
-Allowed:
+Commit-Eligible Allowed Paths:
+- None for this deterministic mock-provider phase.
+
+Local-Only Run Artifacts:
+{run_artifact_spec_policy(phase["phase_id"])}
 - Write run artifacts under `runs/<run_id>/phases/{phase['phase_id']}/`.
 - Create a harmless mock execution marker in that phase artifact directory.
 
@@ -3390,9 +3418,11 @@ def spec_body(phase: ToyPhase) -> str:
         "## Purpose\n\n"
         f"{phase.title}.\n\n"
         "## Scope\n\n"
-        "Allowed:\n"
-        f"- create or update {phase.output_path}\n"
-        f"- write run artifacts under runs/<run_id>/phases/{phase.phase_id}/\n\n"
+        "Commit-Eligible Allowed Paths:\n"
+        f"- create or update {phase.output_path}\n\n"
+        "Local-Only Run Artifacts:\n"
+        f"{run_artifact_spec_policy(phase.phase_id)}\n"
+        f"- write run artifacts under `runs/<run_id>/phases/{phase.phase_id}/`\n\n"
         "Forbidden:\n"
         "- provider calls\n"
         "- GitHub API calls\n"
