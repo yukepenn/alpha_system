@@ -17,6 +17,34 @@ def test_artifact_guard_allows_curated_summaries() -> None:
     assert not artifact_guard.forbidden("reviews/summary.json")
 
 
+def test_artifact_guard_allows_explicit_placeholders() -> None:
+    assert not artifact_guard.forbidden("data/raw/.gitkeep")
+    assert not artifact_guard.forbidden("data/raw/README.md")
+    assert not artifact_guard.forbidden("data/cache/.gitkeep")
+    assert not artifact_guard.forbidden("data/cache/README.md")
+    assert not artifact_guard.forbidden("data/canonical/.gitkeep")
+    assert not artifact_guard.forbidden("data/factors/README.md")
+
+
+def test_artifact_guard_blocks_real_raw_cache_and_model_artifacts() -> None:
+    blocked = [
+        "data/raw/input.csv",
+        "data/raw/input.parquet",
+        "data/cache/cache.db",
+        "artifacts/raw/output.csv",
+        "data/canonical/snapshot.parquet",
+        "state.sqlite",
+        "state.db",
+        "state.duckdb",
+        "runs/local.log",
+        "models/model.onnx",
+        "models/model.pt",
+        "models/model.pkl",
+        "models/model.joblib",
+    ]
+    assert all(artifact_guard.forbidden(path) for path in blocked)
+
+
 def test_forbidden_pattern_guard_allows_policy_docs(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     Path("docs").mkdir()

@@ -152,6 +152,9 @@ def _validate_artifacts(data: dict[str, Any], errors: list[str]) -> None:
             errors.append(f"artifacts.{key} is required.")
         elif not isinstance(artifacts[key], list):
             errors.append(f"artifacts.{key} must be a list.")
+    for key in ("placeholder_exceptions", "placeholder_dirs"):
+        if key in artifacts and not isinstance(artifacts[key], list):
+            errors.append(f"artifacts.{key} must be a list.")
 
 
 def _validate_provider_config(root: Path, errors: list[str]) -> None:

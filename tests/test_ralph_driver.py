@@ -78,6 +78,48 @@ def stub_validation(monkeypatch) -> None:
     )
 
 
+def test_executor_prompt_declares_review_boundary() -> None:
+    phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW"}
+    phase_dir = ralph_driver.ROOT / "runs/run1/phases/P00"
+
+    prompt = ralph_driver.executor_prompt(phase, "# Spec\n", phase_dir)
+
+    assert "Do not call Claude." in prompt
+    assert "Do not run reviewer." in prompt
+    assert "Do not create `review.md`." in prompt
+    assert "Do not create `verdict.json`." in prompt
+    assert "Do not create a PR." in prompt
+    assert "Do not merge." in prompt
+    assert "Do not mark the phase PASS." in prompt
+    assert "Write execution output and handoff only." in prompt
+    assert (
+        "The Ralph driver owns validation, review, done-check, verdict, repair, "
+        "PR, CI, and merge gate."
+        in prompt
+    )
+
+
+def test_executor_created_review_and_verdict_are_quarantined(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    run_dir = tmp_path / "runs/run1"
+    phase_dir = run_dir / "phases/P00"
+    phase_dir.mkdir(parents=True)
+    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+    state = {"last_event_id": 0}
+    phase = {"phase_id": "P00"}
+    (phase_dir / "review.md").write_text("executor review\n", encoding="utf-8")
+    (phase_dir / "verdict.json").write_text('{"verdict": "PASS"}\n', encoding="utf-8")
+
+    ralph_driver.quarantine_executor_review_artifacts(phase_dir, run_dir, state, phase)
+
+    assert not (phase_dir / "review.md").exists()
+    assert not (phase_dir / "verdict.json").exists()
+    assert (phase_dir / "executor_notes_review.md").read_text(encoding="utf-8") == "executor review\n"
+    assert (phase_dir / "executor_notes_verdict.json").is_file()
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "EXECUTOR_REVIEW_ARTIFACT_QUARANTINED" in events
+
+
 def test_generic_campaign_yaml_phases_are_loaded(tmp_path, monkeypatch) -> None:
     write_sample_campaign(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)

@@ -22,6 +22,14 @@ FORBIDDEN_SUFFIXES = {
     ".pkl",
     ".joblib",
 }
+DEFAULT_PLACEHOLDER_EXCEPTIONS = ["**/.gitkeep", "**/README.md"]
+DEFAULT_PLACEHOLDER_DIRS = [
+    "data/raw/**",
+    "data/cache/**",
+    "data/canonical/**",
+    "data/factors/**",
+    "artifacts/raw/**",
+]
 SECRET_TOKENS = {"secret", "secrets"}
 SECRET_TOOLING_TOKENS = {"canary", "forbidden", "guard", "policy", "scan", "scanner", "scanning"}
 TOKEN_TOKENS = {"token", "tokens"}
@@ -76,7 +84,23 @@ def matches_any(path: str, patterns: list[str]) -> bool:
     normalized = path.replace("\\", "/")
     while normalized.startswith("./"):
         normalized = normalized[2:]
-    return any(fnmatch.fnmatch(normalized, pattern) for pattern in patterns)
+    for pattern in patterns:
+        if fnmatch.fnmatch(normalized, pattern):
+            return True
+        if pattern.startswith("**/") and fnmatch.fnmatch(normalized, pattern[3:]):
+            return True
+    return False
+
+
+def is_placeholder_exception(
+    path: str,
+    *,
+    placeholder_exceptions: list[str] | None = None,
+    placeholder_dirs: list[str] | None = None,
+) -> bool:
+    exceptions = DEFAULT_PLACEHOLDER_EXCEPTIONS if placeholder_exceptions is None else placeholder_exceptions
+    dirs = DEFAULT_PLACEHOLDER_DIRS if placeholder_dirs is None else placeholder_dirs
+    return matches_any(path, exceptions) and matches_any(path, dirs)
 
 
 def curate_commit_paths(
@@ -84,6 +108,8 @@ def curate_commit_paths(
     *,
     allow_patterns: list[str],
     forbid_patterns: list[str],
+    placeholder_exceptions: list[str] | None = None,
+    placeholder_dirs: list[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Split changed files into explicitly stageable and blocked paths."""
 
@@ -98,7 +124,12 @@ def curate_commit_paths(
         path_ok = check_path(Path(normalized))
         allowed_by_config = matches_any(normalized, allow_patterns)
         forbidden_by_config = matches_any(normalized, forbid_patterns)
-        if path_ok and allowed_by_config and not forbidden_by_config:
+        placeholder_ok = is_placeholder_exception(
+            normalized,
+            placeholder_exceptions=placeholder_exceptions,
+            placeholder_dirs=placeholder_dirs,
+        )
+        if path_ok and allowed_by_config and (not forbidden_by_config or placeholder_ok):
             allowed.append(normalized)
         else:
             blocked.append(normalized)

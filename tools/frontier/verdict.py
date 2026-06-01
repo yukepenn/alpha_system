@@ -18,6 +18,15 @@ DONE_CHECK_RE = re.compile(
     r"^\s*DONE_CHECK\s*:\s*(PASS_WITH_WARNINGS|PASS|REWORK|BLOCKED)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+REPAIR_SECTION_TITLES = {
+    "required repairs",
+    "required repair",
+    "required next step",
+    "required next steps",
+    "blocking findings",
+    "blocking finding",
+}
+STRUCTURED_BLOCK_RE = re.compile(r"```(?:json|yaml|yml)?\s*\n(?P<body>.*?)\n```", re.IGNORECASE | re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -57,6 +66,41 @@ def _bullet_lines(text: str) -> list[str]:
     return lines
 
 
+def _clean_heading(line: str) -> str:
+    stripped = line.strip()
+    while stripped.startswith("#"):
+        stripped = stripped[1:].strip()
+    stripped = stripped.strip("*_` ").rstrip(":").strip()
+    return re.sub(r"\s+", " ", stripped).lower()
+
+
+def _is_heading(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("#"):
+        return True
+    if stripped.startswith(("VERDICT:", "DONE_CHECK:")):
+        return True
+    if stripped.endswith(":") and len(stripped.split()) <= 6:
+        return True
+    return False
+
+
+def _clean_repair_line(line: str) -> str:
+    stripped = line.strip()
+    stripped = re.sub(r"^[-*]\s+", "", stripped)
+    stripped = re.sub(r"^\d+[.)]\s+", "", stripped)
+    stripped = re.sub(r"^\[[ xX]\]\s+", "", stripped)
+    return stripped.strip()
+
+
+def _append_unique(items: list[str], value: str) -> None:
+    clean = value.strip()
+    if clean and clean not in items:
+        items.append(clean)
+
+
 def _severity(verdict: str, text: str) -> str:
     lowered = text.lower()
     if verdict == "BLOCKED":
@@ -70,12 +114,67 @@ def _severity(verdict: str, text: str) -> str:
     return "none"
 
 
-def _required_repairs(text: str) -> list[str]:
+def _structured_repairs(text: str) -> list[str]:
     repairs: list[str] = []
-    for line in _bullet_lines(text):
-        lowered = line.lower()
-        if any(token in lowered for token in ("must", "required", "repair", "fix", "failed", "blocker")):
-            repairs.append(line)
+    for match in STRUCTURED_BLOCK_RE.finditer(text):
+        body = match.group("body").strip()
+        if not body:
+            continue
+        data: Any = None
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            try:
+                import yaml
+            except ImportError:
+                data = None
+            else:
+                try:
+                    data = yaml.safe_load(body)
+                except yaml.YAMLError:
+                    data = None
+        if not isinstance(data, dict):
+            continue
+        for key in (
+            "required_repairs",
+            "required_repair",
+            "required_next_steps",
+            "required_next_step",
+            "blocking_findings",
+            "blocking_finding",
+        ):
+            value = data.get(key)
+            if isinstance(value, str):
+                _append_unique(repairs, value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        _append_unique(repairs, item)
+    return repairs
+
+
+def _required_repairs(text: str) -> list[str]:
+    repairs = _structured_repairs(text)
+    active = False
+    for raw_line in text.splitlines():
+        if VERDICT_RE.match(raw_line):
+            active = False
+            continue
+        heading_source = raw_line.split(":", 1)[0] if ":" in raw_line else raw_line
+        heading = _clean_heading(heading_source)
+        if heading in REPAIR_SECTION_TITLES:
+            active = True
+            remainder = raw_line.split(":", 1)[1].strip() if ":" in raw_line else ""
+            if remainder:
+                _append_unique(repairs, _clean_repair_line(remainder))
+            continue
+        if _is_heading(raw_line):
+            active = False
+            continue
+        if active:
+            clean = _clean_repair_line(raw_line)
+            if clean:
+                _append_unique(repairs, clean)
     return repairs
 
 
@@ -89,8 +188,7 @@ def _warnings(text: str) -> list[str]:
 
 def parse_review_text(text: str, raw_review_path: Path | str | None = None) -> ReviewVerdict:
     matches = [match.group(1).upper() for match in VERDICT_RE.finditer(text)]
-    unique = sorted(set(matches))
-    if len(unique) != 1:
+    if len(matches) != 1:
         return ReviewVerdict(
             verdict="BLOCKED",
             severity="critical",
@@ -100,7 +198,7 @@ def parse_review_text(text: str, raw_review_path: Path | str | None = None) -> R
             raw_review_path=str(raw_review_path) if raw_review_path else None,
         )
 
-    verdict = unique[0]
+    verdict = matches[0]
     bullets = _bullet_lines(text)
     repairs = _required_repairs(text)
     warnings = _warnings(text)
