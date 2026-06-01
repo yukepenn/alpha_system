@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
-from tools.hooks import artifact_guard, forbidden_pattern_guard, secret_scan, test_tamper_guard
+from tools import verify
+from tools.hooks import artifact_guard, forbidden_pattern_guard, pre_commit, secret_scan, test_tamper_guard
 
 
 def test_secret_scan_blocks_secret_like_paths() -> None:
@@ -18,31 +20,85 @@ def test_artifact_guard_allows_curated_summaries() -> None:
 
 
 def test_artifact_guard_allows_explicit_placeholders() -> None:
-    assert not artifact_guard.forbidden("data/raw/.gitkeep")
-    assert not artifact_guard.forbidden("data/raw/README.md")
-    assert not artifact_guard.forbidden("data/cache/.gitkeep")
-    assert not artifact_guard.forbidden("data/cache/README.md")
-    assert not artifact_guard.forbidden("data/canonical/.gitkeep")
-    assert not artifact_guard.forbidden("data/factors/README.md")
+    allowed = [
+        "data/raw/.gitkeep",
+        "data/raw/README.md",
+        "data/cache/.gitkeep",
+        "data/cache/README.md",
+        "data/canonical/.gitkeep",
+        "data/factors/README.md",
+        "data/labels/README.md",
+        "metadata/README.md",
+        "artifacts/README.md",
+        "artifacts/reports/README.md",
+    ]
+    assert all(not artifact_guard.forbidden(path) for path in allowed)
 
 
 def test_artifact_guard_blocks_real_raw_cache_and_model_artifacts() -> None:
     blocked = [
+        ".frontier/upgrade_reports/report.json",
         "data/raw/input.csv",
         "data/raw/input.parquet",
+        "data/raw/SPY.parquet",
         "data/cache/cache.db",
+        "data/cache/cache.sqlite",
         "artifacts/raw/output.csv",
+        "artifacts/model.pkl",
         "data/canonical/snapshot.parquet",
+        "data/factors/factors.csv",
+        "data/labels/labels.csv",
+        "metadata/registry.sqlite",
+        ".env",
+        "secrets.json",
+        "runs/run1/state.json",
         "state.sqlite",
         "state.db",
         "state.duckdb",
         "runs/local.log",
+        "logs/frontier.log",
         "models/model.onnx",
         "models/model.pt",
         "models/model.pkl",
         "models/model.joblib",
     ]
     assert all(artifact_guard.forbidden(path) for path in blocked)
+
+
+def test_artifact_verification_ignores_staged_deletions(monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(verify.subprocess, "run", fake_run)
+
+    assert verify.check_artifacts() == 0
+    assert ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMRTUXB"] in commands
+
+
+def test_artifact_verification_blocks_staged_forbidden_artifacts(monkeypatch) -> None:
+    def fake_run(command, **kwargs):
+        stdout = ".frontier/upgrade_reports/report.json\n" if command[1] == "diff" else ""
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(verify.subprocess, "run", fake_run)
+
+    assert verify.check_artifacts() == 1
+
+
+def test_pre_commit_collects_only_staged_non_deletions(monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="docs/a.md\n", stderr="")
+
+    monkeypatch.setattr(pre_commit.subprocess, "run", fake_run)
+
+    assert pre_commit.staged_files() == ["docs/a.md"]
+    assert ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMRTUXB"] in commands
 
 
 def test_forbidden_pattern_guard_allows_policy_docs(tmp_path, monkeypatch) -> None:

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def staged_files() -> list[str]:
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMRTUXB"],
         cwd=ROOT,
         text=True,
         capture_output=True,

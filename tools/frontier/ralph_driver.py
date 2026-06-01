@@ -46,14 +46,33 @@ from tools.frontier.github_utils import (
     create_pr,
     detect_default_branch,
     inspect_branch_protection,
+    list_pr_diff_files,
     wait_for_ci,
+    view_pr,
     write_branch_protection_artifacts,
     write_ci_status_artifacts,
     write_pr_create_artifacts,
 )
 from tools.frontier.merge_gate import evaluate_merge_gate, perform_merge, write_merge_gate_artifacts
-from tools.frontier.provider_adapters import ClaudeProviderAdapter, CodexProviderAdapter
+from tools.frontier.artifact_policy import curate_commit_paths
+from tools.frontier.provider_adapters import (
+    WAITING_CLAUDE_LIMIT,
+    WAITING_CODEX_LIMIT,
+    WAITING_PROVIDER_LIMIT,
+    ClaudeProviderAdapter,
+    CodexProviderAdapter,
+    classify_provider_nonzero,
+)
 from tools.frontier.provider_config import ProviderRuntimeConfig, load_provider_config
+from tools.frontier.resume import (
+    RESUME_PRECONDITION_FAILED,
+    WORKFLOW2_STAGES,
+    changed_files_from_artifacts,
+    recover_pr_number,
+    stage_index,
+    summarize_resume_failure,
+    validate_resume_preconditions,
+)
 from tools.frontier.verdict import ReviewVerdict, parse_done_check_text, parse_review_text
 from tools.frontier.worktree_manager import WorktreeManager, phase_branch_name, worktree_mode_enabled
 
@@ -82,6 +101,15 @@ GATE_BLOCKED_STATUSES = {
     PR_CREATE_BLOCKED,
     CI_BLOCKED,
     MERGE_GATE_BLOCKED,
+}
+PROVIDER_WAITING_STATUSES = {WAITING_PROVIDER_LIMIT, WAITING_CLAUDE_LIMIT, WAITING_CODEX_LIMIT}
+PROVIDER_RESUME_STATUS_BY_STAGE = {
+    "spec": "PENDING",
+    "execute": "SPEC_READY",
+    "validate": "EXECUTED",
+    "review": "VALIDATED",
+    "done_check": "REVIEWED",
+    "repair": "REWORK",
 }
 FORBIDDEN_GIT_ADD_DOT = "git add" + " ."
 FORBIDDEN_GIT_ADD_ALL = "git add" + " -A"
@@ -577,8 +605,17 @@ def provider_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
             "done_check_json": f"{phase_artifact_root}/done_check.json",
             "handoff": f"{phase_artifact_root}/handoff.md",
             "git_phase": f"{phase_artifact_root}/git_phase.json",
+            "branch": f"{phase_artifact_root}/branch.txt",
+            "commit_sha": f"{phase_artifact_root}/commit_sha.txt",
+            "push_branch": f"{phase_artifact_root}/push_branch.json",
+            "remote_branch": f"{phase_artifact_root}/remote_branch.json",
+            "pr_create": f"{phase_artifact_root}/pr_create.json",
             "ci_status": f"{phase_artifact_root}/ci_status.json",
+            "branch_protection": f"{phase_artifact_root}/branch_protection.json",
             "merge_gate": f"{phase_artifact_root}/merge_gate.json",
+            "merge_result": f"{phase_artifact_root}/merge_result.json",
+            "provider_limit": f"{phase_artifact_root}/provider_limit.json",
+            "stage_checkpoints": f"{phase_artifact_root}/stage_checkpoints.jsonl",
         },
     }
 
@@ -876,8 +913,57 @@ def provider_phase_dir(run_dir: Path, phase: dict[str, Any]) -> Path:
     return run_dir / "phases" / phase["phase_id"]
 
 
+def provider_replay_disabled() -> bool:
+    return os.environ.get("FRONTIER_NO_PROVIDER_REPLAY", "").lower() in {"1", "true", "yes", "on"}
+
+
+def record_stage_checkpoint(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    stage: str,
+    *,
+    status: str = "complete",
+    details: dict[str, Any] | None = None,
+) -> None:
+    if stage not in WORKFLOW2_STAGES:
+        raise ValueError(f"Unknown Workflow 2 stage: {stage}")
+    phase_dir = provider_phase_dir(run_dir, phase)
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    record = {
+        "timestamp": utc_now(),
+        "run_id": state.get("run_id"),
+        "campaign_id": state.get("campaign_id"),
+        "phase_id": phase.get("phase_id"),
+        "stage": stage,
+        "status": status,
+        "details": details or {},
+    }
+    with (phase_dir / "stage_checkpoints.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    phase["current_stage"] = stage
+    if status == "complete":
+        completed = list(phase.get("completed_stages", []))
+        if stage not in completed:
+            completed.append(stage)
+        phase["completed_stages"] = completed
+        phase["last_completed_stage"] = stage
+    append_event(
+        run_dir,
+        state,
+        "STAGE_CHECKPOINT",
+        phase_id=phase.get("phase_id"),
+        stage=stage,
+        status=status,
+    )
+
+
 def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
-    resumable = {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"} | GATE_BLOCKED_STATUSES
+    resumable = (
+        {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"}
+        | GATE_BLOCKED_STATUSES
+        | PROVIDER_WAITING_STATUSES
+    )
     current = state.get("current_phase_id")
     if current:
         for phase in state["phases"]:
@@ -893,7 +979,12 @@ def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
 
 def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | None = None) -> None:
     passing = [phase for phase in state["phases"] if phase["status"] in PASSING_VERDICTS]
-    blocked = [phase for phase in state["phases"] if phase["status"] in {"BLOCKED", "REWORK"} | GATE_BLOCKED_STATUSES]
+    blocked = [
+        phase
+        for phase in state["phases"]
+        if phase["status"]
+        in {"BLOCKED", "REWORK", RESUME_PRECONDITION_FAILED} | GATE_BLOCKED_STATUSES | PROVIDER_WAITING_STATUSES
+    ]
     pending = [phase for phase in state["phases"] if phase["status"] == "PENDING"]
     lines = [
         "# Run Summary",
@@ -992,6 +1083,8 @@ def finish_provider_phase(
     state["current_micro_attempt"] = 0
     if status in PASSING_VERDICTS:
         state["phase_execution_performed"] = True
+        if phase.get("execution_mode") == "provider_wired":
+            record_stage_checkpoint(run_dir, state, phase, "complete", details={"phase_status": status})
     append_event(run_dir, state, event, phase_id=phase["phase_id"], status=status, reason=reason)
     write_state(run_dir, state)
     write_provider_summary(run_dir, state, reason)
@@ -1011,6 +1104,209 @@ def block_provider_run(
     write_provider_stop(run_dir, state, reason)
     write_state(run_dir, state)
     write_provider_summary(run_dir, state, reason)
+
+
+def _excerpt(text: str, limit: int = 4000) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n...[truncated]\n"
+
+
+def provider_limit_safe_resume_stage(stage: str) -> str:
+    if stage in {"spec", "execute", "validate", "review", "done_check"}:
+        return stage
+    if stage.startswith("repair"):
+        return "review"
+    return "merge_gate"
+
+
+def write_provider_limit_artifacts(
+    phase_dir: Path,
+    *,
+    provider: str,
+    stage: str,
+    result: CommandResult,
+    safe_resume_stage: str,
+    status: str,
+) -> None:
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "frontier-provider-limit-v1",
+        "status": status,
+        "provider": provider,
+        "stage": stage,
+        "safe_resume_stage": safe_resume_stage,
+        "command": list(result.command),
+        "return_code": result.returncode,
+        "stdout_excerpt": _excerpt(result.stdout),
+        "stderr_excerpt": _excerpt(result.stderr),
+        "recorded_at": utc_now(),
+    }
+    write_json(phase_dir / "provider_limit.json", payload)
+    lines = [
+        "# Provider Limit",
+        "",
+        f"Status: {status}",
+        f"Provider: {provider}",
+        f"Stage: {stage}",
+        f"Safe resume stage: {safe_resume_stage}",
+        f"Return code: {result.returncode}",
+        f"Command: `{' '.join(result.command)}`",
+        "",
+        "## stdout excerpt",
+        "",
+        "```text",
+        _excerpt(result.stdout).rstrip(),
+        "```",
+        "",
+        "## stderr excerpt",
+        "",
+        "```text",
+        _excerpt(result.stderr).rstrip(),
+        "```",
+    ]
+    (phase_dir / "provider_limit.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    handoff = [
+        "# Provider Limit Resume Handoff",
+        "",
+        f"- Provider: {provider}",
+        f"- Stage: {stage}",
+        f"- Safe resume stage: {safe_resume_stage}",
+        f"- Return code: {result.returncode}",
+        f"- Command: `{' '.join(result.command)}`",
+        "",
+        "Resume after the provider limit resets. Do not mark review, done-check, or phase PASS unless the required artifacts are present and valid.",
+    ]
+    (phase_dir / "provider_limit_handoff.md").write_text("\n".join(handoff) + "\n", encoding="utf-8")
+    handoff_path = phase_dir / "handoff.md"
+    if not handoff_path.exists():
+        handoff_path.write_text("\n".join(handoff) + "\n", encoding="utf-8")
+
+
+def wait_provider_limit(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    provider: str,
+    stage: str,
+    result: CommandResult,
+    status: str,
+) -> None:
+    safe_resume_stage = provider_limit_safe_resume_stage(stage)
+    phase_dir = provider_phase_dir(run_dir, phase)
+    write_provider_limit_artifacts(
+        phase_dir,
+        provider=provider,
+        stage=stage,
+        result=result,
+        safe_resume_stage=safe_resume_stage,
+        status=status,
+    )
+    set_provider_phase_status(phase, status)
+    phase["status_reason"] = f"{provider} usage limit reached during {stage}."
+    phase["provider_limit"] = {
+        "status": status,
+        "provider": provider,
+        "stage": stage,
+        "safe_resume_stage": safe_resume_stage,
+        "return_code": result.returncode,
+    }
+    phase["resume_stage"] = safe_resume_stage
+    state["status"] = status
+    state["stop_requested"] = True
+    state["current_phase_id"] = phase["phase_id"]
+    state["current_stage"] = safe_resume_stage
+    record_stage_checkpoint(
+        run_dir,
+        state,
+        phase,
+        safe_resume_stage,
+        status="waiting_provider_limit",
+        details={"provider": provider, "return_code": result.returncode},
+    )
+    append_event(
+        run_dir,
+        state,
+        "PROVIDER_LIMIT",
+        phase_id=phase["phase_id"],
+        provider=provider,
+        stage=stage,
+        safe_resume_stage=safe_resume_stage,
+    )
+    write_provider_stop(run_dir, state, f"{provider} usage limit reached during {stage}.")
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, f"Waiting for {provider} provider limit reset at {stage}.")
+    progress(run_dir, f"{phase['phase_id']} waiting on {provider} provider limit at {stage}.")
+
+
+def wait_campaign_provider_limit(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    provider: str,
+    stage: str,
+    result: CommandResult,
+    status: str,
+) -> None:
+    payload = {
+        "schema_version": "frontier-provider-limit-v1",
+        "status": status,
+        "provider": provider,
+        "stage": stage,
+        "safe_resume_stage": stage,
+        "command": list(result.command),
+        "return_code": result.returncode,
+        "stdout_excerpt": _excerpt(result.stdout),
+        "stderr_excerpt": _excerpt(result.stderr),
+        "recorded_at": utc_now(),
+    }
+    write_json(run_dir / "provider_limit.json", payload)
+    (run_dir / "provider_limit.md").write_text(
+        "\n".join(
+            [
+                "# Provider Limit",
+                "",
+                f"Status: {status}",
+                f"Provider: {provider}",
+                f"Stage: {stage}",
+                f"Return code: {result.returncode}",
+                f"Command: `{' '.join(result.command)}`",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    state["status"] = status
+    state["stop_requested"] = True
+    append_event(run_dir, state, "PROVIDER_LIMIT", provider=provider, stage=stage)
+    write_provider_stop(run_dir, state, f"{provider} usage limit reached during {stage}.")
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, f"Waiting for {provider} provider limit reset at {stage}.")
+
+
+def handle_provider_nonzero(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    provider: str,
+    stage: str,
+    result: CommandResult,
+) -> bool:
+    status = classify_provider_nonzero(provider, result.stdout, result.stderr, result.returncode)
+    if status in PROVIDER_WAITING_STATUSES:
+        wait_provider_limit(run_dir, state, phase, provider=provider, stage=stage, result=result, status=status)
+        return True
+    return False
+
+
+def current_provider_limit_phase(state: dict[str, Any]) -> dict[str, Any] | None:
+    current = state.get("current_phase_id")
+    for phase in state.get("phases", []):
+        if phase.get("status") in PROVIDER_WAITING_STATUSES and (current in {None, phase.get("phase_id")}):
+            return phase
+    return None
 
 
 def current_gate_blocked_phase(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -1359,12 +1655,26 @@ def provider_handoff_text(phase: dict[str, Any], verdict: str, mock_enabled: boo
 
 
 def claude_headless(prompt: str, *, root: Path = ROOT) -> CommandResult:
+    if provider_replay_disabled():
+        return CommandResult(
+            ("provider-replay-disabled", "claude"),
+            125,
+            "",
+            "FRONTIER_NO_PROVIDER_REPLAY=1 prevents Claude replay.",
+        )
     config = load_provider_config(root)
     response = ClaudeProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
     return CommandResult(tuple(response.command), response.return_code, response.stdout, response.stderr)
 
 
 def codex_noninteractive(prompt: str, *, root: Path = ROOT) -> CommandResult:
+    if provider_replay_disabled():
+        return CommandResult(
+            ("provider-replay-disabled", "codex"),
+            125,
+            "",
+            "FRONTIER_NO_PROVIDER_REPLAY=1 prevents Codex replay.",
+        )
     config = load_provider_config(root)
     response = CodexProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
     return CommandResult(tuple(response.command), response.return_code, response.stdout, response.stderr)
@@ -1697,6 +2007,13 @@ def post_phase_git_github(
     phase["commit_sha"] = commit_sha
     (phase_dir / "branch.txt").write_text(branch + "\n", encoding="utf-8")
     (phase_dir / "commit_sha.txt").write_text((commit_sha or "") + "\n", encoding="utf-8")
+    record_stage_checkpoint(
+        run_dir,
+        state,
+        phase,
+        "commit",
+        details={"branch": branch, "commit_sha": commit_sha, "resuming_gate": resuming_gate},
+    )
     append_event(run_dir, state, "GIT_PHASE_RECORDED", phase_id=phase["phase_id"], dry_run=dry_git)
 
     github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
@@ -1795,6 +2112,13 @@ def post_phase_git_github(
                 )
                 return False
             branch_pushed = True
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "push",
+                details={"branch": branch, "remote": remote, "dry_run": False},
+            )
             append_event(run_dir, state, "BRANCH_PUSHED", phase_id=phase["phase_id"], branch=branch, remote=remote)
             remote_result = verify_remote_branch(execution_root, branch, remote=remote)
             write_remote_branch_artifacts(phase_dir, remote_result)
@@ -1829,6 +2153,13 @@ def post_phase_git_github(
             push_result = push_phase_branch(execution_root, branch, remote=remote, dry_run=True)
             write_push_branch_artifacts(phase_dir, push_result)
             write_remote_branch_artifacts(phase_dir, remote_result)
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "push",
+                details={"branch": branch, "remote": remote, "dry_run": True},
+            )
 
     base = (
         str(project_config.get("default_branch") or "main")
@@ -1859,6 +2190,13 @@ def post_phase_git_github(
             pr_meta = pr_result.metadata.get("pr") if isinstance(pr_result.metadata, dict) else {}
             pr_number = pr_result.metadata.get("number") or (pr_meta or {}).get("number")
             phase["pr_number"] = pr_number
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "pr",
+                details={"pr_number": pr_number, "dry_run": pr_result.dry_run},
+            )
         elif pr_result.blocked:
             reason = "PR_CREATE_BLOCKED: " + (pr_result.instructions or pr_result.stderr)
             block_provider_gate(
@@ -1882,7 +2220,10 @@ def post_phase_git_github(
         )
     elif mock_enabled:
         ci_result = classify_ci_checks(
-            [{"name": check or "mock-ci", "state": "COMPLETED", "conclusion": "success"} for check in (required_checks or ["mock-ci"])],
+            [
+                {"name": check or "mock-ci", "state": "SUCCESS", "bucket": "pass"}
+                for check in (required_checks or ["mock-ci"])
+            ],
             required_checks=required_checks,
         )
     else:
@@ -1890,6 +2231,8 @@ def post_phase_git_github(
     ci_status = ci_result.state
     write_ci_status_artifacts(phase_dir, ci_result)
     phase["ci_status"] = ci_status
+    if ci_status == CI_SUCCESS:
+        record_stage_checkpoint(run_dir, state, phase, "ci", details={"pr_number": pr_number})
     if github_config.get("require_ci", True) and ci_status != CI_SUCCESS:
         reason = f"CI_BLOCKED: CI status was {ci_status}."
         block_provider_gate(
@@ -1913,6 +2256,14 @@ def post_phase_git_github(
         dry_run=merge_dry_run and bool(github_config.get("allow_unprotected_dry_run", True)),
     )
     write_branch_protection_artifacts(phase_dir, bp_result)
+    if bp_result.ok or bp_result.status == "DRY_RUN":
+        record_stage_checkpoint(
+            run_dir,
+            state,
+            phase,
+            "branch_protection",
+            details={"status": bp_result.status, "branch": base_branch},
+        )
 
     critical = []
     verdict_path = phase_dir / "verdict.json"
@@ -1938,6 +2289,14 @@ def post_phase_git_github(
     )
     write_merge_gate_artifacts(phase_dir, gate)
     phase["merge_gate_status"] = gate.status
+    if gate.status in PASSING_VERDICTS:
+        record_stage_checkpoint(
+            run_dir,
+            state,
+            phase,
+            "merge_gate",
+            details={"merge_allowed": gate.merge_allowed, "dry_run": gate.dry_run},
+        )
     if gate.status not in PASSING_VERDICTS:
         reason = "MERGE_GATE_BLOCKED: " + "; ".join(gate.reasons)
         block_provider_gate(
@@ -1955,6 +2314,8 @@ def post_phase_git_github(
         write_github_result(phase_dir / "merge_result.json", merge_result)
         if merge_result.ok and not merge_result.dry_run:
             state["auto_merge_performed"] = True
+            phase["merged"] = True
+            record_stage_checkpoint(run_dir, state, phase, "merge", details={"pr_number": pr_number})
             append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
         elif merge_result.blocked and gate.merge_allowed:
             reason = "MERGE_GATE_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
@@ -1968,6 +2329,406 @@ def post_phase_git_github(
                 source="merge_gate_blocked",
             )
             return False
+    return True
+
+
+def find_state_phase(state: dict[str, Any], phase_id: str) -> dict[str, Any]:
+    for phase in state.get("phases", []):
+        if phase.get("phase_id") == phase_id:
+            return phase
+    raise ValueError(f"Run state is missing phase {phase_id}.")
+
+
+def resume_artifact_policy(config: dict[str, Any], changed: list[str], *, artifact_source: str) -> dict[str, Any]:
+    artifacts = config.get("artifacts") if isinstance(config.get("artifacts"), dict) else {}
+    allow_patterns = list(artifacts.get("allow_commit", [])) if isinstance(artifacts, dict) else []
+    forbid_patterns = list(artifacts.get("forbid_commit", [])) if isinstance(artifacts, dict) else []
+    placeholder_exceptions = artifacts.get("placeholder_exceptions") if isinstance(artifacts, dict) else None
+    placeholder_dirs = artifacts.get("placeholder_dirs") if isinstance(artifacts, dict) else None
+    if not isinstance(placeholder_exceptions, list):
+        placeholder_exceptions = None
+    if not isinstance(placeholder_dirs, list):
+        placeholder_dirs = None
+    allowed, blocked = curate_commit_paths(
+        changed,
+        allow_patterns=allow_patterns,
+        forbid_patterns=forbid_patterns,
+        placeholder_exceptions=placeholder_exceptions,
+        placeholder_dirs=placeholder_dirs,
+    )
+    return {
+        "ok": not blocked,
+        "artifact_source": artifact_source,
+        "changed_files": changed,
+        "allowed_files": allowed,
+        "blocked_files": blocked,
+    }
+
+
+def recorded_phase_commit_sha(phase_dir: Path, phase: dict[str, Any], state: dict[str, Any]) -> str | None:
+    git_phase = read_json_if_exists(phase_dir / "git_phase.json")
+    candidates = [
+        phase.get("commit_sha"),
+        state.get("commit_sha"),
+        read_stripped_if_exists(phase_dir / "commit_sha.txt"),
+        git_phase.get("commit_sha"),
+    ]
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return None
+
+
+def resume_head_mismatch_allowed() -> bool:
+    return os.environ.get("FRONTIER_ALLOW_RESUME_HEAD_MISMATCH") == "1"
+
+
+def pr_metadata(result: GitHubResult) -> dict[str, Any]:
+    metadata = result.metadata if isinstance(result.metadata, dict) else {}
+    data = metadata.get("pr")
+    return data if isinstance(data, dict) else {}
+
+
+def pr_is_merged(data: dict[str, Any]) -> bool:
+    return str(data.get("state") or "").upper() == "MERGED"
+
+
+def validate_resume_pr_head(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    phase_dir: Path,
+    *,
+    pr_data: dict[str, Any],
+) -> bool:
+    expected = recorded_phase_commit_sha(phase_dir, phase, state)
+    actual = str(pr_data.get("headRefOid") or "").strip()
+    match = True
+    reason = ""
+    if expected:
+        match = bool(actual) and actual.lower() == expected.lower()
+        if not match:
+            reason = (
+                "RESUME_PRECONDITION_FAILED: PR headRefOid does not match recorded phase commit_sha. "
+                "Set FRONTIER_ALLOW_RESUME_HEAD_MISMATCH=1 only after manually verifying the PR head."
+            )
+    payload = {
+        "status": "PASS" if match else "MISMATCH",
+        "expected_commit_sha": expected,
+        "headRefOid": actual,
+        "override_allowed": resume_head_mismatch_allowed(),
+        "recorded_at": utc_now(),
+    }
+    write_json(phase_dir / "resume_head_check.json", payload)
+    if match:
+        return True
+    if resume_head_mismatch_allowed():
+        append_event(
+            run_dir,
+            state,
+            "RESUME_HEAD_MISMATCH_OVERRIDDEN",
+            phase_id=phase["phase_id"],
+            expected_commit_sha=expected,
+            headRefOid=actual,
+        )
+        return True
+    write_resume_precondition_failure(run_dir, state, phase, reason, precondition=payload)
+    return False
+
+
+def finish_targeted_resume(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    verdict: str,
+    from_stage: str,
+    reason: str | None = None,
+) -> None:
+    note = reason or f"Targeted resume from {from_stage} completed for {phase['phase_id']}; no later phases were started."
+    finish_provider_phase(run_dir, state, phase, verdict, event="RESUME_PHASE_PASS", reason=f"Resumed from {from_stage}.")
+    state["status"] = "STOPPED"
+    state["stop_requested"] = True
+    write_provider_stop(run_dir, state, note)
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, note)
+
+
+def write_resume_precondition_failure(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    reason: str,
+    *,
+    precondition: dict[str, Any] | None = None,
+) -> None:
+    phase_dir = provider_phase_dir(run_dir, phase)
+    payload = {
+        "status": RESUME_PRECONDITION_FAILED,
+        "phase_id": phase["phase_id"],
+        "reason": reason,
+        "precondition": precondition or {},
+        "recorded_at": utc_now(),
+    }
+    write_json(phase_dir / "resume_precondition_failed.json", payload)
+    (phase_dir / "resume_precondition_failed.md").write_text(
+        "# Resume Precondition Failed\n\n" + reason + "\n",
+        encoding="utf-8",
+    )
+    set_provider_phase_status(phase, RESUME_PRECONDITION_FAILED)
+    phase["status_reason"] = reason
+    state["status"] = RESUME_PRECONDITION_FAILED
+    state["stop_requested"] = True
+    state["current_phase_id"] = phase["phase_id"]
+    append_event(
+        run_dir,
+        state,
+        RESUME_PRECONDITION_FAILED,
+        phase_id=phase["phase_id"],
+        reason=reason,
+    )
+    write_provider_stop(run_dir, state, reason)
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, reason)
+    progress(run_dir, f"{phase['phase_id']} resume precondition failed.")
+
+
+def run_deterministic_resume_gates(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    from_stage: str,
+    no_provider_replay: bool,
+    execution_root: Path = ROOT,
+) -> bool:
+    del no_provider_replay
+    phase_dir = provider_phase_dir(run_dir, phase)
+    config = load_config(ROOT / "frontier.yaml")
+    github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
+    project_config = config.get("project") if isinstance(config.get("project"), dict) else {}
+    lane = str(phase.get("lane") or "green").lower()
+    verdict_data = read_json(phase_dir / "verdict.json")
+    verdict = str(verdict_data.get("verdict", "BLOCKED"))
+    required_checks = phase_required_checks(phase, config)
+    mock_enabled = bool(state.get("mock_providers"))
+    pr_number = recover_pr_number(phase_dir, phase, state)
+    if pr_number is None:
+        write_resume_precondition_failure(
+            run_dir,
+            state,
+            phase,
+            "RESUME_PRECONDITION_FAILED: pr_create.json or state must contain a valid PR number.",
+        )
+        return False
+
+    if mock_enabled:
+        changed = changed_files_from_artifacts(phase_dir)
+        artifact_source = "run_artifacts_mock"
+    else:
+        state["github_operations_performed"] = True
+        state["network_used"] = True
+        pr_view_result = view_pr(pr_number, root=execution_root)
+        write_github_result(phase_dir / "resume_pr_view.json", pr_view_result)
+        if pr_view_result.blocked:
+            write_resume_precondition_failure(
+                run_dir,
+                state,
+                phase,
+                "RESUME_PRECONDITION_FAILED: live PR metadata could not be read.",
+                precondition=pr_view_result.to_dict(),
+            )
+            return False
+        pr_data = pr_metadata(pr_view_result)
+        if pr_is_merged(pr_data):
+            phase["pr_number"] = pr_number
+            phase["merged"] = True
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "merge",
+                details={"resume": True, "pr_number": pr_number, "already_merged": True},
+            )
+            append_event(run_dir, state, "RESUME_PR_ALREADY_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
+            finish_targeted_resume(
+                run_dir,
+                state,
+                phase,
+                verdict=verdict,
+                from_stage=from_stage,
+                reason=f"PR {pr_number} is already merged; marked {phase['phase_id']} complete.",
+            )
+            return True
+        if not validate_resume_pr_head(run_dir, state, phase, phase_dir, pr_data=pr_data):
+            return False
+        pr_diff_result = list_pr_diff_files(pr_number, root=execution_root)
+        write_github_result(phase_dir / "resume_pr_diff.json", pr_diff_result)
+        if pr_diff_result.blocked:
+            changed = changed_files_from_artifacts(phase_dir)
+            artifact_source = "run_artifacts_fallback"
+            append_event(
+                run_dir,
+                state,
+                "RESUME_PR_DIFF_FALLBACK",
+                phase_id=phase["phase_id"],
+                pr_number=pr_number,
+                reason=pr_diff_result.instructions or pr_diff_result.stderr,
+            )
+        else:
+            files = pr_diff_result.metadata.get("files") if isinstance(pr_diff_result.metadata, dict) else []
+            changed = [str(item) for item in files] if isinstance(files, list) else []
+            artifact_source = "pr_diff"
+
+    artifact_result = resume_artifact_policy(config, changed, artifact_source=artifact_source)
+    write_json(phase_dir / "resume_artifact_policy.json", artifact_result)
+    append_event(
+        run_dir,
+        state,
+        "RESUME_ARTIFACT_POLICY",
+        phase_id=phase["phase_id"],
+        artifact_source=artifact_source,
+        changed_files=len(changed),
+        blocked_files=artifact_result["blocked_files"],
+    )
+
+    if mock_enabled:
+        ci_result = classify_ci_checks(
+            [{"name": check or "mock-ci", "state": "SUCCESS", "bucket": "pass"} for check in (required_checks or ["mock-ci"])],
+            required_checks=required_checks,
+        )
+    else:
+        ci_result = wait_for_ci(
+            pr_number,
+            timeout_seconds=int(github_config.get("ci_timeout_seconds", 900)),
+            poll_seconds=int(github_config.get("ci_poll_seconds", 15)),
+            required_checks=required_checks,
+            root=execution_root,
+        )
+    write_ci_status_artifacts(phase_dir, ci_result)
+    phase["ci_status"] = ci_result.state
+    append_event(run_dir, state, "RESUME_CI_RERUN", phase_id=phase["phase_id"], ci_status=ci_result.state)
+    if ci_result.state == CI_SUCCESS:
+        record_stage_checkpoint(run_dir, state, phase, "ci", details={"resume": True, "pr_number": pr_number})
+    if github_config.get("require_ci", True) and ci_result.state != CI_SUCCESS:
+        block_provider_gate(
+            run_dir,
+            state,
+            phase,
+            CI_BLOCKED,
+            f"CI_BLOCKED: CI status was {ci_result.state}.",
+            event="CI_BLOCKED",
+            source="resume_ci_blocked",
+        )
+        return False
+
+    base_branch = str(project_config.get("default_branch") or "main") if mock_enabled else detect_default_branch(root=execution_root)
+    bp_result = inspect_branch_protection(
+        branch=base_branch,
+        required_checks=required_checks,
+        require_branch_protection=bool(github_config.get("require_branch_protection", True)),
+        root=execution_root,
+        dry_run=mock_enabled and bool(github_config.get("allow_unprotected_dry_run", True)),
+    )
+    write_branch_protection_artifacts(phase_dir, bp_result)
+    append_event(
+        run_dir,
+        state,
+        "RESUME_BRANCH_PROTECTION_RERUN",
+        phase_id=phase["phase_id"],
+        status=bp_result.status,
+    )
+    if bp_result.ok or bp_result.status == "DRY_RUN":
+        record_stage_checkpoint(
+            run_dir,
+            state,
+            phase,
+            "branch_protection",
+            details={"resume": True, "status": bp_result.status, "branch": base_branch},
+        )
+
+    critical = list(verdict_data.get("findings", [])) if verdict_data.get("severity") == "critical" else []
+    allow_automerge = os.environ.get("FRONTIER_ALLOW_AUTOMERGE", "").lower() in {"1", "true", "yes", "on"}
+    merge_dry_run = mock_enabled or os.environ.get("FRONTIER_MERGE_DRY_RUN") == "1" or not allow_automerge
+    gate = evaluate_merge_gate(
+        campaign_id=state["campaign_id"],
+        phase_id=phase["phase_id"],
+        lane=lane,
+        verdict=verdict,
+        ci_status=ci_result.state,
+        changed_files=changed,
+        artifact_policy=artifact_result,
+        config=config,
+        env=os.environ,
+        dry_run=merge_dry_run,
+        branch_protection=bp_result,
+        critical_findings=critical,
+        stop_requested=stop_requested(run_dir),
+    )
+    write_merge_gate_artifacts(phase_dir, gate)
+    phase["merge_gate_status"] = gate.status
+    append_event(
+        run_dir,
+        state,
+        "RESUME_MERGE_GATE_RERUN",
+        phase_id=phase["phase_id"],
+        status=gate.status,
+        merge_allowed=gate.merge_allowed,
+        from_stage=from_stage,
+    )
+    if gate.status in PASSING_VERDICTS:
+        record_stage_checkpoint(
+            run_dir,
+            state,
+            phase,
+            "merge_gate",
+            details={"resume": True, "merge_allowed": gate.merge_allowed, "dry_run": gate.dry_run},
+        )
+    if gate.status not in PASSING_VERDICTS:
+        reason = "MERGE_GATE_BLOCKED: " + "; ".join(gate.reasons)
+        block_provider_gate(
+            run_dir,
+            state,
+            phase,
+            MERGE_GATE_BLOCKED,
+            reason,
+            event="MERGE_GATE_BLOCKED",
+            source="resume_merge_gate_blocked",
+        )
+        return False
+
+    if gate.merge_allowed:
+        merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
+        write_github_result(phase_dir / "merge_result.json", merge_result)
+        append_event(
+            run_dir,
+            state,
+            "RESUME_PERFORM_MERGE",
+            phase_id=phase["phase_id"],
+            pr_number=pr_number,
+            dry_run=merge_result.dry_run,
+            blocked=merge_result.blocked,
+        )
+        if merge_result.ok and not merge_result.dry_run:
+            state["auto_merge_performed"] = True
+            phase["merged"] = True
+            record_stage_checkpoint(run_dir, state, phase, "merge", details={"resume": True, "pr_number": pr_number})
+            append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
+        elif merge_result.blocked:
+            reason = "MERGE_GATE_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                MERGE_GATE_BLOCKED,
+                reason,
+                event="MERGE_GATE_BLOCKED",
+                source="resume_merge_blocked",
+            )
+            return False
+
+    finish_targeted_resume(run_dir, state, phase, verdict=verdict, from_stage=from_stage)
     return True
 
 
@@ -2026,6 +2787,39 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
     else:
         append_event(run_dir, state, "PHASE_RESUME", phase_id=phase_id, status=status)
 
+    if phase.get("status") in PROVIDER_WAITING_STATUSES:
+        if provider_replay_disabled():
+            block_provider_run(
+                run_dir,
+                state,
+                phase,
+                RESUME_PRECONDITION_FAILED,
+                "FRONTIER_NO_PROVIDER_REPLAY=1 prevents resuming a provider-dependent stage.",
+            )
+            return False
+        resume_stage = str(phase.get("resume_stage") or phase.get("provider_limit", {}).get("safe_resume_stage") or "")
+        mapped_status = PROVIDER_RESUME_STATUS_BY_STAGE.get(resume_stage)
+        if not mapped_status:
+            block_provider_run(
+                run_dir,
+                state,
+                phase,
+                RESUME_PRECONDITION_FAILED,
+                f"Cannot resume provider limit from unknown stage {resume_stage!r}.",
+            )
+            return False
+        set_provider_phase_status(phase, mapped_status)
+        phase.pop("status_reason", None)
+        append_event(
+            run_dir,
+            state,
+            "PROVIDER_LIMIT_RESUME",
+            phase_id=phase_id,
+            resume_stage=resume_stage,
+            mapped_status=mapped_status,
+        )
+        write_state(run_dir, state)
+
     if phase.get("status") == "PENDING":
         if stop_requested(run_dir):
             block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before spec generation.")
@@ -2042,12 +2836,22 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
             append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="spec_generation")
             result = claude_headless(spec_prompt_text)
             if result.returncode != 0:
+                if handle_provider_nonzero(
+                    run_dir,
+                    state,
+                    phase,
+                    provider="claude",
+                    stage="spec",
+                    result=result,
+                ):
+                    return False
                 write_provider_failure(phase_dir / "spec.md", "Claude Spec Generation Failed", result)
                 write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="spec_generation_error")
                 block_provider_run(run_dir, state, phase, "BLOCKED", "Claude spec generation failed.")
                 return False
             spec_text = result.stdout
         (phase_dir / "spec.md").write_text(spec_text, encoding="utf-8")
+        record_stage_checkpoint(run_dir, state, phase, "spec")
         set_provider_phase_status(phase, "SPEC_READY")
         append_event(run_dir, state, "SPEC_READY", phase_id=phase_id)
         write_state(run_dir, state)
@@ -2077,11 +2881,21 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
             executor_text = command_block(result)
             if result.returncode != 0:
                 (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
+                if handle_provider_nonzero(
+                    run_dir,
+                    state,
+                    phase,
+                    provider="codex",
+                    stage="execute",
+                    result=result,
+                ):
+                    return False
                 write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="executor_error")
                 block_provider_run(run_dir, state, phase, "BLOCKED", "Codex executor returned nonzero.")
                 return False
         (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
         quarantine_executor_review_artifacts(phase_dir, run_dir, state, phase)
+        record_stage_checkpoint(run_dir, state, phase, "execute")
         set_provider_phase_status(phase, "EXECUTED")
         append_event(run_dir, state, "EXECUTED", phase_id=phase_id)
         write_state(run_dir, state)
@@ -2108,10 +2922,13 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
                 validation_text,
                 execution_root=execution_root,
             )
+            if verdict in PROVIDER_WAITING_STATUSES:
+                return False
             if verdict not in PASSING_VERDICTS:
                 block_provider_run(run_dir, state, phase, "BLOCKED", "Repair attempts exhausted after validation failure.")
                 return False
         else:
+            record_stage_checkpoint(run_dir, state, phase, "validate")
             set_provider_phase_status(phase, "VALIDATED")
             append_event(run_dir, state, "VALIDATED", phase_id=phase_id)
             write_state(run_dir, state)
@@ -2139,6 +2956,15 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
             result = claude_headless(review_prompt_text, root=execution_root)
             review_text = result.stdout if result.returncode == 0 else command_block(result)
             if result.returncode != 0:
+                if handle_provider_nonzero(
+                    run_dir,
+                    state,
+                    phase,
+                    provider="claude",
+                    stage="review",
+                    result=result,
+                ):
+                    return False
                 (phase_dir / "review.md").write_text(review_text, encoding="utf-8")
                 write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="claude_review_error")
                 block_provider_run(run_dir, state, phase, "BLOCKED", "Claude review returned nonzero.")
@@ -2148,6 +2974,7 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
         parsed_verdict = parse_review_text(review_text, review_path)
         verdict = parsed_verdict.verdict
         write_provider_verdict(phase_dir, state, phase, verdict, source="review", parsed=parsed_verdict)
+        record_stage_checkpoint(run_dir, state, phase, "review")
         set_provider_phase_status(phase, "REVIEWED")
         append_event(run_dir, state, "REVIEWED", phase_id=phase_id, verdict=verdict)
         write_state(run_dir, state)
@@ -2160,6 +2987,8 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
         verdict = run_provider_repair_loop(
             run_dir, state, phase, spec_text, review_text, validation_text, execution_root=execution_root
         )
+    if verdict in PROVIDER_WAITING_STATUSES:
+        return False
     if verdict not in PASSING_VERDICTS:
         block_provider_run(run_dir, state, phase, "BLOCKED", f"Review verdict was {verdict}.")
         return False
@@ -2172,6 +3001,13 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
         if existing_done.get("verdict"):
             done_text = _read_phase_text(phase_dir / "done_check.md")
             done_verdict = str(existing_done.get("verdict"))
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "done_check",
+                details={"reused": True, "verdict": done_verdict},
+            )
             append_event(run_dir, state, "DONE_CHECK_REUSED", phase_id=phase_id, verdict=done_verdict)
         else:
             if stop_requested(run_dir):
@@ -2196,16 +3032,28 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
                 result = claude_headless(done_prompt, root=execution_root)
                 done_text = result.stdout if result.returncode == 0 else command_block(result)
                 if result.returncode != 0:
+                    if handle_provider_nonzero(
+                        run_dir,
+                        state,
+                        phase,
+                        provider="claude",
+                        stage="done_check",
+                        result=result,
+                    ):
+                        return False
                     (phase_dir / "done_check.md").write_text(done_text, encoding="utf-8")
                     write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="done_check_error")
                     block_provider_run(run_dir, state, phase, "BLOCKED", "Claude done-check returned nonzero.")
                     return False
             done_verdict = write_done_check_result(phase_dir, state, phase, done_text)
+            record_stage_checkpoint(run_dir, state, phase, "done_check")
             append_event(run_dir, state, "DONE_CHECK", phase_id=phase_id, verdict=done_verdict)
         if done_verdict == "REWORK":
             verdict = run_provider_repair_loop(
                 run_dir, state, phase, spec_text, done_text, validation_text, execution_root=execution_root
             )
+            if verdict in PROVIDER_WAITING_STATUSES:
+                return False
             if verdict not in PASSING_VERDICTS:
                 block_provider_run(run_dir, state, phase, "BLOCKED", "Repair attempts exhausted after done-check.")
                 return False
@@ -2269,6 +3117,15 @@ def run_provider_repair_loop(
             if result.returncode != 0:
                 (attempt_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
                 (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+                if handle_provider_nonzero(
+                    run_dir,
+                    state,
+                    phase,
+                    provider="codex",
+                    stage="repair",
+                    result=result,
+                ):
+                    return str(phase.get("status") or WAITING_PROVIDER_LIMIT)
                 write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_error")
                 return "BLOCKED"
         (attempt_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
@@ -2307,6 +3164,15 @@ def run_provider_repair_loop(
             result = claude_headless(review_prompt_text, root=execution_root)
             repaired_review_text = result.stdout if result.returncode == 0 else command_block(result)
             if result.returncode != 0:
+                if handle_provider_nonzero(
+                    run_dir,
+                    state,
+                    phase,
+                    provider="claude",
+                    stage="repair_review",
+                    result=result,
+                ):
+                    return str(phase.get("status") or WAITING_PROVIDER_LIMIT)
                 (attempt_dir / "repair_review.md").write_text(repaired_review_text, encoding="utf-8")
                 write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_review_error")
                 return "BLOCKED"
@@ -2354,6 +3220,17 @@ def run_campaign_done_check(run_dir: Path, state: dict[str, Any]) -> str:
         result = claude_headless(prompt)
         text = result.stdout if result.returncode == 0 else command_block(result)
         if result.returncode != 0:
+            status = classify_provider_nonzero("claude", result.stdout, result.stderr, result.returncode)
+            if status in PROVIDER_WAITING_STATUSES:
+                wait_campaign_provider_limit(
+                    run_dir,
+                    state,
+                    provider="claude",
+                    stage="campaign_done_check",
+                    result=result,
+                    status=status,
+                )
+                return status
             text = text + "\n\nDONE_CHECK: BLOCKED\n"
     path = run_dir / "campaign_done_check.md"
     path.write_text(text, encoding="utf-8")
@@ -2410,6 +3287,9 @@ def continue_provider_wired_run(
         phase = next_pending_provider_phase(state)
         if phase is None:
             done_verdict = run_campaign_done_check(run_dir, state)
+            if done_verdict in PROVIDER_WAITING_STATUSES:
+                print(f"Stopped provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
+                return 0
             if done_verdict not in PASSING_VERDICTS:
                 state["status"] = "BLOCKED"
                 state["stop_requested"] = True
@@ -2829,15 +3709,32 @@ def resume_provider_wired_run(
     if stop_path.exists():
         gate_phase = current_gate_blocked_phase(state)
         if gate_phase is None:
-            return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
-        stop_path.unlink()
-        append_event(
-            run_dir,
-            state,
-            "RUN_RESUME_GATE_RETRY",
-            phase_id=gate_phase["phase_id"],
-            gate_status=gate_phase.get("status"),
-        )
+            limit_phase = current_provider_limit_phase(state)
+            if limit_phase is None:
+                return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
+            if provider_replay_disabled():
+                return provider_stop_without_execution(
+                    run_dir,
+                    state,
+                    "STOP file exists on provider-limit resume and FRONTIER_NO_PROVIDER_REPLAY=1 is set.",
+                )
+            stop_path.unlink()
+            append_event(
+                run_dir,
+                state,
+                "RUN_RESUME_PROVIDER_LIMIT",
+                phase_id=limit_phase["phase_id"],
+                resume_stage=limit_phase.get("resume_stage"),
+            )
+        else:
+            stop_path.unlink()
+            append_event(
+                run_dir,
+                state,
+                "RUN_RESUME_GATE_RETRY",
+                phase_id=gate_phase["phase_id"],
+                gate_status=gate_phase.get("status"),
+            )
     try:
         campaign = load_ledger_campaign(state["campaign_id"])
         resolved_max_phases, source = resolve_max_phases(campaign, max_phases)
@@ -2866,23 +3763,165 @@ def resume_provider_wired_run(
         return 1
 
 
-def resume(
-    run_id: str,
+def resume_provider_wired_stage(
+    run_dir: Path,
+    state: dict[str, Any],
     *,
+    campaign_id: str | None,
+    phase_id: str,
+    from_stage: str,
+    no_provider_replay: bool,
+    worktree_mode: bool | None = None,
+) -> int:
+    try:
+        stage_index(from_stage)
+    except ValueError as error:
+        print(error)
+        return 2
+    if no_provider_replay and from_stage not in {"ci", "branch_protection", "merge_gate", "merge", "complete"}:
+        print("RESUME_PRECONDITION_FAILED: --no-provider-replay requires a deterministic resume stage.")
+        return 2
+    if campaign_id and state.get("campaign_id") != campaign_id:
+        print(
+            "RESUME_PRECONDITION_FAILED: run campaign "
+            f"{state.get('campaign_id')!r} does not match requested {campaign_id!r}."
+        )
+        return 2
+    try:
+        load_ledger_campaign(str(state["campaign_id"]))
+        phase = find_state_phase(state, phase_id)
+    except ValueError as error:
+        print(error)
+        return 2
+
+    phase_dir = provider_phase_dir(run_dir, phase)
+    precondition = validate_resume_preconditions(
+        phase_dir=phase_dir,
+        phase=phase,
+        state=state,
+        from_stage=from_stage,
+        allow_deterministic_rerun=True,
+    )
+    if not precondition.ok:
+        reason = f"{RESUME_PRECONDITION_FAILED}: {summarize_resume_failure(precondition)}"
+        write_resume_precondition_failure(
+            run_dir,
+            state,
+            phase,
+            reason,
+            precondition=precondition.to_dict(),
+        )
+        print(reason)
+        return 1
+
+    if worktree_mode is not None:
+        state["worktree_mode"] = worktree_mode
+    if no_provider_replay:
+        state["no_provider_replay"] = True
+    stop_path = run_dir / "STOP"
+    if stop_path.exists():
+        stop_path.unlink()
+        append_event(run_dir, state, "RUN_RESUME_STOP_REMOVED", phase_id=phase_id, from_stage=from_stage)
+    state["status"] = "RUNNING"
+    state["stop_requested"] = False
+    state["current_phase_id"] = phase_id
+    state["current_stage"] = from_stage
+    state.setdefault("provider_wired", True)
+    state.setdefault("mock_providers", mock_providers_enabled())
+    state.setdefault("provider_mode", "mock" if state.get("mock_providers") else "external")
+    append_event(
+        run_dir,
+        state,
+        "RUN_RESUME_STAGE",
+        mode="provider_wired",
+        phase_id=phase_id,
+        from_stage=from_stage,
+        no_provider_replay=no_provider_replay,
+    )
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, f"Resuming {phase_id} from {from_stage}.")
+    progress(run_dir, f"Resuming {phase_id} from {from_stage}.")
+    try:
+        with run_lock(run_dir):
+            if from_stage == "complete":
+                write_provider_summary(run_dir, state, f"Resume preconditions are valid for {phase_id} complete.")
+                return 0
+            if from_stage in {"ci", "branch_protection", "merge_gate", "merge"}:
+                ok = run_deterministic_resume_gates(
+                    run_dir,
+                    state,
+                    phase,
+                    from_stage=from_stage,
+                    no_provider_replay=no_provider_replay,
+                    execution_root=ROOT,
+                )
+                return 0 if ok else 1
+            return continue_provider_wired_run(run_dir, state, 1, "resume-stage")
+    except RuntimeError as error:
+        print(error)
+        return 1
+
+
+def resume(
+    run_id: str | None = None,
+    *,
+    run_dir: Path | None = None,
+    campaign_id: str | None = None,
+    phase_id: str | None = None,
+    from_stage: str | None = None,
     provider_wired: bool = False,
+    no_provider_replay: bool = False,
     max_phases: int | None = None,
     worktree_mode: bool | None = None,
 ) -> int:
-    run_dir = ROOT / "runs" / run_id
+    env_run = os.environ.get("FRONTIER_RESUME_RUN") or None
+    env_phase = os.environ.get("FRONTIER_RESUME_PHASE") or None
+    env_stage = os.environ.get("FRONTIER_RESUME_STAGE") or None
+    if os.environ.get("FRONTIER_NO_PROVIDER_REPLAY", "").lower() in {"1", "true", "yes", "on"}:
+        no_provider_replay = True
+    phase_id = phase_id or env_phase
+    from_stage = from_stage or env_stage
+    if no_provider_replay and not from_stage:
+        print("RESUME_PRECONDITION_FAILED: --no-provider-replay requires --from-stage.")
+        return 2
+    if run_dir is not None:
+        run_ref = run_dir
+    elif env_run:
+        env_path = Path(env_run)
+        run_ref = env_path if env_path.is_absolute() or len(env_path.parts) > 1 else ROOT / "runs" / env_path
+    else:
+        run_ref = None
+    if run_ref is None:
+        if not run_id:
+            print("Missing --run-id, --run-dir, or FRONTIER_RESUME_RUN.")
+            return 2
+        run_ref = ROOT / "runs" / run_id
+    elif not run_ref.is_absolute():
+        run_ref = ROOT / run_ref
+    run_dir = run_ref
+    run_id = run_dir.name
     state_path = run_dir / "state.json"
     if not state_path.exists():
-        print(f"Unknown run id: {run_id}")
+        print(f"Unknown run directory: {run_dir}")
         return 1
 
     state = read_json(state_path)
     if state.get("driver") == PROVIDER_WIRED_DRIVER or (
         provider_wired and state.get("provider_wired") is True
     ):
+        if from_stage:
+            if not phase_id:
+                print("RESUME_PRECONDITION_FAILED: --from-stage requires --phase-id or FRONTIER_RESUME_PHASE.")
+                return 2
+            return resume_provider_wired_stage(
+                run_dir,
+                state,
+                campaign_id=campaign_id,
+                phase_id=phase_id,
+                from_stage=from_stage,
+                no_provider_replay=no_provider_replay,
+                worktree_mode=worktree_mode,
+            )
         return resume_provider_wired_run(run_dir, state, max_phases, worktree_mode)
     if state.get("driver") == LEDGER_ONLY_DRIVER:
         return resume_ledger_only_run(run_dir, state)
@@ -2919,9 +3958,14 @@ def main(argv: list[str] | None = None) -> int:
     worktree_group = run_parser.add_mutually_exclusive_group()
     worktree_group.add_argument("--worktree-mode", action="store_true")
     worktree_group.add_argument("--no-worktree", action="store_true")
-    resume_parser = subparsers.add_parser("resume", help="Resume a stopped toy run or inspect a scaffold run.")
-    resume_parser.add_argument("--run-id", required=True)
+    resume_parser = subparsers.add_parser("resume", help="Resume a stopped run or a Workflow 2 stage.")
+    resume_parser.add_argument("--run-id")
+    resume_parser.add_argument("--run-dir", type=Path)
+    resume_parser.add_argument("--campaign-id")
+    resume_parser.add_argument("--phase-id")
+    resume_parser.add_argument("--from-stage")
     resume_parser.add_argument("--provider-wired", action="store_true")
+    resume_parser.add_argument("--no-provider-replay", action="store_true")
     resume_parser.add_argument("--max-phases", type=int)
     resume_worktree_group = resume_parser.add_mutually_exclusive_group()
     resume_worktree_group.add_argument("--worktree-mode", action="store_true")
@@ -2941,7 +3985,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "resume":
         return resume(
             args.run_id,
+            run_dir=args.run_dir,
+            campaign_id=args.campaign_id,
+            phase_id=args.phase_id,
+            from_stage=args.from_stage,
             provider_wired=args.provider_wired,
+            no_provider_replay=args.no_provider_replay,
             max_phases=args.max_phases,
             worktree_mode=True if args.worktree_mode else False if args.no_worktree else None,
         )

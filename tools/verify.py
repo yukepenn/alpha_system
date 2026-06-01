@@ -54,7 +54,7 @@ def check_artifacts() -> int:
         check=False,
     )
     staged_result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMRTUXB"],
         cwd=ROOT,
         text=True,
         capture_output=True,

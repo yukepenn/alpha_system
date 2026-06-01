@@ -14,13 +14,15 @@ from tools.frontier.config import FrontierConfigError, assert_valid_config, load
 
 
 def doctor() -> int:
-    required = ["AGENTS.md", "CLAUDE.md", "frontier.yaml", "campaigns", "specs", "handoffs", "reviews", "runs"]
+    required = ["AGENTS.md", "CLAUDE.md", "frontier.yaml", "campaigns", "specs", "handoffs", "reviews"]
     missing = [item for item in required if not (ROOT / item).exists()]
     if missing:
         print("Frontier doctor found missing paths:")
         for item in missing:
             print(f"- {item}")
         return 1
+    if not (ROOT / "runs").exists():
+        print("Frontier doctor note: runs/ is local-only runtime state and may be absent.")
     print("Frontier doctor passed.")
     return 0
 

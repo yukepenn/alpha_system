@@ -140,6 +140,10 @@ def _run_gh(
     return _runner(root, runner).run(command, timeout_seconds=timeout_seconds)
 
 
+def _with_repo(command: list[str], repo: str) -> list[str]:
+    return [*command, "--repo", repo]
+
+
 def gh_auth_status(*, root: Path = ROOT, runner: CommandRunner | None = None) -> GitHubResult:
     command = ["gh", "auth", "status"]
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=60)
@@ -216,6 +220,95 @@ def find_existing_pr(
         return None
     first = data[0]
     return first if isinstance(first, dict) else None
+
+
+def view_pr(
+    pr: str | int,
+    *,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+    repo: str | None = None,
+) -> GitHubResult:
+    fields = "number,state,headRefOid,headRefName,baseRefName,isDraft,url"
+    base_command = ["gh", "pr", "view", str(pr), "--json", fields]
+    command = _with_repo(base_command, repo) if repo else base_command
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
+    metadata: dict[str, Any] = {}
+    if result.return_code != 0 and repo is None:
+        detected_repo = detect_repo_remote(root)
+        if detected_repo:
+            retry_command = _with_repo(base_command, detected_repo)
+            retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=120)
+            metadata["repo"] = detected_repo
+            result = retry
+            command = retry_command
+    if result.return_code == 0:
+        try:
+            data = json.loads(result.stdout or "{}")
+        except json.JSONDecodeError:
+            data = {}
+        if isinstance(data, dict):
+            metadata["pr"] = data
+    return GitHubResult(
+        "view_pr",
+        False,
+        command,
+        result.return_code,
+        result.stdout,
+        result.stderr,
+        blocked=result.return_code != 0,
+        instructions=None if result.return_code == 0 else "Inspect `gh pr view` output and resume after the PR is readable.",
+        metadata=metadata,
+    )
+
+
+def list_pr_diff_files(
+    pr: str | int,
+    *,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+    repo: str | None = None,
+) -> GitHubResult:
+    base_command = ["gh", "pr", "diff", str(pr), "--name-only"]
+    command = _with_repo(base_command, repo) if repo else base_command
+    result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
+    metadata: dict[str, Any] = {"artifact_source": "pr_diff"}
+    if result.return_code != 0 and repo is None:
+        detected_repo = detect_repo_remote(root)
+        if detected_repo:
+            retry_command = _with_repo(base_command, detected_repo)
+            retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=120)
+            metadata["repo"] = detected_repo
+            result = retry
+            command = retry_command
+    if result.return_code == 0:
+        metadata["files"] = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return GitHubResult(
+        "pr_diff",
+        False,
+        command,
+        result.return_code,
+        result.stdout,
+        result.stderr,
+        blocked=result.return_code != 0,
+        instructions=None if result.return_code == 0 else "Inspect `gh pr diff --name-only` output and resume after the PR diff is readable.",
+        metadata=metadata,
+    )
+
+
+def get_pr_changed_files(
+    pr_number: str | int,
+    *,
+    root: Path = ROOT,
+    repo: str | None = None,
+    runner: CommandRunner | None = None,
+) -> list[str]:
+    result = list_pr_diff_files(pr_number, root=root, runner=runner, repo=repo)
+    if result.blocked:
+        detail = result.instructions or result.stderr or "Could not read PR changed files."
+        raise RuntimeError(detail)
+    files = result.metadata.get("files") if isinstance(result.metadata, dict) else []
+    return [str(item) for item in files] if isinstance(files, list) else []
 
 
 def _metadata(
@@ -453,7 +546,7 @@ def list_pr_checks(
         "checks",
         str(pr),
         "--json",
-        "name,state,conclusion,link,bucket,workflow",
+        "name,state,link,bucket,workflow,event,startedAt,completedAt,description",
     ]
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
     if result.return_code != 0:
@@ -461,7 +554,7 @@ def list_pr_checks(
             {
                 "name": "gh pr checks",
                 "state": "ERROR",
-                "conclusion": "failure",
+                "bucket": "fail",
                 "stderr": result.stderr,
                 "return_code": result.return_code,
             }
@@ -469,7 +562,7 @@ def list_pr_checks(
     try:
         data = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
-        return [{"name": "gh pr checks", "state": "ERROR", "conclusion": "failure", "stdout": result.stdout}]
+        return [{"name": "gh pr checks", "state": "ERROR", "bucket": "fail", "stdout": result.stdout}]
     return data if isinstance(data, list) else []
 
 
@@ -505,14 +598,26 @@ def classify_ci_checks(
     pending = False
     for check in relevant:
         name = _check_name(check) or "unnamed check"
+        state = str(check.get("state") or "").lower()
+        bucket = str(check.get("bucket") or "").lower()
         conclusion = str(check.get("conclusion") or "").lower()
-        state = str(check.get("state") or check.get("bucket") or "").lower()
-        token = conclusion or state
-        if token in FAILING_CONCLUSIONS or state == "error":
+        primary_tokens = {token for token in (state, bucket) if token}
+        fallback_token = conclusion
+        if (
+            primary_tokens.intersection(FAILING_CONCLUSIONS | {"error", "fail", "failed", "cancel"})
+            or fallback_token in FAILING_CONCLUSIONS
+        ):
             blocking.append(name)
-        elif token in PASSING_CONCLUSIONS:
+        elif (
+            primary_tokens.intersection(PASSING_CONCLUSIONS | {"pass", "passed", "skip", "skipping"})
+            or fallback_token in PASSING_CONCLUSIONS
+        ):
             continue
-        elif state in PENDING_STATES or token in PENDING_STATES or not token:
+        elif (
+            primary_tokens.intersection(PENDING_STATES)
+            or fallback_token in PENDING_STATES
+            or not (primary_tokens or fallback_token)
+        ):
             pending = True
         else:
             pending = True
@@ -541,7 +646,7 @@ def wait_for_ci(
     while time.monotonic() <= deadline:
         last_checks = list_pr_checks(pr, root=root, runner=runner)
         status = classify_ci_checks(last_checks, required_checks=required_checks)
-        if status.state != CI_PENDING:
+        if status.state not in {CI_PENDING, CI_NOT_FOUND}:
             return status
         time.sleep(poll_seconds)
     return classify_ci_checks(last_checks, required_checks=required_checks, timed_out=True)

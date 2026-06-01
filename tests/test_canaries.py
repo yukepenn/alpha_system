@@ -13,5 +13,16 @@ def test_canary_scenarios_cover_artifact_placeholders_and_real_data() -> None:
     assert by_name["generated_scaffold_allowed"].expect_block is False
     assert "data/raw/.gitkeep" in by_name["generated_scaffold_allowed"].paths
     assert "data/cache/README.md" in by_name["generated_scaffold_allowed"].paths
+    assert "data/labels/README.md" in by_name["generated_scaffold_allowed"].paths
+    assert "metadata/README.md" in by_name["generated_scaffold_allowed"].paths
+    assert "artifacts/README.md" in by_name["generated_scaffold_allowed"].paths
+    assert "artifacts/reports/README.md" in by_name["generated_scaffold_allowed"].paths
     assert by_name["forbidden_raw_data_commit"].expect_block is True
     assert by_name["forbidden_cache_data_commit"].expect_block is True
+    assert by_name["forbidden_local_artifacts"].expect_block is True
+    assert "data/raw/SPY.parquet" in by_name["forbidden_local_artifacts"].paths
+    assert "data/cache/cache.sqlite" in by_name["forbidden_local_artifacts"].paths
+    assert "artifacts/model.pkl" in by_name["forbidden_local_artifacts"].paths
+    assert "metadata/registry.sqlite" in by_name["forbidden_local_artifacts"].paths
+    assert ".env" in by_name["forbidden_local_artifacts"].paths
+    assert "secrets.json" in by_name["forbidden_local_artifacts"].paths

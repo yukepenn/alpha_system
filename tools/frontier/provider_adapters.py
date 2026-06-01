@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from tools.frontier.command_runner import CommandResult, CommandRunner
 from tools.frontier.provider_config import ProviderRuntimeConfig, load_provider_config
@@ -15,6 +16,50 @@ from tools.frontier.provider_config import ProviderRuntimeConfig, load_provider_
 
 ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_STDIN_INSTRUCTION = "Read the full task from stdin and complete it."
+PROVIDER_OK = "OK"
+PROVIDER_BLOCKED = "BLOCKED"
+WAITING_PROVIDER_LIMIT = "WAITING_PROVIDER_LIMIT"
+WAITING_CLAUDE_LIMIT = "WAITING_CLAUDE_LIMIT"
+WAITING_CODEX_LIMIT = "WAITING_CODEX_LIMIT"
+PROVIDER_LIMIT_PATTERNS = (
+    r"usage\s+limit",
+    r"rate\s+limit",
+    r"\bquota\b",
+    r"quota\s+exceeded",
+    r"limit\s+reached",
+    r"5-hour",
+    r"five-hour",
+    r"too\s+many\s+requests",
+    r"\b429\b",
+    r"retry\s+after",
+    r"resets?\s+at",
+    r"claude\s+code\s+usage",
+    r"codex\s+limit",
+)
+PROVIDER_LIMIT_RE = re.compile("|".join(PROVIDER_LIMIT_PATTERNS), re.IGNORECASE)
+
+
+def provider_limit_status(provider: str) -> str:
+    normalized = provider.lower()
+    if normalized == "claude":
+        return WAITING_CLAUDE_LIMIT
+    if normalized == "codex":
+        return WAITING_CODEX_LIMIT
+    return WAITING_PROVIDER_LIMIT
+
+
+def is_provider_usage_limit(stdout: str, stderr: str, return_code: int) -> bool:
+    if return_code == 0:
+        return False
+    return bool(PROVIDER_LIMIT_RE.search(f"{stdout}\n{stderr}"))
+
+
+def classify_provider_nonzero(provider: str, stdout: str, stderr: str, return_code: int) -> str:
+    if return_code == 0:
+        return PROVIDER_OK
+    if is_provider_usage_limit(stdout, stderr, return_code):
+        return provider_limit_status(provider)
+    return PROVIDER_BLOCKED
 
 
 @dataclass(frozen=True)
@@ -31,6 +76,12 @@ class ProviderResponse:
     @property
     def ok(self) -> bool:
         return self.return_code == 0 and not self.timed_out
+
+    @property
+    def status(self) -> str:
+        if self.ok:
+            return PROVIDER_OK
+        return classify_provider_nonzero(self.provider, self.stdout, self.stderr, self.return_code)
 
     @classmethod
     def from_result(cls, provider: str, prompt: str, result: CommandResult) -> "ProviderResponse":

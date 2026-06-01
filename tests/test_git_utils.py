@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from tools.frontier.artifact_policy import curate_commit_paths
 from tools.frontier.git_utils import (
     commit_phase_changes,
     git,
@@ -22,7 +23,7 @@ CONFIG = {
 }
 DATA_PLACEHOLDER_CONFIG = {
     "artifacts": {
-        "allow_commit": ["data/**"],
+        "allow_commit": ["data/**/README.md", "data/**/.gitkeep"],
         "forbid_commit": ["**/data/raw/**", "**/cache/**", "**/*.db", "**/*.parquet"],
         "placeholder_exceptions": ["**/.gitkeep", "**/README.md"],
         "placeholder_dirs": ["data/raw/**", "data/cache/**"],
@@ -165,3 +166,70 @@ def test_commit_plan_allows_configured_placeholders_before_forbidden_globs(
     assert result.staged_files == ["data/raw/.gitkeep", "data/raw/README.md"]
     assert "data/raw/input.csv" in result.blocked_files
     assert "data/cache/cache.db" in result.blocked_files
+
+
+def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
+    paths = [
+        "data/raw/README.md",
+        "data/cache/README.md",
+        "data/labels/README.md",
+        "metadata/README.md",
+        "artifacts/reports/README.md",
+        "data/raw/SPY.parquet",
+        "data/cache/cache.sqlite",
+        "artifacts/model.pkl",
+        "metadata/registry.sqlite",
+        ".frontier/upgrade_reports/report.json",
+        ".env",
+        "secrets.json",
+        "runs/run1/state.json",
+        "runs/local.log",
+        "logs/frontier.log",
+        "notes/README.md",
+    ]
+
+    allowed, blocked = curate_commit_paths(
+        paths,
+        allow_patterns=[
+            "data/**/README.md",
+            "data/**/.gitkeep",
+            "metadata/README.md",
+            "metadata/.gitkeep",
+            "artifacts/**/README.md",
+            "artifacts/**/.gitkeep",
+        ],
+        forbid_patterns=[
+            "**/.env",
+            "**/secrets.*",
+            "**/data/raw/**",
+            "**/data/cache/**",
+            "**/cache/**",
+            ".frontier/upgrade_reports/**",
+            "runs/**",
+            "logs/**",
+            "metadata/**",
+            "artifacts/**",
+            "**/*.parquet",
+            "**/*.sqlite",
+            "**/*.pkl",
+        ],
+    )
+
+    assert allowed == [
+        "artifacts/reports/README.md",
+        "data/cache/README.md",
+        "data/labels/README.md",
+        "data/raw/README.md",
+        "metadata/README.md",
+    ]
+    assert "data/raw/SPY.parquet" in blocked
+    assert "data/cache/cache.sqlite" in blocked
+    assert "artifacts/model.pkl" in blocked
+    assert "metadata/registry.sqlite" in blocked
+    assert ".frontier/upgrade_reports/report.json" in blocked
+    assert ".env" in blocked
+    assert "secrets.json" in blocked
+    assert "runs/run1/state.json" in blocked
+    assert "runs/local.log" in blocked
+    assert "logs/frontier.log" in blocked
+    assert "notes/README.md" in blocked
