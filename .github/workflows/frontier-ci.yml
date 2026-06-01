@@ -22,6 +22,9 @@ jobs:
           test -f CLAUDE.md
           test -f frontier.yaml
           python -m compileall tools
+          if [ -d tests ]; then
+            python -m compileall tests
+          fi
           python tools/frontier/bootstrap.py doctor
           python tools/hooks/canary_runner.py
           python tools/verify.py --artifacts
