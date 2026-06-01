@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 TOY_CAMPAIGN_ID = "G005_WORKFLOW2_TOY"
+ALPHA_SYSTEM_V1_CAMPAIGN_ID = "ALPHA_SYSTEM_V1"
+LEDGER_ONLY_DRIVER = "ralph_frontier_strict_ledger_only_v1"
 REQUIRED_CAMPAIGN_FILES = (
     "GOAL.md",
     "PHASE_PLAN.md",
@@ -27,6 +30,12 @@ REQUIRED_CAMPAIGN_FILES = (
     "RISK_REGISTER.md",
     "RUNBOOK.md",
 )
+ASV1_PHASE_RE = re.compile(r"ASV1-P\d{2}")
+ASV1_TABLE_ROW_RE = re.compile(
+    r"^\|\s*(ASV1-P\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|",
+    re.MULTILINE,
+)
+ASV1_SECTION_RE = re.compile(r"^##\s+(ASV1-P\d{2})\s+[\u2014-]\s+(.+?)\s*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -34,6 +43,23 @@ class ToyPhase:
     phase_id: str
     title: str
     output_path: Path
+
+
+@dataclass(frozen=True)
+class LedgerPhase:
+    phase_id: str
+    name: str | None
+    lane: str | None
+    dependencies: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LedgerCampaign:
+    campaign_id: str
+    goal_text: str
+    phase_plan_text: str
+    campaign_yaml: dict[str, Any]
+    phases: tuple[LedgerPhase, ...]
 
 
 TOY_PHASES = (
@@ -114,6 +140,174 @@ def require_toy_campaign(campaign_id: str | None) -> str:
     return campaign_id
 
 
+def require_campaign_files(campaign_id: str) -> Path:
+    campaign_dir = ROOT / "campaigns" / campaign_id
+    missing = [name for name in REQUIRED_CAMPAIGN_FILES if not (campaign_dir / name).exists()]
+    if missing:
+        raise ValueError(f"Campaign {campaign_id} is missing required files: {', '.join(missing)}")
+    return campaign_dir
+
+
+def load_campaign_yaml(campaign_id: str, campaign_dir: Path) -> dict[str, Any]:
+    yaml_path = campaign_dir / "campaign.yaml"
+    try:
+        import yaml
+    except ImportError as error:
+        raise ValueError("PyYAML is required to parse campaign.yaml for ledger-only runs.") from error
+
+    try:
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as error:
+        raise ValueError(f"Campaign {campaign_id} campaign.yaml is malformed: {error}") from error
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Campaign {campaign_id} campaign.yaml must parse to a mapping.")
+    if data.get("campaign_id") != campaign_id:
+        raise ValueError(
+            f"Campaign {campaign_id} campaign.yaml has campaign_id {data.get('campaign_id')!r}."
+        )
+    phases = data.get("phases")
+    if not isinstance(phases, list):
+        raise ValueError(f"Campaign {campaign_id} campaign.yaml must contain a phases list.")
+    return data
+
+
+def yaml_phase_index(campaign_yaml: dict[str, Any], campaign_id: str) -> dict[str, dict[str, Any]]:
+    phases = campaign_yaml.get("phases")
+    if not isinstance(phases, list):
+        raise ValueError(f"Campaign {campaign_id} campaign.yaml must contain a phases list.")
+
+    indexed: dict[str, dict[str, Any]] = {}
+    for offset, phase in enumerate(phases, start=1):
+        if not isinstance(phase, dict):
+            raise ValueError(f"Campaign {campaign_id} phase entry {offset} must be a mapping.")
+        phase_id = phase.get("id") or phase.get("phase_id")
+        if not isinstance(phase_id, str) or not phase_id:
+            raise ValueError(f"Campaign {campaign_id} phase entry {offset} is missing an id.")
+        if phase_id in indexed:
+            raise ValueError(f"Campaign {campaign_id} campaign.yaml repeats phase id {phase_id}.")
+        indexed[phase_id] = phase
+    return indexed
+
+
+def clean_cell(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = re.sub(r"\s+", " ", value.replace("`", "")).strip()
+    return cleaned or None
+
+
+def parse_dependencies(raw: str | None, *, phase_id: str) -> tuple[str, ...]:
+    cleaned = clean_cell(raw)
+    if cleaned is None:
+        return ()
+    normalized = cleaned.lower().strip(".")
+    if normalized in {"none", "n/a", "na", "[]"}:
+        return ()
+    dependencies = tuple(ASV1_PHASE_RE.findall(cleaned))
+    if not dependencies:
+        raise ValueError(f"Could not parse dependencies for {phase_id}: {raw!r}")
+    return dependencies
+
+
+def section_field(section_text: str, heading: str) -> str | None:
+    heading_match = re.search(rf"^###\s+{re.escape(heading)}\s*$", section_text, re.MULTILINE)
+    if not heading_match:
+        return None
+    start = heading_match.end()
+    next_heading = re.search(r"^###\s+", section_text[start:], re.MULTILINE)
+    end = start + next_heading.start() if next_heading else len(section_text)
+    return section_text[start:end].strip()
+
+
+def first_content_line(text: str | None) -> str | None:
+    if text is None:
+        return None
+    for line in text.splitlines():
+        cleaned = clean_cell(line.lstrip("*- "))
+        if cleaned:
+            return cleaned
+    return None
+
+
+def parse_asv1_phase_plan(
+    phase_plan_text: str,
+    campaign_yaml: dict[str, Any] | None = None,
+) -> tuple[LedgerPhase, ...]:
+    yaml_phases = yaml_phase_index(campaign_yaml, ALPHA_SYSTEM_V1_CAMPAIGN_ID) if campaign_yaml else {}
+    phases: list[LedgerPhase] = []
+
+    for match in ASV1_TABLE_ROW_RE.finditer(phase_plan_text):
+        phase_id = match.group(1).strip()
+        name = clean_cell(match.group(2))
+        lane = clean_cell(match.group(3))
+        dependencies = parse_dependencies(match.group(4), phase_id=phase_id)
+        phases.append(LedgerPhase(phase_id, name, lane, dependencies))
+
+    if not phases:
+        matches = list(ASV1_SECTION_RE.finditer(phase_plan_text))
+        for index, match in enumerate(matches):
+            phase_id = match.group(1).strip()
+            section_start = match.end()
+            section_end = matches[index + 1].start() if index + 1 < len(matches) else len(phase_plan_text)
+            section_text = phase_plan_text[section_start:section_end]
+            name = first_content_line(section_field(section_text, "Phase Name")) or clean_cell(match.group(2))
+            lane = first_content_line(section_field(section_text, "Lane"))
+            dependencies = parse_dependencies(section_field(section_text, "Dependencies"), phase_id=phase_id)
+            phases.append(LedgerPhase(phase_id, name, lane, dependencies))
+
+    if not phases:
+        raise ValueError("PHASE_PLAN.md does not contain any ASV1-PXX phase entries.")
+
+    seen: set[str] = set()
+    for phase in phases:
+        if phase.phase_id in seen:
+            raise ValueError(f"PHASE_PLAN.md repeats phase id {phase.phase_id}.")
+        seen.add(phase.phase_id)
+
+        yaml_phase = yaml_phases.get(phase.phase_id)
+        if campaign_yaml is not None and yaml_phase is None:
+            raise ValueError(f"PHASE_PLAN.md lists {phase.phase_id}, but campaign.yaml does not.")
+        if yaml_phase is None:
+            continue
+
+        yaml_name = clean_cell(str(yaml_phase.get("name"))) if yaml_phase.get("name") is not None else None
+        yaml_lane = clean_cell(str(yaml_phase.get("lane"))) if yaml_phase.get("lane") is not None else None
+        yaml_dependencies_raw = yaml_phase.get("dependencies", [])
+        if not isinstance(yaml_dependencies_raw, list):
+            raise ValueError(f"campaign.yaml dependencies for {phase.phase_id} must be a list.")
+        yaml_dependencies = tuple(str(dependency) for dependency in yaml_dependencies_raw)
+
+        if phase.name and yaml_name and phase.name != yaml_name:
+            raise ValueError(
+                f"PHASE_PLAN.md and campaign.yaml disagree on name for {phase.phase_id}: "
+                f"{phase.name!r} != {yaml_name!r}."
+            )
+        if phase.lane and yaml_lane and phase.lane.upper() != yaml_lane.upper():
+            raise ValueError(
+                f"PHASE_PLAN.md and campaign.yaml disagree on lane for {phase.phase_id}: "
+                f"{phase.lane!r} != {yaml_lane!r}."
+            )
+        if phase.dependencies != yaml_dependencies:
+            raise ValueError(
+                f"PHASE_PLAN.md and campaign.yaml disagree on dependencies for {phase.phase_id}: "
+                f"{list(phase.dependencies)!r} != {list(yaml_dependencies)!r}."
+            )
+
+    return tuple(phases)
+
+
+def load_ledger_campaign(campaign_id: str) -> LedgerCampaign:
+    if campaign_id != ALPHA_SYSTEM_V1_CAMPAIGN_ID:
+        raise ValueError(f"Ledger-only support is implemented only for {ALPHA_SYSTEM_V1_CAMPAIGN_ID}.")
+    campaign_dir = require_campaign_files(campaign_id)
+    goal_text = (campaign_dir / "GOAL.md").read_text(encoding="utf-8")
+    phase_plan_text = (campaign_dir / "PHASE_PLAN.md").read_text(encoding="utf-8")
+    campaign_yaml = load_campaign_yaml(campaign_id, campaign_dir)
+    phases = parse_asv1_phase_plan(phase_plan_text, campaign_yaml)
+    return LedgerCampaign(campaign_id, goal_text, phase_plan_text, campaign_yaml, phases)
+
+
 def phase_state(phase: ToyPhase) -> dict[str, Any]:
     return {
         "phase_id": phase.phase_id,
@@ -125,6 +319,24 @@ def phase_state(phase: ToyPhase) -> dict[str, Any]:
             "handoff": f"phases/{phase.phase_id}/handoff.md",
             "review": f"phases/{phase.phase_id}/review.md",
             "verdict": f"phases/{phase.phase_id}/verdict.json",
+        },
+    }
+
+
+def ledger_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
+    phase_artifact_root = f"runs/{run_id}/phases/{phase.phase_id}"
+    return {
+        "phase_id": phase.phase_id,
+        "name": phase.name,
+        "lane": phase.lane,
+        "dependencies": list(phase.dependencies),
+        "status": "PENDING",
+        "execution_mode": "ledger_only",
+        "artifact_paths": {
+            "spec": f"{phase_artifact_root}/spec.md",
+            "handoff": f"{phase_artifact_root}/handoff.md",
+            "review": f"{phase_artifact_root}/review.md",
+            "verdict": f"{phase_artifact_root}/verdict.json",
         },
     }
 
@@ -168,6 +380,139 @@ def initialize_toy_run(campaign_id: str) -> Path:
     append_event(run_dir, state, "RUN_INIT", campaign_id=campaign_id)
     write_state(run_dir, state)
     write_summary(run_dir, state, "Run initialized.")
+    return run_dir
+
+
+def write_zero_cost_ledger(run_dir: Path, campaign_id: str) -> None:
+    record = {
+        "timestamp": utc_now(),
+        "campaign_id": campaign_id,
+        "driver": LEDGER_ONLY_DRIVER,
+        "provider": "none",
+        "model": None,
+        "cost_usd": 0.0,
+        "note": "ledger_only_no_provider_calls",
+    }
+    (run_dir / "costs.jsonl").write_text(json.dumps(record, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def stop_message(campaign_id: str) -> str:
+    return (
+        f"Ledger-only run completed for {campaign_id}.\n"
+        "No phase implementation, provider calls, GitHub operations, PR creation, auto-merge, "
+        "deployment, live trading, paper trading, broker calls, or network operations were performed.\n"
+        "This STOP marker prevents resume from executing phase bodies until real Ralph execution is "
+        "implemented, reviewed, and authorized.\n"
+    )
+
+
+def write_ledger_summary(run_dir: Path, state: dict[str, Any], note: str | None = None) -> None:
+    lines = [
+        "# Run Summary",
+        "",
+        f"Run: {state['run_id']}",
+        f"Campaign: {state['campaign_id']}",
+        f"Workflow: {state['workflow']}",
+        f"Driver: {state['driver']}",
+        f"Status: {state['status']}",
+        f"Phases ledgered: {len(state['phases'])}",
+        "Phase bodies executed: false",
+        "",
+        "## Artifacts",
+        "",
+        "- RUN_GOAL.md: copied from campaign GOAL.md",
+        "- PHASE_PLAN.md: copied from campaign PHASE_PLAN.md",
+        "- state.json: durable ledger state",
+        "- events.jsonl: run event ledger",
+        "- progress.txt: local progress log",
+        "- costs.jsonl: zero-cost ledger entry",
+        "- STOP: present by default to prevent execution",
+        "",
+        "## Phase Ledger",
+        "",
+    ]
+    for phase in state["phases"]:
+        lane = f" [{phase['lane']}]" if phase.get("lane") else ""
+        name = f" - {phase['name']}" if phase.get("name") else ""
+        lines.append(f"- {phase['phase_id']}{lane}: {phase['status']}{name}")
+    lines.extend(
+        [
+            "",
+            "## Safety",
+            "",
+            "- External providers called: false",
+            "- Network used: false",
+            "- Codex execution called by driver: false",
+            "- Claude execution called by driver: false",
+            "- GitHub operations performed: false",
+            "- PRs created: false",
+            "- Auto-merge performed: false",
+            "- Deployment performed: false",
+            "- Live or paper trading performed: false",
+            "- Broker calls performed: false",
+        ]
+    )
+    if note:
+        lines.extend(["", "## Note", "", note])
+    run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def initialize_ledger_only_run(campaign_id: str) -> Path:
+    campaign = load_ledger_campaign(campaign_id)
+    run_id = run_id_for(campaign_id)
+    run_dir = ROOT / "runs" / run_id
+    run_dir.mkdir(parents=True)
+
+    created_at = utc_now()
+    (run_dir / "RUN_GOAL.md").write_text(campaign.goal_text, encoding="utf-8")
+    (run_dir / "PHASE_PLAN.md").write_text(campaign.phase_plan_text, encoding="utf-8")
+    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+    (run_dir / "progress.txt").write_text("Ledger-only Workflow 2 run initialized.\n", encoding="utf-8")
+    write_zero_cost_ledger(run_dir, campaign_id)
+
+    state: dict[str, Any] = {
+        "schema_version": "frontier-run-state-v3",
+        "run_id": run_id,
+        "campaign_id": campaign_id,
+        "workflow": "workflow2",
+        "driver": LEDGER_ONLY_DRIVER,
+        "status": "LEDGER_ONLY_READY",
+        "current_phase_id": None,
+        "current_micro_attempt": 0,
+        "phases": [ledger_phase_state(phase, run_id) for phase in campaign.phases],
+        "stop_requested": False,
+        "created_at": created_at,
+        "started_at": created_at,
+        "updated_at": created_at,
+        "completed_at": None,
+        "last_event_id": 0,
+        "phase_execution_performed": False,
+        "external_providers_called": False,
+        "network_used": False,
+        "codex_called_by_driver": False,
+        "claude_called_by_driver": False,
+        "github_operations_performed": False,
+        "prs_created": False,
+        "auto_merge_performed": False,
+        "deployment_performed": False,
+        "broker_or_trading_operations_performed": False,
+        "required_campaign_files": list(REQUIRED_CAMPAIGN_FILES),
+    }
+
+    append_event(run_dir, state, "RUN_INIT", campaign_id=campaign_id, driver=LEDGER_ONLY_DRIVER)
+    append_event(
+        run_dir,
+        state,
+        "CAMPAIGN_LOAD",
+        files=list(REQUIRED_CAMPAIGN_FILES),
+        phase_count=len(campaign.phases),
+    )
+    append_event(run_dir, state, "PHASES_LEDGERED", phase_ids=[phase.phase_id for phase in campaign.phases])
+    (run_dir / "STOP").write_text(stop_message(campaign_id), encoding="utf-8")
+    append_event(run_dir, state, "STOP_WRITTEN", reason="ledger_only_completed_no_execution")
+    write_state(run_dir, state)
+    write_ledger_summary(run_dir, state, "Ledger-only run completed. No phase bodies were executed.")
+    progress(run_dir, "Ledger-only run completed without phase execution.")
     return run_dir
 
 
@@ -395,6 +740,17 @@ def run_toy_campaign(campaign_id: str | None) -> int:
         return 2
 
 
+def run_ledger_only_campaign(campaign_id: str) -> int:
+    try:
+        run_dir = initialize_ledger_only_run(campaign_id)
+    except ValueError as error:
+        print(error)
+        return 2
+    print(f"Created ledger-only Workflow 2 run at {run_dir.relative_to(ROOT)}")
+    print("No phase bodies, providers, GitHub operations, PRs, merges, network calls, or trading operations were performed.")
+    return 0
+
+
 def init_scaffold_run(campaign_id: str, goal: str | None, lane: str) -> Path:
     run_id = run_id_for(campaign_id)
     run_dir = ROOT / "runs" / run_id
@@ -439,11 +795,41 @@ def init_scaffold_run(campaign_id: str, goal: str | None, lane: str) -> Path:
 def run_campaign(campaign_id: str | None, goal: str | None, lane: str) -> int:
     if campaign_id == TOY_CAMPAIGN_ID:
         return run_toy_campaign(campaign_id)
+    if campaign_id == ALPHA_SYSTEM_V1_CAMPAIGN_ID:
+        return run_ledger_only_campaign(campaign_id)
 
     resolved_campaign = campaign_id or "AD_HOC_GOAL"
     run_dir = init_scaffold_run(resolved_campaign, goal, lane)
     print(f"Initialized Workflow 2 scaffold run at {run_dir.relative_to(ROOT)}")
     print("No external provider, GitHub, network, or merge operation was performed.")
+    return 0
+
+
+def resume_ledger_only_run(run_dir: Path, state: dict[str, Any]) -> int:
+    stop_path = run_dir / "STOP"
+    if stop_path.exists():
+        state["status"] = "STOPPED"
+        state["stop_requested"] = True
+        state["current_phase_id"] = None
+        state["current_micro_attempt"] = 0
+        append_event(run_dir, state, "RUN_RESUME_STOP_FILE_PRESENT")
+        write_state(run_dir, state)
+        write_ledger_summary(run_dir, state, "STOP existed before resume. No execution was performed.")
+        progress(run_dir, "Resume inspected STOP file and performed no execution.")
+        print(f"Run {state['run_id']} is stopped by STOP. No execution was performed.")
+        return 0
+
+    state["status"] = "LEDGER_ONLY_READY"
+    state["stop_requested"] = False
+    state["current_phase_id"] = None
+    state["current_micro_attempt"] = 0
+    append_event(run_dir, state, "RUN_RESUME_LEDGER_ONLY")
+    stop_path.write_text(stop_message(state["campaign_id"]), encoding="utf-8")
+    append_event(run_dir, state, "STOP_WRITTEN", reason="ledger_only_resume_safety")
+    write_state(run_dir, state)
+    write_ledger_summary(run_dir, state, "Ledger-only resume refreshed summary and STOP. No execution was performed.")
+    progress(run_dir, "Ledger-only resume refreshed summary and STOP.")
+    print(f"Ledger-only run {state['run_id']} inspected. No execution was performed.")
     return 0
 
 
@@ -455,6 +841,8 @@ def resume(run_id: str) -> int:
         return 1
 
     state = read_json(state_path)
+    if state.get("campaign_id") == ALPHA_SYSTEM_V1_CAMPAIGN_ID or state.get("driver") == LEDGER_ONLY_DRIVER:
+        return resume_ledger_only_run(run_dir, state)
     if state.get("campaign_id") != TOY_CAMPAIGN_ID:
         print(f"Resume scaffold for {run_id}. Inspect {run_dir / 'state.json'}")
         return 0
