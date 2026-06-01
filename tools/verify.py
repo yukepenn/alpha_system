@@ -22,6 +22,16 @@ def run(command: list[str]) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+def has_python_tests() -> bool:
+    tests_dir = ROOT / "tests"
+    if not tests_dir.exists():
+        return False
+    return any(
+        path.is_file() and (path.name.startswith("test_") or path.name.endswith("_test.py"))
+        for path in tests_dir.rglob("*.py")
+    )
+
+
 def check_required_files() -> int:
     missing = [path for path in REQUIRED_HARNESS_FILES if not (ROOT / path).exists()]
     if missing:
@@ -32,22 +42,38 @@ def check_required_files() -> int:
 
 def check_artifacts() -> int:
     forbidden_parts = {
-        "__pycache__",
-        ".pytest_cache",
         ".ruff_cache",
         ".mypy_cache",
         "node_modules",
         ".venv",
         "cache",
     }
+    tracked_result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    staged_result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if tracked_result.returncode or staged_result.returncode:
+        print("Could not inspect git-tracked artifacts.", file=sys.stderr)
+        return 1
+
     violations: list[str] = []
-    for path in ROOT.rglob("*"):
-        if ".git" in path.parts:
-            continue
+    paths = set(tracked_result.stdout.splitlines()) | set(staged_result.stdout.splitlines())
+    for raw_path in paths:
+        path = Path(raw_path)
         if any(part in forbidden_parts for part in path.parts):
-            violations.append(str(path.relative_to(ROOT)))
+            violations.append(raw_path)
     if violations:
-        print("Forbidden local artifacts found:")
+        print("Forbidden tracked or staged artifacts found:")
         for violation in violations:
             print(f"- {violation}")
         return 1
@@ -80,10 +106,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.typecheck or selected:
         print("Typecheck scaffold: configure project-specific typecheck command in frontier.yaml.")
     if args.test or selected:
-        if (ROOT / "tests").exists():
+        if has_python_tests():
             status |= run([sys.executable, "-m", "pytest"])
         else:
-            print("No tests directory found; skipping pytest.")
+            print("No Python tests configured; skipping pytest.")
     if args.boundaries or selected:
         status |= check_boundaries()
     if args.artifacts or selected:
