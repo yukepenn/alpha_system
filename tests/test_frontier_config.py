@@ -42,7 +42,12 @@ def base_config() -> dict:
             "forbid_git_add_A": True,
             "forbid_force_push": True,
         },
-        "artifacts": {"allow_commit": [], "forbid_commit": []},
+        "artifacts": {
+            "allow_commit": [],
+            "forbid_commit": [],
+            "placeholder_exceptions": ["**/.gitkeep", "**/README.md"],
+            "placeholder_dirs": ["data/raw/**", "data/cache/**"],
+        },
     }
 
 
@@ -56,6 +61,15 @@ def test_missing_lanes_fails() -> None:
     errors = validate_config(config)
 
     assert any("missing required lanes" in error for error in errors)
+
+
+def test_artifact_placeholder_policy_shape_is_validated() -> None:
+    config = base_config()
+    config["artifacts"]["placeholder_exceptions"] = "**/.gitkeep"
+
+    errors = validate_config(config)
+
+    assert "artifacts.placeholder_exceptions must be a list." in errors
 
 
 def test_env_overrides_provider_config(tmp_path, monkeypatch) -> None:

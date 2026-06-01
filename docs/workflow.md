@@ -16,6 +16,14 @@ Provider-wired campaign loop:
 campaign -> phase selection -> Claude spec -> Codex execution -> validation -> Claude review -> Codex repair loop -> semantic done-check -> commit/push -> PR -> CI wait -> merge gate -> lane auto-merge -> next phase -> campaign done-check -> RUN_SUMMARY
 ```
 
+Boundary:
+
+- Codex executes the generated spec and may write executor output and handoff notes.
+- Codex must not call Claude, run review, create `review.md` or `verdict.json`, create a PR, merge,
+  or mark a phase PASS.
+- The Ralph driver owns validation, Claude review, verdict parsing, repair orchestration, semantic
+  done-check, PR creation, CI, and merge gating.
+
 Supported commands:
 
 ```bash

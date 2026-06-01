@@ -9,6 +9,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.hooks import artifact_guard
+
 REQUIRED_HARNESS_FILES = [
     "AGENTS.md",
     "CLAUDE.md",
@@ -41,13 +46,6 @@ def check_required_files() -> int:
 
 
 def check_artifacts() -> int:
-    forbidden_parts = {
-        ".ruff_cache",
-        ".mypy_cache",
-        "node_modules",
-        ".venv",
-        "cache",
-    }
     tracked_result = subprocess.run(
         ["git", "ls-files"],
         cwd=ROOT,
@@ -69,8 +67,7 @@ def check_artifacts() -> int:
     violations: list[str] = []
     paths = set(tracked_result.stdout.splitlines()) | set(staged_result.stdout.splitlines())
     for raw_path in paths:
-        path = Path(raw_path)
-        if any(part in forbidden_parts for part in path.parts):
+        if artifact_guard.forbidden(raw_path):
             violations.append(raw_path)
     if violations:
         print("Forbidden tracked or staged artifacts found:")

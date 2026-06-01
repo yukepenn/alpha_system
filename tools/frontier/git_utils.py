@@ -164,12 +164,20 @@ def commit_phase_changes(
     artifacts = config.get("artifacts") if isinstance(config.get("artifacts"), Mapping) else {}
     allow_patterns = list(artifacts.get("allow_commit", [])) if isinstance(artifacts, Mapping) else []
     forbid_patterns = list(artifacts.get("forbid_commit", [])) if isinstance(artifacts, Mapping) else []
+    placeholder_exceptions = artifacts.get("placeholder_exceptions") if isinstance(artifacts, Mapping) else None
+    placeholder_dirs = artifacts.get("placeholder_dirs") if isinstance(artifacts, Mapping) else None
+    if not isinstance(placeholder_exceptions, list):
+        placeholder_exceptions = None
+    if not isinstance(placeholder_dirs, list):
+        placeholder_dirs = None
     status_before = status_porcelain(root)
     files = changed_files(root)
     allowed, blocked = curate_commit_paths(
         files,
         allow_patterns=allow_patterns,
         forbid_patterns=forbid_patterns,
+        placeholder_exceptions=placeholder_exceptions,
+        placeholder_dirs=placeholder_dirs,
     )
     commands: list[list[str]] = []
     commands.extend(checkout_or_create_branch(root, branch, dry_run=dry_run))

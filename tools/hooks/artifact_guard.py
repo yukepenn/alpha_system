@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 from pathlib import PurePosixPath
 
 
@@ -21,6 +22,14 @@ FORBIDDEN_SUFFIXES = {
 }
 FORBIDDEN_PARTS = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "cache"}
 RAW_DATA_PREFIXES = {"data/raw", "raw", "artifacts/raw"}
+PLACEHOLDER_EXCEPTIONS = ("**/.gitkeep", "**/README.md")
+PLACEHOLDER_DIRS = (
+    "data/raw/**",
+    "data/cache/**",
+    "data/canonical/**",
+    "data/factors/**",
+    "artifacts/raw/**",
+)
 CURATED_SUFFIXES = {".md", ".json", ".csv"}
 CURATED_PREFIXES = {"docs", "reviews", "handoffs", "specs", "campaigns", "evals", "decisions"}
 
@@ -37,8 +46,27 @@ def is_curated_summary(path: str) -> bool:
     return parsed.suffix.lower() in CURATED_SUFFIXES and parsed.parts and parsed.parts[0] in CURATED_PREFIXES
 
 
+def matches_any(path: str, patterns: tuple[str, ...]) -> bool:
+    clean = normalized(path)
+    for pattern in patterns:
+        if fnmatch.fnmatch(clean, pattern):
+            return True
+        if pattern.startswith("**/") and fnmatch.fnmatch(clean, pattern[3:]):
+            return True
+    return False
+
+
+def is_placeholder_exception(path: str) -> bool:
+    clean = normalized(path)
+    # Keep these defaults in sync with frontier.yaml artifacts.placeholder_*.
+    # The hook avoids loading YAML so pre-commit stays dependency-light.
+    return matches_any(clean, PLACEHOLDER_EXCEPTIONS) and matches_any(clean, PLACEHOLDER_DIRS)
+
+
 def forbidden(path: str) -> bool:
     clean = normalized(path)
+    if is_placeholder_exception(clean):
+        return False
     if is_curated_summary(clean):
         return False
     parsed = PurePosixPath(clean)

@@ -232,6 +232,39 @@ def append_event(run_dir: Path, state: dict[str, Any], event: str, **details: An
         handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
+def unique_executor_notes_path(phase_dir: Path, source: Path) -> Path:
+    target = phase_dir / f"executor_notes_{source.stem}{source.suffix}"
+    counter = 2
+    while target.exists():
+        target = phase_dir / f"executor_notes_{source.stem}_{counter}{source.suffix}"
+        counter += 1
+    return target
+
+
+def quarantine_executor_review_artifacts(
+    phase_dir: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+) -> None:
+    renamed: list[dict[str, str]] = []
+    for name in ("review.md", "verdict.json"):
+        path = phase_dir / name
+        if not path.exists():
+            continue
+        target = unique_executor_notes_path(phase_dir, path)
+        path.rename(target)
+        renamed.append({"from": name, "to": target.name})
+    if renamed:
+        append_event(
+            run_dir,
+            state,
+            "EXECUTOR_REVIEW_ARTIFACT_QUARANTINED",
+            phase_id=phase["phase_id"],
+            files=renamed,
+        )
+
+
 def write_state(run_dir: Path, state: dict[str, Any]) -> None:
     state["updated_at"] = utc_now()
     write_json(run_dir / "state.json", state)
@@ -996,11 +1029,19 @@ Execute exactly the generated phase spec below for {phase_label(phase)}. Do not 
 
 Safety rules:
 - Do not perform live trading, paper trading, broker operations, order routing, production deployment, PR creation, auto-merge, or destructive cleanup.
+- Do not call Claude.
+- Do not run reviewer.
+- Do not create `review.md`.
+- Do not create `verdict.json`.
+- Do not create a PR.
+- Do not merge.
+- Do not mark the phase PASS.
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
 - Keep generated local-only artifacts out of git.
 - Run only validation that is safe and requested by the spec.
-- Write or update required files, and write a phase handoff if the phase requires one.
+- Write execution output and handoff only.
+- The Ralph driver owns validation, review, done-check, verdict, repair, PR, CI, and merge gate.
 
 Run artifact directory available to you:
 {phase_dir.relative_to(ROOT)}
@@ -1143,8 +1184,16 @@ Repair only valid in-scope findings for {phase_label(phase)}. Do not broaden sco
 
 Safety rules:
 - Do not perform live trading, paper trading, broker operations, order routing, production deployment, PR creation, auto-merge, or destructive cleanup.
+- Do not call Claude.
+- Do not run reviewer.
+- Do not create `review.md`.
+- Do not create `verdict.json`.
+- Do not create a PR.
+- Do not merge.
+- Do not mark the phase PASS.
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
+- The Ralph driver owns validation, review, done-check, verdict, PR, CI, and merge gate.
 
 Generated spec:
 
@@ -1677,6 +1726,7 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
                 block_provider_run(run_dir, state, phase, "BLOCKED", "Codex executor returned nonzero.")
                 return False
         (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
+        quarantine_executor_review_artifacts(phase_dir, run_dir, state, phase)
         set_provider_phase_status(phase, "EXECUTED")
         append_event(run_dir, state, "EXECUTED", phase_id=phase_id)
         write_state(run_dir, state)
@@ -1685,6 +1735,7 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
         executor_text = _read_phase_text(phase_dir / "executor_output.md")
 
     if phase.get("status") in {"EXECUTED", "REPAIRED"}:
+        quarantine_executor_review_artifacts(phase_dir, run_dir, state, phase)
         if stop_requested(run_dir):
             block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before validation.")
             return False
@@ -1713,6 +1764,7 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
     validation_text = _read_phase_text(phase_dir / "validation.md")
 
     if phase.get("status") == "VALIDATED":
+        quarantine_executor_review_artifacts(phase_dir, run_dir, state, phase)
         if stop_requested(run_dir):
             block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before review.")
             return False
