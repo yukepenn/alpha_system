@@ -48,7 +48,7 @@ just frontier-run-overnight G005_WORKFLOW2_TOY
 ## Modes
 
 - Mock mode sets `FRONTIER_MOCK_PROVIDERS=1` and never calls Claude or Codex CLIs.
-- Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write`.
+- Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write -` with full prompts on stdin.
 - Worktree mode uses `FRONTIER_WORKTREE_MODE=1` or `--worktree-mode` to execute phase branches in Frontier-owned worktrees.
 - GitHub PR/CI mode uses authenticated `gh` for PR creation, CI polling, branch protection inspection, and merge.
 - Real auto-merge is controlled by `frontier.yaml` lane policy and requires CI success, passing verdicts, artifact policy success, branch protection validation, and `gh` auth. Red lane also requires `FRONTIER_RED_AUTHORIZED=1`.
@@ -58,7 +58,7 @@ just frontier-run-overnight G005_WORKFLOW2_TOY
 ```bash
 gh auth status
 claude -p "ping"
-codex exec --sandbox workspace-write "ping"
+printf 'ping\n' | codex exec --sandbox workspace-write -
 ```
 
 ## Safety Defaults

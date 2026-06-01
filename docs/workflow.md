@@ -36,7 +36,7 @@ just frontier-acceptance
 ## Modes
 
 - Mock mode sets `FRONTIER_MOCK_PROVIDERS=1`; it writes deterministic artifacts and never calls Claude or Codex CLIs.
-- Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write`.
+- Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write -` with full prompts on stdin.
 - Worktree mode uses `FRONTIER_WORKTREE_MODE=1` or `--worktree-mode` to create `auto/<campaign>/<phase>-<slug>` branches in Frontier-owned worktrees.
 - GitHub PR/CI mode uses `gh` for PR creation, CI polling, branch protection inspection, and merge.
 - Real auto-merge is enabled only by `frontier.yaml` lane policy plus passing CI, verdicts, artifact policy, branch protection, and authenticated `gh`.

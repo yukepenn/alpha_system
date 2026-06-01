@@ -14,6 +14,7 @@ from tools.frontier.provider_config import ProviderRuntimeConfig, load_provider_
 
 
 ROOT = Path(__file__).resolve().parents[2]
+CLAUDE_STDIN_INSTRUCTION = "Read the full task from stdin and complete it."
 
 
 @dataclass(frozen=True)
@@ -79,8 +80,9 @@ class MockProviderAdapter(ProviderAdapter):
 class ClaudeProviderAdapter(ProviderAdapter):
     provider_name = "claude"
 
-    def build_command(self, prompt: str) -> list[str]:
-        command = [*self.config.claude_cmd, "-p", prompt]
+    def build_command(self, prompt: str | None = None) -> list[str]:
+        del prompt
+        command = [*self.config.claude_cmd, "-p", CLAUDE_STDIN_INSTRUCTION]
         if self.config.claude_output_format:
             command.extend(["--output-format", self.config.claude_output_format])
         return command
@@ -92,6 +94,7 @@ class ClaudeProviderAdapter(ProviderAdapter):
             self.build_command(prompt),
             timeout_seconds=self.config.provider_timeout_seconds,
             artifact_prefix=artifact_prefix,
+            stdin_text=prompt,
         )
         return ProviderResponse.from_result(self.provider_name, prompt, result)
 
@@ -99,13 +102,14 @@ class ClaudeProviderAdapter(ProviderAdapter):
 class CodexProviderAdapter(ProviderAdapter):
     provider_name = "codex"
 
-    def build_command(self, prompt: str) -> list[str]:
+    def build_command(self, prompt: str | None = None) -> list[str]:
+        del prompt
         return [
             *self.config.codex_cmd,
             "exec",
             "--sandbox",
             self.config.codex_sandbox,
-            prompt,
+            "-",
         ]
 
     def run_prompt(self, prompt: str, *, artifact_prefix: str | None = None) -> ProviderResponse:
@@ -115,5 +119,6 @@ class CodexProviderAdapter(ProviderAdapter):
             self.build_command(prompt),
             timeout_seconds=self.config.provider_timeout_seconds,
             artifact_prefix=artifact_prefix,
+            stdin_text=prompt,
         )
         return ProviderResponse.from_result(self.provider_name, prompt, result)
