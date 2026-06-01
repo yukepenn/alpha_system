@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from tools.frontier.git_utils import commit_phase_changes, git, sanitize_component, stage_paths
+from tools.frontier.git_utils import (
+    commit_phase_changes,
+    git,
+    push_phase_branch,
+    sanitize_component,
+    stage_paths,
+    verify_remote_branch,
+)
 
 
 CONFIG = {
@@ -77,6 +84,62 @@ def test_commit_plan_excludes_forbidden_artifacts(tmp_path: Path, monkeypatch) -
     assert ".env" in result.blocked_files
     assert ["git", "add", "--", "docs/a.md"] in result.commands
     assert ["git", "add", "."] not in result.commands
+    assert ["git", "push", "-u", "origin", "HEAD:refs/heads/auto/c1/p1"] in result.commands
+
+
+def test_push_phase_branch_uses_safe_head_refspec(tmp_path: Path, monkeypatch) -> None:
+    commands: list[tuple[str, ...]] = []
+
+    def fake_git(root: Path, *args: str):
+        del root
+        commands.append(args)
+
+        class Result:
+            returncode = 0
+            stdout = "ok\n"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("tools.frontier.git_utils.git", fake_git)
+
+    result = push_phase_branch(tmp_path, "auto/c1/p1-slug", dry_run=False)
+
+    assert result.ok
+    assert result.command == ["git", "push", "-u", "origin", "HEAD:refs/heads/auto/c1/p1-slug"]
+    assert commands == [("push", "-u", "origin", "HEAD:refs/heads/auto/c1/p1-slug")]
+
+
+def test_verify_remote_branch_matches_sha_with_slashes(tmp_path: Path, monkeypatch) -> None:
+    branch = "auto/c1/p1-slug"
+    sha = "a" * 40
+
+    def fake_git(root: Path, *args: str):
+        del root
+
+        class Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        result = Result()
+        if args == ("rev-parse", branch):
+            result.stdout = sha + "\n"
+        elif args == ("ls-remote", "--heads", "origin", f"refs/heads/{branch}"):
+            result.stdout = f"{sha}\trefs/heads/{branch}\n"
+        else:
+            result.returncode = 1
+            result.stderr = "unexpected command"
+        return result
+
+    monkeypatch.setattr("tools.frontier.git_utils.git", fake_git)
+
+    result = verify_remote_branch(tmp_path, branch)
+
+    assert result.exists
+    assert result.matches
+    assert result.remote_sha == sha
+    assert result.local_sha == sha
 
 
 def test_commit_plan_allows_configured_placeholders_before_forbidden_globs(

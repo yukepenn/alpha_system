@@ -13,7 +13,7 @@ strategy -> spec -> human approval -> Codex execution -> handoff -> Claude revie
 Provider-wired campaign loop:
 
 ```text
-campaign -> phase selection -> Claude spec -> Codex execution -> validation -> Claude review -> Codex repair loop -> semantic done-check -> commit/push -> PR -> CI wait -> merge gate -> lane auto-merge -> next phase -> campaign done-check -> RUN_SUMMARY
+campaign -> phase selection -> Claude spec -> Codex execution -> validation -> Claude review -> Codex repair loop -> semantic done-check -> local commit -> push phase branch -> verify remote branch SHA -> PR -> CI wait -> merge gate -> lane auto-merge -> next phase -> campaign done-check -> RUN_SUMMARY
 ```
 
 Boundary:
@@ -47,6 +47,7 @@ just frontier-acceptance
 - Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write -` with full prompts on stdin.
 - Worktree mode uses `FRONTIER_WORKTREE_MODE=1` or `--worktree-mode` to create `auto/<campaign>/<phase>-<slug>` branches in Frontier-owned worktrees.
 - GitHub PR/CI mode uses `gh` for PR creation, CI polling, branch protection inspection, and merge.
+- Real PR creation first pushes the phase branch with a non-force refspec, verifies the remote branch exists with `git ls-remote`, and checks the remote SHA matches the local commit.
 - Real auto-merge is enabled only by `frontier.yaml` lane policy plus passing CI, verdicts, artifact policy, branch protection, and authenticated `gh`.
 
 ## Stop Conditions
@@ -54,6 +55,9 @@ just frontier-acceptance
 - `STOP` file before a phase, provider call, done-check, PR, CI, or merge action.
 - `BLOCKED` verdict or done-check.
 - Repair attempts exhausted.
+- Phase branch push failed (`PUSH_BLOCKED`).
+- Remote branch missing or SHA mismatch (`REMOTE_BRANCH_BLOCKED`).
+- PR creation failed after branch verification (`PR_CREATE_BLOCKED`).
 - CI failure or timeout when CI is required.
 - Branch protection missing or mismatched for real merge.
 - Merge gate block.

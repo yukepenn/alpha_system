@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from tools.frontier import ralph_driver
+from tools.frontier.git_utils import GitPhaseResult, PushBranchResult, RemoteBranchResult
+from tools.frontier.github_utils import BranchProtectionResult, GitHubResult
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +25,81 @@ def copy_campaign(tmp_root: Path, campaign_id: str) -> None:
 
 
 def write_sample_campaign(tmp_root: Path, campaign_id: str = SAMPLE_CAMPAIGN_ID) -> None:
+    (tmp_root / "frontier.yaml").write_text(
+        """schema_version: "frontier-harness-v3"
+project:
+  default_branch: "main"
+providers:
+  mock:
+    enabled: false
+workflow2:
+  enabled: true
+  auto_pr: true
+  auto_merge: true
+  max_phases: 2
+  max_micro_loops_default: 1
+  max_repair_attempts_default: 1
+  max_run_minutes: 60
+  max_phase_minutes: 60
+  max_estimated_usd: 0
+  semantic_done_check_required: true
+  worktree_mode: false
+  worktree_mode_recommended: true
+github:
+  auto_create_pr: true
+  ci_timeout_seconds: 1
+  ci_poll_seconds: 1
+  required_checks: []
+  require_ci: true
+  require_branch_protection: true
+  allow_unprotected_green_merge: false
+  allow_unprotected_dry_run: true
+  merge_method: "squash"
+git:
+  auto_create_pr: true
+  explicit_add_only: true
+  forbid_git_add_dot: true
+  forbid_git_add_A: true
+  forbid_force_push: true
+artifacts:
+  allow_commit: ["docs/**", "src/**", "tests/**"]
+  forbid_commit: ["runs/**", "**/.env"]
+lanes:
+  green:
+    required_checks: []
+    require_claude_review: false
+    auto_pr: true
+    auto_merge: true
+    max_micro_loops: 1
+    max_repair_attempts: 1
+    max_phase_minutes: 60
+    max_changed_files: 50
+    merge_policy:
+      allow_pass_with_warnings: true
+  yellow:
+    required_checks: []
+    require_claude_review: true
+    auto_pr: true
+    auto_merge: true
+    max_micro_loops: 1
+    max_repair_attempts: 1
+    max_phase_minutes: 60
+    max_changed_files: 50
+    merge_policy:
+      allow_pass_with_warnings: true
+  red:
+    required_checks: []
+    require_claude_review: true
+    auto_pr: false
+    auto_merge: false
+    max_micro_loops: 1
+    max_repair_attempts: 1
+    max_phase_minutes: 60
+    merge_policy:
+      allow_pass_with_warnings: false
+""",
+        encoding="utf-8",
+    )
     campaign_dir = tmp_root / "campaigns" / campaign_id
     campaign_dir.mkdir(parents=True, exist_ok=True)
     (campaign_dir / "GOAL.md").write_text(f"# {campaign_id}\n\nExercise generic Workflow 2.\n", encoding="utf-8")
@@ -68,6 +145,28 @@ def pass_count(run_dir: Path) -> int:
 
 def state_json(run_dir: Path) -> dict:
     return json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+
+
+def write_passed_phase_artifacts(run_dir: Path, phase_id: str = "P00") -> Path:
+    phase_dir = run_dir / "phases" / phase_id
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "spec.md").write_text("# Existing Spec\n", encoding="utf-8")
+    (phase_dir / "executor_output.md").write_text("# Existing Execution\n", encoding="utf-8")
+    (phase_dir / "validation.md").write_text("# Validation\n\nPassed.\n", encoding="utf-8")
+    (phase_dir / "review.md").write_text("# Review\n\nVERDICT: PASS\n", encoding="utf-8")
+    ralph_driver.write_json(
+        phase_dir / "verdict.json",
+        {
+            "schema_version": "frontier-review-verdict-v1",
+            "verdict": "PASS",
+            "severity": "none",
+            "findings": [],
+            "source": "review",
+        },
+    )
+    (phase_dir / "done_check.md").write_text("# Done Check\n\nDONE_CHECK: PASS\n", encoding="utf-8")
+    ralph_driver.write_json(phase_dir / "done_check.json", {"verdict": "PASS"})
+    return phase_dir
 
 
 def stub_validation(monkeypatch) -> None:
@@ -319,6 +418,211 @@ def test_resume_from_executed_continues_to_review(tmp_path, monkeypatch) -> None
     assert status == 0
     assert (phase_dir / "validation.md").is_file()
     assert state_json(run_dir)["phases"][0]["status"] == "PASS"
+
+
+def test_push_failure_blocks_before_pr_create_and_preserves_review_verdict(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = "REVIEWED"
+    phase["branch"] = "auto/sample/p00-fixture"
+    phase_dir = write_passed_phase_artifacts(run_dir)
+    ralph_driver.write_state(run_dir, state)
+    sha = "a" * 40
+
+    monkeypatch.setattr(
+        ralph_driver,
+        "commit_phase_changes",
+        lambda **kwargs: GitPhaseResult(
+            dry_run=False,
+            branch=kwargs["branch"],
+            changed_files=["docs/a.md"],
+            staged_files=["docs/a.md"],
+            blocked_files=[],
+            commit_sha=sha,
+        ),
+    )
+    monkeypatch.setattr(ralph_driver, "ensure_phase_head", lambda root, branch, commit_sha: None)
+    monkeypatch.setattr(
+        ralph_driver,
+        "push_phase_branch",
+        lambda root, branch, remote="origin", dry_run=False: PushBranchResult(
+            dry_run=False,
+            branch=branch,
+            remote=remote,
+            command=["git", "push", "-u", remote, f"HEAD:refs/heads/{branch}"],
+            return_code=1,
+            stderr="auth failed",
+            instructions="Network/auth push failed. Fix git push output and resume the run.",
+        ),
+    )
+    pr_calls = []
+
+    def fail_if_pr_called(**kwargs):
+        pr_calls.append(kwargs)
+        raise AssertionError("PR creation must not run when push fails.")
+
+    monkeypatch.setattr(ralph_driver, "create_pr", fail_if_pr_called)
+
+    ok = ralph_driver.post_phase_git_github(run_dir, state, phase, "PASS", execution_root=tmp_path)
+
+    assert ok is False
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.PUSH_BLOCKED
+    assert updated["phases"][0]["status"] == ralph_driver.PUSH_BLOCKED
+    assert pr_calls == []
+    assert (phase_dir / "push_branch.json").is_file()
+    assert not (phase_dir / "pr_create.json").exists()
+    verdict = json.loads((phase_dir / "verdict.json").read_text(encoding="utf-8"))
+    assert verdict["verdict"] == "PASS"
+    assert verdict["source"] == "review"
+    assert "push branch failed" in (run_dir / "RUN_SUMMARY.md").read_text(encoding="utf-8")
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "BRANCH_PUSH_BLOCKED" in events
+
+
+def test_resume_from_push_block_retries_gates_without_provider_or_new_commit(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
+    monkeypatch.setenv("FRONTIER_MERGE_DRY_RUN", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    branch = "auto/sample/p00-fixture"
+    sha = "b" * 40
+    phase.update(
+        {
+            "status": ralph_driver.PUSH_BLOCKED,
+            "branch": branch,
+            "commit_sha": sha,
+            "status_reason": "PUSH_BLOCKED: previous push failed.",
+        }
+    )
+    state["status"] = ralph_driver.PUSH_BLOCKED
+    state["current_phase_id"] = "P00"
+    phase_dir = write_passed_phase_artifacts(run_dir)
+    ralph_driver.write_json(
+        phase_dir / "git_phase.json",
+        {
+            "branch": branch,
+            "commit_sha": sha,
+            "changed_files": ["docs/a.md"],
+            "blocked_files": [],
+        },
+    )
+    (phase_dir / "branch.txt").write_text(branch + "\n", encoding="utf-8")
+    (phase_dir / "commit_sha.txt").write_text(sha + "\n", encoding="utf-8")
+    ralph_driver.write_state(run_dir, state)
+    (run_dir / "STOP").write_text("Workflow 2 provider-wired run stopped safely.\nReason: PUSH_BLOCKED\n", encoding="utf-8")
+
+    def provider_called(*args, **kwargs):
+        raise AssertionError("Resume from a PR gate must not call Claude or Codex.")
+
+    monkeypatch.setattr(ralph_driver, "claude_headless", provider_called)
+    monkeypatch.setattr(ralph_driver, "codex_noninteractive", provider_called)
+    monkeypatch.setattr(
+        ralph_driver,
+        "commit_phase_changes",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("Resume must not create a new commit.")),
+    )
+    monkeypatch.setattr(ralph_driver, "ensure_phase_head", lambda root, branch, commit_sha: None)
+    order: list[str] = []
+
+    def fake_push(root, branch, remote="origin", dry_run=False):
+        del root, dry_run
+        order.append("push")
+        return PushBranchResult(
+            dry_run=False,
+            branch=branch,
+            remote=remote,
+            command=["git", "push", "-u", remote, f"HEAD:refs/heads/{branch}"],
+            return_code=0,
+            stdout="pushed",
+            pushed=True,
+        )
+
+    def fake_verify(root, branch, remote="origin"):
+        del root
+        order.append("verify")
+        return RemoteBranchResult(
+            exists=True,
+            remote_sha=sha,
+            local_sha=sha,
+            matches=True,
+            stdout=f"{sha}\trefs/heads/{branch}\n",
+            stderr="",
+            return_code=0,
+            branch=branch,
+            remote=remote,
+            command=["git", "ls-remote", "--heads", remote, f"refs/heads/{branch}"],
+        )
+
+    def fake_create_pr(**kwargs):
+        order.append("create_pr")
+        assert kwargs["body_file"].name == "pr_body.md"
+        assert kwargs["body_file"].exists()
+        return GitHubResult(
+            "create_pr",
+            False,
+            ["gh", "pr", "create", "--body-file", str(kwargs["body_file"])],
+            metadata={
+                "base": kwargs["base"],
+                "head": kwargs["head"],
+                "existing": True,
+                "number": 7,
+                "branch_pushed": kwargs["branch_pushed"],
+                "remote_sha": kwargs["remote_sha"],
+                "local_sha": kwargs["local_sha"],
+            },
+        )
+
+    monkeypatch.setattr(ralph_driver, "push_phase_branch", fake_push)
+    monkeypatch.setattr(ralph_driver, "verify_remote_branch", fake_verify)
+    monkeypatch.setattr(ralph_driver, "detect_default_branch", lambda root=tmp_path: "main")
+    monkeypatch.setattr(ralph_driver, "create_pr", fake_create_pr)
+    monkeypatch.setattr(
+        ralph_driver,
+        "wait_for_ci",
+        lambda *args, **kwargs: ralph_driver.classify_ci_checks(
+            [{"name": "validate", "conclusion": "success"}],
+            required_checks=[],
+        ),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "inspect_branch_protection",
+        lambda **kwargs: BranchProtectionResult(
+            "DRY_RUN",
+            False,
+            kwargs["branch"],
+            [],
+            [],
+            [],
+            dry_run=True,
+            message="test",
+        ),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "perform_merge",
+        lambda **kwargs: GitHubResult("merge_pr", True, ["gh", "pr", "merge", str(kwargs["pr_number"])]),
+    )
+
+    status = ralph_driver.resume_provider_wired_run(run_dir, state, 1)
+
+    assert status == 0
+    updated = state_json(run_dir)
+    assert updated["phases"][0]["status"] == "PASS"
+    assert order[:3] == ["push", "verify", "create_pr"]
+    assert (phase_dir / "remote_branch.json").is_file()
+    assert (phase_dir / "pr_body.md").is_file()
+    assert (phase_dir / "pr_create.md").is_file()
 
 
 def test_claude_headless_streams_large_review_prompt(tmp_path, monkeypatch) -> None:

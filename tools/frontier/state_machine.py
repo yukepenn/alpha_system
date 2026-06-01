@@ -21,6 +21,11 @@ REPAIRED = "REPAIRED"
 PASS = "PASS"
 PASS_WITH_WARNINGS = "PASS_WITH_WARNINGS"
 BLOCKED = "BLOCKED"
+PUSH_BLOCKED = "PUSH_BLOCKED"
+REMOTE_BRANCH_BLOCKED = "REMOTE_BRANCH_BLOCKED"
+PR_CREATE_BLOCKED = "PR_CREATE_BLOCKED"
+CI_BLOCKED = "CI_BLOCKED"
+MERGE_GATE_BLOCKED = "MERGE_GATE_BLOCKED"
 STOPPED = "STOPPED"
 SKIPPED = "SKIPPED"
 
@@ -35,11 +40,27 @@ PHASE_STATUSES = {
     PASS,
     PASS_WITH_WARNINGS,
     BLOCKED,
+    PUSH_BLOCKED,
+    REMOTE_BRANCH_BLOCKED,
+    PR_CREATE_BLOCKED,
+    CI_BLOCKED,
+    MERGE_GATE_BLOCKED,
     STOPPED,
     SKIPPED,
 }
 
-TERMINAL_STATUSES = {PASS, PASS_WITH_WARNINGS, BLOCKED, STOPPED, SKIPPED}
+TERMINAL_STATUSES = {
+    PASS,
+    PASS_WITH_WARNINGS,
+    BLOCKED,
+    PUSH_BLOCKED,
+    REMOTE_BRANCH_BLOCKED,
+    PR_CREATE_BLOCKED,
+    CI_BLOCKED,
+    MERGE_GATE_BLOCKED,
+    STOPPED,
+    SKIPPED,
+}
 ACTIVE_STATUSES = PHASE_STATUSES - TERMINAL_STATUSES
 
 LEGAL_TRANSITIONS: dict[str, set[str]] = {
@@ -47,9 +68,64 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
     SPEC_READY: {EXECUTED},
     EXECUTED: {VALIDATED},
     VALIDATED: {REVIEWED},
-    REVIEWED: {PASS, PASS_WITH_WARNINGS, REWORK, BLOCKED},
+    REVIEWED: {
+        PASS,
+        PASS_WITH_WARNINGS,
+        REWORK,
+        BLOCKED,
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+    },
     REWORK: {REPAIRED},
     REPAIRED: {VALIDATED},
+    PUSH_BLOCKED: {
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    REMOTE_BRANCH_BLOCKED: {
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    PR_CREATE_BLOCKED: {
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    CI_BLOCKED: {
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    MERGE_GATE_BLOCKED: {
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
 }
 
 
@@ -139,7 +215,17 @@ def phase_by_id(state: dict[str, Any], phase_id: str) -> dict[str, Any]:
 def write_run_summary(run_dir: Path, state: dict[str, Any], note: str | None = None) -> None:
     phases = state.get("phases", [])
     passing = [phase for phase in phases if phase.get("status") in {PASS, PASS_WITH_WARNINGS}]
-    blocked = [phase for phase in phases if phase.get("status") in {BLOCKED, STOPPED, REWORK}]
+    blocked_statuses = {
+        BLOCKED,
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        STOPPED,
+        REWORK,
+    }
+    blocked = [phase for phase in phases if phase.get("status") in blocked_statuses]
     lines = [
         "# Run Summary",
         "",
