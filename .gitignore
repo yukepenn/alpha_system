@@ -1,11 +1,21 @@
 # Python and local tooling
 .venv/
+**/.venv/
 venv/
+env/
+.env/
+**/venv/
+**/env/
 node_modules/
 **/__pycache__/
 **/.pytest_cache/
 **/.mypy_cache/
 **/.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+**/htmlcov/
 
 # Logs, temp files, and caches
 **/*.log
@@ -60,6 +70,10 @@ data/labels/**
 !data/labels/.gitkeep
 !data/labels/README.md
 
+data/cache/**
+!data/cache/
+!data/cache/.gitkeep
+!data/cache/README.md
 
 # Local metadata directory: keep placeholders only.
 metadata/**
@@ -75,7 +89,6 @@ artifacts/**
 !artifacts/**/README.md
 
 # Frontier / alpha_system local generated data
-data/cache/
 runs/*G005_WORKFLOW2_TOY*/
 runs/*ALPHA_SYSTEM_V1*/
 runs/acceptance_merge_gate/

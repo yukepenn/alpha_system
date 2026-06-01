@@ -1,70 +1,33 @@
 # alpha_system
 
-This repository uses Frontier Harness `0.3.0-rc1` with profile `trading_research`.
+`alpha_system` is a research-only, local-first Alpha Research Platform foundation for offline hypothesis development, data checks, and reviewable research workflows.
 
-## Start
+The active campaign is [ALPHA_SYSTEM_V1](campaigns/ALPHA_SYSTEM_V1/GOAL.md). The current campaign pointer lives in [ACTIVE_CAMPAIGN.md](ACTIVE_CAMPAIGN.md).
 
-```bash
-python tools/verify.py --smoke
-python tools/frontier/bootstrap.py doctor
-just frontier-run-next-mock G005_WORKFLOW2_TOY
-```
+## Repository Policy
 
-## Workflow2 Commands
+- Canonical repo path: `~/projects/alpha_system`.
+- Required filesystem: WSL2 Linux filesystem.
+- Forbidden active worktree locations: `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, and temporary directories.
+- Git staging is explicit-path-only. Do not use `git add .`, do not use `git add -A`, and do not force push.
+- Raw data, canonical data, factor values, label values, heavy generated artifacts, caches, logs, temporary outputs, and local SQLite or database files must not be committed.
+- Generated local-only contents under `data/`, `metadata/`, and `artifacts/` must stay out of git except placeholder `README.md` or `.gitkeep` files.
 
-```bash
-just frontier-run-campaign <campaign>
-just frontier-run-next <campaign>
-just frontier-run-campaign-mock <campaign>
-just frontier-run-next-mock <campaign>
-just frontier-run-campaign-ledger <campaign>
-just frontier-run-overnight <campaign>
-just frontier-resume <run_id>
-just frontier-tail <run_id>
-just frontier-summary <run_id>
-just frontier-stop <run_id>
-just frontier-heartbeat <run_id>
-just frontier-acceptance
-```
+## Scope Boundaries
 
-Mock one-phase:
+This repository is not a broker, paper trading, live trading, order routing, or production execution system. Those capabilities are out of scope for this campaign and must not be introduced by bootstrap policy work.
 
-```bash
-FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 just frontier-run-campaign G005_WORKFLOW2_TOY
-```
+Research notes, examples, reports, and handoffs must not make alpha, profitability, robustness, or tradability claims without evidence and review context.
 
-Provider-wired one-phase:
+Failed runs must remain visible. Tests must not be weakened, skipped, or gamed to create false completion.
 
-```bash
-FRONTIER_MAX_PHASES=1 just frontier-run-campaign G005_WORKFLOW2_TOY
-```
+## Campaign Files
 
-Overnight:
+- [Campaign goal](campaigns/ALPHA_SYSTEM_V1/GOAL.md)
+- [Acceptance criteria](campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md)
+- [Phase plan](campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md)
+- [Risk register](campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md)
+- [Runbook](campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md)
+- [Campaign config](campaigns/ALPHA_SYSTEM_V1/campaign.yaml)
 
-```bash
-just frontier-run-overnight G005_WORKFLOW2_TOY
-```
-
-## Modes
-
-- Mock mode sets `FRONTIER_MOCK_PROVIDERS=1` and never calls Claude or Codex CLIs.
-- Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write -` with full prompts on stdin.
-- Worktree mode uses `FRONTIER_WORKTREE_MODE=1` or `--worktree-mode` to execute phase branches in Frontier-owned worktrees.
-- GitHub PR/CI mode uses authenticated `gh` for PR creation, CI polling, branch protection inspection, and merge.
-- Real auto-merge is controlled by `frontier.yaml` lane policy and requires CI success, passing verdicts, artifact policy success, branch protection validation, and `gh` auth. Red lane also requires `FRONTIER_RED_AUTHORIZED=1`.
-
-## Required Local Auth
-
-```bash
-gh auth status
-claude -p "ping"
-printf 'ping\n' | codex exec --sandbox workspace-write -
-```
-
-## Safety Defaults
-
-- STOP files stop before expensive/provider/merge actions and before the next phase.
-- BLOCKED, repair exhaustion, and CI failure stop the campaign unless policy explicitly allows the condition.
-- No live trading, paper trading, broker operations, production deployment, destructive cleanup, or secrets handling is included.
-
-Project work should stay in campaigns, specs, handoffs, reviews, decisions, source, configs, and tests. Generic harness behavior belongs under the generated harness files; project-specific behavior belongs in `frontier.yaml`, campaign files, project skill files, profile config, source, configs, and project tests.
+Harness control files and hook enforcement are outside ASV1-P00 implementation scope. If present, they are treated as existing repository context and are not modified by this phase.
