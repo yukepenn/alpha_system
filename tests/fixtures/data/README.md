@@ -1,0 +1,11 @@
+# Data Fixtures
+
+Fixtures in this directory are tiny, synthetic, deterministic correctness
+fixtures. They are not raw market data, are not evidence about any venue or
+instrument, and must not be used for performance, tradability, or robustness
+claims.
+
+`synthetic_1min_bars.csv` contains three canonical 1-minute bars for one
+fabricated instrument/session. The prices, volume, timestamps, versions, and
+quality flags were hand-authored for schema, validation, DuckDB, and Polars
+tests only.

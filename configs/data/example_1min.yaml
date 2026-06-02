@@ -1,0 +1,26 @@
+# Example only. Paths are repo-relative local WSL2 paths.
+dataset:
+  name: synthetic_1min_example
+  frequency: 1min
+  calendar_id: synthetic_rth
+  availability_latency_seconds: 5
+
+paths:
+  data_root: data
+  raw: data/raw
+  canonical: data/canonical
+  factors: data/factors
+  labels: data/labels
+  cache: data/cache
+  fixture_csv: tests/fixtures/data/synthetic_1min_bars.csv
+
+schema:
+  key_fields:
+    - instrument_id
+    - session_id
+    - bar_index
+  point_in_time_fields:
+    - bar_start_ts
+    - bar_end_ts
+    - event_ts
+    - available_ts
