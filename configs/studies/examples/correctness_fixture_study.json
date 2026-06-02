@@ -1,0 +1,34 @@
+{
+  "study_id": "correctness_fixture_study",
+  "factor_id": "fixture_close_delta",
+  "factor_version": "v1",
+  "label_id": "forward_return_1m",
+  "label_version": "labels:synthetic:v1",
+  "data_version": "data:synthetic-factor-diagnostics:v1",
+  "factor_values_path": "/tmp/alpha_system/factor_diagnostics/example_factor_values.jsonl",
+  "labels_path": "/tmp/alpha_system/factor_diagnostics/example_labels.jsonl",
+  "horizon_seconds": 60,
+  "instruments": [
+    "SYNTH"
+  ],
+  "sessions": [
+    "XNYS:2026-01-02:regular"
+  ],
+  "sample_size_thresholds": {
+    "min_total": 4,
+    "min_bucket": 2,
+    "min_event": 2,
+    "max_missing_label_rate": 0.1,
+    "max_missing_factor_rate": 0.2
+  },
+  "output_dir": "/tmp/alpha_system/factor_diagnostics/study_outputs",
+  "diagnostic_types": [
+    "directional",
+    "buckets",
+    "events",
+    "regimes",
+    "execution_filters",
+    "management_features"
+  ],
+  "bucket_count": 2
+}
