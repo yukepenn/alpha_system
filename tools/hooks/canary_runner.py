@@ -129,6 +129,7 @@ def scenarios() -> list[Canary]:
                 "data/labels/README.md",
                 "metadata/README.md",
                 "artifacts/README.md",
+                "artifacts/.gitkeep",
                 "artifacts/reports/README.md",
             ],
             {
@@ -141,6 +142,7 @@ def scenarios() -> list[Canary]:
                 "data/labels/README.md": "local-only placeholder\n",
                 "metadata/README.md": "local-only placeholder\n",
                 "artifacts/README.md": "local-only placeholder\n",
+                "artifacts/.gitkeep": "",
                 "artifacts/reports/README.md": "local-only placeholder\n",
             },
             expect_block=False,

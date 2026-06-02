@@ -58,6 +58,8 @@ BOOTSTRAP_CONFIG = {
             "data/**/.gitkeep",
             "metadata/README.md",
             "metadata/.gitkeep",
+            "artifacts/README.md",
+            "artifacts/.gitkeep",
             "artifacts/**/README.md",
             "artifacts/**/.gitkeep",
         ],
@@ -212,6 +214,8 @@ def test_commit_phase_changes_commits_uncommitted_bootstrap_files(tmp_path: Path
         "ACTIVE_CAMPAIGN.md": "Campaign: C1\n",
         "data/raw/README.md": "# Raw Data\n",
         "metadata/README.md": "# Metadata\n",
+        "artifacts/README.md": "# Artifacts\n",
+        "artifacts/.gitkeep": "",
         "artifacts/reports/README.md": "# Reports\n",
     }.items():
         path = tmp_path / relative_path
@@ -424,10 +428,15 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
         "data/cache/README.md",
         "data/labels/README.md",
         "metadata/README.md",
+        "artifacts/README.md",
+        "artifacts/.gitkeep",
         "artifacts/reports/README.md",
         "data/raw/SPY.parquet",
         "data/cache/cache.sqlite",
+        "artifacts/report.pkl",
         "artifacts/model.pkl",
+        "artifacts/model.joblib",
+        "artifacts/output.parquet",
         "metadata/registry.sqlite",
         ".frontier/upgrade_reports/report.json",
         ".env",
@@ -445,6 +454,8 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
             "data/**/.gitkeep",
             "metadata/README.md",
             "metadata/.gitkeep",
+            "artifacts/README.md",
+            "artifacts/.gitkeep",
             "artifacts/**/README.md",
             "artifacts/**/.gitkeep",
         ],
@@ -462,10 +473,13 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
             "**/*.parquet",
             "**/*.sqlite",
             "**/*.pkl",
+            "**/*.joblib",
         ],
     )
 
     assert allowed == [
+        "artifacts/.gitkeep",
+        "artifacts/README.md",
         "artifacts/reports/README.md",
         "data/cache/README.md",
         "data/labels/README.md",
@@ -474,7 +488,10 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
     ]
     assert "data/raw/SPY.parquet" in blocked
     assert "data/cache/cache.sqlite" in blocked
+    assert "artifacts/report.pkl" in blocked
     assert "artifacts/model.pkl" in blocked
+    assert "artifacts/model.joblib" in blocked
+    assert "artifacts/output.parquet" in blocked
     assert "metadata/registry.sqlite" in blocked
     assert ".frontier/upgrade_reports/report.json" in blocked
     assert ".env" in blocked
