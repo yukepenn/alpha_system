@@ -1,0 +1,29 @@
+{
+  "strategy_id": "threshold_strategy",
+  "name": "Single Factor Threshold Strategy Template",
+  "version": "v1",
+  "owner": "research",
+  "description": "Synthetic fixture-only StrategySpec example for signal-intent validation.",
+  "entry_signal": "fixture_close_delta.normalized_value >= 0.5",
+  "exit_signal": "fixture_close_delta.normalized_value <= -0.1",
+  "direction": "long",
+  "required_factor_dependencies": [
+    {
+      "factor_id": "fixture_close_delta",
+      "factor_version": "v1",
+      "input_name": "primary_factor"
+    }
+  ],
+  "parameters": {
+    "template": "single_factor_threshold",
+    "source_factor_id": "fixture_close_delta",
+    "value_field": "normalized_value",
+    "entry_threshold": 0.5,
+    "exit_threshold": -0.1
+  },
+  "metadata": {
+    "scope": "synthetic_research_template_only"
+  },
+  "confidence_score": 0.6,
+  "desired_exposure": 0.25
+}

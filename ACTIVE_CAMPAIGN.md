@@ -7,13 +7,13 @@ Workflow: `workflow2`
 Run: `2026-06-02T012007Z_ALPHA_SYSTEM_V1`
 Status: `executing`
 
-Current phase: `ASV1-P14` - Signal Store and StrategySpec Layer
-Last completed phase: `ASV1-P13` - Factor Card and Report Generation
+Current phase: `ASV1-P15` - Reference 1-Minute Backtest Truth
+Last completed phase: `ASV1-P14` - Signal Store and StrategySpec Layer
 Last completed status: `PASS_WITH_WARNINGS`
-Passing phases: `14/30`
+Passing phases: `15/30`
 
 Ralph updates this pointer through reviewed phase commits so the tracked repo stays clean after Workflow 2 stops.
 
 Broker/live trading, paper trading, order routing, raw data commits, heavy artifact commits, local DB commits, and alpha/tradability claims without evidence remain out of scope.
 
-Note: Projected after ASV1-P13 merge.
+Note: Projected after ASV1-P14 merge.
