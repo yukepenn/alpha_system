@@ -58,10 +58,10 @@ frontier-run-campaign $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
 
 frontier-run-next $campaign_id="G005_WORKFLOW2_TOY":
-    python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
+    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
 
 frontier-run-next-x $campaign_id="G005_WORKFLOW2_TOY" $max_phases="1":
-    python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases "$max_phases"
+    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases "$max_phases"
 
 frontier-run-campaign-mock $campaign_id="G005_WORKFLOW2_TOY":
     FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
