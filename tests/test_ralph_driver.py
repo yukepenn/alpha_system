@@ -217,6 +217,42 @@ def test_resume_campaign_id_uses_latest_active_provider_run(tmp_path, monkeypatc
     assert calls == [(selected, 3)]
 
 
+def test_resume_provider_wired_run_clears_max_phase_stop(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    state["status"] = "STOPPED"
+    state["stop_requested"] = True
+    state["current_phase_id"] = None
+    ralph_driver.write_state(run_dir, state)
+    (run_dir / "STOP").write_text(
+        "Workflow 2 provider-wired run stopped safely.\nReason: Requested max phases reached: 1.\n",
+        encoding="utf-8",
+    )
+    calls: list[tuple[Path, int, str | None]] = []
+
+    def fake_continue_provider_wired_run(
+        selected_run_dir: Path,
+        selected_state: dict,
+        max_phases: int,
+        max_phases_source: str | None = None,
+    ) -> int:
+        calls.append((selected_run_dir, max_phases, max_phases_source))
+        return 0
+
+    monkeypatch.setattr(ralph_driver, "continue_provider_wired_run", fake_continue_provider_wired_run)
+
+    status = ralph_driver.resume_provider_wired_run(run_dir, state, 1)
+
+    assert status == 0
+    assert calls == [(run_dir, 1, "cli")]
+    assert not (run_dir / "STOP").exists()
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "RUN_RESUME_MAX_PHASES_STOP_REMOVED" in events
+
+
 def init_git_repo_with_origin_main(root: Path) -> str:
     assert ralph_driver.git(root, "init", "-b", "main").returncode == 0
     assert ralph_driver.git(root, "config", "user.email", "frontier@example.invalid").returncode == 0
