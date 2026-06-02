@@ -1728,6 +1728,62 @@ def test_claude_headless_streams_large_review_prompt(tmp_path, monkeypatch) -> N
     assert sum(len(part) for part in command) < 1000
 
 
+def test_review_prompt_compacts_large_executor_output() -> None:
+    prompt = ralph_driver.review_prompt(
+        {"phase_id": "P00", "name": "Large Review"},
+        SAMPLE_CAMPAIGN_ID,
+        "# Spec\n",
+        "start-" + ("x" * 100_000) + "-end",
+        "# Validation\n",
+    )
+
+    assert len(prompt) < 80_000
+    assert "Frontier prompt compaction" in prompt
+    assert "start-" in prompt
+    assert "-end" in prompt
+
+
+def test_resume_stage_review_maps_phase_to_validated(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = "BLOCKED"
+    state["status"] = "STOPPED"
+    state["stop_requested"] = True
+    (run_dir / "STOP").write_text("stopped\n", encoding="utf-8")
+    phase_dir = run_dir / "phases/P00"
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    (phase_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (phase_dir / "executor_output.md").write_text("# Existing Execution\n", encoding="utf-8")
+    (phase_dir / "validation.md").write_text("# Validation\n", encoding="utf-8")
+    ralph_driver.write_state(run_dir, state)
+    captured: dict[str, object] = {}
+
+    def fake_continue(run_dir_arg, state_arg, max_phases, source):
+        del run_dir_arg, max_phases, source
+        captured["phase_status"] = state_arg["phases"][0]["status"]
+        captured["stop_requested"] = state_arg["stop_requested"]
+        return 0
+
+    monkeypatch.setattr(ralph_driver, "continue_provider_wired_run", fake_continue)
+
+    status = ralph_driver.resume_provider_wired_stage(
+        run_dir,
+        state,
+        campaign_id=SAMPLE_CAMPAIGN_ID,
+        phase_id="P00",
+        from_stage="review",
+        no_provider_replay=False,
+    )
+
+    assert status == 0
+    assert captured["phase_status"] == "VALIDATED"
+    assert captured["stop_requested"] is False
+
+
 def test_run_lock_prevents_duplicate_driver(tmp_path) -> None:
     run_dir = tmp_path / "runs/run1"
     run_dir.mkdir(parents=True)

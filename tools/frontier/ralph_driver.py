@@ -103,6 +103,7 @@ REQUIRED_CAMPAIGN_FILES = (
     "RUNBOOK.md",
 )
 PASSING_VERDICTS = {"PASS", "PASS_WITH_WARNINGS"}
+PROMPT_SECTION_MAX_CHARS = 24_000
 GIT_PHASE_BLOCKED = "GIT_PHASE_BLOCKED"
 PUSH_BLOCKED = "PUSH_BLOCKED"
 REMOTE_BRANCH_BLOCKED = "REMOTE_BRANCH_BLOCKED"
@@ -1701,6 +1702,20 @@ Generated spec:
 """
 
 
+def compact_prompt_section(name: str, text: str, *, max_chars: int = PROMPT_SECTION_MAX_CHARS) -> str:
+    if len(text) <= max_chars:
+        return text
+    head_chars = max_chars // 2
+    tail_chars = max_chars - head_chars
+    omitted = len(text) - max_chars
+    return (
+        text[:head_chars]
+        + f"\n\n[Frontier prompt compaction: omitted {omitted} characters from {name}; "
+        "inspect the full run artifact or repository file for complete context.]\n\n"
+        + text[-tail_chars:]
+    )
+
+
 def review_prompt(
     phase: dict[str, Any],
     campaign_id: str,
@@ -1716,7 +1731,7 @@ Review phase {phase_label(phase)} against:
 - frontier.yaml
 - campaigns/{campaign_id} files
 - the generated phase spec
-- executor output
+- executor output summary and full repository/run artifacts as needed
 - validation output
 
 Return markdown. Include exactly one verdict line using one of:
@@ -1729,15 +1744,15 @@ Be conservative. Block broker/live/paper scope, destructive operations, hidden f
 
 Generated spec:
 
-{spec_text}
+{compact_prompt_section("generated phase spec", spec_text)}
 
 Executor output:
 
-{executor_text}
+{compact_prompt_section("executor output", executor_text)}
 
 Validation output:
 
-{validation_text}
+{compact_prompt_section("validation output", validation_text)}
 """
 
 
@@ -1776,23 +1791,23 @@ Review verdict: {verdict}
 
 Generated spec:
 
-{spec_text}
+{compact_prompt_section("generated phase spec", spec_text)}
 
 Executor output:
 
-{executor_text}
+{compact_prompt_section("executor output", executor_text)}
 
 Validation output:
 
-{validation_text}
+{compact_prompt_section("validation output", validation_text)}
 
 Review output:
 
-{review_text}
+{compact_prompt_section("review output", review_text)}
 
 Handoff:
 
-{handoff_text}
+{compact_prompt_section("handoff", handoff_text)}
 """
 
 
@@ -4496,6 +4511,10 @@ def resume_provider_wired_stage(
     if stop_path.exists():
         stop_path.unlink()
         append_event(run_dir, state, "RUN_RESUME_STOP_REMOVED", phase_id=phase_id, from_stage=from_stage)
+    mapped_status = PROVIDER_RESUME_STATUS_BY_STAGE.get(from_stage)
+    if mapped_status:
+        set_provider_phase_status(phase, mapped_status)
+        phase.pop("status_reason", None)
     state["status"] = "RUNNING"
     state["stop_requested"] = False
     state["current_phase_id"] = phase_id
