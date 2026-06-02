@@ -2,7 +2,9 @@
 
 `alpha_system` is a local-first, research-only trading harness for developing an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
-The active campaign is `ALPHA_SYSTEM_V1`, defined in `campaigns/ALPHA_SYSTEM_V1/`. This repository is not a broker, paper-trading, live-trading, order-routing, or production execution system. Do not make alpha, profitability, robustness, or tradability claims without evidence and review.
+The active campaign is `ALPHA_SYSTEM_V1`, defined in `campaigns/ALPHA_SYSTEM_V1/`. Current phase progress is tracked in `ACTIVE_CAMPAIGN.md`; run-local state and summaries live under `runs/<run_id>/` and are never committed.
+
+This repository is not a broker, paper-trading, live-trading, order-routing, or production execution system. Do not make alpha, profitability, robustness, or tradability claims without evidence and review.
 
 ## Repository Location
 
@@ -25,7 +27,16 @@ Required safety defaults:
 - Yellow phases require fresh Claude Opus review before merge eligibility.
 - No phase may weaken or game tests.
 
-ASV1-P00 is policy and scaffold only. It does not add source code, domain schemas, data ingestion, registry logic, backtesting, hook enforcement, CI workflows, deployment, or trading operations. Additional hook, CI, and artifact-policy enforcement work is deferred to ASV1-P01.
+Normal provider-wired campaign commands:
+
+```bash
+just frontier-run-next ALPHA_SYSTEM_V1
+just frontier-run-next-x ALPHA_SYSTEM_V1 <phase_count>
+```
+
+Both commands create PRs, wait for required checks, run merge gate, and attempt the normal protected-branch merge path with auto-merge fallback when GitHub branch policy is still settling. They do not use `--admin`.
+
+Use `ACTIVE_CAMPAIGN.md` as the durable tracked pointer after each phase. Use `runs/<run_id>/RUN_SUMMARY.md` for the local audit trail of a specific run.
 
 ## Git Discipline
 
@@ -44,10 +55,10 @@ Before any commit, inspect:
 ```bash
 git status --short
 git diff --cached --name-only
-git ls-files runs
+git ls-files runs .frontier/upgrade_reports
 ```
 
-`git diff --cached --name-only` must contain no `runs/` path, and `git ls-files runs` must return empty for ASV1-P00.
+`git diff --cached --name-only` must contain no `runs/` path, and `git ls-files runs .frontier/upgrade_reports` must return empty.
 
 ## Artifact Policy
 
@@ -60,11 +71,18 @@ Local-only paths include:
 - local DB files under `metadata/`
 - generated outputs under `artifacts/`
 
-Permitted placeholders are limited to `.gitkeep` or `README.md` files where the campaign policy allows them. The commit-eligible phase handoff for ASV1-P00 is `handoffs/ASV1-P00.md`; run-local handoffs under `runs/<run_id>/...` are never staged or committed.
+Permitted placeholders are limited to `.gitkeep` or `README.md` files where the campaign policy allows them. Commit-eligible phase handoffs belong under `handoffs/<PHASE_ID>.md`; run-local handoffs under `runs/<run_id>/...` are never staged or committed.
 
-## Architecture Baseline
+## Documentation Map
 
-ASV1-P02 architecture docs:
+Project-level orientation:
+
+- `ACTIVE_CAMPAIGN.md`
+- `PROJECT_STATUS.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+
+Architecture and workflow docs:
 
 - `docs/PLAN.md`
 - `docs/ARCHITECTURE.md`
@@ -76,6 +94,8 @@ ASV1-P02 architecture docs:
 - `docs/ARTIFACT_POLICY.md`
 - `docs/REPRODUCIBILITY_PRINCIPLES.md`
 - `docs/CLI_COMMANDS_TARGET.md`
+
+Domain docs are added by phase under `docs/`, with matching handoffs under `handoffs/`. The campaign source of truth remains `campaigns/ALPHA_SYSTEM_V1/`.
 
 ## Directory Layout
 
@@ -105,11 +125,15 @@ Local data and generated artifact roots are present for structure only:
 
 ```bash
 python tools/verify.py --smoke
+python tools/verify.py --all
+python tools/hooks/canary_runner.py
 python tools/frontier/bootstrap.py doctor
 just frontier-run-campaign <campaign>
 just frontier-run-next <campaign>
+just frontier-run-next-x <campaign> <phase_count>
 just frontier-run-campaign-mock <campaign>
 just frontier-run-next-mock <campaign>
+just frontier-run-next-x-mock <campaign> <phase_count>
 just frontier-run-campaign-ledger <campaign>
 just frontier-run-overnight <campaign>
 just frontier-resume <run_id>
