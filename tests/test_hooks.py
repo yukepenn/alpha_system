@@ -30,6 +30,7 @@ def test_artifact_guard_allows_explicit_placeholders() -> None:
         "data/labels/README.md",
         "metadata/README.md",
         "artifacts/README.md",
+        "artifacts/.gitkeep",
         "artifacts/reports/README.md",
     ]
     assert all(not artifact_guard.forbidden(path) for path in allowed)

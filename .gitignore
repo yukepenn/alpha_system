@@ -71,8 +71,10 @@ metadata/**
 artifacts/**
 !artifacts/
 !artifacts/**/
-!artifacts/**/.gitkeep
+!artifacts/README.md
+!artifacts/.gitkeep
 !artifacts/**/README.md
+!artifacts/**/.gitkeep
 
 # Frontier / alpha_system local generated data
 data/cache/

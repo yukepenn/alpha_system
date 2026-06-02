@@ -241,6 +241,8 @@ artifacts:
     - "data/**/.gitkeep"
     - "metadata/README.md"
     - "metadata/.gitkeep"
+    - "artifacts/README.md"
+    - "artifacts/.gitkeep"
     - "artifacts/**/README.md"
     - "artifacts/**/.gitkeep"
 

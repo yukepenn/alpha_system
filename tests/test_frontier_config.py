@@ -106,6 +106,8 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
         "data/**/.gitkeep",
         "metadata/README.md",
         "metadata/.gitkeep",
+        "artifacts/README.md",
+        "artifacts/.gitkeep",
         "artifacts/**/README.md",
         "artifacts/**/.gitkeep",
     ]:
