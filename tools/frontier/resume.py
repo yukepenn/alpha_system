@@ -27,6 +27,9 @@ DETERMINISTIC_RERUN_STAGES = {"ci", "branch_protection", "merge_gate", "merge"}
 PASSING_VERDICTS = {"PASS", "PASS_WITH_WARNINGS"}
 CI_SUCCESS = "SUCCESS"
 RESUME_PRECONDITION_FAILED = "RESUME_PRECONDITION_FAILED"
+MERGED = "MERGED"
+ALREADY_MERGED = "ALREADY_MERGED"
+AUTO_MERGE_ARMED = "AUTO_MERGE_ARMED"
 
 
 @dataclass(frozen=True)
@@ -252,15 +255,24 @@ def validate_stage_complete(
     if stage == "merge":
         artifacts = ["merge_result.json"]
         data = _read_json(phase_dir / "merge_result.json")
+        metadata = data.get("metadata") if isinstance(data, dict) and isinstance(data.get("metadata"), dict) else {}
+        status = str(metadata.get("status") or "")
         merged = bool(
             data
             and data.get("action") == "merge_pr"
             and not data.get("dry_run")
             and not data.get("blocked")
-            and int(data.get("return_code", 1)) == 0
+            and (
+                status in {MERGED, ALREADY_MERGED}
+                or bool(metadata.get("merged"))
+                or (not status and int(data.get("return_code", 1)) == 0)
+            )
         )
+        auto_merge_armed = bool(data and data.get("action") == "merge_pr" and status == AUTO_MERGE_ARMED)
         if merged or phase.get("merged") or state.get("merged"):
             return _checkpoint(stage, complete=True, artifacts=artifacts)
+        if auto_merge_armed and allow_deterministic_rerun:
+            return _checkpoint(stage, complete=True, artifacts=artifacts, note="Auto-merge is armed and will be checked during resume.")
         if allow_deterministic_rerun:
             return _checkpoint(stage, complete=True, artifacts=artifacts, note="Merge will be retried if gates allow it.")
         missing = [] if data else ["merge_result.json"]

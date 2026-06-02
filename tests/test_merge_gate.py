@@ -173,4 +173,5 @@ def test_real_merge_path_calls_gh(monkeypatch) -> None:
 
     assert result.ok
     assert runner.commands[0] == ["gh", "auth", "status"]
-    assert runner.commands[1][:4] == ["gh", "pr", "merge", "5"]
+    assert runner.commands[1][:3] == ["gh", "pr", "view"]
+    assert runner.commands[2][:4] == ["gh", "pr", "merge", "5"]

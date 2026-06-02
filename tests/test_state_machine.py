@@ -5,10 +5,14 @@ import json
 import pytest
 
 from tools.frontier.state_machine import (
+    AUTO_MERGE_ARMED,
     BLOCKED,
     CI_BLOCKED,
     EXECUTED,
+    GIT_PHASE_BLOCKED,
+    MERGE_EXECUTION_BLOCKED,
     MERGE_GATE_BLOCKED,
+    MERGE_PENDING,
     PASS,
     PENDING,
     PR_CREATE_BLOCKED,
@@ -48,8 +52,25 @@ def test_active_status_can_stop_when_requested() -> None:
 
 
 def test_reviewed_phase_can_enter_transport_gate_statuses() -> None:
-    for status in [PUSH_BLOCKED, REMOTE_BRANCH_BLOCKED, PR_CREATE_BLOCKED, CI_BLOCKED, MERGE_GATE_BLOCKED]:
+    for status in [
+        GIT_PHASE_BLOCKED,
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
+    ]:
         phase = {"phase_id": "P01", "status": REVIEWED}
+        transition_phase(phase, status)
+        assert phase["status"] == status
+
+
+def test_auto_merge_pending_can_complete_or_block() -> None:
+    for status in [PASS, MERGE_EXECUTION_BLOCKED, MERGE_PENDING]:
+        phase = {"phase_id": "P01", "status": AUTO_MERGE_ARMED}
         transition_phase(phase, status)
         assert phase["status"] == status
 
