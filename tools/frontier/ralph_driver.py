@@ -1005,7 +1005,7 @@ def record_stage_checkpoint(
 
 def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
     resumable = (
-        {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"}
+        {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED", GIT_PHASE_BLOCKED}
         | GATE_BLOCKED_STATUSES
         | MERGE_PENDING_STATUSES
         | PROVIDER_WAITING_STATUSES
@@ -1542,7 +1542,7 @@ def current_provider_limit_phase(state: dict[str, Any]) -> dict[str, Any] | None
 def current_gate_blocked_phase(state: dict[str, Any]) -> dict[str, Any] | None:
     current = state.get("current_phase_id")
     for phase in state.get("phases", []):
-        if phase.get("status") in (GATE_BLOCKED_STATUSES | MERGE_PENDING_STATUSES) and (
+        if phase.get("status") in ({GIT_PHASE_BLOCKED} | GATE_BLOCKED_STATUSES | MERGE_PENDING_STATUSES) and (
             current in {None, phase.get("phase_id")}
         ):
             return phase

@@ -248,7 +248,7 @@ workflow2:
   allow_auto_merge: true
   allow_auto_merge_dry_run: true
   max_repair_attempts_default: 2
-  max_run_minutes: 720
+  max_run_minutes: 14400
   max_phase_minutes: 120
   max_estimated_usd: 0.0
   worktree_mode: false
@@ -303,6 +303,7 @@ artifacts:
     - "PROJECT_STATUS.md"
     - "frontier.yaml"
     - "ACTIVE_CAMPAIGN.md"
+    - "pyproject.toml"
     - ".codex/**"
     - ".claude/**"
     - ".githooks/**"
@@ -319,6 +320,10 @@ artifacts:
     - "src/**"
     - "tests/**"
     - "configs/**"
+    - "factors/.gitkeep"
+    - "factors/**/.gitkeep"
+    - "strategies/.gitkeep"
+    - "strategies/**/.gitkeep"
     - "data/**/README.md"
     - "data/**/.gitkeep"
     - "metadata/README.md"

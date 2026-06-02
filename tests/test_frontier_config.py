@@ -79,6 +79,9 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
     artifacts = config["artifacts"]
     allow_commit = artifacts["allow_commit"]
     forbid_commit = artifacts["forbid_commit"]
+    workflow2 = config["workflow2"]
+
+    assert workflow2["max_run_minutes"] == 14400
 
     for required in [
         ".gitignore",
@@ -86,6 +89,7 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
         "PROJECT_STATUS.md",
         "frontier.yaml",
         "ACTIVE_CAMPAIGN.md",
+        "pyproject.toml",
         ".codex/**",
         ".claude/**",
         ".githooks/**",
@@ -102,6 +106,10 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
         "src/**",
         "tests/**",
         "configs/**",
+        "factors/.gitkeep",
+        "factors/**/.gitkeep",
+        "strategies/.gitkeep",
+        "strategies/**/.gitkeep",
         "data/**/README.md",
         "data/**/.gitkeep",
         "metadata/README.md",
