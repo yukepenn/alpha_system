@@ -1,0 +1,15 @@
+{
+  "description": "Tiny deterministic label configuration example for correctness tests only.",
+  "data_version": "data:synthetic-1min:v1",
+  "label_version": "v1",
+  "forward_return_horizons_minutes": [1, 3, 5, 10, 30],
+  "path_metric_horizons_minutes": [1, 3, 5, 10, 30],
+  "stop_target": {
+    "target_return": "0.0100",
+    "stop_return": "0.0100"
+  },
+  "artifact_policy": {
+    "default_store_root": "tempdir",
+    "commit_generated_outputs": false
+  }
+}
