@@ -62,6 +62,21 @@ Local-only paths include:
 
 Permitted placeholders are limited to `.gitkeep` or `README.md` files where the campaign policy allows them. The commit-eligible phase handoff for ASV1-P00 is `handoffs/ASV1-P00.md`; run-local handoffs under `runs/<run_id>/...` are never staged or committed.
 
+## Architecture Baseline
+
+ASV1-P02 architecture docs:
+
+- `docs/PLAN.md`
+- `docs/ARCHITECTURE.md`
+- `docs/LOCAL_FIRST_STACK.md`
+- `docs/RESEARCH_WORKFLOW.md`
+- `docs/DOMAIN_BOUNDARIES.md`
+- `docs/NO_LOOKAHEAD_POLICY.md`
+- `docs/BACKTEST_TIERS.md`
+- `docs/ARTIFACT_POLICY.md`
+- `docs/REPRODUCIBILITY_PRINCIPLES.md`
+- `docs/CLI_COMMANDS_TARGET.md`
+
 ## Directory Layout
 
 Commit-eligible policy and campaign files live under:

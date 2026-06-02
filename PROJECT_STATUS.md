@@ -11,7 +11,7 @@ Project: `alpha_system`
 - Workflow 2: minimum viable local provider-wired conductor available for `ALPHA_SYSTEM_V1`
 - Auto-merge: policy scaffold only until explicitly wired
 - Active campaign: `ALPHA_SYSTEM_V1`
-- Current generated phase: `ASV1-P00` - Repo and Harness Bootstrap Policy
+- Current generated phase: `ASV1-P02` - Architecture Baseline and Local-First PLAN.md
 - Canonical repo path: `~/projects/alpha_system`
 - Required filesystem: WSL2 Linux filesystem
 
@@ -41,3 +41,11 @@ ASV1-P00B fixed the initial `frontier-ci` fresh-runner failure by installing
 minimal pytest dependencies and handling the no-tests case safely.
 
 Any hook, CI, or artifact-policy enforcement work not already present in the repository remains outside ASV1-P00 scope and is deferred to ASV1-P01.
+
+## ASV1-P02 Architecture Baseline
+
+ASV1-P02 adds local-first architecture, domain-boundary, no-lookahead,
+backtest-tier, artifact-policy, reproducibility, target CLI, and decision
+record documentation. It does not implement source code, schemas, registries,
+data, engines, tests, hooks, CI, broker operations, paper trading, live
+trading, or order routing.
