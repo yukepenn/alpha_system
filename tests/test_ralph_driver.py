@@ -1690,10 +1690,18 @@ def test_just_command_semantics_are_provider_wired() -> None:
     assert " resume " in run_next
     assert "--campaign-id" in run_next
     assert "--max-phases 1" in run_next
+    assert "env -u FRONTIER_DISABLE_AUTOMERGE" in run_next
+    assert "FRONTIER_CREATE_PR=1" in run_next
+    assert "FRONTIER_ALLOW_AUTOMERGE=1" in run_next
+    assert "FRONTIER_MERGE_DRY_RUN=0" in run_next
     assert " run --campaign-id" not in run_next
     assert "--provider-wired" in run_next_x
     assert " resume " in run_next_x
     assert "--max-phases \"$max_phases\"" in run_next_x
+    assert "env -u FRONTIER_DISABLE_AUTOMERGE" in run_next_x
+    assert "FRONTIER_CREATE_PR=1" in run_next_x
+    assert "FRONTIER_ALLOW_AUTOMERGE=1" in run_next_x
+    assert "FRONTIER_MERGE_DRY_RUN=0" in run_next_x
     assert "FRONTIER_MOCK_PROVIDERS=1" in run_mock
     assert "--provider-wired" in run_mock
     assert "FRONTIER_MOCK_PROVIDERS=1" in next_mock

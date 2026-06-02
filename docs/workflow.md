@@ -47,7 +47,7 @@ just frontier-acceptance
 
 - Mock mode sets `FRONTIER_MOCK_PROVIDERS=1`; it writes deterministic artifacts and never calls Claude or Codex CLIs.
 - Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write -` with full prompts on stdin.
-- `frontier-run-next` resumes the latest active local run for the campaign and runs one phase. `frontier-run-next-x` resumes that same latest active run and runs up to the requested phase count. Use `frontier-run-campaign` to start a fresh run.
+- `frontier-run-next` resumes the latest active local run for the campaign and runs one phase. `frontier-run-next-x` resumes that same latest active run and runs up to the requested phase count. Both commands default to real PR creation, automerge enabled, merge dry-run disabled, and `FRONTIER_DISABLE_AUTOMERGE` unset. Use `frontier-run-campaign` to start a fresh run.
 - Worktree mode uses `FRONTIER_WORKTREE_MODE=1` or `--worktree-mode` to create `auto/<campaign>/<phase>-<slug>` branches in Frontier-owned worktrees.
 - GitHub PR/CI mode uses `gh` for PR creation, CI polling, branch protection inspection, and merge.
 - Real PR creation first pushes the phase branch with a non-force refspec, verifies the remote branch exists with `git ls-remote`, and checks the remote SHA matches the local commit.
