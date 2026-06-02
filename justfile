@@ -58,13 +58,19 @@ frontier-run-campaign $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
 
 frontier-run-next $campaign_id="G005_WORKFLOW2_TOY":
-    FRONTIER_MAX_PHASES=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+    python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
+
+frontier-run-next-x $campaign_id="G005_WORKFLOW2_TOY" $max_phases="1":
+    python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases "$max_phases"
 
 frontier-run-campaign-mock $campaign_id="G005_WORKFLOW2_TOY":
     FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
 
 frontier-run-next-mock $campaign_id="G005_WORKFLOW2_TOY":
-    FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+    FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
+
+frontier-run-next-x-mock $campaign_id="G005_WORKFLOW2_TOY" $max_phases="1":
+    FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases "$max_phases"
 
 frontier-run-campaign-ledger $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --ledger-only

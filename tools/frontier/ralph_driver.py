@@ -193,6 +193,36 @@ def run_id_for(campaign_id: str) -> str:
     return candidate
 
 
+def latest_campaign_run_dir(campaign_id: str, *, provider_wired_only: bool = False) -> Path | None:
+    runs_root = ROOT / "runs"
+    if not runs_root.exists():
+        return None
+    candidates: list[tuple[float, str, Path]] = []
+    for run_dir in runs_root.glob(f"*_{campaign_id}*"):
+        if not run_dir.is_dir():
+            continue
+        state_path = run_dir / "state.json"
+        if not state_path.exists():
+            continue
+        try:
+            state = read_json(state_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if state.get("campaign_id") != campaign_id:
+            continue
+        if state.get("status") == "COMPLETED":
+            continue
+        if provider_wired_only and not (
+            state.get("driver") == PROVIDER_WIRED_DRIVER or state.get("provider_wired") is True
+        ):
+            continue
+        candidates.append((state_path.stat().st_mtime, run_dir.name, run_dir))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][2]
+
+
 def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -4323,10 +4353,16 @@ def resume(
     else:
         run_ref = None
     if run_ref is None:
-        if not run_id:
-            print("Missing --run-id, --run-dir, or FRONTIER_RESUME_RUN.")
+        if run_id:
+            run_ref = ROOT / "runs" / run_id
+        elif campaign_id:
+            run_ref = latest_campaign_run_dir(campaign_id, provider_wired_only=provider_wired)
+            if run_ref is None:
+                print(f"No active local run found for campaign {campaign_id}. Start one with `run --campaign-id`.")
+                return 2
+        else:
+            print("Missing --run-id, --run-dir, FRONTIER_RESUME_RUN, or --campaign-id.")
             return 2
-        run_ref = ROOT / "runs" / run_id
     elif not run_ref.is_absolute():
         run_ref = ROOT / run_ref
     run_dir = run_ref

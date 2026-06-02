@@ -49,9 +49,13 @@ In the morning, inspect `runs/<run_id>/RUN_SUMMARY.md`, `events.jsonl`, `heartbe
 
 ```bash
 just frontier-resume <run_id>
+just frontier-run-next <campaign>
+just frontier-run-next-x <campaign> <phase_count>
 ```
 
 Resume reuses durable phase artifacts. A run interrupted after spec generation resumes from `SPEC_READY`; after execution it resumes from validation/review; after review it resumes from done-check and downstream gates. Runs stopped at `PUSH_BLOCKED`, `REMOTE_BRANCH_BLOCKED`, `PR_CREATE_BLOCKED`, `CI_BLOCKED`, or `MERGE_GATE_BLOCKED` retry from the failed GitHub gate without rerunning Claude spec generation, Codex execution, or creating a new commit when `commit_sha.txt` is present.
+
+`frontier-run-next` and `frontier-run-next-x` resolve the latest non-completed local run for the campaign and resume it. They do not start a new run; use `frontier-run-campaign` when a fresh campaign run is intended.
 
 ## Auth For Real Operations
 
