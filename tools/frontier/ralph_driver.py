@@ -33,8 +33,12 @@ from tools.frontier.git_utils import (
     PushBranchResult,
     commit_phase_changes,
     git,
+    local_commit_exists,
+    prepare_phase_branch,
     push_phase_branch,
+    resolve_base_ref,
     verify_remote_branch,
+    write_branch_prepare_artifacts,
     write_git_phase_artifacts,
     write_push_branch_artifacts,
     write_remote_branch_artifacts,
@@ -90,6 +94,7 @@ REQUIRED_CAMPAIGN_FILES = (
     "RUNBOOK.md",
 )
 PASSING_VERDICTS = {"PASS", "PASS_WITH_WARNINGS"}
+GIT_PHASE_BLOCKED = "GIT_PHASE_BLOCKED"
 PUSH_BLOCKED = "PUSH_BLOCKED"
 REMOTE_BRANCH_BLOCKED = "REMOTE_BRANCH_BLOCKED"
 PR_CREATE_BLOCKED = "PR_CREATE_BLOCKED"
@@ -605,7 +610,9 @@ def provider_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
             "done_check_json": f"{phase_artifact_root}/done_check.json",
             "handoff": f"{phase_artifact_root}/handoff.md",
             "git_phase": f"{phase_artifact_root}/git_phase.json",
+            "branch_prepare": f"{phase_artifact_root}/branch_prepare.json",
             "branch": f"{phase_artifact_root}/branch.txt",
+            "base_sha": f"{phase_artifact_root}/base_sha.txt",
             "commit_sha": f"{phase_artifact_root}/commit_sha.txt",
             "push_branch": f"{phase_artifact_root}/push_branch.json",
             "remote_branch": f"{phase_artifact_root}/remote_branch.json",
@@ -983,7 +990,9 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
         phase
         for phase in state["phases"]
         if phase["status"]
-        in {"BLOCKED", "REWORK", RESUME_PRECONDITION_FAILED} | GATE_BLOCKED_STATUSES | PROVIDER_WAITING_STATUSES
+        in {GIT_PHASE_BLOCKED, "BLOCKED", "REWORK", RESUME_PRECONDITION_FAILED}
+        | GATE_BLOCKED_STATUSES
+        | PROVIDER_WAITING_STATUSES
     ]
     pending = [phase for phase in state["phases"] if phase["status"] == "PENDING"]
     lines = [
@@ -1925,12 +1934,29 @@ def phase_branch_from_artifacts(
     return str(branch)
 
 
+def phase_base_sha_from_artifacts(phase_dir: Path, phase: dict[str, Any]) -> str | None:
+    branch_prepare = read_json_if_exists(phase_dir / "branch_prepare.json")
+    git_phase = read_json_if_exists(phase_dir / "git_phase.json")
+    candidates = [
+        phase.get("base_sha"),
+        read_stripped_if_exists(phase_dir / "base_sha.txt"),
+        branch_prepare.get("base_sha"),
+        git_phase.get("base_sha"),
+    ]
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return None
+
+
 def recover_phase_commit_sha(
     phase_dir: Path,
     phase: dict[str, Any],
     *,
     branch: str,
     execution_root: Path,
+    allow_head_fallback: bool = False,
 ) -> str | None:
     git_phase = read_json_if_exists(phase_dir / "git_phase.json")
     candidates = [
@@ -1941,6 +1967,8 @@ def recover_phase_commit_sha(
     for candidate in candidates:
         if candidate:
             return str(candidate)
+    if not allow_head_fallback:
+        return None
     for ref in (branch, "HEAD"):
         result = git(execution_root, "rev-parse", ref)
         if result.returncode == 0 and result.stdout.strip():
@@ -1951,6 +1979,8 @@ def recover_phase_commit_sha(
 def ensure_phase_head(root: Path, branch: str, commit_sha: str | None) -> str | None:
     if not commit_sha:
         return "No local commit SHA is available for this phase."
+    if not local_commit_exists(root, commit_sha):
+        return f"Recorded phase commit {commit_sha} is missing locally."
     head = git(root, "rev-parse", "HEAD")
     if head.returncode == 0 and head.stdout.strip() == commit_sha:
         return None
@@ -1979,6 +2009,76 @@ def dry_remote_branch_result(branch: str, *, remote: str, local_sha: str | None)
     )
 
 
+def prepare_phase_branch_for_execution(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    execution_root: Path,
+) -> bool:
+    if bool(state.get("mock_providers")) or bool(state.get("worktree_mode")):
+        return True
+    phase_dir = provider_phase_dir(run_dir, phase)
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    existing_branch = phase.get("branch") or read_stripped_if_exists(phase_dir / "branch.txt")
+    existing_base = phase_base_sha_from_artifacts(phase_dir, phase)
+    if existing_branch and existing_base and (phase_dir / "branch_prepare.json").exists():
+        checkout = git(execution_root, "checkout", str(existing_branch))
+        if checkout.returncode != 0:
+            reason = (
+                "GIT_PHASE_BLOCKED: prepared phase branch could not be checked out before executor: "
+                f"{checkout.stderr.strip() or checkout.stdout.strip()}"
+            )
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                GIT_PHASE_BLOCKED,
+                reason,
+                event="GIT_PHASE_BLOCKED",
+                source="branch_prepare_checkout_failed",
+            )
+            return False
+        append_event(run_dir, state, "BRANCH_PREPARE_REUSED", phase_id=phase["phase_id"], branch=str(existing_branch))
+        return True
+
+    config = load_config(ROOT / "frontier.yaml")
+    project_config = config.get("project") if isinstance(config.get("project"), dict) else {}
+    default_branch = str(project_config.get("default_branch") or "main")
+    try:
+        base_ref, _base_sha = resolve_base_ref(execution_root, default_branch)
+        requested_branch = phase_branch_from_artifacts(phase_dir, state, phase)
+        result = prepare_phase_branch(execution_root, requested_branch, base_ref=base_ref, dry_run=False)
+    except RuntimeError as error:
+        reason = f"GIT_PHASE_BLOCKED: branch preparation failed before executor: {error}"
+        block_provider_gate(
+            run_dir,
+            state,
+            phase,
+            GIT_PHASE_BLOCKED,
+            reason,
+            event="GIT_PHASE_BLOCKED",
+            source="branch_prepare_failed",
+        )
+        return False
+    write_branch_prepare_artifacts(phase_dir, result)
+    phase["branch"] = result.branch
+    phase["base_ref"] = result.base_ref
+    phase["base_sha"] = result.base_sha
+    append_event(
+        run_dir,
+        state,
+        "BRANCH_PREPARED",
+        phase_id=phase["phase_id"],
+        branch=result.branch,
+        base_ref=result.base_ref,
+        base_sha=result.base_sha,
+        used_unique_branch=result.used_unique_branch,
+    )
+    write_state(run_dir, state)
+    return True
+
+
 def post_phase_git_github(
     run_dir: Path,
     state: dict[str, Any],
@@ -1997,7 +2097,13 @@ def post_phase_git_github(
 
     if resuming_gate:
         git_result_data = read_json_if_exists(phase_dir / "git_phase.json")
-        commit_sha = recover_phase_commit_sha(phase_dir, phase, branch=branch, execution_root=execution_root)
+        commit_sha = recover_phase_commit_sha(
+            phase_dir,
+            phase,
+            branch=branch,
+            execution_root=execution_root,
+            allow_head_fallback=False,
+        )
         if commit_sha is None and not dry_git:
             reason = (
                 "PUSH_BLOCKED: local commit is missing. Restore the phase branch/commit or rerun the "
@@ -2016,6 +2122,7 @@ def post_phase_git_github(
         changed = list(git_result_data.get("changed_files", [])) if isinstance(git_result_data.get("changed_files"), list) else []
         blocked = list(git_result_data.get("blocked_files", [])) if isinstance(git_result_data.get("blocked_files"), list) else []
     else:
+        base_sha = phase_base_sha_from_artifacts(phase_dir, phase)
         git_result = commit_phase_changes(
             root=execution_root,
             campaign_id=state["campaign_id"],
@@ -2025,21 +2132,51 @@ def post_phase_git_github(
             config=config,
             dry_run=dry_git,
             push=False,
+            base_sha=base_sha,
         )
         write_git_phase_artifacts(phase_dir, git_result)
         commit_sha = git_result.commit_sha
         changed = git_result.changed_files
         blocked = git_result.blocked_files
+        if not dry_git and blocked:
+            reason = "GIT_PHASE_BLOCKED: artifact policy blocked phase commit paths: " + ", ".join(blocked)
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                GIT_PHASE_BLOCKED,
+                reason,
+                event="GIT_PHASE_BLOCKED",
+                source="git_phase_artifact_policy",
+            )
+            return False
+        if not dry_git and not commit_sha:
+            reason = (
+                "GIT_PHASE_BLOCKED: fresh git phase produced no phase commit. "
+                "The worktree was clean at the recorded base or no commit could be adopted."
+            )
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                GIT_PHASE_BLOCKED,
+                reason,
+                event="GIT_PHASE_BLOCKED",
+                source="git_phase_no_commit",
+            )
+            return False
 
     phase["branch"] = branch
     phase["commit_sha"] = commit_sha
     (phase_dir / "branch.txt").write_text(branch + "\n", encoding="utf-8")
     (phase_dir / "commit_sha.txt").write_text((commit_sha or "") + "\n", encoding="utf-8")
+    commit_checkpoint_status = "dry_run" if dry_git and not commit_sha else "complete"
     record_stage_checkpoint(
         run_dir,
         state,
         phase,
         "commit",
+        status=commit_checkpoint_status,
         details={"branch": branch, "commit_sha": commit_sha, "resuming_gate": resuming_gate},
     )
     append_event(run_dir, state, "GIT_PHASE_RECORDED", phase_id=phase["phase_id"], dry_run=dry_git)
@@ -2103,6 +2240,10 @@ def post_phase_git_github(
         if branch_push_required:
             head_error = ensure_phase_head(execution_root, branch, commit_sha)
             if head_error:
+                instructions = (
+                    "Restore the recorded phase branch/commit locally or rerun the phase explicitly; "
+                    "resume will not rerun Claude or Codex automatically."
+                )
                 push_result = PushBranchResult(
                     dry_run=False,
                     branch=branch,
@@ -2110,10 +2251,10 @@ def post_phase_git_github(
                     command=["git", "push", "-u", remote, f"HEAD:refs/heads/{branch}"],
                     return_code=1,
                     stderr=head_error,
-                    instructions="Network/auth push failed. Fix git push output and resume the run.",
+                    instructions=instructions,
                 )
                 write_push_branch_artifacts(phase_dir, push_result)
-                reason = f"PUSH_BLOCKED: push branch failed. {push_result.instructions}"
+                reason = f"PUSH_BLOCKED: prior local phase commit is missing or not checked out. {head_error}"
                 block_provider_gate(
                     run_dir,
                     state,
@@ -2894,6 +3035,8 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
         phase_reason = check_phase_budget(phase)
         if phase_reason:
             block_provider_run(run_dir, state, phase, "BLOCKED", phase_reason)
+            return False
+        if not prepare_phase_branch_for_execution(run_dir, state, phase, execution_root=execution_root):
             return False
         exec_prompt_text = executor_prompt(phase, spec_text, phase_dir)
         (phase_dir / "executor_prompt.md").write_text(exec_prompt_text, encoding="utf-8")

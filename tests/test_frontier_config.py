@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from tools.frontier.config import validate_config
+from pathlib import Path
+
+from tools.frontier.config import load_config, validate_config
 from tools.frontier.provider_config import load_provider_config
 
 
@@ -70,6 +72,48 @@ def test_artifact_placeholder_policy_shape_is_validated() -> None:
     errors = validate_config(config)
 
     assert "artifacts.placeholder_exceptions must be a list." in errors
+
+
+def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> None:
+    config = load_config(Path("frontier.yaml"))
+    artifacts = config["artifacts"]
+    allow_commit = artifacts["allow_commit"]
+    forbid_commit = artifacts["forbid_commit"]
+
+    for required in [
+        ".gitignore",
+        "README.md",
+        "PROJECT_STATUS.md",
+        "frontier.yaml",
+        "ACTIVE_CAMPAIGN.md",
+        ".codex/**",
+        ".claude/**",
+        ".githooks/**",
+        ".github/**",
+        "tools/**",
+        "scripts/**",
+        "campaigns/**",
+        "specs/**",
+        "handoffs/**",
+        "reviews/**",
+        "decisions/**",
+        "docs/**",
+        "evals/**",
+        "src/**",
+        "tests/**",
+        "configs/**",
+        "data/**/README.md",
+        "data/**/.gitkeep",
+        "metadata/README.md",
+        "metadata/.gitkeep",
+        "artifacts/**/README.md",
+        "artifacts/**/.gitkeep",
+    ]:
+        assert required in allow_commit
+
+    assert "runs/**" in forbid_commit
+    assert ".frontier/upgrade_reports/**" in forbid_commit
+    assert "runs/**" not in allow_commit
 
 
 def test_env_overrides_provider_config(tmp_path, monkeypatch) -> None:

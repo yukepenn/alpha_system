@@ -147,6 +147,29 @@ def state_json(run_dir: Path) -> dict:
     return json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
 
 
+def init_git_repo_with_origin_main(root: Path) -> str:
+    assert ralph_driver.git(root, "init", "-b", "main").returncode == 0
+    assert ralph_driver.git(root, "config", "user.email", "frontier@example.invalid").returncode == 0
+    assert ralph_driver.git(root, "config", "user.name", "Frontier Test").returncode == 0
+    (root / ".gitignore").write_text("runs/\n.frontier/upgrade_reports/\n", encoding="utf-8")
+    paths = [
+        ".gitignore",
+        "frontier.yaml",
+        f"campaigns/{SAMPLE_CAMPAIGN_ID}/GOAL.md",
+        f"campaigns/{SAMPLE_CAMPAIGN_ID}/PHASE_PLAN.md",
+        f"campaigns/{SAMPLE_CAMPAIGN_ID}/campaign.yaml",
+        f"campaigns/{SAMPLE_CAMPAIGN_ID}/ACCEPTANCE.md",
+        f"campaigns/{SAMPLE_CAMPAIGN_ID}/RISK_REGISTER.md",
+        f"campaigns/{SAMPLE_CAMPAIGN_ID}/RUNBOOK.md",
+    ]
+    for path in paths:
+        assert ralph_driver.git(root, "add", "--", path).returncode == 0
+    assert ralph_driver.git(root, "commit", "-m", "test: base").returncode == 0
+    base_sha = ralph_driver.git(root, "rev-parse", "HEAD").stdout.strip()
+    assert ralph_driver.git(root, "update-ref", "refs/remotes/origin/main", base_sha).returncode == 0
+    return base_sha
+
+
 def write_passed_phase_artifacts(run_dir: Path, phase_id: str = "P00") -> Path:
     phase_dir = run_dir / "phases" / phase_id
     phase_dir.mkdir(parents=True, exist_ok=True)
@@ -666,6 +689,104 @@ def test_resume_from_executed_continues_to_review(tmp_path, monkeypatch) -> None
     assert state_json(run_dir)["phases"][0]["status"] == "PASS"
 
 
+def test_fresh_provider_run_prepares_phase_branch_before_executor_and_preserves_main(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    write_sample_campaign(tmp_path)
+    base_sha = init_git_repo_with_origin_main(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "0")
+    monkeypatch.setattr(ralph_driver, "run_phase_validation", lambda root: (True, "# Validation\n\nPassed.\n"))
+    claude_outputs = iter(
+        [
+            "# Spec\n\nCommit-Eligible Allowed Paths:\n- docs/executor.md\n",
+            "# Review\n\nVERDICT: PASS\n",
+            "# Done\n\nDONE_CHECK: PASS\n",
+        ]
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "claude_headless",
+        lambda *args, **kwargs: ralph_driver.CommandResult(("claude",), 0, next(claude_outputs), ""),
+    )
+    observed_branches: list[str] = []
+
+    def fake_codex(prompt, *, root):
+        del prompt
+        branch = ralph_driver.git(root, "branch", "--show-current").stdout.strip()
+        observed_branches.append(branch)
+        assert branch.startswith("auto/")
+        assert branch != "main"
+        (root / "docs").mkdir(exist_ok=True)
+        (root / "docs" / "executor.md").write_text("# Executor\n", encoding="utf-8")
+        return ralph_driver.CommandResult(("codex", "exec"), 0, "# Executor\n", "")
+
+    monkeypatch.setattr(ralph_driver, "codex_noninteractive", fake_codex)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    assert observed_branches
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    phase_dir = run_dir / "phases/P00"
+    state = state_json(run_dir)
+    branch_prepare = json.loads((phase_dir / "branch_prepare.json").read_text(encoding="utf-8"))
+    git_phase = json.loads((phase_dir / "git_phase.json").read_text(encoding="utf-8"))
+    assert branch_prepare["base_ref"] == "origin/main"
+    assert branch_prepare["base_sha"] == base_sha
+    assert branch_prepare["branch"] == observed_branches[0]
+    assert git_phase["commit_sha"]
+    assert git_phase["source"] == "uncommitted_changes"
+    assert "docs/executor.md" in git_phase["changed_files"]
+    assert state["phases"][0]["branch"] == observed_branches[0]
+    assert state["phases"][0]["commit_sha"] == git_phase["commit_sha"]
+    assert ralph_driver.git(tmp_path, "rev-parse", "main").stdout.strip() == base_sha
+
+
+def test_fresh_git_phase_blocks_null_commit_before_push(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    phase["status"] = "REVIEWED"
+    phase["branch"] = "auto/sample/p00-fixture"
+    phase_dir = write_passed_phase_artifacts(run_dir)
+    ralph_driver.write_state(run_dir, state)
+    monkeypatch.setattr(
+        ralph_driver,
+        "commit_phase_changes",
+        lambda **kwargs: GitPhaseResult(
+            dry_run=False,
+            branch=kwargs["branch"],
+            changed_files=[],
+            staged_files=[],
+            blocked_files=[],
+            commit_sha=None,
+            source="no_phase_commit",
+        ),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "push_phase_branch",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("push must not run without commit_sha")),
+    )
+
+    ok = ralph_driver.post_phase_git_github(run_dir, state, phase, "PASS", execution_root=tmp_path)
+
+    assert ok is False
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.GIT_PHASE_BLOCKED
+    assert updated["phases"][0]["status"] == ralph_driver.GIT_PHASE_BLOCKED
+    assert not (phase_dir / "push_branch.json").exists()
+    assert "fresh git phase produced no phase commit" in (run_dir / "RUN_SUMMARY.md").read_text(encoding="utf-8")
+
+
 def test_push_failure_blocks_before_pr_create_and_preserves_review_verdict(tmp_path, monkeypatch) -> None:
     write_sample_campaign(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
@@ -871,8 +992,78 @@ def test_resume_from_push_block_retries_gates_without_provider_or_new_commit(tmp
     assert (phase_dir / "pr_create.md").is_file()
 
 
+def test_resume_from_push_block_missing_local_commit_stays_push_blocked_without_provider_replay(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_CREATE_PR", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    phase = state["phases"][0]
+    branch = "auto/sample/p00-fixture"
+    sha = "d" * 40
+    phase.update(
+        {
+            "status": ralph_driver.PUSH_BLOCKED,
+            "branch": branch,
+            "commit_sha": sha,
+            "status_reason": "PUSH_BLOCKED: previous push failed.",
+        }
+    )
+    state["status"] = ralph_driver.PUSH_BLOCKED
+    state["current_phase_id"] = "P00"
+    phase_dir = write_passed_phase_artifacts(run_dir)
+    ralph_driver.write_json(
+        phase_dir / "git_phase.json",
+        {
+            "branch": branch,
+            "commit_sha": sha,
+            "changed_files": ["docs/a.md"],
+            "blocked_files": [],
+        },
+    )
+    (phase_dir / "branch.txt").write_text(branch + "\n", encoding="utf-8")
+    (phase_dir / "commit_sha.txt").write_text(sha + "\n", encoding="utf-8")
+    ralph_driver.write_state(run_dir, state)
+    (run_dir / "STOP").write_text("Workflow 2 provider-wired run stopped safely.\nReason: PUSH_BLOCKED\n", encoding="utf-8")
+
+    def provider_called(*args, **kwargs):
+        raise AssertionError("Resume from push must not call Claude or Codex.")
+
+    monkeypatch.setattr(ralph_driver, "claude_headless", provider_called)
+    monkeypatch.setattr(ralph_driver, "codex_noninteractive", provider_called)
+    monkeypatch.setattr(
+        ralph_driver,
+        "commit_phase_changes",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("Resume must not create a new commit.")),
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "ensure_phase_head",
+        lambda root, branch, commit_sha: f"Recorded phase commit {commit_sha} is missing locally.",
+    )
+    monkeypatch.setattr(
+        ralph_driver,
+        "push_phase_branch",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("push must not run when commit is missing")),
+    )
+
+    status = ralph_driver.resume_provider_wired_run(run_dir, state, 1)
+
+    assert status == 0
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.PUSH_BLOCKED
+    assert updated["phases"][0]["status"] == ralph_driver.PUSH_BLOCKED
+    assert "prior local phase commit is missing" in (run_dir / "RUN_SUMMARY.md").read_text(encoding="utf-8")
+    assert not (phase_dir / "pr_create.json").exists()
+
+
 def test_provider_usage_limit_writes_waiting_handoff_not_blocked(tmp_path, monkeypatch) -> None:
     write_sample_campaign(tmp_path)
+    init_git_repo_with_origin_main(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
     monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
     monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
@@ -909,6 +1100,7 @@ def test_provider_usage_limit_writes_waiting_handoff_not_blocked(tmp_path, monke
 
 def test_generic_provider_nonzero_remains_blocked(tmp_path, monkeypatch) -> None:
     write_sample_campaign(tmp_path)
+    init_git_repo_with_origin_main(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
     monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
     monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
