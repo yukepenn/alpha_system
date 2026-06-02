@@ -1,0 +1,36 @@
+{
+  "description": "Curated non-test conservative research execution config. Local simulation only.",
+  "engine_version": "reference_1min_v1",
+  "execution_timing": "next_bar_conservative",
+  "same_bar_policy": "adverse_first",
+  "data_latency_seconds": 0,
+  "eod_flat": false,
+  "default_quantity": "1",
+  "cost_model": {
+    "model": "composite",
+    "components": [
+      {
+        "model": "bps_cost",
+        "bps": "1.0",
+        "minimum_cost": "0"
+      }
+    ]
+  },
+  "slippage_model": {
+    "model": "composite",
+    "components": [
+      {
+        "model": "bps",
+        "bps": "0.5"
+      }
+    ]
+  },
+  "liquidity_policy": {
+    "model": "volume_participation",
+    "max_participation": "0.10",
+    "reject_when_exceeds": false,
+    "penalty_bps_when_capped": "0"
+  },
+  "missing_bid_ask_policy": "fallback_to_ohlc_with_warning",
+  "zero_cost_fixture": false
+}
