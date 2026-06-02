@@ -1,0 +1,4 @@
+instrument_id,session_id,bar_index,bar_start_ts,bar_end_ts,event_ts,available_ts,open,high,low,close,volume,vwap,trade_count,bid,ask,spread,source_version,data_version,quality_flags
+SYNTH-1,2026-01-02_RTH,0,2026-01-02T14:30:00Z,2026-01-02T14:31:00Z,2026-01-02T14:31:00Z,2026-01-02T14:31:05Z,100.00,101.00,99.50,100.50,1000,100.25,10,100.40,100.60,0.20,src:synthetic:v1,data:synthetic-1min:v1,synthetic|correctness_only
+SYNTH-1,2026-01-02_RTH,1,2026-01-02T14:31:00Z,2026-01-02T14:32:00Z,2026-01-02T14:32:00Z,2026-01-02T14:32:05Z,100.50,101.25,100.00,100.75,1200,100.70,12,100.65,100.85,0.20,src:synthetic:v1,data:synthetic-1min:v1,synthetic|correctness_only
+SYNTH-1,2026-01-02_RTH,2,2026-01-02T14:32:00Z,2026-01-02T14:33:00Z,2026-01-02T14:33:00Z,2026-01-02T14:33:05Z,100.75,101.50,100.25,101.00,900,100.95,9,100.90,101.10,0.20,src:synthetic:v1,data:synthetic-1min:v1,synthetic|correctness_only
