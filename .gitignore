@@ -1,11 +1,18 @@
+# Track curated placeholders before later forbidden globs override payloads.
+!**/.gitkeep
+!**/README.md
+
 # Python and local tooling
 .venv/
 venv/
 node_modules/
+__pycache__/
 **/__pycache__/
+.pytest_cache/
 **/.pytest_cache/
 **/.mypy_cache/
 **/.ruff_cache/
+*.pyc
 
 # Logs, temp files, and caches
 **/*.log
@@ -13,6 +20,36 @@ node_modules/
 **/tmp/
 **/temp/
 **/cache/
+
+# Local environment files and credentials
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/secret.*
+**/secrets.*
+**/*_secret.*
+**/*-secret.*
+**/credential
+**/credential/**
+**/credentials
+**/credentials/**
+**/credential.*
+**/credentials.*
+**/*_credential.*
+**/*-credential.*
+**/*_credentials.*
+**/*-credentials.*
+**/token.*
+**/tokens.*
+**/*_token.*
+**/*-token.*
+**/*_tokens.*
+**/*-tokens.*
+**/private_key.*
+**/private-key.*
+**/*_private_key.*
+**/*-private-key.*
 
 # Local data and model artifacts
 **/*.parquet
@@ -60,6 +97,10 @@ data/labels/**
 !data/labels/.gitkeep
 !data/labels/README.md
 
+data/cache/**
+!data/cache/
+!data/cache/.gitkeep
+!data/cache/README.md
 
 # Local metadata directory: keep placeholders only.
 metadata/**
@@ -76,11 +117,5 @@ artifacts/**
 !artifacts/**/README.md
 !artifacts/**/.gitkeep
 
-# Frontier / alpha_system local generated data
-data/cache/
-runs/*G005_WORKFLOW2_TOY*/
-runs/*ALPHA_SYSTEM_V1*/
-runs/acceptance_merge_gate/
-__pycache__/
-.pytest_cache/
-*.pyc
+# Frontier Workflow 2 runtime state is always local-only.
+runs/**
