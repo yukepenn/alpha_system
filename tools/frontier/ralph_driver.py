@@ -115,6 +115,7 @@ GATE_BLOCKED_STATUSES = {
 }
 MERGE_PENDING_STATUSES = {AUTO_MERGE_ARMED, MERGE_PENDING}
 PROVIDER_WAITING_STATUSES = {WAITING_PROVIDER_LIMIT, WAITING_CLAUDE_LIMIT, WAITING_CODEX_LIMIT}
+ACTIVE_CAMPAIGN_FILE = "ACTIVE_CAMPAIGN.md"
 PROVIDER_RESUME_STATUS_BY_STAGE = {
     "spec": "PENDING",
     "execute": "SPEC_READY",
@@ -1020,6 +1021,175 @@ def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
         if phase["status"] == "PENDING":
             return phase
     return None
+
+
+def active_campaign_phase_label(phase: dict[str, Any] | None) -> str:
+    if not phase:
+        return "`none`"
+    name = f" - {phase['name']}" if phase.get("name") else ""
+    return f"`{phase['phase_id']}`{name}"
+
+
+def projected_phase_status(
+    phase: dict[str, Any],
+    *,
+    completed_phase_id: str | None = None,
+    completed_status: str | None = None,
+) -> str:
+    if completed_phase_id and phase.get("phase_id") == completed_phase_id and completed_status:
+        return completed_status
+    return str(phase.get("status") or "PENDING")
+
+
+def render_active_campaign_pointer(
+    state: dict[str, Any],
+    *,
+    completed_phase_id: str | None = None,
+    completed_status: str | None = None,
+    note: str | None = None,
+) -> str:
+    phases = list(state.get("phases", []))
+    passing = [
+        phase
+        for phase in phases
+        if projected_phase_status(
+            phase,
+            completed_phase_id=completed_phase_id,
+            completed_status=completed_status,
+        )
+        in PASSING_VERDICTS
+    ]
+    next_pending = next(
+        (
+            phase
+            for phase in phases
+            if projected_phase_status(
+                phase,
+                completed_phase_id=completed_phase_id,
+                completed_status=completed_status,
+            )
+            == "PENDING"
+        ),
+        None,
+    )
+    active_status = "complete" if phases and next_pending is None else "executing"
+    current_phase = active_campaign_phase_label(next_pending) if next_pending else "`none` - campaign complete"
+    last_completed = active_campaign_phase_label(passing[-1]) if passing else "`none`"
+    last_completed_status = (
+        projected_phase_status(
+            passing[-1],
+            completed_phase_id=completed_phase_id,
+            completed_status=completed_status,
+        )
+        if passing
+        else "none"
+    )
+    lines = [
+        "# Active Campaign",
+        "",
+        "Project: `alpha_system`",
+        "",
+        f"Campaign: `campaigns/{state.get('campaign_id', 'unknown')}`",
+        f"Workflow: `{state.get('workflow', 'workflow2')}`",
+        f"Run: `{state.get('run_id', 'unknown')}`",
+        f"Status: `{active_status}`",
+        "",
+        f"Current phase: {current_phase}",
+        f"Last completed phase: {last_completed}",
+        f"Last completed status: `{last_completed_status}`",
+        f"Passing phases: `{len(passing)}/{len(phases)}`",
+        "",
+        "Ralph updates this pointer through reviewed phase commits so the tracked repo stays clean after Workflow 2 stops.",
+        "",
+        "Broker/live trading, paper trading, order routing, raw data commits, heavy artifact commits, local DB commits, and alpha/tradability claims without evidence remain out of scope.",
+    ]
+    if note:
+        lines.extend(["", f"Note: {note}"])
+    return "\n".join(lines) + "\n"
+
+
+def active_campaign_allowed_by_policy(config: dict[str, Any]) -> bool:
+    artifacts = config.get("artifacts") if isinstance(config.get("artifacts"), dict) else {}
+    allow_patterns = list(artifacts.get("allow_commit", [])) if isinstance(artifacts, dict) else []
+    forbid_patterns = list(artifacts.get("forbid_commit", [])) if isinstance(artifacts, dict) else []
+    placeholder_exceptions = artifacts.get("placeholder_exceptions") if isinstance(artifacts, dict) else None
+    placeholder_dirs = artifacts.get("placeholder_dirs") if isinstance(artifacts, dict) else None
+    if not isinstance(placeholder_exceptions, list):
+        placeholder_exceptions = None
+    if not isinstance(placeholder_dirs, list):
+        placeholder_dirs = None
+    allowed, blocked = curate_commit_paths(
+        [ACTIVE_CAMPAIGN_FILE],
+        allow_patterns=allow_patterns,
+        forbid_patterns=forbid_patterns,
+        placeholder_exceptions=placeholder_exceptions,
+        placeholder_dirs=placeholder_dirs,
+    )
+    return ACTIVE_CAMPAIGN_FILE in allowed and ACTIVE_CAMPAIGN_FILE not in blocked
+
+
+def phase_has_non_pointer_changes(root: Path, base_sha: str | None) -> bool:
+    candidates: set[str] = set()
+    status = git(root, "status", "--porcelain")
+    if status.returncode == 0:
+        for line in status.stdout.splitlines():
+            path = line[3:].strip()
+            if " -> " in path:
+                path = path.rsplit(" -> ", 1)[-1].strip()
+            if path:
+                candidates.add(path)
+    if base_sha:
+        head = git(root, "rev-parse", "HEAD")
+        current_head = head.stdout.strip() if head.returncode == 0 else ""
+        if current_head and current_head != base_sha:
+            diff = git(root, "diff", "--name-only", f"{base_sha}..HEAD")
+            if diff.returncode == 0:
+                candidates.update(path.strip() for path in diff.stdout.splitlines() if path.strip())
+    return any(path != ACTIVE_CAMPAIGN_FILE for path in candidates)
+
+
+def write_active_campaign_for_phase_commit(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    verdict: str,
+    *,
+    config: dict[str, Any],
+    execution_root: Path,
+) -> None:
+    if verdict not in PASSING_VERDICTS:
+        return
+    if not active_campaign_allowed_by_policy(config):
+        return
+    base_sha = phase_base_sha_from_artifacts(provider_phase_dir(run_dir, phase), phase)
+    if not phase_has_non_pointer_changes(execution_root, base_sha):
+        return
+    path = execution_root / ACTIVE_CAMPAIGN_FILE
+    text = render_active_campaign_pointer(
+        state,
+        completed_phase_id=phase["phase_id"],
+        completed_status=verdict,
+        note=f"Projected after {phase['phase_id']} merge.",
+    )
+    previous = path.read_text(encoding="utf-8") if path.exists() else ""
+    if previous == text:
+        return
+    path.write_text(text, encoding="utf-8")
+    next_phase = next(
+        (
+            item["phase_id"]
+            for item in state.get("phases", [])
+            if item.get("phase_id") != phase["phase_id"] and item.get("status") == "PENDING"
+        ),
+        None,
+    )
+    append_event(
+        run_dir,
+        state,
+        "ACTIVE_CAMPAIGN_POINTER_WRITTEN",
+        phase_id=phase["phase_id"],
+        next_phase=next_phase,
+    )
 
 
 def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | None = None) -> None:
@@ -2178,7 +2348,9 @@ def prepare_phase_branch_for_execution(
     *,
     execution_root: Path,
 ) -> bool:
-    if bool(state.get("mock_providers")) or bool(state.get("worktree_mode")):
+    if (bool(state.get("mock_providers")) and os.environ.get("FRONTIER_MOCK_COMMIT") != "1") or bool(
+        state.get("worktree_mode")
+    ):
         return True
     phase_dir = provider_phase_dir(run_dir, phase)
     phase_dir.mkdir(parents=True, exist_ok=True)
@@ -2285,6 +2457,15 @@ def post_phase_git_github(
         blocked = list(git_result_data.get("blocked_files", [])) if isinstance(git_result_data.get("blocked_files"), list) else []
     else:
         base_sha = phase_base_sha_from_artifacts(phase_dir, phase)
+        if not dry_git:
+            write_active_campaign_for_phase_commit(
+                run_dir,
+                state,
+                phase,
+                verdict,
+                config=config,
+                execution_root=execution_root,
+            )
         git_result = commit_phase_changes(
             root=execution_root,
             campaign_id=state["campaign_id"],

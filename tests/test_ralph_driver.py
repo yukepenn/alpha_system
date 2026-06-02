@@ -63,7 +63,7 @@ git:
   forbid_git_add_A: true
   forbid_force_push: true
 artifacts:
-  allow_commit: ["docs/**", "src/**", "tests/**"]
+  allow_commit: ["ACTIVE_CAMPAIGN.md", "docs/**", "src/**", "tests/**"]
   forbid_commit: ["runs/**", "**/.env"]
 lanes:
   green:
@@ -253,6 +253,30 @@ def test_resume_provider_wired_run_clears_max_phase_stop(tmp_path, monkeypatch) 
     assert "RUN_RESUME_MAX_PHASES_STOP_REMOVED" in events
 
 
+def test_active_campaign_pointer_projects_next_pending_phase() -> None:
+    state = {
+        "campaign_id": SAMPLE_CAMPAIGN_ID,
+        "workflow": "workflow2",
+        "run_id": "run1",
+        "phases": [
+            {"phase_id": "P00", "name": "Prepare fixture", "status": "PASS", "lane": "YELLOW"},
+            {"phase_id": "P01", "name": "Validate fixture", "status": "REVIEWED", "lane": "GREEN"},
+            {"phase_id": "P02", "name": "Next fixture", "status": "PENDING", "lane": "GREEN"},
+        ],
+    }
+
+    text = ralph_driver.render_active_campaign_pointer(
+        state,
+        completed_phase_id="P01",
+        completed_status="PASS_WITH_WARNINGS",
+    )
+
+    assert "Current phase: `P02` - Next fixture" in text
+    assert "Last completed phase: `P01` - Validate fixture" in text
+    assert "Last completed status: `PASS_WITH_WARNINGS`" in text
+    assert "Passing phases: `2/3`" in text
+
+
 def init_git_repo_with_origin_main(root: Path) -> str:
     assert ralph_driver.git(root, "init", "-b", "main").returncode == 0
     assert ralph_driver.git(root, "config", "user.email", "frontier@example.invalid").returncode == 0
@@ -260,6 +284,7 @@ def init_git_repo_with_origin_main(root: Path) -> str:
     (root / ".gitignore").write_text("runs/\n.frontier/upgrade_reports/\n", encoding="utf-8")
     paths = [
         ".gitignore",
+        "ACTIVE_CAMPAIGN.md",
         "frontier.yaml",
         f"campaigns/{SAMPLE_CAMPAIGN_ID}/GOAL.md",
         f"campaigns/{SAMPLE_CAMPAIGN_ID}/PHASE_PLAN.md",
@@ -268,12 +293,30 @@ def init_git_repo_with_origin_main(root: Path) -> str:
         f"campaigns/{SAMPLE_CAMPAIGN_ID}/RISK_REGISTER.md",
         f"campaigns/{SAMPLE_CAMPAIGN_ID}/RUNBOOK.md",
     ]
+    if not (root / "ACTIVE_CAMPAIGN.md").exists():
+        (root / "ACTIVE_CAMPAIGN.md").write_text("# Active Campaign\n\nNo active campaign is selected yet.\n", encoding="utf-8")
     for path in paths:
         assert ralph_driver.git(root, "add", "--", path).returncode == 0
     assert ralph_driver.git(root, "commit", "-m", "test: base").returncode == 0
     base_sha = ralph_driver.git(root, "rev-parse", "HEAD").stdout.strip()
     assert ralph_driver.git(root, "update-ref", "refs/remotes/origin/main", base_sha).returncode == 0
     return base_sha
+
+
+def test_phase_has_non_pointer_changes_ignores_active_campaign_only(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    (tmp_path / "ACTIVE_CAMPAIGN.md").write_text("# Active Campaign\n\nInitial.\n", encoding="utf-8")
+    base_sha = init_git_repo_with_origin_main(tmp_path)
+    ralph_driver.prepare_phase_branch(tmp_path, "auto/sample/p00", base_ref="main", dry_run=False)
+    (tmp_path / "ACTIVE_CAMPAIGN.md").write_text("# Active Campaign\n\nPointer only.\n", encoding="utf-8")
+
+    assert not ralph_driver.phase_has_non_pointer_changes(tmp_path, base_sha)
+
+    (tmp_path / "docs").mkdir(exist_ok=True)
+    (tmp_path / "docs" / "phase.md").write_text("# Phase\n", encoding="utf-8")
+
+    assert ralph_driver.phase_has_non_pointer_changes(tmp_path, base_sha)
 
 
 def write_passed_phase_artifacts(run_dir: Path, phase_id: str = "P00") -> Path:
@@ -679,6 +722,41 @@ def test_provider_wired_env_max_phases_one_runs_exactly_one_mock_phase(tmp_path,
     assert (run_dir / "phases/P00/ci_status.json").is_file()
     assert (run_dir / "phases/P00/merge_gate.json").is_file()
     assert (run_dir / "heartbeat.json").is_file()
+
+
+def test_provider_mock_commit_updates_active_campaign_and_leaves_git_clean(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    (tmp_path / "ACTIVE_CAMPAIGN.md").write_text("# Active Campaign\n\nNo active campaign is selected yet.\n", encoding="utf-8")
+    init_git_repo_with_origin_main(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MOCK_COMMIT", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    stub_validation(monkeypatch)
+
+    def fake_mock_executor_text(phase: dict, phase_dir: Path) -> str:
+        del phase_dir
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir(exist_ok=True)
+        (docs_dir / "phase.md").write_text(f"# {phase['phase_id']}\n", encoding="utf-8")
+        return f"# Mock Executor Output\n\nWrote docs/phase.md for {phase['phase_id']}.\n"
+
+    monkeypatch.setattr(ralph_driver, "mock_executor_text", fake_mock_executor_text)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    state = state_json(run_dir)
+    assert state["phases"][0]["status"] == "PASS"
+    assert state["phases"][1]["status"] == "PENDING"
+    active = (tmp_path / "ACTIVE_CAMPAIGN.md").read_text(encoding="utf-8")
+    assert "Current phase: `P01` - Validate fixture" in active
+    assert "Last completed phase: `P00` - Prepare fixture" in active
+    assert "Passing phases: `1/2`" in active
+    git_phase = json.loads((run_dir / "phases/P00/git_phase.json").read_text(encoding="utf-8"))
+    assert "ACTIVE_CAMPAIGN.md" in git_phase["changed_files"]
+    assert ralph_driver.git(tmp_path, "status", "--short").stdout == ""
 
 
 def test_provider_wired_default_mock_campaign_is_not_hard_coded_to_one_phase(tmp_path, monkeypatch) -> None:
