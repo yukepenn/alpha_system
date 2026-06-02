@@ -1,0 +1,36 @@
+{
+  "factor_id": "fixture_close_delta",
+  "name": "Fixture Close Delta",
+  "version": "v1",
+  "owner": "research_governance",
+  "description": "Synthetic deterministic correctness fixture; not alpha evidence.",
+  "input_fields": [
+    {
+      "name": "close_price",
+      "domain": "bar",
+      "source_field": "close"
+    }
+  ],
+  "parameters": {
+    "data_version": "data:synthetic-factor-compute:v1",
+    "fixture_compute": {
+      "name": "close_delta",
+      "input_name": "close_price",
+      "lag_bars": 1
+    },
+    "normalization": {
+      "method": "identity"
+    }
+  },
+  "frequency": "1m",
+  "warmup_bars": 2,
+  "session_reset": true,
+  "availability_lag": 60,
+  "factor_type": "continuous",
+  "evaluation_type": "point_in_time",
+  "code_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "config_hash": "b4740e6485a919392dc7e220589fe34d7e1e8df4f9d8f1a9dc13a82b2df32eb4",
+  "status": "draft",
+  "created_at": "2026-01-02T14:30:00Z",
+  "validation_artifact_path": null
+}

@@ -5,6 +5,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from alpha_system.factors.materialize import materialize_factor_values
+from tests.fixtures.factors.synthetic import (
+    DATA_VERSION,
+    make_bars,
+    seed_validated_registry,
+    validated_factor_spec,
+    write_bars_jsonl,
+    write_spec_json,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src"
@@ -84,3 +94,25 @@ def test_factor_cli_rejects_repo_metadata_registry_path(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert "outside the repo" in result.stderr
     assert not forbidden_registry.exists()
+
+
+def test_factor_materialize_leaves_repo_artifact_roots_clean(tmp_path: Path) -> None:
+    assert _repo_artifact_files() == ()
+
+    spec = validated_factor_spec()
+    registry_path = tmp_path / "registry.sqlite3"
+    seed_validated_registry(registry_path, spec)
+    spec_path = write_spec_json(tmp_path / "factor.json", spec)
+    bars_path = write_bars_jsonl(tmp_path / "bars.jsonl", make_bars(["100", "101"]))
+
+    summary = materialize_factor_values(
+        spec_path=spec_path,
+        canonical_data_path=bars_path,
+        data_version=DATA_VERSION,
+        output_policy="local-only-persist",
+        output_dir=tmp_path / "factor_store",
+        registry_path=registry_path,
+    )
+
+    assert summary.persisted is True
+    assert _repo_artifact_files() == ()
