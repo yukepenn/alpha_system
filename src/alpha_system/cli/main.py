@@ -13,6 +13,8 @@ from alpha_system.cli.study import register_subparser as register_study_subparse
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level parser."""
+    from alpha_system.cli.report import register_subparser as register_report_subparser
+
     parser = argparse.ArgumentParser(
         prog="alpha",
         description=(
@@ -23,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     register_data_subparser(subparsers)
     register_factor_subparser(subparsers)
+    register_report_subparser(subparsers)
     register_registry_subparser(subparsers)
     register_study_subparser(subparsers)
     return parser
