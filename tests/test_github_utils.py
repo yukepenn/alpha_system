@@ -5,10 +5,14 @@ from dataclasses import dataclass
 
 from tools.frontier import github_utils
 from tools.frontier.github_utils import (
+    ALREADY_MERGED,
+    AUTO_MERGE_ARMED,
     CI_FAILURE,
     CI_NOT_FOUND,
     CI_PENDING,
     CI_SUCCESS,
+    MERGE_DRAFT_BLOCKED,
+    MERGED,
     checks_green,
     classify_ci_checks,
     create_pr,
@@ -107,6 +111,9 @@ def test_view_pr_requests_head_ref_oid_for_resume() -> None:
     assert result.metadata["pr"]["headRefOid"] == "a" * 40
     fields = runner.commands[0][runner.commands[0].index("--json") + 1]
     assert "headRefOid" in fields
+    assert "mergedAt" in fields
+    assert "mergeStateStatus" in fields
+    assert "statusCheckRollup" in fields
 
 
 def test_pr_diff_files_uses_name_only() -> None:
@@ -221,6 +228,92 @@ def test_dry_run_merge_does_not_call_network() -> None:
 
     assert result.dry_run
     assert result.command[:3] == ["gh", "pr", "merge"]
+    assert result.metadata["classification"] == "dry_run"
+
+
+def test_merge_pr_already_merged_pre_read_does_not_execute(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "MERGED", "mergedAt": "2026-01-01T00:00:00Z"})),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.ok
+    assert result.metadata["status"] == ALREADY_MERGED
+    assert result.metadata["already_merged"] is True
+    assert [command[:3] for command in runner.commands] == [["gh", "auth", "status"], ["gh", "pr", "view"]]
+
+
+def test_merge_pr_draft_blocks_before_merge(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "OPEN", "isDraft": True})),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.blocked
+    assert result.metadata["status"] == MERGE_DRAFT_BLOCKED
+    assert result.metadata["classification"] == "draft"
+
+
+def test_merge_pr_arms_auto_merge_for_branch_policy_timing(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    monkeypatch.setenv("FRONTIER_ALLOW_AUTOMERGE", "1")
+    open_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "CLEAN"}
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(open_pr)),
+            Result(
+                ["gh", "pr", "merge"],
+                return_code=1,
+                stderr="base branch policy prohibits the merge. To have the pull request merged after all the requirements have been met, add the `--auto` flag.",
+            ),
+            Result(["gh", "pr", "view"], stdout=json.dumps(open_pr)),
+            Result(["gh", "pr", "merge", "--auto"], stdout="Auto-merge enabled\n"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(open_pr)),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.ok
+    assert result.metadata["status"] == AUTO_MERGE_ARMED
+    assert result.metadata["classification"] == "branch_policy_auto_armed"
+    assert result.metadata["auto_merge_armed"] is True
+    assert runner.commands[2] == ["gh", "pr", "merge", "3", "--squash", "--delete-branch"]
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash", "--delete-branch"]
+
+
+def test_merge_pr_direct_failure_but_pr_is_merged_succeeds(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "OPEN", "isDraft": False})),
+            Result(["gh", "pr", "merge"], return_code=1, stderr="failed to delete branch"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "MERGED"})),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.ok
+    assert result.metadata["status"] == MERGED
+    assert result.metadata["merged"] is True
+    assert "branch deletion" in result.metadata["warning"]
 
 
 def test_checks_green_parser() -> None:

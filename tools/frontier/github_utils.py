@@ -41,6 +41,14 @@ FAILING_CONCLUSIONS = {
     "stale",
 }
 PENDING_STATES = {"pending", "queued", "in_progress", "waiting", "requested", "expected"}
+MERGED = "MERGED"
+ALREADY_MERGED = "ALREADY_MERGED"
+AUTO_MERGE_ARMED = "AUTO_MERGE_ARMED"
+MERGE_EXECUTION_BLOCKED = "MERGE_EXECUTION_BLOCKED"
+MERGE_RETRYABLE = "MERGE_RETRYABLE"
+MERGE_CONFLICT = "MERGE_CONFLICT"
+MERGE_PERMISSION_BLOCKED = "MERGE_PERMISSION_BLOCKED"
+MERGE_DRAFT_BLOCKED = "MERGE_DRAFT_BLOCKED"
 
 
 @dataclass(frozen=True)
@@ -229,7 +237,10 @@ def view_pr(
     runner: CommandRunner | None = None,
     repo: str | None = None,
 ) -> GitHubResult:
-    fields = "number,state,headRefOid,headRefName,baseRefName,isDraft,url"
+    fields = (
+        "number,state,mergedAt,mergeStateStatus,isDraft,headRefOid,headRefName,"
+        "baseRefName,statusCheckRollup,url"
+    )
     base_command = ["gh", "pr", "view", str(pr), "--json", fields]
     command = _with_repo(base_command, repo) if repo else base_command
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=120)
@@ -812,6 +823,149 @@ def write_branch_protection_artifacts(phase_dir: Path, result: BranchProtectionR
     (phase_dir / "branch_protection.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
+
+
+def _pr_data_from_result(result: GitHubResult) -> dict[str, Any]:
+    data = result.metadata.get("pr") if isinstance(result.metadata, dict) else {}
+    return data if isinstance(data, dict) else {}
+
+
+def _pr_is_merged(data: Mapping[str, Any]) -> bool:
+    return str(data.get("state") or "").upper() == "MERGED" or bool(data.get("mergedAt"))
+
+
+def _merge_text(stdout: str, stderr: str) -> str:
+    return f"{stdout}\n{stderr}".lower()
+
+
+def _classify_merge_failure(stdout: str, stderr: str) -> tuple[str, str]:
+    text = _merge_text(stdout, stderr)
+    if "already merged" in text or "pull request already merged" in text:
+        return "already_merged", ALREADY_MERGED
+    if "draft" in text:
+        return "draft", MERGE_DRAFT_BLOCKED
+    if "merge conflict" in text or "merge conflicts" in text or "conflict" in text:
+        return "merge_conflict", MERGE_CONFLICT
+    if "permission" in text or "resource not accessible" in text or "not authorized" in text:
+        return "permission", MERGE_PERMISSION_BLOCKED
+    if (
+        "base branch policy prohibits the merge" in text
+        or "add the `--auto` flag" in text
+        or "add --auto" in text
+        or "required status check" in text
+        or "requirements have been met" in text
+        or "merge queue" in text
+    ):
+        return "branch_policy_timing", MERGE_RETRYABLE
+    if "not mergeable" in text:
+        return "not_mergeable", MERGE_RETRYABLE
+    return "merge_execution_failed", MERGE_EXECUTION_BLOCKED
+
+
+def _merge_metadata(
+    *,
+    status: str,
+    classification: str,
+    command: list[str],
+    direct_result: Any | None = None,
+    pre_view: GitHubResult | None = None,
+    verify_view: GitHubResult | None = None,
+    retry_command: list[str] | None = None,
+    retry_result: Any | None = None,
+    retry_view: GitHubResult | None = None,
+    merged: bool = False,
+    already_merged: bool = False,
+    auto_merge_armed: bool = False,
+    direct_merge_performed: bool = False,
+    warning: str | None = None,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "status": status,
+        "classification": classification,
+        "merged": merged,
+        "already_merged": already_merged,
+        "auto_merge_armed": auto_merge_armed,
+        "direct_merge_performed": direct_merge_performed,
+        "command": command,
+    }
+    if warning:
+        metadata["warning"] = warning
+    if pre_view is not None:
+        metadata.update(
+            {
+                "pre_view_command": pre_view.command,
+                "pre_view_return_code": pre_view.return_code,
+                "pre_view_stdout": pre_view.stdout,
+                "pre_view_stderr": pre_view.stderr,
+                "pre_pr": _pr_data_from_result(pre_view),
+            }
+        )
+    if direct_result is not None:
+        metadata.update(
+            {
+                "direct_command": command,
+                "direct_return_code": getattr(direct_result, "return_code", 0),
+                "direct_stdout": getattr(direct_result, "stdout", ""),
+                "direct_stderr": getattr(direct_result, "stderr", ""),
+            }
+        )
+    if verify_view is not None:
+        metadata.update(
+            {
+                "verify_command": verify_view.command,
+                "verify_return_code": verify_view.return_code,
+                "verify_stdout": verify_view.stdout,
+                "verify_stderr": verify_view.stderr,
+                "verify_pr": _pr_data_from_result(verify_view),
+                "verified_merged": _pr_is_merged(_pr_data_from_result(verify_view)),
+            }
+        )
+    if retry_command is not None:
+        metadata["retry_command"] = retry_command
+    if retry_result is not None:
+        metadata.update(
+            {
+                "retry_return_code": getattr(retry_result, "return_code", 0),
+                "retry_stdout": getattr(retry_result, "stdout", ""),
+                "retry_stderr": getattr(retry_result, "stderr", ""),
+            }
+        )
+    if retry_view is not None:
+        metadata.update(
+            {
+                "retry_view_command": retry_view.command,
+                "retry_view_return_code": retry_view.return_code,
+                "retry_view_stdout": retry_view.stdout,
+                "retry_view_stderr": retry_view.stderr,
+                "retry_pr": _pr_data_from_result(retry_view),
+                "retry_verified_merged": _pr_is_merged(_pr_data_from_result(retry_view)),
+            }
+        )
+    return metadata
+
+
+def _already_merged_result(command: list[str], view: GitHubResult, *, dry_run: bool = False) -> GitHubResult:
+    return GitHubResult(
+        "merge_pr",
+        dry_run,
+        command,
+        view.return_code,
+        view.stdout,
+        view.stderr,
+        blocked=False,
+        metadata=_merge_metadata(
+            status=ALREADY_MERGED,
+            classification="already_merged",
+            command=command,
+            pre_view=view,
+            merged=True,
+            already_merged=True,
+        ),
+    )
+
+
 def merge_pr(
     pr: str | int,
     *,
@@ -824,13 +978,27 @@ def merge_pr(
     if os.environ.get("FRONTIER_DISABLE_AUTOMERGE") == "1":
         return GitHubResult(
             "merge_pr",
-            True,
+            dry_run,
             command,
             blocked=True,
-            instructions="FRONTIER_DISABLE_AUTOMERGE=1 prevented merge.",
+            instructions="FRONTIER_DISABLE_AUTOMERGE=1 prevented merge execution.",
+            metadata=_merge_metadata(
+                status=MERGE_EXECUTION_BLOCKED,
+                classification="automerge_disabled",
+                command=command,
+            ),
         )
     if os.environ.get("FRONTIER_MERGE_DRY_RUN") == "1" or dry_run:
-        return GitHubResult("merge_pr", True, command)
+        return GitHubResult(
+            "merge_pr",
+            True,
+            command,
+            metadata=_merge_metadata(
+                status="DRY_RUN",
+                classification="dry_run",
+                command=command,
+            ),
+        )
 
     auth = gh_auth_status(root=root, runner=runner)
     if auth.blocked:
@@ -843,8 +1011,192 @@ def merge_pr(
             auth.stderr,
             blocked=True,
             instructions=auth.instructions,
+            metadata={
+                **_merge_metadata(
+                    status=MERGE_PERMISSION_BLOCKED,
+                    classification="auth_blocked",
+                    command=command,
+                ),
+                "auth_command": auth.command,
+                "auth_return_code": auth.return_code,
+                "auth_stdout": auth.stdout,
+                "auth_stderr": auth.stderr,
+            },
         )
+
+    pre_view = view_pr(pr, root=root, runner=runner)
+    if pre_view.blocked:
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            pre_view.return_code,
+            pre_view.stdout,
+            pre_view.stderr,
+            blocked=True,
+            instructions=pre_view.instructions,
+            metadata=_merge_metadata(
+                status=MERGE_EXECUTION_BLOCKED,
+                classification="pr_view_blocked",
+                command=command,
+                pre_view=pre_view,
+            ),
+        )
+    pre_data = _pr_data_from_result(pre_view)
+    if _pr_is_merged(pre_data):
+        return _already_merged_result(command, pre_view)
+    if bool(pre_data.get("isDraft")):
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            1,
+            pre_view.stdout,
+            pre_view.stderr,
+            blocked=True,
+            instructions="PR is a draft. Mark it ready for review before merge execution.",
+            metadata=_merge_metadata(
+                status=MERGE_DRAFT_BLOCKED,
+                classification="draft",
+                command=command,
+                pre_view=pre_view,
+            ),
+        )
+
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
+    if result.return_code == 0:
+        verify = view_pr(pr, root=root, runner=runner)
+        verified = _pr_is_merged(_pr_data_from_result(verify)) if not verify.blocked else False
+        classification = "direct_merged" if verified else "direct_success_unverified"
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            result.return_code,
+            result.stdout,
+            result.stderr,
+            blocked=False,
+            metadata=_merge_metadata(
+                status=MERGED,
+                classification=classification,
+                command=command,
+                direct_result=result,
+                pre_view=pre_view,
+                verify_view=verify,
+                merged=True,
+                direct_merge_performed=True,
+            ),
+        )
+
+    classification, status = _classify_merge_failure(result.stdout, result.stderr)
+    post_failure_view = view_pr(pr, root=root, runner=runner)
+    post_failure_data = _pr_data_from_result(post_failure_view)
+    if _pr_is_merged(post_failure_data) or status == ALREADY_MERGED:
+        warning = None if status == ALREADY_MERGED else "Merge command failed, but PR is merged; branch deletion may have failed."
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            0,
+            result.stdout,
+            result.stderr,
+            blocked=False,
+            instructions=None,
+            metadata=_merge_metadata(
+                status=ALREADY_MERGED if status == ALREADY_MERGED else MERGED,
+                classification="already_merged" if status == ALREADY_MERGED else "direct_failed_pr_merged",
+                command=command,
+                direct_result=result,
+                pre_view=pre_view,
+                verify_view=post_failure_view,
+                merged=True,
+                already_merged=status == ALREADY_MERGED,
+                direct_merge_performed=status != ALREADY_MERGED,
+                warning=warning,
+            ),
+        )
+
+    retryable_by_policy = classification in {"branch_policy_timing", "not_mergeable"} or status == MERGE_RETRYABLE
+    if retryable_by_policy and _env_flag("FRONTIER_ALLOW_AUTOMERGE"):
+        retry_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}", "--delete-branch"]
+        retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=300)
+        retry_view = view_pr(pr, root=root, runner=runner)
+        retry_merged = _pr_is_merged(_pr_data_from_result(retry_view)) if not retry_view.blocked else False
+        if retry.return_code == 0:
+            return GitHubResult(
+                "merge_pr",
+                False,
+                command,
+                retry.return_code,
+                result.stdout,
+                result.stderr,
+                blocked=False,
+                instructions=None
+                if retry_merged
+                else "Auto-merge is armed. Resume after GitHub merges the PR.",
+                metadata=_merge_metadata(
+                    status=MERGED if retry_merged else AUTO_MERGE_ARMED,
+                    classification="branch_policy_auto_merged" if retry_merged else "branch_policy_auto_armed",
+                    command=command,
+                    direct_result=result,
+                    pre_view=pre_view,
+                    retry_command=retry_command,
+                    retry_result=retry,
+                    retry_view=retry_view,
+                    merged=retry_merged,
+                    auto_merge_armed=not retry_merged,
+                ),
+            )
+        if retry_merged:
+            return GitHubResult(
+                "merge_pr",
+                False,
+                command,
+                0,
+                result.stdout,
+                result.stderr,
+                blocked=False,
+                metadata=_merge_metadata(
+                    status=MERGED,
+                    classification="auto_retry_failed_pr_merged",
+                    command=command,
+                    direct_result=result,
+                    pre_view=pre_view,
+                    retry_command=retry_command,
+                    retry_result=retry,
+                    retry_view=retry_view,
+                    merged=True,
+                    warning="Auto-merge retry returned nonzero, but PR is merged.",
+                ),
+            )
+        retry_classification, retry_status = _classify_merge_failure(retry.stdout, retry.stderr)
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            retry.return_code,
+            result.stdout,
+            result.stderr,
+            blocked=True,
+            instructions="Auto-merge fallback failed. Inspect command diagnostics and resume after the PR is mergeable.",
+            metadata=_merge_metadata(
+                status=retry_status,
+                classification=f"auto_retry_{retry_classification}",
+                command=command,
+                direct_result=result,
+                pre_view=pre_view,
+                retry_command=retry_command,
+                retry_result=retry,
+                retry_view=retry_view,
+            ),
+        )
+
+    instructions = "Inspect `gh pr merge` output and resume after the PR is mergeable."
+    if retryable_by_policy and not _env_flag("FRONTIER_ALLOW_AUTOMERGE"):
+        instructions = (
+            "Merge execution hit a retryable branch-policy condition. "
+            "Set FRONTIER_ALLOW_AUTOMERGE=1 to arm GitHub auto-merge on retry, or merge manually after requirements settle."
+        )
     return GitHubResult(
         "merge_pr",
         False,
@@ -852,8 +1204,16 @@ def merge_pr(
         result.return_code,
         result.stdout,
         result.stderr,
-        blocked=result.return_code != 0,
-        instructions=None if result.return_code == 0 else "Inspect `gh pr merge` output and merge manually or resume.",
+        blocked=True,
+        instructions=instructions,
+        metadata=_merge_metadata(
+            status=status,
+            classification=classification,
+            command=command,
+            direct_result=result,
+            pre_view=pre_view,
+            verify_view=post_failure_view,
+        ),
     )
 
 

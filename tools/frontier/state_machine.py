@@ -21,11 +21,15 @@ REPAIRED = "REPAIRED"
 PASS = "PASS"
 PASS_WITH_WARNINGS = "PASS_WITH_WARNINGS"
 BLOCKED = "BLOCKED"
+GIT_PHASE_BLOCKED = "GIT_PHASE_BLOCKED"
 PUSH_BLOCKED = "PUSH_BLOCKED"
 REMOTE_BRANCH_BLOCKED = "REMOTE_BRANCH_BLOCKED"
 PR_CREATE_BLOCKED = "PR_CREATE_BLOCKED"
 CI_BLOCKED = "CI_BLOCKED"
 MERGE_GATE_BLOCKED = "MERGE_GATE_BLOCKED"
+MERGE_EXECUTION_BLOCKED = "MERGE_EXECUTION_BLOCKED"
+AUTO_MERGE_ARMED = "AUTO_MERGE_ARMED"
+MERGE_PENDING = "MERGE_PENDING"
 STOPPED = "STOPPED"
 SKIPPED = "SKIPPED"
 
@@ -40,11 +44,15 @@ PHASE_STATUSES = {
     PASS,
     PASS_WITH_WARNINGS,
     BLOCKED,
+    GIT_PHASE_BLOCKED,
     PUSH_BLOCKED,
     REMOTE_BRANCH_BLOCKED,
     PR_CREATE_BLOCKED,
     CI_BLOCKED,
     MERGE_GATE_BLOCKED,
+    MERGE_EXECUTION_BLOCKED,
+    AUTO_MERGE_ARMED,
+    MERGE_PENDING,
     STOPPED,
     SKIPPED,
 }
@@ -53,11 +61,13 @@ TERMINAL_STATUSES = {
     PASS,
     PASS_WITH_WARNINGS,
     BLOCKED,
+    GIT_PHASE_BLOCKED,
     PUSH_BLOCKED,
     REMOTE_BRANCH_BLOCKED,
     PR_CREATE_BLOCKED,
     CI_BLOCKED,
     MERGE_GATE_BLOCKED,
+    MERGE_EXECUTION_BLOCKED,
     STOPPED,
     SKIPPED,
 }
@@ -73,11 +83,15 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
         PASS_WITH_WARNINGS,
         REWORK,
         BLOCKED,
+        GIT_PHASE_BLOCKED,
         PUSH_BLOCKED,
         REMOTE_BRANCH_BLOCKED,
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
     },
     REWORK: {REPAIRED},
     REPAIRED: {VALIDATED},
@@ -87,6 +101,9 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
         PASS,
         PASS_WITH_WARNINGS,
     },
@@ -96,6 +113,9 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
         PASS,
         PASS_WITH_WARNINGS,
     },
@@ -105,6 +125,9 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
         PASS,
         PASS_WITH_WARNINGS,
     },
@@ -114,6 +137,9 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
         PASS,
         PASS_WITH_WARNINGS,
     },
@@ -123,6 +149,35 @@ LEGAL_TRANSITIONS: dict[str, set[str]] = {
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    MERGE_EXECUTION_BLOCKED: {
+        PUSH_BLOCKED,
+        REMOTE_BRANCH_BLOCKED,
+        PR_CREATE_BLOCKED,
+        CI_BLOCKED,
+        MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    AUTO_MERGE_ARMED: {
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
+        MERGE_EXECUTION_BLOCKED,
+        PASS,
+        PASS_WITH_WARNINGS,
+    },
+    MERGE_PENDING: {
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
+        MERGE_EXECUTION_BLOCKED,
         PASS,
         PASS_WITH_WARNINGS,
     },
@@ -217,13 +272,17 @@ def write_run_summary(run_dir: Path, state: dict[str, Any], note: str | None = N
     passing = [phase for phase in phases if phase.get("status") in {PASS, PASS_WITH_WARNINGS}]
     blocked_statuses = {
         BLOCKED,
+        GIT_PHASE_BLOCKED,
         PUSH_BLOCKED,
         REMOTE_BRANCH_BLOCKED,
         PR_CREATE_BLOCKED,
         CI_BLOCKED,
         MERGE_GATE_BLOCKED,
+        MERGE_EXECUTION_BLOCKED,
         STOPPED,
         REWORK,
+        AUTO_MERGE_ARMED,
+        MERGE_PENDING,
     }
     blocked = [phase for phase in phases if phase.get("status") in blocked_statuses]
     lines = [

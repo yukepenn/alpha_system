@@ -44,8 +44,12 @@ from tools.frontier.git_utils import (
     write_remote_branch_artifacts,
 )
 from tools.frontier.github_utils import (
+    ALREADY_MERGED,
+    AUTO_MERGE_ARMED,
     CI_SUCCESS,
     GitHubResult,
+    MERGE_EXECUTION_BLOCKED,
+    MERGED,
     classify_ci_checks,
     create_pr,
     detect_default_branch,
@@ -100,13 +104,16 @@ REMOTE_BRANCH_BLOCKED = "REMOTE_BRANCH_BLOCKED"
 PR_CREATE_BLOCKED = "PR_CREATE_BLOCKED"
 CI_BLOCKED = "CI_BLOCKED"
 MERGE_GATE_BLOCKED = "MERGE_GATE_BLOCKED"
+MERGE_PENDING = "MERGE_PENDING"
 GATE_BLOCKED_STATUSES = {
     PUSH_BLOCKED,
     REMOTE_BRANCH_BLOCKED,
     PR_CREATE_BLOCKED,
     CI_BLOCKED,
     MERGE_GATE_BLOCKED,
+    MERGE_EXECUTION_BLOCKED,
 }
+MERGE_PENDING_STATUSES = {AUTO_MERGE_ARMED, MERGE_PENDING}
 PROVIDER_WAITING_STATUSES = {WAITING_PROVIDER_LIMIT, WAITING_CLAUDE_LIMIT, WAITING_CODEX_LIMIT}
 PROVIDER_RESUME_STATUS_BY_STAGE = {
     "spec": "PENDING",
@@ -969,6 +976,7 @@ def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
     resumable = (
         {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED"}
         | GATE_BLOCKED_STATUSES
+        | MERGE_PENDING_STATUSES
         | PROVIDER_WAITING_STATUSES
     )
     current = state.get("current_phase_id")
@@ -992,6 +1000,7 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
         if phase["status"]
         in {GIT_PHASE_BLOCKED, "BLOCKED", "REWORK", RESUME_PRECONDITION_FAILED}
         | GATE_BLOCKED_STATUSES
+        | MERGE_PENDING_STATUSES
         | PROVIDER_WAITING_STATUSES
     ]
     pending = [phase for phase in state["phases"] if phase["status"] == "PENDING"]
@@ -1095,6 +1104,8 @@ def finish_provider_phase(
         if phase.get("execution_mode") == "provider_wired":
             record_stage_checkpoint(run_dir, state, phase, "complete", details={"phase_status": status})
     append_event(run_dir, state, event, phase_id=phase["phase_id"], status=status, reason=reason)
+    if status in PASSING_VERDICTS:
+        append_event(run_dir, state, "PHASE_COMPLETED", phase_id=phase["phase_id"], status=status)
     write_state(run_dir, state)
     write_provider_summary(run_dir, state, reason)
     progress(run_dir, f"{phase['phase_id']} finished with {status}.")
@@ -1321,9 +1332,48 @@ def current_provider_limit_phase(state: dict[str, Any]) -> dict[str, Any] | None
 def current_gate_blocked_phase(state: dict[str, Any]) -> dict[str, Any] | None:
     current = state.get("current_phase_id")
     for phase in state.get("phases", []):
-        if phase.get("status") in GATE_BLOCKED_STATUSES and (current in {None, phase.get("phase_id")}):
+        if phase.get("status") in (GATE_BLOCKED_STATUSES | MERGE_PENDING_STATUSES) and (
+            current in {None, phase.get("phase_id")}
+        ):
             return phase
     return None
+
+
+def mark_auto_merge_pending(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    reason: str,
+    *,
+    event: str = AUTO_MERGE_ARMED,
+    pr_number: str | int | None = None,
+) -> None:
+    set_provider_phase_status(phase, AUTO_MERGE_ARMED)
+    phase["status_reason"] = reason
+    state["status"] = AUTO_MERGE_ARMED
+    state["stop_requested"] = True
+    state["current_phase_id"] = phase["phase_id"]
+    state["current_stage"] = "merge"
+    resume_command = (
+        "python tools/frontier/ralph_driver.py resume "
+        f"--run-dir {run_dir} --phase-id {phase['phase_id']} --from-stage merge "
+        "--provider-wired --no-provider-replay"
+    )
+    phase["resume_command"] = resume_command
+    append_event(
+        run_dir,
+        state,
+        event,
+        phase_id=phase["phase_id"],
+        status=AUTO_MERGE_ARMED,
+        pr_number=pr_number,
+        reason=reason,
+        resume_command=resume_command,
+    )
+    write_provider_stop(run_dir, state, f"{reason}\nResume command: {resume_command}")
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, f"{reason}\n\nResume command: `{resume_command}`")
+    progress(run_dir, f"{phase['phase_id']} waiting for GitHub auto-merge.")
 
 
 def block_provider_gate(
@@ -1902,6 +1952,78 @@ def write_github_result(path: Path, result: Any) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def merge_result_metadata(result: Any) -> dict[str, Any]:
+    if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+        return result.metadata
+    if isinstance(result, dict) and isinstance(result.get("metadata"), dict):
+        return result["metadata"]
+    return {}
+
+
+def merge_result_status(result: Any) -> str:
+    metadata = merge_result_metadata(result)
+    return str(metadata.get("status") or "")
+
+
+def merge_result_classification(result: Any) -> str:
+    metadata = merge_result_metadata(result)
+    return str(metadata.get("classification") or "")
+
+
+def merge_result_is_merged(result: Any) -> bool:
+    metadata = merge_result_metadata(result)
+    return merge_result_status(result) in {MERGED, ALREADY_MERGED} or bool(metadata.get("merged"))
+
+
+def merge_result_is_already_merged(result: Any) -> bool:
+    metadata = merge_result_metadata(result)
+    return merge_result_status(result) == ALREADY_MERGED or bool(metadata.get("already_merged"))
+
+
+def merge_result_auto_armed(result: Any) -> bool:
+    metadata = merge_result_metadata(result)
+    return merge_result_status(result) == AUTO_MERGE_ARMED or bool(metadata.get("auto_merge_armed"))
+
+
+def merge_result_direct_performed(result: Any) -> bool:
+    metadata = merge_result_metadata(result)
+    return bool(metadata.get("direct_merge_performed"))
+
+
+def write_merge_result_artifacts(phase_dir: Path, result: GitHubResult) -> None:
+    write_github_result(phase_dir / "merge_result.json", result)
+    metadata = merge_result_metadata(result)
+    retry_command = metadata.get("retry_command")
+    lines = [
+        "# Merge Result",
+        "",
+        f"Status: {metadata.get('status', '') or 'UNKNOWN'}",
+        f"Classification: {metadata.get('classification', '') or 'unknown'}",
+        f"Dry run: {str(result.dry_run).lower()}",
+        f"Blocked: {str(result.blocked).lower()}",
+        f"Merged: {str(bool(metadata.get('merged'))).lower()}",
+        f"Already merged: {str(bool(metadata.get('already_merged'))).lower()}",
+        f"Auto-merge armed: {str(bool(metadata.get('auto_merge_armed'))).lower()}",
+        f"Return code: {result.return_code}",
+        f"Command: `{' '.join(result.command)}`",
+    ]
+    if retry_command:
+        lines.append(f"Retry command: `{' '.join(str(part) for part in retry_command)}`")
+    if result.instructions:
+        lines.extend(["", "## Instructions", "", result.instructions])
+    for label, value in [
+        ("stdout", result.stdout),
+        ("stderr", result.stderr),
+        ("direct stdout", metadata.get("direct_stdout")),
+        ("direct stderr", metadata.get("direct_stderr")),
+        ("retry stdout", metadata.get("retry_stdout")),
+        ("retry stderr", metadata.get("retry_stderr")),
+    ]:
+        if value:
+            lines.extend(["", f"## {label}", "", "```text", str(value).rstrip(), "```"])
+    (phase_dir / "merge_result.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
 def read_json_if_exists(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -2093,7 +2215,7 @@ def post_phase_git_github(
     branch = phase_branch_from_artifacts(phase_dir, state, phase)
     mock_enabled = bool(state.get("mock_providers"))
     dry_git = mock_enabled and os.environ.get("FRONTIER_MOCK_COMMIT") != "1"
-    resuming_gate = phase.get("status") in GATE_BLOCKED_STATUSES
+    resuming_gate = phase.get("status") in (GATE_BLOCKED_STATUSES | MERGE_PENDING_STATUSES)
 
     if resuming_gate:
         git_result_data = read_json_if_exists(phase_dir / "git_phase.json")
@@ -2480,22 +2602,58 @@ def post_phase_git_github(
         return False
     if pr_number is not None:
         merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
-        write_github_result(phase_dir / "merge_result.json", merge_result)
-        if merge_result.ok and not merge_result.dry_run:
-            state["auto_merge_performed"] = True
+        write_merge_result_artifacts(phase_dir, merge_result)
+        if merge_result_auto_armed(merge_result):
+            reason = (
+                "AUTO_MERGE_ARMED: GitHub auto-merge is armed for "
+                f"PR {pr_number}. Resume from merge after GitHub merges the PR."
+            )
+            mark_auto_merge_pending(
+                run_dir,
+                state,
+                phase,
+                reason,
+                event=AUTO_MERGE_ARMED,
+                pr_number=pr_number,
+            )
+            return False
+        if merge_result_is_merged(merge_result) or (merge_result.ok and not merge_result.dry_run):
+            if merge_result_direct_performed(merge_result) or (
+                not merge_result_is_already_merged(merge_result) and not merge_result_metadata(merge_result)
+            ):
+                state["auto_merge_performed"] = True
             phase["merged"] = True
-            record_stage_checkpoint(run_dir, state, phase, "merge", details={"pr_number": pr_number})
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "merge",
+                details={
+                    "pr_number": pr_number,
+                    "status": merge_result_status(merge_result),
+                    "classification": merge_result_classification(merge_result),
+                    "already_merged": merge_result_is_already_merged(merge_result),
+                },
+            )
+            append_event(
+                run_dir,
+                state,
+                "MERGED",
+                phase_id=phase["phase_id"],
+                pr_number=pr_number,
+                classification=merge_result_classification(merge_result),
+            )
             append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
         elif merge_result.blocked and gate.merge_allowed:
-            reason = "MERGE_GATE_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
+            reason = "MERGE_EXECUTION_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
             block_provider_gate(
                 run_dir,
                 state,
                 phase,
-                MERGE_GATE_BLOCKED,
+                MERGE_EXECUTION_BLOCKED,
                 reason,
-                event="MERGE_GATE_BLOCKED",
-                source="merge_gate_blocked",
+                event=MERGE_EXECUTION_BLOCKED,
+                source="merge_execution_blocked",
             )
             return False
     return True
@@ -2560,7 +2718,7 @@ def pr_metadata(result: GitHubResult) -> dict[str, Any]:
 
 
 def pr_is_merged(data: dict[str, Any]) -> bool:
-    return str(data.get("state") or "").upper() == "MERGED"
+    return str(data.get("state") or "").upper() == "MERGED" or bool(data.get("mergedAt"))
 
 
 def validate_resume_pr_head(
@@ -2713,12 +2871,51 @@ def run_deterministic_resume_gates(
         if pr_is_merged(pr_data):
             phase["pr_number"] = pr_number
             phase["merged"] = True
+            merge_method = str(github_config.get("merge_method") or "squash")
+            merge_command = ["gh", "pr", "merge", str(pr_number), f"--{merge_method}", "--delete-branch"]
+            already_merged_result = GitHubResult(
+                "merge_pr",
+                False,
+                merge_command,
+                0,
+                pr_view_result.stdout,
+                pr_view_result.stderr,
+                metadata={
+                    "status": ALREADY_MERGED,
+                    "classification": "already_merged",
+                    "merged": True,
+                    "already_merged": True,
+                    "auto_merge_armed": False,
+                    "direct_merge_performed": False,
+                    "command": merge_command,
+                    "pre_view_command": pr_view_result.command,
+                    "pre_view_return_code": pr_view_result.return_code,
+                    "pre_view_stdout": pr_view_result.stdout,
+                    "pre_view_stderr": pr_view_result.stderr,
+                    "pre_pr": pr_data,
+                },
+            )
+            write_merge_result_artifacts(phase_dir, already_merged_result)
             record_stage_checkpoint(
                 run_dir,
                 state,
                 phase,
                 "merge",
-                details={"resume": True, "pr_number": pr_number, "already_merged": True},
+                details={
+                    "resume": True,
+                    "pr_number": pr_number,
+                    "already_merged": True,
+                    "status": ALREADY_MERGED,
+                    "classification": "already_merged",
+                },
+            )
+            append_event(
+                run_dir,
+                state,
+                "MERGED",
+                phase_id=phase["phase_id"],
+                pr_number=pr_number,
+                classification="already_merged",
             )
             append_event(run_dir, state, "RESUME_PR_ALREADY_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
             finish_targeted_resume(
@@ -2781,6 +2978,17 @@ def run_deterministic_resume_gates(
     if ci_result.state == CI_SUCCESS:
         record_stage_checkpoint(run_dir, state, phase, "ci", details={"resume": True, "pr_number": pr_number})
     if github_config.get("require_ci", True) and ci_result.state != CI_SUCCESS:
+        if phase.get("status") in MERGE_PENDING_STATUSES:
+            reason = f"AUTO_MERGE_ARMED: PR {pr_number} is still waiting for CI status {ci_result.state}."
+            mark_auto_merge_pending(
+                run_dir,
+                state,
+                phase,
+                reason,
+                event="RESUME_AUTO_MERGE_PENDING",
+                pr_number=pr_number,
+            )
+            return True
         block_provider_gate(
             run_dir,
             state,
@@ -2816,6 +3024,17 @@ def run_deterministic_resume_gates(
             "branch_protection",
             details={"resume": True, "status": bp_result.status, "branch": base_branch},
         )
+    elif phase.get("status") in MERGE_PENDING_STATUSES:
+        reason = f"AUTO_MERGE_ARMED: PR {pr_number} is still waiting for branch protection status {bp_result.status}."
+        mark_auto_merge_pending(
+            run_dir,
+            state,
+            phase,
+            reason,
+            event="RESUME_AUTO_MERGE_PENDING",
+            pr_number=pr_number,
+        )
+        return True
 
     critical = list(verdict_data.get("findings", [])) if verdict_data.get("severity") == "critical" else []
     allow_automerge = os.environ.get("FRONTIER_ALLOW_AUTOMERGE", "").lower() in {"1", "true", "yes", "on"}
@@ -2869,7 +3088,7 @@ def run_deterministic_resume_gates(
 
     if gate.merge_allowed:
         merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
-        write_github_result(phase_dir / "merge_result.json", merge_result)
+        write_merge_result_artifacts(phase_dir, merge_result)
         append_event(
             run_dir,
             state,
@@ -2878,22 +3097,61 @@ def run_deterministic_resume_gates(
             pr_number=pr_number,
             dry_run=merge_result.dry_run,
             blocked=merge_result.blocked,
+            status=merge_result_status(merge_result),
+            classification=merge_result_classification(merge_result),
         )
-        if merge_result.ok and not merge_result.dry_run:
-            state["auto_merge_performed"] = True
+        if merge_result_auto_armed(merge_result):
+            reason = (
+                "AUTO_MERGE_ARMED: GitHub auto-merge is armed for "
+                f"PR {pr_number}. Resume from merge after GitHub merges the PR."
+            )
+            mark_auto_merge_pending(
+                run_dir,
+                state,
+                phase,
+                reason,
+                event="RESUME_AUTO_MERGE_ARMED",
+                pr_number=pr_number,
+            )
+            return True
+        if merge_result_is_merged(merge_result) or (merge_result.ok and not merge_result.dry_run):
+            if merge_result_direct_performed(merge_result) or (
+                not merge_result_is_already_merged(merge_result) and not merge_result_metadata(merge_result)
+            ):
+                state["auto_merge_performed"] = True
             phase["merged"] = True
-            record_stage_checkpoint(run_dir, state, phase, "merge", details={"resume": True, "pr_number": pr_number})
+            record_stage_checkpoint(
+                run_dir,
+                state,
+                phase,
+                "merge",
+                details={
+                    "resume": True,
+                    "pr_number": pr_number,
+                    "status": merge_result_status(merge_result),
+                    "classification": merge_result_classification(merge_result),
+                    "already_merged": merge_result_is_already_merged(merge_result),
+                },
+            )
+            append_event(
+                run_dir,
+                state,
+                "MERGED",
+                phase_id=phase["phase_id"],
+                pr_number=pr_number,
+                classification=merge_result_classification(merge_result),
+            )
             append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
         elif merge_result.blocked:
-            reason = "MERGE_GATE_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
+            reason = "MERGE_EXECUTION_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
             block_provider_gate(
                 run_dir,
                 state,
                 phase,
-                MERGE_GATE_BLOCKED,
+                MERGE_EXECUTION_BLOCKED,
                 reason,
-                event="MERGE_GATE_BLOCKED",
-                source="resume_merge_blocked",
+                event=MERGE_EXECUTION_BLOCKED,
+                source="resume_merge_execution_blocked",
             )
             return False
 

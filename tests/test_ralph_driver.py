@@ -1238,6 +1238,81 @@ def test_resume_from_merge_gate_no_provider_replay_runs_only_deterministic_gates
     assert "Targeted resume from merge_gate completed" in (run_dir / "RUN_SUMMARY.md").read_text(encoding="utf-8")
 
 
+def test_resume_from_merge_gate_auto_merge_armed_stays_pending(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch)
+    stub_live_pr(monkeypatch, diff_files=["docs/a.md"])
+    stub_successful_resume_gates(monkeypatch)
+
+    def auto_armed(**kwargs):
+        return GitHubResult(
+            "merge_pr",
+            False,
+            ["gh", "pr", "merge", str(kwargs["pr_number"]), "--squash", "--delete-branch"],
+            return_code=0,
+            stderr="base branch policy prohibits the merge; add the `--auto` flag.",
+            metadata={
+                "status": ralph_driver.AUTO_MERGE_ARMED,
+                "classification": "branch_policy_auto_armed",
+                "merged": False,
+                "already_merged": False,
+                "auto_merge_armed": True,
+                "direct_merge_performed": False,
+                "retry_command": ["gh", "pr", "merge", str(kwargs["pr_number"]), "--auto", "--squash", "--delete-branch"],
+            },
+        )
+
+    monkeypatch.setattr(ralph_driver, "perform_merge", auto_armed)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 0
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.AUTO_MERGE_ARMED
+    assert updated["phases"][0]["status"] == ralph_driver.AUTO_MERGE_ARMED
+    assert not updated["phases"][0].get("merged", False)
+    merge_result = json.loads((phase_dir / "merge_result.json").read_text(encoding="utf-8"))
+    assert merge_result["metadata"]["classification"] == "branch_policy_auto_armed"
+    assert (phase_dir / "merge_result.md").is_file()
+    assert "RESUME_AUTO_MERGE_ARMED" in (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "--from-stage merge" in (run_dir / "STOP").read_text(encoding="utf-8")
+
+
+def test_resume_from_merge_gate_execution_failure_is_not_gate_blocked(tmp_path, monkeypatch) -> None:
+    run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch)
+    stub_live_pr(monkeypatch, diff_files=["docs/a.md"])
+    stub_successful_resume_gates(monkeypatch)
+
+    def blocked_merge(**kwargs):
+        return GitHubResult(
+            "merge_pr",
+            False,
+            ["gh", "pr", "merge", str(kwargs["pr_number"]), "--squash", "--delete-branch"],
+            return_code=1,
+            stderr="Resource not accessible by integration",
+            blocked=True,
+            instructions="GitHub merge permission blocked.",
+            metadata={
+                "status": "MERGE_PERMISSION_BLOCKED",
+                "classification": "permission",
+                "merged": False,
+                "already_merged": False,
+                "auto_merge_armed": False,
+            },
+        )
+
+    monkeypatch.setattr(ralph_driver, "perform_merge", blocked_merge)
+
+    status = run_merge_gate_resume(run_dir)
+
+    assert status == 1
+    updated = state_json(run_dir)
+    assert updated["status"] == ralph_driver.MERGE_EXECUTION_BLOCKED
+    assert updated["phases"][0]["status"] == ralph_driver.MERGE_EXECUTION_BLOCKED
+    assert "MERGE_EXECUTION_BLOCKED" in updated["phases"][0]["status_reason"]
+    assert (phase_dir / "merge_result.md").is_file()
+    assert "MERGE_GATE_BLOCKED" not in updated["phases"][0]["status_reason"]
+
+
 def test_merge_gate_resume_ignores_untracked_upgrade_reports_not_in_pr_diff(tmp_path, monkeypatch) -> None:
     run_dir, phase_dir = prepare_merge_gate_resume_run(tmp_path, monkeypatch)
     (tmp_path / ".frontier/upgrade_reports").mkdir(parents=True)
