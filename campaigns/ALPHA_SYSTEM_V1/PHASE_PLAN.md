@@ -326,82 +326,19 @@ None.
 
 ### Purpose
 
-Create the initial repository policy foundation for `alpha_system` and make the clean-slate repo safe for Frontier Harness Generic v3.0 Workflow 2 execution.
+Create the initial repository policy foundation for `alpha_system` and make the repository safe for Frontier Harness Generic v3.0 Workflow 2 execution.
 
-This phase establishes repo identity, WSL2 path policy, local-only artifact policy, explicit staging policy, campaign directory layout, and the first project status baseline.
+This phase establishes repo identity, WSL2 path policy, local-only artifact policy, explicit staging policy, campaign directory layout, the `ACTIVE_CAMPAIGN.md` pointer, the first project status baseline, and safe placeholder roots only.
 
 ### Scope
 
-Create or update:
+Create or update only:
 
 * `README.md`
 * `PROJECT_STATUS.md`
 * `.gitignore`
 * `.gitattributes` if needed for text normalization
 * `.editorconfig` if desired by repo convention
-* `campaigns/ALPHA_SYSTEM_V1/GOAL.md`
-* `campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md`
-* `campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md`
-* `campaigns/ALPHA_SYSTEM_V1/campaign.yaml`
-* `campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md`
-* `campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md`
-* `ACTIVE_CAMPAIGN.md`
-* top-level placeholder directories:
-
-  * `specs/`
-  * `handoffs/`
-  * `reviews/`
-  * `runs/`
-  * `evals/`
-  * `docs/`
-  * `decisions/`
-  * `configs/`
-  * `data/raw/`
-  * `data/canonical/`
-  * `data/factors/`
-  * `data/labels/`
-  * `data/cache/`
-  * `metadata/`
-  * `artifacts/`
-
-Allowed placeholders:
-
-* `.gitkeep` or `README.md` files in empty local-only directories when required to preserve structure.
-
-The phase must document:
-
-* repo path `~/projects/alpha_system`,
-* WSL2 Linux filesystem requirement,
-* `/mnt/c`, OneDrive, Windows-synced folders, network drives, and temp dirs as forbidden active worktree locations,
-* no `git add .`,
-* no `git add -A`,
-* no raw data commits,
-* no heavy artifact commits,
-* no local SQLite DB commits,
-* no broker/live trading,
-* no alpha/tradability claims without evidence,
-* no hidden failed runs,
-* no test weakening or gaming.
-
-### Non-Goals
-
-* Do not create Python package source.
-* Do not add domain contracts.
-* Do not implement data ingestion.
-* Do not implement factor computation.
-* Do not implement registry migrations.
-* Do not implement backtesting.
-* Do not create real raw/canonical/factor/label data.
-* Do not create SQLite DB files.
-* Do not add broker, paper trading, live trading, or production execution files.
-
-### Expected Files / Directories
-
-Expected new or updated files:
-
-* `README.md`
-* `PROJECT_STATUS.md`
-* `.gitignore`
 * `ACTIVE_CAMPAIGN.md`
 * `campaigns/ALPHA_SYSTEM_V1/GOAL.md`
 * `campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md`
@@ -409,14 +346,14 @@ Expected new or updated files:
 * `campaigns/ALPHA_SYSTEM_V1/campaign.yaml`
 * `campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md`
 * `campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md`
+* `handoffs/ASV1-P00.md`
 
-Expected directories:
+Expected directories present in the working tree:
 
 * `campaigns/ALPHA_SYSTEM_V1/`
 * `specs/`
 * `handoffs/`
 * `reviews/`
-* `runs/`
 * `evals/`
 * `docs/`
 * `decisions/`
@@ -429,22 +366,59 @@ Expected directories:
 * `metadata/`
 * `artifacts/`
 
+`runs/` must exist for runtime state but is local-only and not commit-eligible. `runs/.gitkeep`, `runs/README.md`, and all `runs/**` paths are excluded from ASV1-P00 allowed paths.
+
+Allowed placeholders are only `.gitkeep` or `README.md` files in directories permitted by the generated ASV1-P00 spec. If a campaign artifact elsewhere asks for a `runs/` placeholder, resolve it as local-only and do not stage or commit it.
+
+The phase must document:
+
+* repo path `~/projects/alpha_system`,
+* WSL2 Linux filesystem requirement,
+* `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, and temp dirs as forbidden active worktree locations,
+* explicit staging only,
+* no `git add .`,
+* no `git add -A`,
+* no force push,
+* no raw data commits,
+* no heavy artifact commits,
+* no local SQLite or DB commits,
+* no broker, paper trading, live trading, or order routing scope,
+* no alpha, profitability, robustness, or tradability claims without evidence and review,
+* no hidden failed runs,
+* no test weakening or gaming.
+
+### Non-Goals
+
+* Do not create Python package source or `pyproject.toml`.
+* Do not add domain contracts or schemas.
+* Do not implement data ingestion, factor computation, labels, diagnostics, registry, or backtesting.
+* Do not create real raw, canonical, factor, or label data.
+* Do not create SQLite `.sqlite` or `.db` files.
+* Do not add broker, paper trading, live trading, order routing, or production execution files.
+* Do not add hook enforcement, CI workflows, destructive cleanup, deployment, PR creation, or merge operations.
+
+Any hook, CI, or artifact-policy enforcement implementation needed beyond documentation is deferred to ASV1-P01.
+
 ### Forbidden Changes
 
+* No `runs/**` path staged or committed.
 * No source implementation.
+* No tests changed.
+* No `pyproject.toml`.
 * No raw data committed.
 * No canonical data committed.
 * No materialized factor values committed.
 * No materialized label values committed.
 * No heavy artifacts committed.
-* No local SQLite DB committed.
-* No broker/live trading scope.
-* No alpha/profitability/tradability claims.
+* No local SQLite or DB committed.
+* No broker, paper, live, order-routing, or production execution scope.
+* No alpha, profitability, robustness, or tradability claims.
 * No uncontrolled scope expansion.
 * No hidden failed runs.
 * No test weakening or gaming.
 * No `git add .`.
 * No `git add -A`.
+* No force push.
 
 ### Validation Commands
 
@@ -452,6 +426,9 @@ Ralph must run and record:
 
 ```bash
 git status --short
+git status -sb
+pwd
+
 test -f README.md
 test -f PROJECT_STATUS.md
 test -f .gitignore
@@ -462,10 +439,11 @@ test -f campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
 test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
 test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
 test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
+test -f handoffs/ASV1-P00.md
+
 test -d specs
 test -d handoffs
 test -d reviews
-test -d runs
 test -d evals
 test -d docs
 test -d decisions
@@ -477,22 +455,37 @@ test -d data/labels
 test -d data/cache
 test -d metadata
 test -d artifacts
+
+grep -q "ALPHA_SYSTEM_V1" ACTIVE_CAMPAIGN.md
+grep -R "git add ." README.md PROJECT_STATUS.md docs || true
+grep -R "git add -A" README.md PROJECT_STATUS.md docs || true
+
 git check-ignore -v data/raw/example.parquet || true
 git check-ignore -v data/canonical/example.parquet || true
 git check-ignore -v data/factors/example.parquet || true
 git check-ignore -v data/labels/example.parquet || true
+git check-ignore -v data/cache/example.parquet || true
 git check-ignore -v metadata/alpha_system.sqlite || true
 git check-ignore -v artifacts/example_large_output.csv || true
+git check-ignore -v runs/example_run/state.json || true
+
+find data -type f ! -name README.md ! -name ".gitkeep" -print
+find metadata -type f ! -name README.md ! -name ".gitkeep" -print
+find artifacts -type f -size +1M -print 2>/dev/null || true
+find . -path ./tests/fixtures -prune -o -type f -name "*.parquet" -print
+find . -type f \( -name "*.sqlite" -o -name "*.sqlite3" -o -name "*.db" -o -name "*.db-journal" -o -name "*.wal" \) -print
+git ls-files runs
 ```
 
-If hooks or artifact policy scripts are not yet available, record that they are deferred to ASV1-P01.
+`git ls-files runs` must return empty.
 
 ### Artifact Policy
 
-Commit only policy files, campaign files, docs, and placeholder `.gitkeep` or `README.md` files if needed.
+Commit only policy files, campaign files, docs, the commit-eligible handoff `handoffs/ASV1-P00.md`, and permitted placeholder `.gitkeep` or `README.md` files.
 
-Do not commit:
+Never commit:
 
+* `runs/**`,
 * raw data,
 * generated canonical data,
 * materialized factor or label data,
@@ -502,66 +495,66 @@ Do not commit:
 * generated heavy artifacts,
 * full report bundles.
 
-Stage explicit files only. Never use `git add .` or `git add -A`.
+Stage explicit files only. Never use `git add .`, never use `git add -A`, and never force push.
 
 ### Done Criteria
 
 * Initial repo structure exists.
 * Campaign directory exists.
 * `ACTIVE_CAMPAIGN.md` points to `ALPHA_SYSTEM_V1`.
-* `.gitignore` protects local-only folders and generated artifacts.
+* `.gitignore` protects local-only folders, `runs/**`, local DB files, generated artifacts, logs, and caches.
 * WSL2 path policy is documented.
-* Explicit staging policy is documented.
+* Explicit staging and no-force-push policy is documented.
 * No forbidden files are staged or committed.
+* `git ls-files runs` returns empty.
 * Handoff exists and records validation results.
-* Claude review passes.
+* No source, data, registry, execution, hook, CI, PR, or merge operation is implemented.
+* Claude review passes or passes with warnings before merge eligibility.
 
 ### Handoff Requirements
 
-Create:
+Create the commit-eligible handoff:
 
 ```text
 handoffs/ASV1-P00.md
-runs/<run_id>/phases/ASV1-P00/handoff.md
 ```
+
+The run-local handoff `runs/<run_id>/phases/ASV1-P00/handoff.md` may be written for local audit, but it is local-only and must never be staged or committed.
 
 Handoff must include:
 
 * summary of created repo foundation,
 * directory tree summary,
-* files changed,
+* exact files changed and staged,
 * validation commands and results,
+* Allowed Paths and local-only `runs/**` separation,
 * artifact policy confirmation,
 * explicit staging confirmation,
-* statement that no raw data/heavy artifacts/local DBs were committed,
-* statement that broker/live trading is out of scope,
+* statement that no raw data, heavy artifacts, or local DBs were staged or committed,
+* statement that broker, paper, and live trading are out of scope,
+* statement that no alpha or tradability claims were introduced,
+* note that hook, CI, and enforcement-script implementation is deferred to ASV1-P01,
 * known limitations,
 * review focus.
 
 ### Review Requirements
 
-Claude Opus 4.8 xhigh review required.
+Claude Opus 4.8 xhigh review required before merge eligibility.
 
 Review must verify:
 
 * Workflow 2 compatibility,
 * WSL2 path policy,
-* artifact policy,
+* artifact policy and `runs/**` local-only handling,
 * explicit staging policy,
 * no forbidden files,
-* no broker/live scope,
+* no source implementation or scope creep,
+* no broker, paper, or live trading scope,
 * no unsupported claims.
 
 ### Auto-Merge Eligibility
 
-Auto PR and auto merge allowed if:
-
-* validation commands pass,
-* handoff validates,
-* review verdict is `PASS` or `PASS_WITH_WARNINGS`,
-* artifact policy passes,
-* no forbidden files are staged,
-* semantic done-check passes.
+Auto PR and auto merge are Ralph-owned gate actions and are not performed by Codex for ASV1-P00. They are allowed only if validation commands pass, handoff validates, review verdict is `PASS` or `PASS_WITH_WARNINGS`, artifact policy passes, no forbidden files are staged, CI passes if configured, and semantic done-check passes.
 
 ---
 

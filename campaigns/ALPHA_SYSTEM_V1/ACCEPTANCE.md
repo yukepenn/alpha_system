@@ -95,7 +95,7 @@ Accepted when:
   * `RISK_REGISTER.md`
   * `RUNBOOK.md`
 * Repo path policy requires `~/projects/alpha_system` under the WSL2 Linux filesystem.
-* Active worktree paths under `/mnt/c`, OneDrive, Windows-synced folders, network drives, and temporary directories are forbidden.
+* Active worktree paths under `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, and temporary directories are forbidden.
 * `.gitignore` protects:
 
   * `data/raw/`
@@ -125,7 +125,7 @@ Accepted when:
 
 Not accepted if:
 
-* active worktree policy permits `/mnt/c` or OneDrive execution,
+* active worktree policy permits `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, or temporary-directory execution,
 * raw/heavy artifact commit rules are absent,
 * Yellow phase review requirements are omitted,
 * automatic merge does not require checks and artifact policy,

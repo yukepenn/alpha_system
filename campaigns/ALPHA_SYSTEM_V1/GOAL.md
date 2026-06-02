@@ -11,7 +11,7 @@
 * **Host environment:** Windows host
 * **Primary runtime:** WSL2 Ubuntu
 * **Required active filesystem location:** WSL2 Linux filesystem
-* **Forbidden active worktree locations:** `/mnt/c`, OneDrive, Windows-synced folders, network drives, temporary directories, and any Windows-synced active development path
+* **Forbidden active worktree locations:** `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, temporary directories, and any Windows-synced active development path
 
 ## Project Profile
 

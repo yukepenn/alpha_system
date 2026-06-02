@@ -258,7 +258,7 @@ artifact_policy:
   - '**/generated_local_only/**'
   local_only_by_default:
   - artifacts/**
-  - runs/** except small manifests/summaries explicitly allowed by phase
+  - runs/**
   commit_allowed:
   - source code
   - configs
@@ -453,6 +453,8 @@ phases:
   verifier: Claude Sonnet 4.6
   checks:
   - git status --short
+  - git status -sb
+  - pwd
   - test -f README.md
   - test -f PROJECT_STATUS.md
   - test -f .gitignore
@@ -460,11 +462,14 @@ phases:
   - test -f campaigns/ALPHA_SYSTEM_V1/GOAL.md
   - test -f campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md
   - test -f campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
+  - test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
+  - test -f handoffs/ASV1-P00.md
   - test -d campaigns/ALPHA_SYSTEM_V1
   - test -d specs
   - test -d handoffs
   - test -d reviews
-  - test -d runs
   - test -d evals
   - test -d docs
   - test -d decisions
@@ -480,11 +485,19 @@ phases:
   - git check-ignore -v data/canonical/example.parquet || true
   - git check-ignore -v data/factors/example.parquet || true
   - git check-ignore -v data/labels/example.parquet || true
+  - git check-ignore -v data/cache/example.parquet || true
   - git check-ignore -v metadata/alpha_system.sqlite || true
   - git check-ignore -v artifacts/example_large_output.csv || true
-  - test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
-  - test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
-  - test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
+  - git check-ignore -v runs/example_run/state.json || true
+  - grep -q "ALPHA_SYSTEM_V1" ACTIVE_CAMPAIGN.md
+  - grep -R "git add ." README.md PROJECT_STATUS.md docs || true
+  - grep -R "git add -A" README.md PROJECT_STATUS.md docs || true
+  - find data -type f ! -name README.md ! -name ".gitkeep" -print
+  - find metadata -type f ! -name README.md ! -name ".gitkeep" -print
+  - find artifacts -type f -size +1M -print 2>/dev/null || true
+  - find . -path ./tests/fixtures -prune -o -type f -name "*.parquet" -print
+  - find . -type f \( -name "*.sqlite" -o -name "*.sqlite3" -o -name "*.db" -o -name "*.db-journal" -o -name "*.wal" \) -print
+  - git ls-files runs
   handoff_required: true
   review_required: true
   auto_pr: true
@@ -499,24 +512,25 @@ phases:
   - campaigns/ALPHA_SYSTEM_V1/GOAL.md
   - campaigns/ALPHA_SYSTEM_V1/ACCEPTANCE.md
   - campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
+  - campaigns/ALPHA_SYSTEM_V1/campaign.yaml
+  - campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
+  - campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
+  - handoffs/ASV1-P00.md
   - specs/**
   - handoffs/**
   - reviews/**
-  - runs/**/.gitkeep
   - evals/**/.gitkeep
   - docs/**
   - decisions/**
   - configs/**/.gitkeep
   - data/**/.gitkeep
-  - metadata/.gitkeep
-  - artifacts/**/.gitkeep
-  - campaigns/ALPHA_SYSTEM_V1/campaign.yaml
-  - campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
-  - campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
   - data/**/README.md
+  - metadata/.gitkeep
   - metadata/README.md
+  - artifacts/**/.gitkeep
   - artifacts/**/README.md
   forbidden_paths:
+  - runs/**
   - src/**
   - tests/**
   - data/raw/**
@@ -547,6 +561,7 @@ phases:
     - heavy artifacts
     - logs
     - caches
+    - run-local artifacts under runs/**
     explicit_staging_only: true
     no_git_add_dot: true
     no_git_add_A: true
@@ -554,6 +569,7 @@ phases:
     - Initial repo policy only.
     - No source implementation.
     - No broker/live scope.
+    - Hook, CI, and enforcement-script implementation is deferred to ASV1-P01.
 - id: ASV1-P01
   name: Frontier Harness Baseline Files
   lane: YELLOW

@@ -39,7 +39,7 @@ This campaign must preserve the following non-negotiable constraints:
 * no test weakening/gaming,
 * no `git add .`,
 * no `git add -A`,
-* repo/worktree must live under WSL2 filesystem, not `/mnt/c`, OneDrive, or Windows-synced paths.
+* repo/worktree must live under WSL2 filesystem, not `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, or temporary directories.
 
 ---
 
@@ -1019,7 +1019,7 @@ Schema drift that prevents registry initialization or reproducibility blocks mer
 
 ### Description
 
-Repo or worktree may be used under `/mnt/c`, OneDrive, Dropbox, Google Drive, or other Windows-synced path.
+Repo or worktree may be used under `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, a Windows-synced folder, a network drive, or a temporary directory.
 
 ### Impact
 
@@ -1076,7 +1076,7 @@ Medium.
 
 ### Detection Methods
 
-* grep for `/mnt/c`, `C:\`, `OneDrive`, `Dropbox`, `Google Drive`,
+* grep for `/mnt/c`, `/mnt/d`, `/mnt/e`, `C:\`, `OneDrive`, `Dropbox`, `Google Drive`,
 * config validation,
 * run manifest review,
 * handoff review.
@@ -2097,7 +2097,7 @@ The following conditions must block merge immediately:
 * STOP file active,
 * repair attempts exceeded,
 * Claude review verdict `BLOCKED`,
-* active worktree under `/mnt/c`, OneDrive, or Windows-synced path,
+* active worktree under `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folder, network drive, or temporary directory,
 * cloud/server dependency required by v1,
 * L2 replay or passive fill simulation implemented before future campaign.
 
