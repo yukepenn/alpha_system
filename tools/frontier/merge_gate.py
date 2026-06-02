@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -91,10 +92,27 @@ def _env_flag(env: Mapping[str, str], name: str) -> bool:
     return env.get(name, "").lower() in {"1", "true", "yes", "on"}
 
 
-def _red_scope_authorized(env: Mapping[str, str], policy: Mapping[str, Any], phase_id: str) -> bool:
-    if not _env_flag(env, "FRONTIER_RED_AUTHORIZED"):
+def _not_expired(value: str) -> bool:
+    raw = value.strip()
+    if not raw:
         return False
-    scope = env.get("FRONTIER_RED_SCOPE") or env.get("PROJECT_OP_SCOPE") or ""
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        expires_at = datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    return expires_at > datetime.now(UTC)
+
+
+def _red_scope_authorized(env: Mapping[str, str], policy: Mapping[str, Any], phase_id: str) -> bool:
+    if not _env_flag(env, "PROJECT_OP_AUTHORIZED"):
+        return False
+    scope = env.get("PROJECT_OP_SCOPE") or ""
+    expires = env.get("PROJECT_OP_EXPIRES") or ""
+    if not scope or not _not_expired(expires):
+        return False
     if not bool(_nested(policy, "merge_policy", "require_operation_scope_match", default=False)):
         return True
     allowed_scopes = policy.get("authorized_scopes")
@@ -169,7 +187,7 @@ def evaluate_merge_gate(
         reasons.append("Branch protection validation did not run.")
 
     if lane_key == "red" and not _red_scope_authorized(env, policy, phase_id):
-        reasons.append("Red lane requires FRONTIER_RED_AUTHORIZED=1 and matching scope.")
+        reasons.append("Red lane requires PROJECT_OP_AUTHORIZED=1, PROJECT_OP_SCOPE, PROJECT_OP_EXPIRES, and matching scope.")
     if _env_flag(env, "FRONTIER_DISABLE_AUTOMERGE"):
         reasons.append("FRONTIER_DISABLE_AUTOMERGE=1 is set.")
     if _env_flag(env, "FRONTIER_MERGE_DRY_RUN"):

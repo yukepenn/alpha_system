@@ -21,4 +21,4 @@ just frontier-heartbeat <run_id>
 
 `frontier-run-campaign` runs campaign-loop mode. `frontier-run-next` or `FRONTIER_MAX_PHASES=1` runs one phase for smoke/debug.
 
-The local Ralph driver is provider-wired and safe by default. Green/yellow auto-merge can run for real when `frontier.yaml`, CI, verdicts, artifact policy, branch protection, and `gh` auth all pass. Red lane requires `FRONTIER_RED_AUTHORIZED=1` plus matching scope.
+The local Ralph driver is provider-wired and safe by default. Green/yellow auto-merge can run for real when `frontier.yaml`, CI, verdicts, artifact policy, branch protection, and `gh` auth all pass. Red lane requires `PROJECT_OP_AUTHORIZED=1`, `PROJECT_OP_SCOPE`, `PROJECT_OP_EXPIRES`, and matching scope.
