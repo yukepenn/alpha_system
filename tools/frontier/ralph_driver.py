@@ -1109,6 +1109,16 @@ def provider_stop_without_execution(run_dir: Path, state: dict[str, Any], reason
     return 0
 
 
+def stop_file_is_max_phase_limit(stop_path: Path, state: dict[str, Any]) -> bool:
+    if state.get("status") != "STOPPED" or state.get("current_phase_id"):
+        return False
+    try:
+        text = stop_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "Reason: Requested max phases reached:" in text
+
+
 def set_provider_phase_status(phase: dict[str, Any], status: str) -> None:
     phase["status"] = status
     phase["updated_at"] = utc_now()
@@ -4172,21 +4182,31 @@ def resume_provider_wired_run(
         if gate_phase is None:
             limit_phase = current_provider_limit_phase(state)
             if limit_phase is None:
-                return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
-            if provider_replay_disabled():
-                return provider_stop_without_execution(
+                if stop_file_is_max_phase_limit(stop_path, state):
+                    stop_path.unlink()
+                    append_event(
+                        run_dir,
+                        state,
+                        "RUN_RESUME_MAX_PHASES_STOP_REMOVED",
+                        reason="Requested max phases reached.",
+                    )
+                else:
+                    return provider_stop_without_execution(run_dir, state, "STOP file exists on resume.")
+            else:
+                if provider_replay_disabled():
+                    return provider_stop_without_execution(
+                        run_dir,
+                        state,
+                        "STOP file exists on provider-limit resume and FRONTIER_NO_PROVIDER_REPLAY=1 is set.",
+                    )
+                stop_path.unlink()
+                append_event(
                     run_dir,
                     state,
-                    "STOP file exists on provider-limit resume and FRONTIER_NO_PROVIDER_REPLAY=1 is set.",
+                    "RUN_RESUME_PROVIDER_LIMIT",
+                    phase_id=limit_phase["phase_id"],
+                    resume_stage=limit_phase.get("resume_stage"),
                 )
-            stop_path.unlink()
-            append_event(
-                run_dir,
-                state,
-                "RUN_RESUME_PROVIDER_LIMIT",
-                phase_id=limit_phase["phase_id"],
-                resume_stage=limit_phase.get("resume_stage"),
-            )
         else:
             stop_path.unlink()
             append_event(
