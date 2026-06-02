@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -145,6 +146,75 @@ def pass_count(run_dir: Path) -> int:
 
 def state_json(run_dir: Path) -> dict:
     return json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+
+
+def write_minimal_run_state(
+    tmp_root: Path,
+    run_name: str,
+    *,
+    campaign_id: str = SAMPLE_CAMPAIGN_ID,
+    status: str = "STOPPED",
+    provider_wired: bool = True,
+    mtime: int = 1,
+) -> Path:
+    run_dir = tmp_root / "runs" / run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "campaign_id": campaign_id,
+        "driver": ralph_driver.PROVIDER_WIRED_DRIVER if provider_wired else ralph_driver.LEDGER_ONLY_DRIVER,
+        "provider_wired": provider_wired,
+        "status": status,
+        "phases": [],
+    }
+    state_path = run_dir / "state.json"
+    state_path.write_text(json.dumps(state) + "\n", encoding="utf-8")
+    os.utime(state_path, (mtime, mtime))
+    return run_dir
+
+
+def test_latest_campaign_run_dir_selects_latest_non_completed_provider_run(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    older = write_minimal_run_state(tmp_path, "2026-01-01T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN", mtime=10)
+    latest = write_minimal_run_state(tmp_path, "2026-01-02T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN", mtime=20)
+    write_minimal_run_state(
+        tmp_path,
+        "2026-01-03T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN",
+        status="COMPLETED",
+        mtime=30,
+    )
+    write_minimal_run_state(
+        tmp_path,
+        "2026-01-04T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN",
+        provider_wired=False,
+        mtime=40,
+    )
+
+    assert ralph_driver.latest_campaign_run_dir(SAMPLE_CAMPAIGN_ID, provider_wired_only=True) == latest
+    assert ralph_driver.latest_campaign_run_dir("MISSING_CAMPAIGN", provider_wired_only=True) is None
+    assert older.exists()
+
+
+def test_resume_campaign_id_uses_latest_active_provider_run(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    selected = write_minimal_run_state(tmp_path, "2026-01-02T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN", mtime=20)
+    write_minimal_run_state(tmp_path, "2026-01-03T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN", status="COMPLETED", mtime=30)
+    calls: list[tuple[Path, int | None]] = []
+
+    def fake_resume_provider_wired_run(
+        run_dir: Path,
+        state: dict,
+        max_phases: int | None,
+        worktree_mode: bool | None = None,
+    ) -> int:
+        calls.append((run_dir, max_phases))
+        return 0
+
+    monkeypatch.setattr(ralph_driver, "resume_provider_wired_run", fake_resume_provider_wired_run)
+
+    status = ralph_driver.resume(campaign_id=SAMPLE_CAMPAIGN_ID, provider_wired=True, max_phases=3)
+
+    assert status == 0
+    assert calls == [(selected, 3)]
 
 
 def init_git_repo_with_origin_main(root: Path) -> str:
@@ -1604,8 +1674,10 @@ def test_just_command_semantics_are_provider_wired() -> None:
 
     run_campaign = recipe_body(text, "frontier-run-campaign")
     run_next = recipe_body(text, "frontier-run-next")
+    run_next_x = recipe_body(text, "frontier-run-next-x")
     run_mock = recipe_body(text, "frontier-run-campaign-mock")
     next_mock = recipe_body(text, "frontier-run-next-mock")
+    next_x_mock = recipe_body(text, "frontier-run-next-x-mock")
     resume_campaign = recipe_body(text, "frontier-resume-campaign")
     ledger = recipe_body(text, "frontier-run-campaign-ledger")
     overnight = recipe_body(text, "frontier-run-overnight")
@@ -1615,11 +1687,21 @@ def test_just_command_semantics_are_provider_wired() -> None:
     assert "--provider-wired" in run_campaign
     assert "FRONTIER_MAX_PHASES=1" not in run_campaign
     assert "--provider-wired" in run_next
-    assert "FRONTIER_MAX_PHASES=1" in run_next
+    assert " resume " in run_next
+    assert "--campaign-id" in run_next
+    assert "--max-phases 1" in run_next
+    assert " run --campaign-id" not in run_next
+    assert "--provider-wired" in run_next_x
+    assert " resume " in run_next_x
+    assert "--max-phases \"$max_phases\"" in run_next_x
     assert "FRONTIER_MOCK_PROVIDERS=1" in run_mock
     assert "--provider-wired" in run_mock
     assert "FRONTIER_MOCK_PROVIDERS=1" in next_mock
-    assert "FRONTIER_MAX_PHASES=1" in next_mock
+    assert " resume " in next_mock
+    assert "--max-phases 1" in next_mock
+    assert "FRONTIER_MOCK_PROVIDERS=1" in next_x_mock
+    assert " resume " in next_x_mock
+    assert "--max-phases \"$max_phases\"" in next_x_mock
     assert "--from-stage" in resume_campaign
     assert "--no-provider-replay" in resume_campaign
     assert "FRONTIER_NO_PROVIDER_REPLAY=1" in resume_campaign
