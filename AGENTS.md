@@ -36,11 +36,21 @@ Workflow 1 is the human-gated phase loop for high-judgment work.
 
 Workflow 2 is the Ralph strict autonomous campaign loop. Generated Workflow 2 code is scaffolded until this project intentionally wires provider, GitHub, and merge integrations.
 
+Workflow 2 state order:
+
+```text
+RUN_INIT -> CAMPAIGN_LOAD -> PHASE_SELECT -> SPEC_GENERATE -> SPEC_VALIDATE -> WORKTREE_CREATE -> CODEX_EXECUTE -> CHECKS_RUN -> HANDOFF_VALIDATE -> CLAUDE_REVIEW -> VERDICT_PARSE -> PR_CREATE -> CI_WAIT -> MERGE_GATE -> MERGE -> DONE_CHECK -> NEXT_PHASE -> CAMPAIGN_DONE_CHECK -> RUN_SUMMARY
+```
+
+Ralph owns the driver loop, state transitions, STOP checks, validation orchestration, review orchestration, verdict parsing, PR/CI/merge gates, bounded repair routing, done-checks, and run summaries. Codex executes the generated phase spec, makes scoped repairs when routed by Ralph, runs only authorized local checks for the phase, and writes truthful handoffs. Claude Opus is the fresh semantic reviewer for Yellow and Red phases. Claude Sonnet supports verifier and source-map work. ChatGPT provides strategy, campaign framing, and post-run reasoning.
+
 ## Agent Roles
 
 - ChatGPT: strategy, campaign framing, post-run review.
-- Claude: campaign decomposition, specs, architecture, cross-provider review, audits, semantic done-checks.
+- Claude Opus: campaign decomposition, specs, architecture, cross-provider review, Yellow/Red semantic review, and done-checks.
+- Claude Sonnet: source-map, verifier, audit, and mechanical inspection support.
 - Codex: primary implementation, scoped repair, validation, handoff writing.
+- Ralph: Workflow 2 driver, state machine, STOP/resume, validation ledger, review routing, verdict parsing, PR/CI/merge gates, and bounded repair enforcement.
 - Frontier tools: local state, artifact checks, run ledgers, merge-gate stubs, and reports.
 
 ## Lanes
@@ -49,7 +59,53 @@ Workflow 2 is the Ralph strict autonomous campaign loop. Generated Workflow 2 co
 - Yellow: material engineering or research work with Claude review.
 - Red: external, destructive, live, production, or broker-adjacent work that requires scoped authorization.
 
-Red does not mean impossible. Red means pre-authorized automatic only when the required scope and environment gates are armed.
+Red does not mean impossible. Red means pre-authorized automatic only when the required scope and environment gates are armed:
+
+```text
+PROJECT_OP_AUTHORIZED
+PROJECT_OP_SCOPE
+PROJECT_OP_EXPIRES
+```
+
+These variables must be present, scope-matched, and unexpired before Red-lane operations may proceed. This campaign is expected to avoid Red scope.
+
+## STOP And Resume
+
+- A STOP file under `runs/<RUN_ID>/STOP` is an active stop request for that Workflow 2 run.
+- Ralph must check STOP before provider calls, phase selection, Codex execution, validation, review, PR creation, CI waiting, merge gates, merge, done-check, and next-phase selection.
+- Resume requires the STOP condition to be removed or resolved, then Ralph resumes from recorded run state rather than regenerating completed work.
+- Codex must not ignore an active STOP file when acting inside a Workflow 2 run.
+
+## Run Artifacts
+
+`runs/**` is local-only runtime state. It is allowed for audit and resume files, but it must never be staged or committed.
+
+Run-level convention:
+
+```text
+runs/<RUN_ID>/RUN_GOAL.md
+runs/<RUN_ID>/state.json
+runs/<RUN_ID>/events.jsonl
+runs/<RUN_ID>/costs.jsonl
+runs/<RUN_ID>/progress.txt
+runs/<RUN_ID>/STOP
+runs/<RUN_ID>/RUN_SUMMARY.md
+```
+
+Phase-level convention:
+
+```text
+runs/<RUN_ID>/phases/<PHASE_ID>/spec.md
+runs/<RUN_ID>/phases/<PHASE_ID>/executor_prompt.md
+runs/<RUN_ID>/phases/<PHASE_ID>/executor_notes.md
+runs/<RUN_ID>/phases/<PHASE_ID>/checks.json
+runs/<RUN_ID>/phases/<PHASE_ID>/handoff.md
+runs/<RUN_ID>/phases/<PHASE_ID>/review.md
+runs/<RUN_ID>/phases/<PHASE_ID>/verdict.json
+runs/<RUN_ID>/phases/<PHASE_ID>/repair_attempts/
+```
+
+Commit-eligible handoffs belong under `handoffs/<PHASE_ID>.md`. Review artifacts that are intended for git belong under `reviews/**`. Run-local `handoff.md`, `review.md`, `verdict.json`, checks, and repair attempts remain local-only.
 
 ## Hard Constraints
 
@@ -60,6 +116,17 @@ Red does not mean impossible. Red means pre-authorized automatic only when the r
 - Do not force push.
 - Do not auto-merge, deploy, operate live systems, or make broker calls unless `frontier.yaml` and human authorization explicitly permit it.
 - Do not treat generated stubs as production automation until they are implemented and reviewed.
+
+## Git And Artifact Discipline
+
+- Use explicit staging only.
+- Stage curated files by path.
+- `git add .` and `git add -A` are forbidden examples, not allowed workflow commands.
+- Do not force push.
+- Before any commit or merge-gate evaluation, confirm the staged set contains no `runs/` path and no forbidden data, DB, cache, log, or heavy artifact path.
+- `git ls-files runs` must return empty for this campaign baseline.
+- Raw, canonical, factor, label, and cache data remain local-only.
+- SQLite, DB journals, WAL files, Parquet, Arrow, Feather, logs, caches, model binaries, and generated report bundles are never committed unless a later phase explicitly authorizes a tiny synthetic fixture exception.
 
 ## Directory Contracts
 
@@ -72,6 +139,10 @@ Red does not mean impossible. Red means pre-authorized automatic only when the r
 - `evals/canaries/`: safety canaries that should fail when guards are bypassed.
 - `tools/frontier/`: harness control-plane helpers.
 - `tools/hooks/`: local hook implementations and guard checks.
+
+## Path Policy
+
+The active repository and active Workflow 2 worktrees must run under the WSL2 Linux filesystem at `~/projects/alpha_system`. Do not run the active repo from `/mnt/c`, `/mnt/d`, `/mnt/e`, OneDrive, Dropbox, Google Drive, Windows-synced folders, network drives, temporary directories, or other synced/nonlocal development paths.
 
 ## Required Commands
 

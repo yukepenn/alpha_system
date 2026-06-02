@@ -155,6 +155,88 @@ workflow2:
   enabled: true
   ralph_required: true
   mode: "strict_micro_loop"
+  state_machine:
+    - "RUN_INIT"
+    - "CAMPAIGN_LOAD"
+    - "PHASE_SELECT"
+    - "SPEC_GENERATE"
+    - "SPEC_VALIDATE"
+    - "WORKTREE_CREATE"
+    - "CODEX_EXECUTE"
+    - "CHECKS_RUN"
+    - "HANDOFF_VALIDATE"
+    - "CLAUDE_REVIEW"
+    - "VERDICT_PARSE"
+    - "PR_CREATE"
+    - "CI_WAIT"
+    - "MERGE_GATE"
+    - "MERGE"
+    - "DONE_CHECK"
+    - "NEXT_PHASE"
+    - "CAMPAIGN_DONE_CHECK"
+    - "RUN_SUMMARY"
+  responsibilities:
+    ralph:
+      - "driver"
+      - "state_machine"
+      - "stop_and_resume"
+      - "validation_orchestration"
+      - "handoff_validation"
+      - "review_orchestration"
+      - "verdict_parse"
+      - "bounded_repair_routing"
+      - "pr_create"
+      - "ci_wait"
+      - "merge_gate"
+      - "done_check"
+      - "run_summary"
+    codex:
+      - "generated_spec_execution"
+      - "scoped_repair"
+      - "authorized_local_checks"
+      - "commit_eligible_handoff"
+    claude_opus:
+      - "yellow_red_review"
+      - "architecture_review"
+      - "semantic_done_check"
+    claude_sonnet:
+      - "source_map"
+      - "verifier"
+      - "audit_support"
+    chatgpt:
+      - "strategy"
+      - "campaign_framing"
+      - "post_run_reasoning"
+  run_artifacts:
+    local_only: true
+    run_dir: "runs/<run_id>"
+    phase_dir: "runs/<run_id>/phases/<phase_id>"
+    commit_eligible_handoff: "handoffs/<phase_id>.md"
+    never_stage:
+      - "runs/**"
+    phase_files:
+      - "spec.md"
+      - "executor_prompt.md"
+      - "executor_notes.md"
+      - "checks.json"
+      - "handoff.md"
+      - "review.md"
+      - "verdict.json"
+      - "repair_attempts/"
+  stop_file:
+    path: "runs/<run_id>/STOP"
+    checked_before:
+      - "phase_select"
+      - "provider_call"
+      - "codex_execute"
+      - "checks_run"
+      - "claude_review"
+      - "pr_create"
+      - "ci_wait"
+      - "merge_gate"
+      - "merge"
+      - "done_check"
+      - "next_phase"
   fresh_context_each_iteration: true
   allow_auto_spec_generation: true
   allow_auto_execute: true

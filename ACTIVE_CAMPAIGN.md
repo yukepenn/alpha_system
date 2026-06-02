@@ -4,10 +4,10 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_SYSTEM_V1`
 Workflow: `workflow2`
-Run: `not_started`
-Status: `planning`
+Run: `2026-06-02T012007Z_ALPHA_SYSTEM_V1`
+Status: `executing`
 
-Current phase: `ASV1-P00` — Repo and Harness Bootstrap Policy
+Current phase: `ASV1-P01` — Frontier Harness Baseline Files
 
 Ralph must update this pointer as phases complete, block, or require repair.
 

@@ -14,4 +14,4 @@ jobs:
       - name: Preview merge gate
         run: |
           python tools/frontier/merge_gate.py --dry-run
-          echo "Real merge requires lane policy, CI success, verdict success, artifact policy, branch protection, and gh auth. Red requires FRONTIER_RED_AUTHORIZED=1."
+          echo "Real merge requires lane policy, CI success, verdict success, artifact policy, branch protection, and gh auth. Red requires PROJECT_OP_AUTHORIZED=1, PROJECT_OP_SCOPE, and PROJECT_OP_EXPIRES."
