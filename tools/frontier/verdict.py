@@ -107,8 +107,6 @@ def _severity(verdict: str, text: str) -> str:
         return "critical"
     if verdict == "REWORK":
         return "high"
-    if "critical" in lowered:
-        return "critical"
     if "warning" in lowered or verdict == "PASS_WITH_WARNINGS":
         return "warning"
     return "none"

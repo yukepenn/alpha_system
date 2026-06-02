@@ -61,7 +61,12 @@ from tools.frontier.github_utils import (
     write_ci_status_artifacts,
     write_pr_create_artifacts,
 )
-from tools.frontier.merge_gate import evaluate_merge_gate, perform_merge, write_merge_gate_artifacts
+from tools.frontier.merge_gate import (
+    critical_findings_for_gate,
+    evaluate_merge_gate,
+    perform_merge,
+    write_merge_gate_artifacts,
+)
 from tools.frontier.artifact_policy import curate_commit_paths
 from tools.frontier.provider_adapters import (
     WAITING_CLAUDE_LIMIT,
@@ -2781,8 +2786,11 @@ def post_phase_git_github(
     verdict_path = phase_dir / "verdict.json"
     if verdict_path.exists():
         verdict_data = read_json(verdict_path)
-        if verdict_data.get("severity") == "critical":
-            critical = list(verdict_data.get("findings", []))
+        critical = critical_findings_for_gate(
+            str(verdict_data.get("verdict", verdict)),
+            list(verdict_data.get("findings", [])),
+            str(verdict_data.get("severity", "none")),
+        )
     merge_changed_files = [] if dry_git else changed
     gate = evaluate_merge_gate(
         campaign_id=state["campaign_id"],
@@ -3257,7 +3265,11 @@ def run_deterministic_resume_gates(
         )
         return True
 
-    critical = list(verdict_data.get("findings", [])) if verdict_data.get("severity") == "critical" else []
+    critical = critical_findings_for_gate(
+        str(verdict_data.get("verdict", verdict)),
+        list(verdict_data.get("findings", [])),
+        str(verdict_data.get("severity", "none")),
+    )
     allow_automerge = os.environ.get("FRONTIER_ALLOW_AUTOMERGE", "").lower() in {"1", "true", "yes", "on"}
     merge_dry_run = mock_enabled or os.environ.get("FRONTIER_MERGE_DRY_RUN") == "1" or not allow_automerge
     gate = evaluate_merge_gate(

@@ -17,6 +17,16 @@ def test_verdict_parser_pass_with_warnings() -> None:
     assert parsed.warnings
 
 
+def test_passing_review_does_not_treat_controlled_critical_risk_labels_as_critical() -> None:
+    parsed = parse_review_text(
+        "- **R-022 Broker/live/paper scope creep (Critical)** -- Controlled; path scan is empty.\n\n"
+        "VERDICT: PASS_WITH_WARNINGS\n"
+    )
+
+    assert parsed.verdict == "PASS_WITH_WARNINGS"
+    assert parsed.severity == "warning"
+
+
 def test_verdict_parser_rework_repairs() -> None:
     parsed = parse_review_text("## Required repairs\n\n- Must fix validation failure.\n\nVERDICT: REWORK\n")
 

@@ -78,6 +78,12 @@ def _verdict_from_file(path: Path | None) -> tuple[str, list[str], str]:
     return verdict, findings, severity
 
 
+def critical_findings_for_gate(verdict: str, findings: list[str], severity: str) -> list[str]:
+    if verdict in PASSING:
+        return []
+    return list(findings) if severity == "critical" else []
+
+
 def _ci_green(ci_status: str) -> bool:
     return ci_status.upper() in {"SUCCESS", "GREEN", "PASSED", "PASS", "OK"} or ci_status.lower() in {
         "success",
@@ -277,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     verdict, findings, severity = _verdict_from_file(args.verdict_json)
-    critical = findings if severity == "critical" else []
+    critical = critical_findings_for_gate(verdict, findings, severity)
     result = evaluate_merge_gate(
         campaign_id=args.campaign_id,
         phase_id=args.phase_id,
