@@ -1,0 +1,39 @@
+schema_version: factor_card_report_config_v1
+description: Conservative local-only defaults for factor-card report generation.
+
+sections:
+  diagnostic_summary: true
+  time_of_day_stability: true
+  session_segment_stability: true
+  monthly_stability: true
+  volatility_regime_stability: true
+  liquidity_regime_stability: true
+  correlation_to_existing_factors: true
+  factor_cluster_id: true
+  recommendation: true
+  metadata: true
+  warnings: true
+  limitations: true
+
+sample_size_warning_thresholds:
+  min_total: 30
+  min_bucket: 5
+  min_event: 5
+
+output:
+  default_root: artifacts/reports
+  formats:
+    - markdown
+    - csv
+  local_only: true
+  write_full_bundle: false
+  emit_plots: false
+
+recommendations:
+  allowed_values:
+    - reject
+    - needs_more_data
+    - candidate_for_strategy_test
+    - candidate_for_review
+    - do_not_promote
+  advisory_only: true
