@@ -1,0 +1,32 @@
+{
+  "calendar_id": "SYNTH_EXCHANGE",
+  "timezone": "America/New_York",
+  "regular_session": {
+    "open": "09:30",
+    "close": "09:35",
+    "session_type": "regular"
+  },
+  "sessions": [
+    {
+      "trading_date": "2026-01-02",
+      "session_type": "regular"
+    },
+    {
+      "trading_date": "2026-01-05",
+      "session_type": "regular",
+      "is_half_day": true,
+      "close": "09:32",
+      "quality_flags": ["half_day"]
+    },
+    {
+      "trading_date": "2026-01-06",
+      "session_type": "regular",
+      "is_holiday": true,
+      "quality_flags": ["holiday"]
+    }
+  ],
+  "metadata": {
+    "fixture_scope": "tiny synthetic calendar for ASV1-P07 tests",
+    "source": "hand-authored synthetic fixture"
+  }
+}
