@@ -1,0 +1,6 @@
+# Example for: alpha data validate
+# Fixture-scale config only. Outputs, if requested, must be local-only.
+schema_id: canonical_1min_bars_v1
+available_latency_seconds: 5
+spread_tolerance: "0.000001"
+require_event_within_bar: true

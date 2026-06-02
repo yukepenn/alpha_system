@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 
+from alpha_system.cli.data import register_subparser as register_data_subparser
 from alpha_system.cli.registry import register_subparser
 
 
@@ -18,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     subparsers = parser.add_subparsers(dest="command")
+    register_data_subparser(subparsers)
     register_subparser(subparsers)
     return parser
 

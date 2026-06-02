@@ -1,0 +1,7 @@
+# Example for: alpha data build-bars
+# Generated outputs under data/ are local-only and must never be committed.
+instrument_id: SYNTH-1
+fixture_policy: synthetic_correctness_only
+available_latency_seconds: 5
+allow_non_fixture_input: false
+example_output: data/canonical/synthetic_1min_bars.parquet
