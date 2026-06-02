@@ -148,6 +148,19 @@ def state_json(run_dir: Path) -> dict:
     return json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
 
 
+def test_git_phase_blocked_resume_selects_current_phase() -> None:
+    state = {
+        "current_phase_id": "P00",
+        "phases": [
+            {"phase_id": "P00", "status": ralph_driver.GIT_PHASE_BLOCKED},
+            {"phase_id": "P01", "status": "PENDING"},
+        ],
+    }
+
+    assert ralph_driver.next_pending_provider_phase(state)["phase_id"] == "P00"
+    assert ralph_driver.current_gate_blocked_phase(state)["phase_id"] == "P00"
+
+
 def write_minimal_run_state(
     tmp_root: Path,
     run_name: str,

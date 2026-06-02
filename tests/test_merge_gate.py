@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from tools.frontier.github_utils import BranchProtectionResult
-from tools.frontier.merge_gate import evaluate_merge_gate, perform_merge
+from tools.frontier.merge_gate import critical_findings_for_gate, evaluate_merge_gate, perform_merge
 
 
 CONFIG = {
@@ -74,6 +74,12 @@ def test_yellow_pass_with_warnings_allowed() -> None:
     )
 
     assert result.merge_allowed is True
+
+
+def test_passing_verdict_ignores_stale_critical_findings_for_gate() -> None:
+    findings = ["**R-022 Scope creep (Critical)** -- Controlled."]
+
+    assert critical_findings_for_gate("PASS_WITH_WARNINGS", findings, "critical") == []
 
 
 def test_merge_gate_blocks_failed_ci() -> None:
