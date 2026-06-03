@@ -45,6 +45,7 @@ def test_foundation_namespace_exposes_canonical_placeholder_names() -> None:
         "HistoricalRequestSpec",
         "IBKRClientIdPolicy",
         "IBKRConnectionProfile",
+        "IBKRReadOnlyApiBoundary",
         "InstrumentMasterRecord",
         "LocalDataRootPolicy",
         "MicroBatchPolicy",
@@ -58,6 +59,8 @@ def test_foundation_namespace_exposes_canonical_placeholder_names() -> None:
         "SymbolBatchPlan",
         "TimestampSemanticsPolicy",
         "TradingCalendarRecord",
+        "ReadOnlyBoundaryViolation",
+        "build_read_only_ibkr_boundary",
     }
 
     for name in expected_names:

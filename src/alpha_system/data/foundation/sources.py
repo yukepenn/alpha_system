@@ -105,6 +105,55 @@ DEFAULT_MAX_FILE_POLICY: Mapping[str, object] = MappingProxyType(
     }
 )
 
+_EXTERNAL_DATA_ACCESS_REQUIRED_ENV: tuple[str, ...] = (
+    "ALPHA_DATA_PULL_AUTHORIZED",
+    "ALPHA_ALLOW_EXTERNAL_IBKR",
+    "ALPHA_IBKR_READ_ONLY_MODE",
+)
+
+_RAW_WRITE_REQUIRED_ENV = "ALPHA_ALLOW_RAW_LOCAL_WRITE"
+
+_DATA_ACCESS_MODE_CONTRACT: Mapping[str, Mapping[str, object]] = MappingProxyType(
+    {
+        "dry_run": MappingProxyType(
+            {
+                "requires_env": (),
+                "allows_external_api": False,
+                "allows_raw_write": False,
+                "allows_canonical_write": False,
+                "ci_allowed": True,
+            }
+        ),
+        "synthetic": MappingProxyType(
+            {
+                "requires_env": (),
+                "allows_external_api": False,
+                "allows_raw_write": False,
+                "allows_canonical_write": True,
+                "ci_allowed": True,
+            }
+        ),
+        "smoke": MappingProxyType(
+            {
+                "requires_env": _EXTERNAL_DATA_ACCESS_REQUIRED_ENV,
+                "allows_external_api": True,
+                "allows_raw_write": False,
+                "allows_canonical_write": False,
+                "ci_allowed": False,
+            }
+        ),
+        "authorized_pull": MappingProxyType(
+            {
+                "requires_env": _EXTERNAL_DATA_ACCESS_REQUIRED_ENV + (_RAW_WRITE_REQUIRED_ENV,),
+                "allows_external_api": True,
+                "allows_raw_write": True,
+                "allows_canonical_write": False,
+                "ci_allowed": False,
+            }
+        ),
+    }
+)
+
 CLOUD_OR_SYNC_MARKERS: tuple[str, ...] = (
     "onedrive",
     "dropbox",
@@ -171,6 +220,55 @@ def _normalize_modes(value: object, field_name: str) -> frozenset[str]:
     return modes
 
 
+def _normalize_env_names(value: object, field_name: str) -> tuple[str, ...]:
+    if isinstance(value, str) or not isinstance(value, Iterable):
+        msg = f"{field_name} must be an iterable of environment variable names"
+        raise DataFoundationValidationError(msg)
+
+    names: list[str] = []
+    for item in value:
+        name = _require_text(item, field_name).upper()
+        if not name.replace("_", "").isalnum():
+            msg = f"{field_name} contains invalid environment variable name {name!r}"
+            raise DataFoundationValidationError(msg)
+        names.append(name)
+    return tuple(dict.fromkeys(names))
+
+
+def _require_bool(value: object, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        msg = f"{field_name} must be a boolean"
+        raise DataFoundationValidationError(msg)
+    return value
+
+
+def _parse_env_bool_flag(value: object, field_name: str) -> bool:
+    if not isinstance(value, str):
+        msg = f"{field_name} must be a boolean string"
+        raise DataFoundationValidationError(msg)
+    token = value.strip().lower()
+    if token in {"1", "true", "yes", "on"}:
+        return True
+    if token in {"0", "false", "no", "off", ""}:
+        return False
+    msg = f"{field_name} must be a boolean string"
+    raise DataFoundationValidationError(msg)
+
+
+def _env_flag_enabled(value: object, field_name: str) -> bool:
+    if _parse_env_bool_flag(value, field_name):
+        return True
+    msg = f"{field_name} must be set to a true boolean string"
+    raise DataFoundationValidationError(msg)
+
+
+def _runtime_ci_enabled(env: Mapping[str, str]) -> bool:
+    value = env.get("CI")
+    if value is None:
+        return False
+    return _parse_env_bool_flag(value, "CI")
+
+
 def _mode_implies_forbidden_capability(mode: str) -> bool:
     parts = frozenset(mode.split("_"))
     return bool(
@@ -227,9 +325,7 @@ class DataSourceProfile:
         if _mode_implies_forbidden_capability(provider_type):
             msg = f"provider_type {provider_type!r} implies a forbidden capability"
             raise DataFoundationValidationError(msg)
-        implied = sorted(
-            mode for mode in allowed_modes if _mode_implies_forbidden_capability(mode)
-        )
+        implied = sorted(mode for mode in allowed_modes if _mode_implies_forbidden_capability(mode))
         if implied:
             msg = (
                 "allowed_modes must not include broker, execution, order, account, "
@@ -424,8 +520,130 @@ def require_local_data_root_policy(policy: LocalDataRootPolicy | None) -> LocalD
     return policy
 
 
+@dataclass(frozen=True, slots=True)
 class DataAccessMode:
-    """DATA-P03 placeholder for allowed data access modes."""
+    """Validated local/external data-access mode gate."""
+
+    mode: str
+    requires_env: tuple[str, ...]
+    allows_external_api: bool
+    allows_raw_write: bool
+    allows_canonical_write: bool
+    ci_allowed: bool
+
+    def __post_init__(self) -> None:
+        mode = _normalize_mode_token(self.mode, "mode")
+        expected = _DATA_ACCESS_MODE_CONTRACT.get(mode)
+        if expected is None:
+            allowed = ", ".join(sorted(_DATA_ACCESS_MODE_CONTRACT))
+            msg = f"DataAccessMode mode must be one of: {allowed}"
+            raise DataFoundationValidationError(msg)
+
+        requires_env = _normalize_env_names(self.requires_env, "requires_env")
+        allows_external_api = _require_bool(
+            self.allows_external_api,
+            "allows_external_api",
+        )
+        allows_raw_write = _require_bool(self.allows_raw_write, "allows_raw_write")
+        allows_canonical_write = _require_bool(
+            self.allows_canonical_write,
+            "allows_canonical_write",
+        )
+        ci_allowed = _require_bool(self.ci_allowed, "ci_allowed")
+
+        expected_requires_env = tuple(expected["requires_env"])
+        if (
+            requires_env != expected_requires_env
+            or allows_external_api != expected["allows_external_api"]
+            or allows_raw_write != expected["allows_raw_write"]
+            or allows_canonical_write != expected["allows_canonical_write"]
+            or ci_allowed != expected["ci_allowed"]
+        ):
+            msg = f"DataAccessMode {mode!r} must match the campaign access-mode contract"
+            raise DataFoundationValidationError(msg)
+
+        if allows_external_api and ci_allowed:
+            msg = "DataAccessMode cannot allow external API calls in CI"
+            raise DataFoundationValidationError(msg)
+        if allows_external_api and not set(_EXTERNAL_DATA_ACCESS_REQUIRED_ENV).issubset(
+            requires_env
+        ):
+            msg = "external API modes require the data-pull and read-only IBKR env gates"
+            raise DataFoundationValidationError(msg)
+        if allows_raw_write and _RAW_WRITE_REQUIRED_ENV not in requires_env:
+            msg = "raw-write modes require ALPHA_ALLOW_RAW_LOCAL_WRITE"
+            raise DataFoundationValidationError(msg)
+
+        object.__setattr__(self, "mode", mode)
+        object.__setattr__(self, "requires_env", requires_env)
+        object.__setattr__(self, "allows_external_api", allows_external_api)
+        object.__setattr__(self, "allows_raw_write", allows_raw_write)
+        object.__setattr__(self, "allows_canonical_write", allows_canonical_write)
+        object.__setattr__(self, "ci_allowed", ci_allowed)
+
+    @classmethod
+    def for_mode(cls, mode: object) -> "DataAccessMode":
+        """Build a canonical mode record by mode name."""
+
+        token = _normalize_mode_token(mode, "mode")
+        expected = _DATA_ACCESS_MODE_CONTRACT.get(token)
+        if expected is None:
+            allowed = ", ".join(sorted(_DATA_ACCESS_MODE_CONTRACT))
+            msg = f"DataAccessMode mode must be one of: {allowed}"
+            raise DataFoundationValidationError(msg)
+        return cls(
+            mode=token,
+            requires_env=tuple(expected["requires_env"]),
+            allows_external_api=bool(expected["allows_external_api"]),
+            allows_raw_write=bool(expected["allows_raw_write"]),
+            allows_canonical_write=bool(expected["allows_canonical_write"]),
+            ci_allowed=bool(expected["ci_allowed"]),
+        )
+
+    @classmethod
+    def dry_run(cls) -> "DataAccessMode":
+        """Build the local dry-run mode."""
+
+        return cls.for_mode("dry_run")
+
+    @classmethod
+    def synthetic(cls) -> "DataAccessMode":
+        """Build the local synthetic mode."""
+
+        return cls.for_mode("synthetic")
+
+    @classmethod
+    def smoke(cls) -> "DataAccessMode":
+        """Build the external-read smoke mode; it is never CI-allowed."""
+
+        return cls.for_mode("smoke")
+
+    @classmethod
+    def authorized_pull(cls) -> "DataAccessMode":
+        """Build the authorized external-pull mode; it is never CI-allowed."""
+
+        return cls.for_mode("authorized_pull")
+
+    def validate_runtime_env(
+        self,
+        env: Mapping[str, str] | None = None,
+        *,
+        ci: bool | None = None,
+    ) -> "DataAccessMode":
+        """Validate runtime env gates before an external data access attempt."""
+
+        source = os.environ if env is None else env
+        ci_enabled = _runtime_ci_enabled(source) if ci is None else ci
+        if ci_enabled and not self.ci_allowed:
+            msg = f"DataAccessMode {self.mode!r} is not allowed to call external APIs in CI"
+            raise DataFoundationValidationError(msg)
+
+        for env_name in self.requires_env:
+            if env_name not in source:
+                msg = f"DataAccessMode {self.mode!r} requires {env_name}"
+                raise DataFoundationValidationError(msg)
+            _env_flag_enabled(source[env_name], env_name)
+        return self
 
 
 __all__ = [
