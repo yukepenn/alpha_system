@@ -16,6 +16,13 @@ Project: `alpha_system`
 - Canonical repo path: `~/projects/alpha_system`
 - Required filesystem: WSL2 Linux filesystem
 
+Post-closeout status:
+
+- Latest release baseline: ALPHA_SYSTEM_V1 executor-complete with warnings on deterministic
+  fixtures.
+- Current post-closeout work: ASV1_RELEASE_HYGIENE.
+- Next intended campaign: ALPHA_RESEARCH_GOVERNANCE_MVP.
+
 `ACTIVE_CAMPAIGN.md` is the tracked phase-progress pointer that Ralph updates through reviewed phase commits. This file is a stable project orientation note, not the authoritative live ledger.
 
 ## Non-Negotiable Policy
