@@ -84,6 +84,15 @@ dry run composes existing governance objects, gates, registry persistence, CLI
 commands, negative controls, and the unsupported-claim guard over tiny synthetic
 fixtures.
 
+## Workflow 2 Integration
+
+`WORKFLOW2_INTEGRATION.md` records the ARGOV-P19 handoff/review/verdict artifact
+boundary. Run-local Workflow 2 artifacts remain under `runs/**`; durable
+commit-eligible handoffs live under
+`handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**`, and commit-eligible review artifacts
+live under `reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**` only when reviewer-written
+and selected for git.
+
 ## Posture
 
 The campaign posture is aggressive about evidence governance and conservative about market claims and trading scope. The layer is meant to make weak evidence, missing prerequisites, self-approval, hidden failures, uncontrolled variants, duplicate exposures, leakage, and unsupported claims detectable and blockable before future research campaigns expand scope.
