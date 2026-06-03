@@ -241,6 +241,37 @@ def diff_files_between(root: Path, base_sha: str, head_ref: str = "HEAD") -> lis
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def remote_default_branch_ref(root: Path, *, remote: str = "origin") -> str | None:
+    result = git(root, "symbolic-ref", "--quiet", "--short", f"refs/remotes/{remote}/HEAD")
+    value = result.stdout.strip()
+    if result.returncode == 0 and value:
+        return value
+    return None
+
+
+def infer_existing_head_base_sha(root: Path, current_head: str | None, *, remote: str = "origin") -> str | None:
+    if not current_head:
+        return None
+    candidates = [
+        remote_default_branch_ref(root, remote=remote),
+        f"{remote}/main",
+        "main",
+        "master",
+    ]
+    seen: set[str] = set()
+    for ref in candidates:
+        if not ref or ref in seen:
+            continue
+        seen.add(ref)
+        sha = rev_parse(root, ref)
+        if not sha or sha == current_head:
+            continue
+        ancestor = git(root, "merge-base", "--is-ancestor", sha, current_head)
+        if ancestor.returncode == 0:
+            return sha
+    return None
+
+
 def remote_url(root: Path = ROOT, remote: str = "origin") -> str | None:
     result = git(root, "remote", "get-url", remote)
     if result.returncode != 0:
@@ -497,8 +528,9 @@ def commit_phase_changes(
             source="uncommitted_changes_blocked",
         )
 
-    if not files and base_sha and current_head and current_head != base_sha:
-        diff_files = diff_files_between(root, base_sha, "HEAD")
+    existing_base_sha = base_sha or infer_existing_head_base_sha(root, current_head)
+    if not files and existing_base_sha and current_head and current_head != existing_base_sha:
+        diff_files = diff_files_between(root, existing_base_sha, "HEAD")
         diff_allowed, diff_blocked = curate_commit_paths(
             diff_files,
             allow_patterns=allow_patterns,
@@ -517,9 +549,9 @@ def commit_phase_changes(
             commands=commands,
             status_before=status_before,
             status_after=status_porcelain(root),
-            diff_stat=diff_stat_between(root, base_sha, "HEAD"),
+            diff_stat=diff_stat_between(root, existing_base_sha, "HEAD"),
             message=message,
-            base_sha=base_sha,
+            base_sha=existing_base_sha,
             diff_files=diff_files,
             source="existing_head_commit",
         )

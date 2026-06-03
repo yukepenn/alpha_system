@@ -2262,6 +2262,42 @@ def write_merge_result_artifacts(phase_dir: Path, result: GitHubResult) -> None:
     (phase_dir / "merge_result.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def cleanup_phase_worktree_after_merge(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    dry_run: bool | None = None,
+) -> None:
+    if not state.get("worktree_mode") or not phase.get("merged"):
+        return
+    path_text = str(phase.get("worktree_path") or "").strip()
+    branch = str(phase.get("branch") or "").strip()
+    if not path_text or not branch:
+        return
+    phase_dir = provider_phase_dir(run_dir, phase)
+    config = load_config(ROOT / "frontier.yaml")
+    github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
+    remote = str(github_config.get("remote") or "origin")
+    manager = WorktreeManager(ROOT, runtime_config().worktree_root)
+    cleanup = manager.cleanup_after_merge(
+        Path(path_text),
+        branch,
+        remote=remote,
+        dry_run=bool(state.get("mock_providers")) if dry_run is None else dry_run,
+    )
+    write_json(phase_dir / "worktree_cleanup.json", cleanup)
+    append_event(
+        run_dir,
+        state,
+        "WORKTREE_CLEANUP" if cleanup.get("ok") else "WORKTREE_CLEANUP_BLOCKED",
+        phase_id=phase["phase_id"],
+        branch=branch,
+        path=path_text,
+        ok=bool(cleanup.get("ok")),
+    )
+
+
 def read_json_if_exists(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -2509,6 +2545,8 @@ def post_phase_git_github(
         commit_sha = git_result.commit_sha
         changed = git_result.changed_files
         blocked = git_result.blocked_files
+        if git_result.base_sha:
+            phase["base_sha"] = git_result.base_sha
         if not dry_git and blocked:
             reason = "GIT_PHASE_BLOCKED: artifact policy blocked phase commit paths: " + ", ".join(blocked)
             block_provider_gate(
@@ -2896,6 +2934,7 @@ def post_phase_git_github(
                 classification=merge_result_classification(merge_result),
             )
             append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
+            cleanup_phase_worktree_after_merge(run_dir, state, phase)
         elif merge_result.blocked and gate.merge_allowed:
             reason = "MERGE_EXECUTION_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
             block_provider_gate(
@@ -3170,6 +3209,7 @@ def run_deterministic_resume_gates(
                 classification="already_merged",
             )
             append_event(run_dir, state, "RESUME_PR_ALREADY_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
+            cleanup_phase_worktree_after_merge(run_dir, state, phase)
             finish_targeted_resume(
                 run_dir,
                 state,
@@ -3398,6 +3438,7 @@ def run_deterministic_resume_gates(
                 classification=merge_result_classification(merge_result),
             )
             append_event(run_dir, state, "PR_MERGED", phase_id=phase["phase_id"], pr_number=pr_number)
+            cleanup_phase_worktree_after_merge(run_dir, state, phase)
         elif merge_result.blocked:
             reason = "MERGE_EXECUTION_BLOCKED: " + (merge_result.instructions or merge_result.stderr)
             block_provider_gate(

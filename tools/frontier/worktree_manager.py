@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.frontier.git_utils import git, repo_name, sanitize_component
+from tools.frontier.git_utils import git, local_branch_exists, repo_name, sanitize_component
 from tools.frontier.provider_config import load_provider_config
 
 
@@ -111,6 +111,89 @@ class WorktreeManager:
             action["stderr"] = result.stderr
             if result.returncode != 0:
                 raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+        return action
+
+    def cleanup_after_merge(
+        self,
+        path: Path,
+        branch: str,
+        *,
+        remote: str = "origin",
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        if not is_frontier_owned_worktree(self.repo_root, path, branch):
+            raise ValueError(f"Refusing to clean non-Frontier worktree: {path}")
+        action: dict[str, Any] = {
+            "path": str(path),
+            "branch": branch,
+            "remote": remote,
+            "dry_run": dry_run,
+            "steps": [],
+            "ok": True,
+        }
+        if dry_run:
+            return action
+
+        if path.exists():
+            result = git(self.repo_root, "worktree", "remove", str(path))
+            action["steps"].append(
+                {
+                    "action": "worktree_remove",
+                    "return_code": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                }
+            )
+            if result.returncode != 0:
+                action["ok"] = False
+                return action
+        else:
+            action["steps"].append({"action": "worktree_remove", "skipped": "missing_path"})
+
+        if local_branch_exists(self.repo_root, branch):
+            result = git(self.repo_root, "branch", "-D", branch)
+            action["steps"].append(
+                {
+                    "action": "local_branch_delete",
+                    "return_code": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                }
+            )
+            if result.returncode != 0:
+                action["ok"] = False
+                return action
+        else:
+            action["steps"].append({"action": "local_branch_delete", "skipped": "missing_branch"})
+
+        remote_ref = f"refs/heads/{branch}"
+        remote_check = git(self.repo_root, "ls-remote", "--heads", remote, remote_ref)
+        action["steps"].append(
+            {
+                "action": "remote_branch_check",
+                "return_code": remote_check.returncode,
+                "stdout": remote_check.stdout,
+                "stderr": remote_check.stderr,
+            }
+        )
+        if remote_check.returncode != 0:
+            action["ok"] = False
+            return action
+        if not remote_check.stdout.strip():
+            action["steps"].append({"action": "remote_branch_delete", "skipped": "missing_remote_branch"})
+            return action
+
+        result = git(self.repo_root, "push", remote, "--delete", branch)
+        action["steps"].append(
+            {
+                "action": "remote_branch_delete",
+                "return_code": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+        )
+        if result.returncode != 0:
+            action["ok"] = False
         return action
 
     def list(self) -> list[dict[str, str]]:
