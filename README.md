@@ -18,13 +18,17 @@ tradability, or production-readiness claims.
 validated `DataSourceProfile` and `LocalDataRootPolicy` records; and the
 `DATA-P03` executor snapshot adds `IBKRConnectionProfile`,
 `IBKRClientIdPolicy`, and a diagnostic-only connection-doctor scaffold. The
-`ibkr_read_only_boundary` gate is progressing with the `DATA-P04` executor
-scope complete: read-only IBKR API boundary, order-method kill switch, and
-`DataAccessMode` gate. The active phase is `DATA-P04` - Read-Only API Boundary
-and Order-Method Kill Switch. The next phase is `DATA-P05` - Futures Instrument
-Master and Contract Economics. Ralph-owned review, verdict parsing, semantic
-done-check, PR, CI, and merge gates remain required before any phase PASS is
-recorded.
+`ibkr_read_only_boundary` gate has the `DATA-P04` executor scope complete:
+read-only IBKR API boundary, order-method kill switch, and `DataAccessMode`
+gate. The `futures_contract_master` gate is progressing with the `DATA-P05`
+executor scope complete: `InstrumentMasterRecord`, six to-be-verified futures
+contract-economics anchors, and exact `tick_value = tick_size * point_value`
+validation. The active phase is `DATA-P05` - Futures Instrument Master and
+Contract Economics. The next dependent phase is `DATA-P06` - Contract Details
+Snapshot and Contract Discovery. The reviewed passing baseline remains
+`DATA-P00` through `DATA-P04` (5 of 25 phases) until Ralph-owned review,
+verdict parsing, semantic done-check, PR, CI, and merge gates record the next
+phase outcome.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -63,16 +67,27 @@ methods. It also adds:
 
 - `docs/data_foundation/READ_ONLY_BOUNDARY.md`
 
+`DATA-P05` adds the futures instrument master under
+`src/alpha_system/data/foundation/instruments.py`, with the ES/NQ/RTY and
+MES/MNQ/M2K contract-economics anchors in
+`configs/data/futures_instrument_master.json`. The anchors are recorded as
+to-be-verified economic anchors, not production-certified values, and are
+validated with exact `Decimal` equality for tick value, tick size, and point
+value. It also adds:
+
+- `docs/data_foundation/INSTRUMENT_MASTER.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
 historical futures data foundation.
 
-Safety boundaries are unchanged: IBKR remains read-only historical only; no
-broker, order, account, paper, live, or real-time scope is introduced; real data
-is local-only via `ALPHA_DATA_ROOT`; no raw or heavy artifact commits, no local
-DB commits, explicit staging only, and no alpha, profitability, tradability, or
-production-readiness claims.
+Safety boundaries are unchanged: IBKR remains read-only historical only;
+clientId `101` and `102` remain fail-closed, the data namespace remains
+`201-209`; no broker, order, account, paper, live, or real-time scope is
+introduced; real data is local-only via `ALPHA_DATA_ROOT`; no raw or heavy
+artifact commits, no local DB commits, explicit staging only, and no alpha,
+profitability, tradability, or production-readiness claims.
 
 ## Data Foundation Docs
 
@@ -86,15 +101,17 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/IBKR_CONNECTION_PROFILE.md`
 - `docs/data_foundation/CLIENT_ID_POLICY.md`
 - `docs/data_foundation/READ_ONLY_BOUNDARY.md`
+- `docs/data_foundation/INSTRUMENT_MASTER.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
 read-only posture, canonical object names, ID prefixes, module names,
 file-naming conventions, directory layout, `DataSourceProfile`,
 `LocalDataRootPolicy`, `IBKRConnectionProfile`, `IBKRClientIdPolicy`,
-`IBKRReadOnlyApiBoundary`, `DataAccessMode`, and the `ALPHA_DATA_ROOT`
-local-only data-root pointer. Field-level acceptance rules, risks, and operator
-procedures remain in the campaign contract bundle.
+`IBKRReadOnlyApiBoundary`, `DataAccessMode`, `InstrumentMasterRecord`,
+contract-economics anchors, and the `ALPHA_DATA_ROOT` local-only data-root
+pointer. Field-level acceptance rules, risks, and operator procedures remain in
+the campaign contract bundle.
 
 ## Campaign Source Of Truth
 
