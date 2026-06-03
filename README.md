@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P00` has completed its executor bootstrap deliverables for Ralph validation and independent review: the governance documentation root now exists, the repository campaign pointer references this campaign, and the root README snapshot reflects the governance campaign. No phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P01` has completed its executor deliverables for Ralph validation and independent review: the importable governance package skeleton, governance unit-test root, governance config/template roots, and canonical naming contract now exist. No phase PASS verdict is recorded here.
 
-The active phase remains `ARGOV-P00` until the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates complete. The next planned phase is `ARGOV-P01 — Governance Package Skeleton and Canonical Naming`.
+The active phase remains `ARGOV-P01` until the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates complete. The next planned phase is `ARGOV-P02 — Governance IDs, Serialization, and Validation Primitives`.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -18,12 +18,13 @@ Safety boundaries are unchanged: governance-only scope, no real data ingestion, 
 
 ## Governance Docs
 
-`ARGOV-P00` adds the durable governance docs root:
+The governance docs root currently includes:
 
 - `docs/governance/README.md`
 - `docs/governance/GOVERNANCE_OVERVIEW.md`
+- `docs/governance/NAMING.md`
 
-These docs describe the admissibility protocol at a high level: governance objects, hard rules, lifecycle states, prohibited future-only state names, and the campaign posture of strict evidence governance with conservative market scope. No source modules, tests, configs, templates, or commands are added by this phase.
+These docs describe the admissibility protocol at a high level and define the canonical governance object names, ID prefixes, module names, file names, and directory layout. `ARGOV-P01` adds skeleton source modules and import tests only; object logic, validation, serialization, registry integration, CLI behavior, and report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -132,6 +133,9 @@ Commit-eligible policy and campaign files live under:
 - `decisions/`
 - `evals/`
 - `configs/`
+- `templates/`
+- `src/alpha_system/governance/`
+- `tests/unit/governance/`
 
 Local data and generated artifact roots are present for structure only:
 
@@ -145,9 +149,11 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new commands are added by `ARGOV-P00`. Existing local validation commands include:
+No new CLI commands are added by `ARGOV-P01`. Local validation commands include:
 
 ```bash
+python -c "import alpha_system.governance"
+python -m pytest tests/unit/governance -q
 python tools/verify.py --smoke
 python tools/verify.py --all
 python tools/hooks/canary_runner.py
