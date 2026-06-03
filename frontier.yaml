@@ -67,7 +67,7 @@ commands:
   validate_artifacts: "python tools/verify.py --artifacts"
 
 providers:
-  timeout_seconds: 1800
+  timeout_seconds: 21600
   mock:
     enabled: false
   claude:
@@ -249,7 +249,7 @@ workflow2:
   allow_auto_merge_dry_run: true
   max_repair_attempts_default: 2
   max_run_minutes: 14400
-  max_phase_minutes: 120
+  max_phase_minutes: 1440
   max_estimated_usd: 0.0
   worktree_mode: false
   worktree_mode_recommended: true

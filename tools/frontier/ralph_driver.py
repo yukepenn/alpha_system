@@ -427,7 +427,7 @@ def provider_budget_limits() -> dict[str, float]:
             "FRONTIER_MAX_RUN_MINUTES", workflow2.get("max_run_minutes"), 720
         ),
         "max_phase_minutes": env_or_config_number(
-            "FRONTIER_MAX_PHASE_MINUTES", workflow2.get("max_phase_minutes"), 120
+            "FRONTIER_MAX_PHASE_MINUTES", workflow2.get("max_phase_minutes"), 1440
         ),
         "max_estimated_usd": env_or_config_number(
             "FRONTIER_MAX_ESTIMATED_USD", workflow2.get("max_estimated_usd"), 0

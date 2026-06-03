@@ -1,0 +1,2052 @@
+campaign_id: ALPHA_RESEARCH_GOVERNANCE_MVP
+campaign_name: Alpha Research Admissibility and Evidence-Governance Protocol
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  primary: trading_research
+  secondary: research
+  project_type: research_admissibility_and_evidence_governance_layer
+  builds_on:
+  - ALPHA_SYSTEM_V1
+  - ASV1_RELEASE_HYGIENE
+  local_first: true
+  governance_layer_not_alpha_search: true
+  future_multi_asset_ready: true
+  future_l2_ready: true
+  broker_live_trading_in_scope: false
+  paper_trading_in_scope: false
+  real_data_ingestion_in_scope: false
+  alpha_search_in_scope: false
+  production_trading_claims_allowed: false
+  alpha_tradability_claims_allowed_without_evidence: false
+workflow:
+  harness: Frontier Harness Generic
+  harness_version: '3.0'
+  workflow_id: Workflow 2
+  driver: Ralph
+  executor: Codex
+  reviewer: Claude
+  mode: Ralph-driven strict autonomous loop
+  loose_loop: false
+  fresh_context_per_phase: true
+  git_memory: true
+  campaign_contract_based: true
+  automatic_pr_merge_by_lane: true
+  stop_file_supported: true
+  semantic_done_check_required: true
+  handoff_required_per_phase: true
+  review_required_for_yellow: true
+  fake_completion_forbidden: true
+runtime:
+  host: Windows
+  primary_runtime: WSL2 Ubuntu
+  required_repo_path: ~/projects/alpha_system
+  required_filesystem: WSL2 Linux filesystem
+  forbidden_active_worktree_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  local_first: true
+  cloud_db_required: false
+  paid_db_required: false
+  broker_credentials_required: false
+  live_market_data_required: false
+models:
+  strategy:
+    name: ChatGPT Pro GPT-5.5 Thinking
+    roles:
+    - strategy
+    - roadmap
+    - campaign reasoning
+    - post-run reasoning
+  spec_review_donecheck:
+    name: Claude Opus 4.8 xhigh
+    roles:
+    - phase specs
+    - architecture specs
+    - semantic review
+    - done-check
+    - campaign decomposition
+  verifier:
+    name: Claude Sonnet 4.6
+    roles:
+    - source maps
+    - verifier support
+    - audits
+    - mechanical inspection
+  executor:
+    name: Codex GPT-5.5 high
+    roles:
+    - implementation
+    - tests
+    - repair
+    - handoff writing
+  orchestrator:
+    name: Ralph
+    roles:
+    - Workflow 2 state machine
+    - run control
+    - phase transitions
+    - STOP/resume
+    - validation ledger
+    - review routing
+    - verdict parsing
+    - PR/CI/merge gates
+    - bounded repair enforcement
+  subagent:
+    name: Codex GPT-5.4-mini medium
+    roles:
+    - lightweight subagents
+    - mechanical exploration
+    - local source mapping
+lane_policy:
+  GREEN:
+    description: Low-risk docs, scaffolding, and mechanical work.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: false
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    description: Material governance infrastructure or research-protocol work.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    most_phases: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - semantic_done_check_pass
+  RED:
+    description: Production, destructive, live, external, or costly operations.
+    automatic_execute_when_scoped: true
+    automatic_repair: false
+    automatic_merge: false
+    required_scope_env:
+    - PROJECT_OP_AUTHORIZED
+    - PROJECT_OP_SCOPE
+    - PROJECT_OP_EXPIRES
+    expected_in_this_campaign: false
+    note: This campaign excludes live, broker, destructive, external, and costly
+      scope, so no RED phase is expected. Unexpected RED scope must stop or block.
+state_machine:
+  strict: true
+  states:
+  - RUN_INIT
+  - CAMPAIGN_LOAD
+  - PHASE_SELECT
+  - SPEC_GENERATE
+  - SPEC_VALIDATE
+  - WORKTREE_CREATE
+  - CODEX_EXECUTE
+  - CHECKS_RUN
+  - HANDOFF_VALIDATE
+  - CLAUDE_REVIEW
+  - VERDICT_PARSE
+  - PR_CREATE
+  - CI_WAIT
+  - MERGE_GATE
+  - MERGE
+  - DONE_CHECK
+  - NEXT_PHASE
+  - CAMPAIGN_DONE_CHECK
+  - RUN_SUMMARY
+  failure_routes:
+    REWORK:
+      route: bounded_repair_loop
+      repair_attempts_tracked: true
+      max_repair_attempts_default: 3
+      repair_attempts_path: runs/<run_id>/phases/<phase_id>/repair_attempts/
+      requires_repair_attempt_record: true
+      fake_completion_forbidden: true
+    BLOCKED:
+      route: blocked_handoff_and_stop_or_escalation
+      blocked_handoff_required: true
+      dependent_phases_blocked: true
+      fake_completion_allowed: false
+    FAIL:
+      route: checks_failure_repair_loop_or_blocked_handoff
+      repair_attempts_tracked: true
+      fake_completion_forbidden: true
+governance_state_machine:
+  description: Lifecycle that future governance objects must enforce. Listed here as
+    the contract Workflow 2 phases implement; not executed by Ralph itself.
+  states:
+  - DRAFT
+  - REGISTERED
+  - IMPLEMENTATION_ALLOWED
+  - IMPLEMENTED
+  - DIAGNOSTICS_ALLOWED
+  - DIAGNOSTICS_RUN
+  - EVIDENCE_READY
+  - REVIEWED
+  - REJECTED
+  - WATCH
+  - CANDIDATE
+  - VALIDATED
+  prohibited_mvp_states:
+  - LIVE_APPROVED
+  - CAPITAL_ALLOCATED
+  - PRODUCTION_READY
+  prohibited_state_note: Listed only as future non-MVP concepts. They must not be
+    reachable by any transition implemented in this campaign.
+  transitions:
+  - from: DRAFT
+    to: REGISTERED
+    requires: valid HypothesisCard and AlphaSpec
+  - from: REGISTERED
+    to: IMPLEMENTATION_ALLOWED
+    requires: AlphaSpec validation and no blocking duplicate or leakage issue
+  - from: IMPLEMENTATION_ALLOWED
+    to: IMPLEMENTED
+    requires: scoped implementation handoff
+  - from: IMPLEMENTED
+    to: DIAGNOSTICS_ALLOWED
+    requires: valid StudySpec
+  - from: DIAGNOSTICS_ALLOWED
+    to: DIAGNOSTICS_RUN
+    requires: diagnostics run recorded in TrialLedger
+  - from: DIAGNOSTICS_RUN
+    to: EVIDENCE_READY
+    requires: EvidenceBundle with manifest and trial refs
+  - from: EVIDENCE_READY
+    to: REVIEWED
+    requires: independent ReviewerVerdict
+  - from: REVIEWED
+    to: REJECTED/WATCH/CANDIDATE/VALIDATED
+    requires: PromotionDecision and gate checks
+  - from: any
+    to: REJECTED
+    requires: RejectedIdeaRecord and reason
+  blocks:
+  - missing AlphaSpec blocks code
+  - missing StudySpec blocks diagnostics
+  - missing TrialLedger blocks promotion
+  - missing EvidenceBundle blocks candidate
+  - missing ReviewerVerdict blocks factor library entry
+  - self-review blocks promotion
+  - locked-test contamination without metadata blocks promotion
+  - failed-run omission blocks promotion
+  - unsupported claims block merge
+path_policy:
+  exceptions_apply_before_forbidden_globs: true
+  placeholder_exceptions:
+  - '**/.gitkeep'
+  - '**/README.md'
+  tiny_fixture_exceptions:
+  - tests/fixtures/** when tiny synthetic deterministic documented fixture below repository
+    size threshold
+  global_forbidden_paths:
+  - src/alpha_system/execution/broker*
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live*
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper*
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+artifact_policy:
+  never_commit:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - artifacts/**/full_trade_logs/**
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  allowed_commit:
+  - source code
+  - configs
+  - schemas
+  - docs
+  - tests
+  - tiny synthetic fixtures
+  - templates
+  - handoffs
+  - reviews
+  - curated summaries
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_heavy_artifact_commits: true
+    no_local_db_commits: true
+    no_hidden_failed_runs: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+review_policy:
+  yellow_requires_fresh_claude_review: true
+  green_review_optional_unless_phase_requires: true
+  red_requires_scoped_authorization_and_claude_review: true
+  verdict_json_required: true
+  review_artifact_required_for_yellow: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+  allowed_verdicts_for_merge:
+  - PASS
+  - PASS_WITH_WARNINGS
+  blocked_verdicts:
+  - FAIL
+  - BLOCKED
+  - REWORK_REQUIRED
+  reviewer_independence_required: true
+  implementer_cannot_self_approve: true
+  review_must_check:
+  - phase scope compliance
+  - governance object completeness
+  - fail-closed validation behavior
+  - reviewer independence enforcement
+  - no candidate without EvidenceBundle
+  - no promotion without TrialLedger
+  - failed-run and rejected-idea visibility
+  - locked-test contamination tracking
+  - negative-control fail-closed behavior
+  - no-lookahead and leakage guard coverage
+  - artifact policy compliance
+  - no raw data or heavy artifacts committed
+  - no broker/live/paper/order-routing scope
+  - no alpha/profitability/tradability claims
+  - no test weakening or gaming
+  - handoff completeness
+  - semantic done criteria
+merge_policy:
+  GREEN:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+    - ci_pass_if_configured
+  RED:
+    auto_pr_if_authorized: true
+    auto_merge: false
+    requires:
+    - scoped_authorization_present
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - artifact_policy_pass
+    - no_stop_file
+    - ci_pass_if_configured
+  require_ci_pass: true
+  require_artifact_policy_pass: true
+  require_no_stop_file: true
+  require_verdict_json: true
+  global_blockers:
+  - STOP file present
+  - forbidden path staged
+  - raw data staged
+  - heavy artifact staged
+  - local DB staged
+  - hidden failed run detected
+  - test weakening detected
+  - broker/live/paper/order-routing scope introduced
+  - unsupported alpha/tradability claim introduced
+  - candidate promotion without EvidenceBundle
+  - promotion without TrialLedger
+  - reviewer self-approval
+  - semantic done-check failed
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 3
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - production execution adapter
+  - real market data ingestion
+  - real alpha search
+  - raw data commit
+  - heavy artifact commit
+  - local DB commit
+  - alpha/profitability/tradability claim
+  - candidate without EvidenceBundle
+  - promotion without TrialLedger
+  - reviewer self-approval
+  - failed-run omission
+  - test weakening or gaming
+  - hidden failed run
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+governance_objects:
+- name: HypothesisCard
+  purpose: human/AI-readable hypothesis rationale and falsification anchor
+  required_fields:
+  - hypothesis_id
+  - title
+  - family
+  - rationale
+  - expected_mechanism
+  - falsification_criteria
+  - risks
+  - author
+  - created_at
+  must_not_imply: implementation approval or alpha validity
+- name: AlphaSpec
+  purpose: pre-registered alpha research specification
+  required_fields:
+  - alpha_spec_id
+  - hypothesis_id
+  - target_instruments
+  - data_assumptions
+  - factor_inputs
+  - label_references
+  - exclusion_rules
+  - timestamp_assumptions
+  - cost_assumptions
+  - expected_failure_modes
+  - promotion_criteria
+  - created_by
+  - created_at
+  must_not_imply: candidate status or factor library entry
+- name: FeatureRequest
+  purpose: request for new feature/factor inputs with duplicate exposure checks
+  required_fields:
+  - feature_request_id
+  - alpha_spec_id
+  - requested_inputs
+  - formula_sketch
+  - availability_assumptions
+  - duplicate_or_equivalent_exposure_notes
+  - data_requirements
+  - approval_status
+  must_not_imply: implementation permission without validation
+- name: LabelSpec
+  purpose: explicit label definition and leakage guard
+  required_fields:
+  - label_spec_id
+  - horizon
+  - path_rules
+  - cost_model
+  - target_stop_rules
+  - availability_time
+  - forbidden_feature_overlap
+  - leakage_checks
+  must_not_imply: label quality or predictive value
+- name: StudySpec
+  purpose: diagnostics plan and research budget before running studies
+  required_fields:
+  - study_spec_id
+  - alpha_spec_id
+  - label_spec_id
+  - dataset_scope
+  - split_protocol
+  - metrics
+  - cost_assumptions
+  - variant_budget
+  - locked_test_policy
+  - negative_controls
+  - stopping_rules
+  must_not_imply: diagnostics passed
+- name: TrialLedgerRecord
+  purpose: immutable-ish record of every attempt, including failures
+  required_fields:
+  - trial_id
+  - alpha_spec_id
+  - study_spec_id
+  - run_id
+  - variant_id
+  - status
+  - parameters
+  - metrics_summary
+  - failure_reason
+  - oos_touched_flag
+  - locked_test_contamination_flag
+  - code_hash
+  - config_hash
+  must_not_imply: success
+- name: EvidenceBundle
+  purpose: candidate evidence package
+  required_fields:
+  - evidence_bundle_id
+  - alpha_spec_id
+  - study_spec_id
+  - trial_ids
+  - data_version
+  - factor_version
+  - label_version
+  - code_hash
+  - config_hash
+  - diagnostics_summary
+  - negative_control_results
+  - limitations
+  - artifact_manifest
+  - reviewer_verdict_reference
+  must_not_imply: promotion unless gate accepts it
+- name: RejectedIdeaRecord
+  purpose: research graveyard record
+  required_fields:
+  - rejected_id
+  - alpha_spec_id_or_hypothesis_id
+  - reason_category
+  - evidence_references
+  - duplicate_links
+  - leakage_cost_weakness_notes
+  - reviewer
+  - created_at
+  must_not_imply: permanent ban; future reconsideration must be explicit and linked
+- name: PromotionDecision
+  purpose: controlled state transition decision
+  required_fields:
+  - promotion_id
+  - alpha_spec_id
+  - evidence_bundle_id
+  - trial_ledger_refs
+  - previous_state
+  - next_state
+  - decision
+  - rationale
+  - reviewer_verdict_id
+  - warnings
+  - timestamp
+  must_not_imply: live approval, capital allocation, or production readiness
+- name: ReviewerVerdict
+  purpose: independent semantic review record
+  required_fields:
+  - reviewer_id
+  - role
+  - independence_statement
+  - verdict
+  - blocking_issues
+  - warnings
+  - checked_artifacts
+  - checked_commands
+  - timestamp
+  must_not_imply: market truth or profitability
+- name: NegativeControlResult
+  purpose: record that known-bad controls fail closed
+  required_fields:
+  - canary_id
+  - canary_type
+  - expected_failure
+  - observed_result
+  - pass_fail
+  - related_study_or_evidence
+  - notes
+  must_not_imply: alpha validity; only validates guard behavior
+- name: AlphaBookRecord
+  purpose: lightweight future-compatibility pointer stub only
+  required_fields:
+  - alpha_id
+  - state
+  - family
+  - evidence_bundle_id
+  - promotion_decision_id
+  - correlation_placeholders
+  - lifecycle_placeholders
+  must_not_imply: capital allocation, live status, or production approval
+  note: This is NOT the future Portfolio AlphaBook. Stub only.
+phases:
+- id: ARGOV-P00
+  name: Governance Campaign Bootstrap
+  lane: YELLOW
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/GOAL.md
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/campaign.yaml
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/RUNBOOK.md
+  - test -f handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/ARGOV-P00.md
+  - test '!' -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/ACTIVE_CAMPAIGN.md
+  - grep -q "ALPHA_RESEARCH_GOVERNANCE_MVP" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - ACTIVE_CAMPAIGN.md
+  - campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - docs/governance/README.md
+  - docs/governance/GOVERNANCE_OVERVIEW.md
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/governance/**
+  - tests/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - campaign files
+    - governance overview docs
+    - commit-eligible handoff
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P01
+  name: Governance Package Skeleton and Canonical Naming
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/NAMING.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - configs/governance/**
+  - templates/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - governance package skeleton
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P02
+  name: Governance IDs, Serialization, and Validation Primitives
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - governance primitives
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P03
+  name: AlphaSpec Contract and No-Code Gate
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/ALPHA_SPEC.md
+  - test -f templates/governance/alpha_spec.template.yaml
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - configs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - AlphaSpec contract code
+    - tests
+    - docs
+    - templates
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P04
+  name: HypothesisCard and Pre-registration Protocol
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/PRE_REGISTRATION.md
+  - test -f templates/governance/hypothesis_card.template.yaml
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - HypothesisCard code
+    - tests
+    - docs
+    - templates
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P05
+  name: FeatureRequest and Duplicate Exposure Guard
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/FEATURE_REQUEST.md
+  - test -f docs/governance/DUPLICATE_EXPOSURE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - FeatureRequest code
+    - duplicate-exposure guard
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P06
+  name: LabelSpec and Label Leakage Guard
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/no_lookahead -q
+  - test -f docs/governance/LABEL_SPEC.md
+  - test -f docs/governance/LABEL_LEAKAGE_GUARD.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - tests/no_lookahead/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/labels/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - LabelSpec code
+    - leakage guard
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P07
+  name: StudySpec and Study Budget Protocol
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P05
+  - ARGOV-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/STUDY_SPEC.md
+  - test -f docs/governance/STUDY_BUDGET.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - configs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - StudySpec code
+    - study budget protocol
+    - tests
+    - docs
+    - templates
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P08
+  name: TrialLedger and Variant Accounting
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/TRIAL_LEDGER.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - TrialLedger code
+    - variant accounting
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P09
+  name: EvidenceBundle and Manifest Contract
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P07
+  - ARGOV-P08
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/EVIDENCE_BUNDLE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - EvidenceBundle code
+    - manifest contract
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P10
+  name: RejectedIdeaLedger / Research Graveyard
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P08
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/REJECTED_IDEA_LEDGER.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - RejectedIdeaRecord code
+    - research graveyard ledger
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P11
+  name: PromotionDecision and PromotionGate State Machine
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P09
+  - ARGOV-P10
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/PROMOTION_GATE.md
+  - test -f docs/governance/GOVERNANCE_STATE_MACHINE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - PromotionDecision code
+    - promotion gate state machine
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P12
+  name: ReviewerVerdict and Independence Rules
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P11
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/REVIEWER_INDEPENDENCE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - ReviewerVerdict code
+    - independence rules
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P13
+  name: Negative-Control Canary Catalog
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/NEGATIVE_CONTROLS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - evals/canaries/**
+  - docs/governance/**
+  - configs/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - negative-control canary catalog
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P14
+  name: No-Lookahead / Label Leakage / Optimistic Fill Canary Harness
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P13
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/no_lookahead -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - tests/no_lookahead/**
+  - evals/canaries/**
+  - docs/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - canary harness code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P15
+  name: Governance Registry Integration
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P11
+  - ARGOV-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/integration/governance -q
+  - test -f docs/governance/REGISTRY_INTEGRATION.md
+  - find metadata -type f ! -name README.md ! -name .gitkeep -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - tests/integration/governance/**
+  - docs/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - registry integration code
+    - migrations
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - metadata/*.sqlite
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P16
+  name: Governance CLI and Validation Tools
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/integration/governance -q
+  - test -f docs/governance/CLI.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/cli/**
+  - tools/governance/**
+  - tests/unit/governance/**
+  - tests/integration/governance/**
+  - docs/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - governance CLI code
+    - validation tools
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P17
+  name: Unsupported-Claim Guard and Governance Report Templates
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance -q
+  - test -f docs/governance/UNSUPPORTED_CLAIM_GUARD.md
+  - test -d templates/governance
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/reports/**
+  - tests/unit/governance/**
+  - docs/governance/**
+  - templates/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - unsupported-claim guard code
+    - report templates
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: ARGOV-P18
+  name: Synthetic End-to-End Governance Dry Run
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P14
+  - ARGOV-P16
+  - ARGOV-P17
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/verify.py --all
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/integration/governance -q
+  - python tools/hooks/canary_runner.py
+  - test -f docs/governance/END_TO_END_DRY_RUN.md
+  - find artifacts -type f -size +1M -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - tests/integration/governance/**
+  - evals/canaries/**
+  - docs/governance/**
+  - tests/fixtures/governance/**
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**/raw_outputs/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - end-to-end dry-run code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    - curated dry-run summary
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    - full generated bundles
+    explicit_staging_only: true
+- id: ARGOV-P19
+  name: Workflow 2 Integration, Acceptance Audit, and Closeout
+  lane: YELLOW
+  dependencies:
+  - ARGOV-P18
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/verify.py --all
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/integration/governance -q
+  - python tools/hooks/canary_runner.py
+  - test -f campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/CLOSEOUT.md
+  - test -f docs/governance/WORKFLOW2_INTEGRATION.md
+  - find data -type f ! -name README.md ! -name .gitkeep -print
+  - find metadata -type f ! -name README.md ! -name .gitkeep -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - tests/integration/governance/**
+  - docs/governance/**
+  - campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/CLOSEOUT.md
+  - handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - reviews/ALPHA_RESEARCH_GOVERNANCE_MVP/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - Workflow 2 integration code
+    - acceptance audit notes
+    - closeout doc
+    - tests
+    - docs
+    never_commit:
+    - runs/**
+    - raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+acceptance_gates:
+  campaign_bootstrap:
+    phases:
+    - ARGOV-P00
+    - ARGOV-P01
+    - ARGOV-P02
+    requires:
+    - campaign_control_files_present
+    - governance_package_imports
+    - governance_ids_serialization_validation_primitives_present
+    - fail_closed_validation_present
+    - no_campaign_local_active_campaign_file
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  governance_contracts:
+    phases:
+    - ARGOV-P03
+    - ARGOV-P04
+    - ARGOV-P05
+    - ARGOV-P06
+    - ARGOV-P07
+    requires:
+    - alpha_spec_contract_present
+    - no_code_before_spec_gate_enforced
+    - hypothesis_card_pre_registration_present
+    - feature_request_duplicate_exposure_guard_present
+    - label_spec_leakage_guard_present
+    - study_spec_budget_protocol_present
+    - invalid_specs_fail_closed
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  ledger_and_evidence:
+    phases:
+    - ARGOV-P08
+    - ARGOV-P09
+    - ARGOV-P10
+    requires:
+    - trial_ledger_present
+    - failed_runs_recorded
+    - variant_accounting_present
+    - oos_reuse_and_locked_test_contamination_flags_present
+    - evidence_bundle_manifest_contract_present
+    - rejected_idea_ledger_present
+    - rejected_ideas_are_first_class_records
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  promotion_and_review:
+    phases:
+    - ARGOV-P11
+    - ARGOV-P12
+    requires:
+    - promotion_decision_present
+    - promotion_gate_state_machine_present
+    - no_promotion_without_trial_ledger
+    - no_candidate_without_evidence_bundle
+    - reviewer_verdict_present
+    - reviewer_independence_enforced
+    - implementer_self_approval_blocked
+    - prohibited_mvp_states_not_reachable
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  canary_and_validation:
+    phases:
+    - ARGOV-P13
+    - ARGOV-P14
+    requires:
+    - negative_control_catalog_present
+    - canaries_fail_closed
+    - no_lookahead_canary_harness_present
+    - label_leakage_canary_present
+    - optimistic_fill_canary_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  registry_and_tools:
+    phases:
+    - ARGOV-P15
+    - ARGOV-P16
+    - ARGOV-P17
+    requires:
+    - governance_registry_integration_present
+    - governance_objects_persist_without_committing_db
+    - governance_cli_present
+    - validation_tools_present
+    - unsupported_claim_guard_present
+    - report_templates_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  end_to_end_and_closeout:
+    phases:
+    - ARGOV-P18
+    - ARGOV-P19
+    requires:
+    - synthetic_end_to_end_governance_path_pass
+    - negative_controls_fail_closed_in_dry_run
+    - workflow2_handoff_review_verdict_integration_present
+    - acceptance_audit_pass
+    - end_to_end_validation_pass_or_truthful_BLOCKED
+    - semantic_done_check_pass_or_truthful_BLOCKED
+    - closeout_doc_present
+    - final_verdict_recorded
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_yellow_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_or_order_routing_scope
+    - no_real_data_or_alpha_search_scope
+    - no_raw_heavy_local_db_or_cache_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  no_alpha_claims:
+    required: true
+    blocked_claims:
+    - alpha without evidence
+    - tradability
+    - profitability
+    - market-beating
+    - production-ready
+    - live-ready
+    - robust without evidence
+    detection:
+    - unsupported_claim_guard
+    - prohibited claim tests
+    - doc grep
+    - Claude review
+  no_raw_data:
+    required: true
+    blocked_patterns:
+    - data/raw/**
+    - data/canonical/**
+    - data/factors/**
+    - data/labels/**
+    - '**/*.parquet outside tests/fixtures documented tiny synthetic exceptions'
+    exceptions:
+    - tests/fixtures/** when tiny synthetic fixture and documented
+    - '**/.gitkeep'
+    - '**/README.md'
+    detection:
+    - git status audit
+    - git ls-files audit
+    - artifact policy checks
+  no_heavy_artifacts:
+    required: true
+    detection:
+    - find artifacts -type f -size +1M -print
+    - artifact manifest audit
+    - handoff artifact confirmation
+  no_candidate_without_evidence:
+    required: true
+    rules:
+      candidate_state_requires_evidence_bundle: true
+      evidence_bundle_requires_manifest_and_trial_refs: true
+    detection:
+    - promotion gate tests
+    - evidence bundle tests
+    - Claude review
+  no_promotion_without_trial_ledger:
+    required: true
+    rules:
+      promotion_requires_trial_ledger_refs: true
+      failed_runs_must_be_recorded: true
+    detection:
+    - promotion gate tests
+    - trial ledger tests
+    - registry audit
+  no_reviewer_self_approval:
+    required: true
+    rules:
+      reviewer_role_must_differ_from_implementer: true
+      independence_statement_required: true
+    detection:
+    - reviewer independence tests
+    - promotion gate tests
+    - Claude review
+  no_locked_test_reuse_without_contamination:
+    required: true
+    rules:
+      oos_reuse_must_be_flagged: true
+      locked_test_contamination_must_be_recorded: true
+    detection:
+    - trial ledger contamination tests
+    - promotion gate tests
+  no_lookahead_guard_required:
+    required: true
+    test_roots:
+    - tests/no_lookahead
+    - evals/canaries
+    detection:
+    - no_lookahead test suite
+    - canary harness
+    - Claude review
+  negative_controls_required:
+    required: true
+    rules:
+      random_permuted_future_shift_optimistic_fill_canaries_required: true
+      canaries_must_fail_closed: true
+    detection:
+    - negative control catalog tests
+    - canary runner
+  acceptance_gate_coverage_required:
+    required: true
+    rules:
+      every_phase_in_exactly_one_gate: true
+      no_phase_missing_from_gates: true
+    detection:
+    - campaign.yaml validation script
+    - PHASE_PLAN cross-check
+  no_test_weakening:
+    required: true
+    rules:
+      test_removals_require_explicit_phase_scope: true
+      review_required_for_test_changes: true
+      fake_completion_forbidden: true
+    detection:
+    - diff review
+    - Claude review
+    - semantic done-check
+  no_real_data_or_alpha_search:
+    required: true
+    blocked_scope:
+    - real data ingestion
+    - IBKR integration
+    - real alpha search
+    - strategy optimization
+    - portfolio allocation
+    - L2 replay
+    - ML/DL expansion
+    detection:
+    - source path audit
+    - dependency audit
+    - Claude review
+  local_wsl2_path:
+    required: true
+    allowed_repo_root: ~/projects/alpha_system
+    forbidden_paths:
+    - /mnt/c
+    - OneDrive
+    - Dropbox
+    - Google Drive
+    - Windows-synced folders
+    detection:
+    - RUN_INIT preflight
+    - worktree path audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: raw data staged
+  condition: files under data/raw, data/canonical, data/factors, or data/labels staged
+    outside allowed fixtures
+  action: block_merge_and_repair
+- name: heavy artifact staged
+  condition: large artifacts, full generated bundles, or model binaries staged
+  action: block_merge_and_repair
+- name: broker/live code introduced
+  condition: broker, live, paper, or order-routing implementation appears
+  action: block_merge_and_escalate
+- name: real data or alpha search scope creep
+  condition: real data ingestion, IBKR, or alpha search code appears
+  action: block_merge_and_escalate
+- name: tests weakened without explicit phase scope
+  condition: tests removed, skipped, or relaxed without explicit authorization and
+    review
+  action: block_merge_and_rework
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, or dependencies disagree between files
+  action: block_campaign_execution_until_fixed
+- name: alpha/profitability/tradability claim detected
+  condition: unqualified alpha, tradability, profitability, market-beating, production-ready,
+    or live-ready claim appears
+  action: block_merge_and_rework
+- name: failed runs can be hidden
+  condition: TrialLedger or promotion path permits omitting failed runs
+  action: block_merge_and_rework
+- name: unreviewed promotion possible
+  condition: promotion gate permits candidate/validated state without ReviewerVerdict,
+    EvidenceBundle, or TrialLedger
+  action: block_merge_and_rework
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced
+    folder
+  action: stop_run_init_or_worktree_create
