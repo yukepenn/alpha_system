@@ -66,12 +66,12 @@ Curated files intended for explicit staging:
 - `src/alpha_system/data/foundation/sessions.py`
 - `src/alpha_system/data/foundation/sources.py`
 - `templates/data/README.md`
-- `tests/unit/data/test_package_skeleton.py`
+- `tests/unit/data/test_data_foundation_package_skeleton.py`
 
 Explicit staging was attempted with:
 
 ```bash
-git --git-dir=/home/yuke_zhang/projects/alpha_system/.git/worktrees/alpha_system-alpha_data_foundation_v1-data-p01 --work-tree=/home/yuke_zhang/projects/alpha_system-alpha_data_foundation_v1-data-p01 add README.md configs/data/README.md docs/data_foundation/NAMING.md handoffs/ALPHA_DATA_FOUNDATION_V1/DATA-P01.md src/alpha_system/data/foundation/__init__.py src/alpha_system/data/foundation/bars.py src/alpha_system/data/foundation/batches.py src/alpha_system/data/foundation/datasets.py src/alpha_system/data/foundation/ibkr.py src/alpha_system/data/foundation/instruments.py src/alpha_system/data/foundation/requests.py src/alpha_system/data/foundation/rolls.py src/alpha_system/data/foundation/series.py src/alpha_system/data/foundation/sessions.py src/alpha_system/data/foundation/sources.py templates/data/README.md tests/unit/data/test_package_skeleton.py
+git --git-dir=/home/yuke_zhang/projects/alpha_system/.git/worktrees/alpha_system-alpha_data_foundation_v1-data-p01 --work-tree=/home/yuke_zhang/projects/alpha_system-alpha_data_foundation_v1-data-p01 add README.md configs/data/README.md docs/data_foundation/NAMING.md handoffs/ALPHA_DATA_FOUNDATION_V1/DATA-P01.md src/alpha_system/data/foundation/__init__.py src/alpha_system/data/foundation/bars.py src/alpha_system/data/foundation/batches.py src/alpha_system/data/foundation/datasets.py src/alpha_system/data/foundation/ibkr.py src/alpha_system/data/foundation/instruments.py src/alpha_system/data/foundation/requests.py src/alpha_system/data/foundation/rolls.py src/alpha_system/data/foundation/series.py src/alpha_system/data/foundation/sessions.py src/alpha_system/data/foundation/sources.py templates/data/README.md tests/unit/data/test_data_foundation_package_skeleton.py
 ```
 
 The command failed with exit 128:
@@ -129,6 +129,12 @@ root-level `git status` checks to fail. The repair restored the repository to a
 normal worktree configuration with `core.bare=false`, preserved the existing
 DATA-P01 content, and re-ran explicit-path staging for only the curated files
 listed above. No `runs/**` path or forbidden artifact path was staged.
+
+CI then failed because the original data test basename collided with the
+pre-existing governance test module `tests/unit/governance/test_package_skeleton.py`
+under full-suite pytest collection. The repair renamed the data smoke test to
+`tests/unit/data/test_data_foundation_package_skeleton.py` without changing test
+coverage or weakening assertions.
 
 ## Scope Boundaries
 

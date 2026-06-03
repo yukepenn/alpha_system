@@ -31,7 +31,7 @@ metadata, request manifests and ledgers, raw/parsed/canonical bars, instruments,
 sessions, rolls, series provenance, batches, dataset versions, quality, coverage,
 and partitions.
 
-This phase also adds `tests/unit/data/test_package_skeleton.py`,
+This phase also adds `tests/unit/data/test_data_foundation_package_skeleton.py`,
 `docs/data_foundation/NAMING.md`, `configs/data/README.md`, and
 `templates/data/README.md`.
 
