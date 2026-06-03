@@ -35,6 +35,16 @@ Use project skills:
 
 Do not create custom commands named `/plan`, `/review`, or `/verify`. Prefer frontier-prefixed skills and commands.
 
+Durable onboarding references for mechanical audit and review context:
+
+- `docs/ONBOARDING.md`
+- `docs/RESEARCHER_GUIDE.md`
+- `docs/AI_AGENT_GUIDE.md`
+- `docs/CLI_REFERENCE.md`
+- `docs/EXAMPLE_WORKFLOWS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/RESEARCH_INTERPRETATION_POLICY.md`
+
 ## Workflow 2 Review Contract
 
 Workflow 2 state order:

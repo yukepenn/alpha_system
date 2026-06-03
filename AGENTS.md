@@ -30,6 +30,17 @@ Profile summary:
 - `runs/` stores Workflow 2 state and ledgers.
 - `docs/` stores durable project documentation.
 
+Onboarding and operating references:
+
+- `docs/ONBOARDING.md` is the local-first quickstart.
+- `docs/RESEARCHER_GUIDE.md` is the human research workflow guide.
+- `docs/AI_AGENT_GUIDE.md` is the Workflow 2 AI Agent guide.
+- `docs/CLI_REFERENCE.md` summarizes the supported `alpha` command surface.
+- `docs/EXAMPLE_WORKFLOWS.md` gives fixture-based local workflow examples.
+- `docs/TROUBLESHOOTING.md` covers common local and artifact-policy issues.
+- `docs/RESEARCH_INTERPRETATION_POLICY.md` governs report interpretation and
+  no-claims language.
+
 ## Operating Modes
 
 Workflow 1 is the human-gated phase loop for high-judgment work.
