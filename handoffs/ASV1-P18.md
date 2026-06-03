@@ -130,6 +130,12 @@ Passed:
 - `grep -RnE "broker|live_order|account_sync|paper_trad" src/alpha_system/portfolio || true` — PASS, no output.
 - `grep -RnE "fill|slippage|commission" src/alpha_system/portfolio || true` — PASS, no output.
 - `git diff --check` — PASS, no output.
+- `git diff --cached --name-only` — PASS before commit; returned only the
+  ASV1-P18 allowed paths listed in this handoff.
+- `git diff --cached --name-only | grep '^runs/'` — PASS before commit; exit
+  1 with no output, so no `runs/` path was staged.
+- `git diff --cached --name-only | grep -E '(^data/|^metadata/|^artifacts/|\.parquet$|\.arrow$|\.feather$|\.sqlite$|\.sqlite3$|\.db$|\.db-journal$|\.wal$|\.log$|__pycache__|\.pyc$|\.pkl$|\.pickle$|\.joblib$|\.onnx$|\.npy$|\.npz$)'` — PASS before commit; exit 1 with no output.
+- `git push origin auto/alpha_system_v1/asv1-p18-portfolio-target-and-sizing-layer` — PASS. The repository pre-push Frontier canaries also passed.
 
 Unavailable non-blocking tools:
 
@@ -165,8 +171,12 @@ Explicit staging only is used for the files listed above. `git add .`,
 `git add -A`, force push, PR creation, merge, reviewer execution, Claude calls,
 `review.md`, and `verdict.json` were not used.
 
-Before commit or merge-gate evaluation, the staged set must contain no `runs/`
-path and no forbidden data, DB, cache, log, or heavy-artifact path.
+Implementation commit:
+
+- `f3b0a5a ASV1-P18 portfolio target sizing layer`
+
+Before commit, the staged set contained no `runs/` path and no forbidden data,
+DB, cache, log, or heavy-artifact path.
 
 ## Risk Dispositions
 
