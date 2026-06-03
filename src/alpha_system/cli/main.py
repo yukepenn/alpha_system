@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from alpha_system.cli.backtest import register_subparser as register_backtest_subparser
 from alpha_system.cli.data import register_subparser as register_data_subparser
 from alpha_system.cli.factor import register_subparser as register_factor_subparser
+from alpha_system.cli.management import register_subparser as register_management_subparser
 from alpha_system.cli.registry import register_subparser as register_registry_subparser
 from alpha_system.cli.study import register_subparser as register_study_subparser
 
@@ -27,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_backtest_subparser(subparsers)
     register_data_subparser(subparsers)
     register_factor_subparser(subparsers)
+    register_management_subparser(subparsers)
     register_report_subparser(subparsers)
     register_registry_subparser(subparsers)
     register_study_subparser(subparsers)
