@@ -1,0 +1,8 @@
+{
+  "model_id": "fixture_ridge_baseline",
+  "model_type": "ridge_baseline",
+  "parameters": {
+    "ridge_l2": 0.1
+  },
+  "fit_intercept": true
+}
