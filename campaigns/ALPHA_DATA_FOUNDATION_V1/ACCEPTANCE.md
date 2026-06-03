@@ -52,8 +52,11 @@ verdict (or a truthful `BLOCKED` is recorded), and the artifact audit is clean:
 10. No alpha, profitability, tradability, broker, paper, or live claim is introduced
     anywhere.
 
-All 25 phases (`DATA-P00` … `DATA-P24`) are complete with merged verdicts; `DATA-P22` and
-`DATA-P23` are RED and require scoped external/data authorization, all others are YELLOW.
+All 25 phases (`DATA-P00` … `DATA-P24`) are complete with merged verdicts; all 25 phases
+are YELLOW and auto-merge. `DATA-P22` and `DATA-P23` additionally perform authorized
+read-only external IBKR historical reads, which must never run a real pull in CI and
+require a data-pull authorization env (`ALPHA_DATA_PULL_AUTHORIZED`,
+`ALPHA_ALLOW_EXTERNAL_IBKR`) as a runtime fail-safe.
 The data-lifecycle blocks defined in `campaign.yaml`
 (`data_lifecycle_state_machine.blocks`) are genuinely enforced, and the prohibited MVP
 states `READY_FOR_TRADING`, `LIVE_FEED_READY`, `BROKER_ENABLED`, `ALPHA_VALIDATED`, and
@@ -87,8 +90,9 @@ states `READY_FOR_TRADING`, `LIVE_FEED_READY`, `BROKER_ENABLED`, `ALPHA_VALIDATE
   unreachable or hard-disabled from the data module.
 * The data module **cannot place an order, query positions, or touch account-trading
   paths**, and does not import order/account/execution APIs.
-* `read_only_mode = true` is the default, and external provider calls require explicit
-  RED-lane authorization and never run in CI.
+* `read_only_mode = true` is the default, and external provider calls require the data-pull
+  authorization env (`ALPHA_DATA_PULL_AUTHORIZED`, `ALPHA_ALLOW_EXTERNAL_IBKR`) and never run
+  in CI.
 * A reachable order-API surface through the data module is a hard merge blocker.
 
 ## Request-Manifest-Level Acceptance
@@ -243,13 +247,14 @@ states `READY_FOR_TRADING`, `LIVE_FEED_READY`, `BROKER_ENABLED`, `ALPHA_VALIDATE
 * Commit-eligible handoffs live under `handoffs/ALPHA_DATA_FOUNDATION_V1/**` and
   commit-eligible reviews under `reviews/ALPHA_DATA_FOUNDATION_V1/**`.
 * The Workflow 2 state order, STOP/resume semantics, and bounded-repair routing are
-  honored; RED phases (`DATA-P22`, `DATA-P23`) are not auto-merged and require scoped
-  authorization.
+  honored; external-pull phases (`DATA-P22`, `DATA-P23`) require the data-pull authorization
+  env, never run a real pull in CI, and never commit data artifacts; their merge follows the
+  standard YELLOW auto-merge path.
 
 ## Review-Level Acceptance
 
-* Every **YELLOW** and **RED** phase has a fresh Claude Opus 4.8 xhigh review and a
-  `verdict.json`.
+* Every phase has a fresh Claude Opus 4.8 xhigh review and a `verdict.json`; merged phases
+  are `PASS` or `PASS_WITH_WARNINGS`.
 * Merged phases have `PASS` or `PASS_WITH_WARNINGS` verdicts; `FAIL`/`BLOCKED`/`REWORK`
   block merge.
 * Reviews verify phase-scope compliance, object completeness, fail-closed validation, the
@@ -341,7 +346,8 @@ prohibited scope or claims exist.
 
 ### `COMPLETE_WITH_WARNINGS`
 All hard criteria met, but non-blocking warnings (e.g. documented deferrals, an
-unexercised RED smoke-pull pending authorization, or minor limitations) are recorded in
+unexercised external smoke-pull pending data-pull authorization, or minor limitations) are
+recorded in
 `CLOSEOUT.md`.
 
 ### `BLOCKED`

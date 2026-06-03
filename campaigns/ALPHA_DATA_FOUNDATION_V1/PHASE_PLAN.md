@@ -4,9 +4,11 @@
 
 This phase plan is the human-readable, phase-by-phase contract for the
 `ALPHA_DATA_FOUNDATION_V1` campaign. It decomposes the read-only real-market-data truth
-layer for AI alpha research into 25 Workflow 2 phases (`DATA-P00` … `DATA-P24`). Most
-phases are in the **YELLOW** lane; the two authorized external-pull phases (`DATA-P22`,
-`DATA-P23`) are **RED**.
+layer for AI alpha research into 25 Workflow 2 phases (`DATA-P00` … `DATA-P24`). All
+phases are in the **YELLOW** lane and auto-merge like the rest; the two authorized
+external-pull phases (`DATA-P22`, `DATA-P23`) are also **YELLOW** with auto-merge, but they
+perform authorized read-only external IBKR historical reads under data-pull env gating,
+never run a real pull in CI, and never commit data artifacts.
 
 This file is authoritative for human reading. `campaign.yaml` is authoritative for machine
 execution. Phase IDs, names, lanes, dependencies, checks, allowed/forbidden paths, and
@@ -43,8 +45,9 @@ The following invariants hold across every phase and must never be violated:
 6. **Canonical bars carry `available_ts`** and never conflate `event_ts`, `bar_start_ts`,
    `bar_end_ts`, `available_ts`, and `ingested_at`. A missing `available_ts` blocks
    canonicalization.
-7. **No real-data pull runs in CI.** External IBKR calls require RED-lane authorization
-   plus data-pull authorization env and never execute in CI.
+7. **No real-data pull runs in CI.** External IBKR calls in the external-pull phases
+   (`DATA-P22`, `DATA-P23`) require the data-pull authorization env
+   (`ALPHA_DATA_PULL_AUTHORIZED`, `ALPHA_ALLOW_EXTERNAL_IBKR`) and never execute in CI.
 8. **Explicit staging only.** `git add .` and `git add -A` are forbidden; no force push.
 9. **No raw/canonical/provider/account/heavy/db artifacts committed.** Real market data,
    provider responses, account info, parquet/feather/arrow, local DBs, logs, caches, and
@@ -67,8 +70,9 @@ The following invariants hold across every phase and must never be violated:
   summaries.
 * Codex executes the generated spec, makes only scoped in-spec repairs, runs only
   authorized checks for the phase, and writes truthful handoffs.
-* Claude Opus 4.8 xhigh is the fresh semantic reviewer for every YELLOW and RED phase.
-  Claude Sonnet 4.6 supports source-map, verifier, and mechanical audit work.
+* Claude Opus 4.8 xhigh is the fresh semantic reviewer for every YELLOW phase (every phase
+  in this campaign is YELLOW). Claude Sonnet 4.6 supports source-map, verifier, and
+  mechanical audit work.
 
 ### Repo Path Rules
 
@@ -111,9 +115,10 @@ The following invariants hold across every phase and must never be violated:
   trading APIs. An order-method kill switch enforces this at the boundary.
 * The data module reads and writes only the local data root via `ALPHA_DATA_ROOT`. It does
   not write into the repository tree for real data and does not sync to cloud paths.
-* External IBKR calls are gated by `DataAccessMode` and require RED-lane authorization
-  plus `ALPHA_DATA_PULL_AUTHORIZED` and `ALPHA_ALLOW_EXTERNAL_IBKR`. No external call runs
-  in CI.
+* External IBKR calls are gated by `DataAccessMode` and require the data-pull authorization
+  env `ALPHA_DATA_PULL_AUTHORIZED` and `ALPHA_ALLOW_EXTERNAL_IBKR` to be set before the
+  connector makes any external call (a runtime fail-safe, not a merge gate). No external
+  call runs in CI.
 * The dataset-version registry persists data-foundation objects through the existing local
   persistence layer without committing the database.
 
@@ -128,7 +133,8 @@ execution adapter, or any alpha/profitability/tradability/production-readiness c
 
 ### Review Rules
 
-* Every YELLOW and RED phase requires fresh Claude Opus review with a `verdict.json`.
+* Every YELLOW phase (all phases in this campaign) requires fresh Claude Opus review with a
+  `verdict.json`.
 * Merge requires a `PASS` or `PASS_WITH_WARNINGS` verdict. `REWORK`, `BLOCKED`, and `FAIL`
   block merge.
 * Review must verify phase-scope compliance, data-foundation object completeness,
@@ -146,8 +152,9 @@ execution adapter, or any alpha/profitability/tradability/production-readiness c
 * Codex repairs only valid in-scope review findings. Contradictory scope, repeated
   failures, missing authorization, or impossible validation route to a truthful `BLOCKED`
   handoff. Fake completion is forbidden.
-* RED phases have `automatic_repair = false`; repair routing for RED requires re-armed
-  authorization and human awareness.
+* The external-pull phases (`DATA-P22`, `DATA-P23`) follow the same bounded repair loop as
+  every other YELLOW phase; repair of an external-pull step still requires the data-pull
+  authorization env to be armed before any external call.
 
 ### Validation Rules
 
@@ -184,13 +191,14 @@ execution adapter, or any alpha/profitability/tradability/production-readiness c
 | DATA-P19  | Micro Batch Policy for MES/MNQ/M2K                    | YELLOW | DATA-P05, DATA-P10                                                   |    yes |     yes |        yes |
 | DATA-P20  | Optional BID_ASK / Spread Proxy Pilot Plan            | YELLOW | DATA-P08, DATA-P16                                                   |    yes |     yes |        yes |
 | DATA-P21  | Synthetic IBKR Fixture Tests                          | YELLOW | DATA-P03, DATA-P05, DATA-P06, DATA-P07, DATA-P08, DATA-P09, DATA-P14, DATA-P15, DATA-P16, DATA-P17 | yes | yes | yes |
-| DATA-P22  | Small Authorized IBKR Smoke Pull                      |    RED | DATA-P21                                                             |    yes |     yes |     **no** |
-| DATA-P23  | Local Backfill Runbook and Resume Drill               |    RED | DATA-P22                                                             |    yes |     yes |     **no** |
+| DATA-P22  | Small Authorized IBKR Smoke Pull                      | YELLOW | DATA-P21                                                             |    yes |     yes |        yes |
+| DATA-P23  | Local Backfill Runbook and Resume Drill               | YELLOW | DATA-P22                                                             |    yes |     yes |        yes |
 | DATA-P24  | End-to-End Data Foundation Dry Run and Closeout       | YELLOW | DATA-P23                                                             |    yes |     yes |        yes |
 
-Auto Merge is `yes` for every YELLOW phase after a passing review and clean gates. Auto
-Merge is **no** for the RED phases (`DATA-P22`, `DATA-P23`): they auto-PR when authorized
-but never auto-merge.
+Auto Merge is `yes` for every YELLOW phase after a passing review and clean gates. The
+external-pull phases (`DATA-P22`, `DATA-P23`) are YELLOW and auto-merge on the same gates;
+they additionally require the data-pull authorization env to be armed for any external call
+at runtime, never run a real pull in CI, and commit no data artifacts.
 
 ## Acceptance Gate Summary
 
@@ -205,7 +213,7 @@ Every phase belongs to exactly one acceptance gate. Gates have no gaps and no ov
 | `provenance_sessions_rolls` | DATA-P11 … DATA-P13 | Continuous-vs-dated provenance separate; continuous not treated as dated truth; dated-truth availability logged; session templates, trading calendar, DST/early-close handling, roll policy, and roll calendar present; adjusted-vs-unadjusted explicit |
 | `canonicalization_quality_versioning` | DATA-P14 … DATA-P18 | Parsed bars and canonical bar contract present; canonical bars carry `available_ts`; `event_ts`/`bar_end_ts`/`available_ts` not conflated; timestamp-semantics policy present; quality and coverage reports present with silent gaps failing closed; dataset-version registry requires quality + coverage + manifest; partition plan and locked-test metadata rules present |
 | `secondary_data_tracks` | DATA-P19 … DATA-P20 | Micro-batch policy present and separate from the mini batch; BID_ASK pilot marked optional and bounded with heavier pacing/storage acknowledged |
-| `validation_and_authorized_smoke` | DATA-P21 … DATA-P23 | Synthetic IBKR fixture tests present; connector/planner/parser/quality tested on synthetic fixtures; RED phases require explicit authorization, never run in CI, commit no data artifacts; smoke pull local-only; backfill runbook + resume drill present; resume-after-interruption demonstrated locally |
+| `validation_and_authorized_smoke` | DATA-P21 … DATA-P23 | Synthetic IBKR fixture tests present; connector/planner/parser/quality tested on synthetic fixtures; external-pull phases (`DATA-P22`, `DATA-P23`) require the data-pull authorization env for any external call, never run a real pull in CI, commit no data artifacts; smoke pull local-only; backfill runbook + resume drill present; resume-after-interruption demonstrated locally |
 | `closeout` | DATA-P24 | End-to-end dry run passes or truthful `BLOCKED`; acceptance audit passes; semantic done-check passes; closeout doc present with final verdict (`COMPLETE`, `COMPLETE_WITH_WARNINGS`, or `BLOCKED`); next-campaign readiness recorded |
 
 ---
@@ -492,7 +500,7 @@ and a connection-doctor scaffold reports host/port reachability for Windows/WSL2
 
 ### Non-Goals
 * Do not imply account access, order access, or live-feed readiness.
-* Do not perform an external IBKR call (RED-only, later).
+* Do not perform an external IBKR call (external-pull phases `DATA-P22`/`DATA-P23` only, later).
 
 ### Expected Files / Directories
 * `src/alpha_system/data/**` (`IBKRConnectionProfile`, `IBKRClientIdPolicy`, connection-doctor scaffold)
@@ -721,7 +729,7 @@ scaffold that logs include-expired availability rather than assuming full histor
 
 ### Non-Goals
 * Do not claim full historical availability or CME economic finality unless reconciled.
-* Do not perform an external IBKR call here (RED-only, later).
+* Do not perform an external IBKR call here (external-pull phases `DATA-P22`/`DATA-P23` only, later).
 
 ### Expected Files / Directories
 * `src/alpha_system/data/**` (`ContractDetailsSnapshot`, `FuturesContractRecord`, discovery scaffold)
@@ -883,7 +891,7 @@ overwrite.
 * Create `docs/data_foundation/PACING_AND_RESUME.md`.
 
 ### Non-Goals
-* Do not perform any external IBKR call (RED-only, later).
+* Do not perform any external IBKR call (external-pull phases `DATA-P22`/`DATA-P23` only, later).
 * Do not imply that a dataset version is ready or that quality passed.
 
 ### Expected Files / Directories
@@ -1861,7 +1869,7 @@ and without committing real provider data.
 * Create `docs/data_foundation/SYNTHETIC_FIXTURE_TESTS.md`.
 
 ### Non-Goals
-* Do not perform an external IBKR call (RED-only, later).
+* Do not perform an external IBKR call (external-pull phases `DATA-P22`/`DATA-P23` only, later).
 * Do not commit real provider responses; do not imply data is pulled.
 
 ### Expected Files / Directories
@@ -1919,24 +1927,25 @@ Standard YELLOW gates.
 Small Authorized IBKR Smoke Pull
 
 ### Lane
-RED
+YELLOW
 
 ### Dependencies
 `DATA-P21`.
 
 ### Purpose
-Perform a small, explicitly authorized, read-only IBKR historical smoke pull to validate the
-connector, manifest, pacing, and resume path against the real provider — local-only, never in
-CI, never auto-merged, and committing no data artifacts. RED here means external /
-provider-facing, **never** trading.
+Perform a small, authorized, read-only IBKR historical smoke pull to validate the
+connector, manifest, pacing, and resume path against the real provider — local-only, never
+in CI, and committing no data artifacts. External here means read-only historical data only;
+there is no order, account, paper, or live scope.
 
 ### Scope
-* Implement a small smoke-pull entry point that, only when authorization is armed, performs a
-  tiny read-only historical pull through the read-only boundary, writing raw outputs to the
-  local data root.
-* Require all of `PROJECT_OP_AUTHORIZED`, `PROJECT_OP_SCOPE`, `PROJECT_OP_EXPIRES`,
-  `ALPHA_DATA_PULL_AUTHORIZED`, and `ALPHA_ALLOW_EXTERNAL_IBKR` before any external call; the
-  pull is forbidden in CI (`ci_allowed: false`).
+* Implement a small smoke-pull entry point that, only when the data-pull authorization env is
+  armed, performs a tiny read-only historical pull through the read-only boundary, writing
+  raw outputs to the local data root.
+* Require the data-pull authorization env (`ALPHA_DATA_PULL_AUTHORIZED`,
+  `ALPHA_ALLOW_EXTERNAL_IBKR`) to be set before the connector makes any external call. This
+  is a runtime fail-safe, not a merge gate. The real pull is forbidden in CI
+  (`ci_allowed: false`); CI runs only the local/synthetic checks listed below.
 * Produce a curated synthetic-or-redacted summary only (no raw data, no provider responses,
   no account info).
 * Create `docs/data_foundation/SMOKE_PULL.md`.
@@ -1944,7 +1953,7 @@ provider-facing, **never** trading.
 ### Non-Goals
 * Do not place orders, query positions, or touch account/paper/live paths.
 * Do not commit any raw data, provider responses, or account info.
-* Do not run in CI; do not auto-merge.
+* Do not run a real pull in CI.
 
 ### Expected Files / Directories
 * `src/alpha_system/data/**` (smoke pull code)
@@ -1974,11 +1983,10 @@ responses, account info, heavy artifacts, or local DB files. Pull outputs are lo
 Explicit staging only.
 
 ### Done Criteria
-* The smoke pull runs only with full RED-lane and data-pull authorization armed, and never in
-  CI.
+* The real smoke pull runs only with the data-pull authorization env armed, and never in CI.
 * A tiny read-only historical pull validates connector/manifest/pacing/resume locally.
 * No data artifact, provider response, or account info is committed; the `find data` audit is
-  clean in the repo tree; the phase is not auto-merged.
+  clean in the repo tree.
 
 ### Handoff Requirements
 Document the authorization gates, the smoke-pull scope, the local-only outputs, the artifact
@@ -1986,15 +1994,16 @@ audit, and validation results, plus an explicit statement that no order/account 
 touched.
 
 ### Review Requirements
-Claude Opus review (RED) must confirm explicit external authorization was required, the pull
-is read-only, no order/account surface is reachable, no data is committed, and CI never runs
-the pull.
+Claude Opus review must confirm the data-pull authorization env gates any external call, the
+pull is read-only, no order/account surface is reachable, no data is committed, and CI never
+runs the real pull.
 
 ### Auto-Merge Eligibility
-RED phase: auto PR when authorized, but **no auto merge**. Merge requires scoped
-authorization present, data-pull authorization present, checks pass, handoff valid, Claude
-review complete with `PASS`/`PASS_WITH_WARNINGS`, artifact policy pass, no data artifacts
-committed, no forbidden paths, no STOP file, CI pass if configured, and human authorization.
+Eligible: auto PR and auto merge by Ralph after a fresh Claude Opus review returns
+`PASS`/`PASS_WITH_WARNINGS` and gates pass, the same as every YELLOW phase (checks pass,
+handoff valid, artifact policy pass, no data artifacts committed, no forbidden paths, no STOP
+file, CI pass if configured, semantic done-check passes). The data-pull authorization env is
+a runtime fail-safe for external calls, not a merge gate; the real pull never runs in CI.
 
 ---
 
@@ -2007,29 +2016,32 @@ committed, no forbidden paths, no STOP file, CI pass if configured, and human au
 Local Backfill Runbook and Resume Drill
 
 ### Lane
-RED
+YELLOW
 
 ### Dependencies
 `DATA-P22`.
 
 ### Purpose
 Provide a local backfill runbook and a resume drill that demonstrates resume-after-interruption
-against the authorized local pull path — local-only, never in CI, never auto-merged, and
-committing no data artifacts. RED here means external / provider-facing, **never** trading.
+against the authorized local pull path — local-only, never in CI, and committing no data
+artifacts. External here means read-only historical data only; there is no order, account,
+paper, or live scope.
 
 ### Scope
-* Implement a resume-drill entry point that, only when authorization is armed, interrupts and
-  resumes a local backfill using the resume ledger and token, demonstrating no silent gaps and
-  no raw overwrite.
-* Require all of `PROJECT_OP_AUTHORIZED`, `PROJECT_OP_SCOPE`, `PROJECT_OP_EXPIRES`,
-  `ALPHA_DATA_PULL_AUTHORIZED`, and `ALPHA_ALLOW_EXTERNAL_IBKR`; forbidden in CI.
+* Implement a resume-drill entry point that, only when the data-pull authorization env is
+  armed, interrupts and resumes a local backfill using the resume ledger and token,
+  demonstrating no silent gaps and no raw overwrite.
+* Require the data-pull authorization env (`ALPHA_DATA_PULL_AUTHORIZED`,
+  `ALPHA_ALLOW_EXTERNAL_IBKR`) to be set before the connector makes any external call (a
+  runtime fail-safe, not a merge gate). The real pull is forbidden in CI; CI runs only the
+  local/synthetic checks listed below.
 * Produce a curated synthetic-or-redacted summary only (no raw data).
 * Create `docs/data_foundation/BACKFILL_RUNBOOK.md`.
 
 ### Non-Goals
 * Do not place orders, query positions, or touch account/paper/live paths.
 * Do not commit any raw data, provider responses, or account info.
-* Do not run in CI; do not auto-merge.
+* Do not run a real pull in CI.
 
 ### Expected Files / Directories
 * `src/alpha_system/data/**` (resume drill code)
@@ -2058,11 +2070,11 @@ responses, account info, heavy artifacts, or local DB files. Pull outputs are lo
 Explicit staging only.
 
 ### Done Criteria
-* The resume drill runs only with full RED-lane and data-pull authorization armed, and never
-  in CI.
+* The real resume drill runs only with the data-pull authorization env armed, and never in
+  CI.
 * Resume-after-interruption is demonstrated locally with no silent gaps and no raw overwrite.
 * No data artifact, provider response, or account info is committed; the `find data` audit is
-  clean in the repo tree; the phase is not auto-merged.
+  clean in the repo tree.
 
 ### Handoff Requirements
 Document the runbook, the resume drill, the authorization gates, the local-only outputs, the
@@ -2070,13 +2082,15 @@ artifact audit, and validation results, plus an explicit statement that no order
 was touched.
 
 ### Review Requirements
-Claude Opus review (RED) must confirm explicit external authorization was required, resume
-works with no silent gaps, the pull is read-only, no order/account surface is reachable, no
-data is committed, and CI never runs the drill.
+Claude Opus review must confirm the data-pull authorization env gates any external call,
+resume works with no silent gaps, the pull is read-only, no order/account surface is
+reachable, no data is committed, and CI never runs the real drill.
 
 ### Auto-Merge Eligibility
-RED phase: auto PR when authorized, but **no auto merge**. Same RED merge requirements as
-DATA-P22.
+Eligible: auto PR and auto merge by Ralph after a fresh Claude Opus review returns
+`PASS`/`PASS_WITH_WARNINGS` and gates pass, the same as every YELLOW phase (same gates as
+DATA-P22). The data-pull authorization env is a runtime fail-safe for external calls, not a
+merge gate; the real pull never runs in CI.
 
 ---
 
@@ -2186,8 +2200,9 @@ The campaign is done when:
   contract economics, sessions, rolls, and provenance are first-class records.
 * Canonical bars preserve `event_ts`/`bar_start_ts`/`bar_end_ts`/`available_ts`/`ingested_at`;
   data-quality and coverage reports fail closed on silent gaps or timestamp defects.
-* The RED smoke pull and resume drill ran only under explicit external authorization, never in
-  CI, never auto-merged, and committed no data artifacts.
+* The external-pull smoke pull and resume drill (`DATA-P22`, `DATA-P23`) made any external
+  call only with the data-pull authorization env armed, never ran a real pull in CI, and
+  committed no data artifacts.
 * The synthetic end-to-end dry run passes with lifecycle blocks firing; the final semantic
   done-check passes and `CLOSEOUT.md` records the final verdict and next-campaign readiness.
 * No raw/canonical/provider/account data, heavy artifacts, local DBs, caches, logs, or
@@ -2222,27 +2237,34 @@ metadata, and any future locked-partition use must create contamination metadata
   `src/alpha_system/live/**`, or any order/account API surface through the data module.
 * Never use `git add .` or `git add -A`; never force push.
 
-## External / RED Lane Rules
+## External-Pull Lane Rules
 
-* RED in this campaign means external, provider-facing, local-heavy operations (`DATA-P22`,
-  `DATA-P23`). RED **never** means trading, order placement, account access, paper, or live.
-* RED phases require all scope env (`PROJECT_OP_AUTHORIZED`, `PROJECT_OP_SCOPE`,
-  `PROJECT_OP_EXPIRES`) plus data-pull env (`ALPHA_DATA_PULL_AUTHORIZED`,
-  `ALPHA_ALLOW_EXTERNAL_IBKR`) to be present, scope-matched, and unexpired before any external
-  IBKR call.
-* RED phases never run in CI, never auto-merge (auto PR only when authorized and human-gated),
-  and never commit raw data, canonical data, provider responses, or account info. All pull
-  outputs are local-only.
-* RED has `automatic_repair = false`; an external pull attempted without authorization is a
-  STOP-and-escalate condition.
+* This campaign has **no RED-lane phases**. The RED lane is retained in the contract for
+  harness completeness only: generically, RED means external, destructive, live, production,
+  costly, or broker-adjacent work that requires scoped authorization
+  (`PROJECT_OP_AUTHORIZED`, `PROJECT_OP_SCOPE`, `PROJECT_OP_EXPIRES`) and human merge
+  approval. No phase in this campaign uses it.
+* The external-pull phases (`DATA-P22`, `DATA-P23`) are **YELLOW** and auto-merge like every
+  other phase. They **never** mean trading, order placement, account access, paper, or live;
+  external means read-only historical data only.
+* The external-pull phases require the data-pull authorization env
+  (`ALPHA_DATA_PULL_AUTHORIZED`, `ALPHA_ALLOW_EXTERNAL_IBKR`) to be set before the connector
+  makes any external IBKR call. This is a runtime fail-safe, not a merge gate.
+* The external-pull phases never run a real pull in CI (CI runs only the local/synthetic
+  checks), and never commit raw data, canonical data, provider responses, or account info.
+  All pull outputs are local-only.
+* An external pull attempted without the data-pull authorization env set must fail closed at
+  runtime; no order/account/paper/live path is reachable in any case.
 
 ## Review and Merge Rules
 
-* Every YELLOW and RED phase requires fresh Claude Opus review with a `verdict.json`.
+* Every YELLOW phase (all phases in this campaign) requires fresh Claude Opus review with a
+  `verdict.json`.
 * YELLOW merge requires `PASS`/`PASS_WITH_WARNINGS`, passing checks, valid handoff, clean
   artifact policy, no forbidden paths, no STOP file, CI pass if configured, and a passing
   semantic done-check.
-* RED merge additionally requires scoped authorization present, data-pull authorization
-  present, no data artifacts committed, and human authorization; RED never auto-merges.
+* The external-pull phases (`DATA-P22`, `DATA-P23`) merge on the same YELLOW gates plus
+  no-data-artifacts-committed; their data-pull authorization env is a runtime fail-safe for
+  external calls, not a merge gate, and the real pull never runs in CI.
 * `REWORK` routes to the bounded repair loop (max 3 attempts); `BLOCKED`/`FAIL` stop the phase
   with a truthful blocked handoff. Fake completion is forbidden.
