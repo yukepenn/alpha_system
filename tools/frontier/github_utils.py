@@ -597,9 +597,13 @@ def classify_ci_checks(
     if not checks:
         return CIStatusResult(CI_NOT_FOUND, checks, required, required, [], False, "No check runs were found.")
 
-    by_name = {_check_name(check): check for check in checks if _check_name(check)}
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for check in checks:
+        name = _check_name(check)
+        if name:
+            by_name.setdefault(name, []).append(check)
     missing = [name for name in required if name not in by_name]
-    relevant = [by_name[name] for name in required if name in by_name] if required else checks
+    relevant = [check for name in required for check in by_name.get(name, [])] if required else checks
     if missing:
         return CIStatusResult(CI_NOT_FOUND, checks, required, missing, missing, False, "Required checks were not found.")
     if not relevant:
@@ -834,6 +838,10 @@ def _pr_data_from_result(result: GitHubResult) -> dict[str, Any]:
 
 def _pr_is_merged(data: Mapping[str, Any]) -> bool:
     return str(data.get("state") or "").upper() == "MERGED" or bool(data.get("mergedAt"))
+
+
+def _pr_is_clean(data: Mapping[str, Any]) -> bool:
+    return str(data.get("mergeStateStatus") or "").upper() == "CLEAN"
 
 
 def _merge_text(stdout: str, stderr: str) -> str:
@@ -1169,6 +1177,46 @@ def merge_pr(
                     warning="Auto-merge retry returned nonzero, but PR is merged.",
                 ),
             )
+        if not retry_view.blocked and _pr_is_clean(_pr_data_from_result(retry_view)):
+            direct_retry = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
+            direct_retry_view = view_pr(pr, root=root, runner=runner)
+            direct_retry_merged = (
+                _pr_is_merged(_pr_data_from_result(direct_retry_view)) if not direct_retry_view.blocked else False
+            )
+            if direct_retry.return_code == 0 or direct_retry_merged:
+                metadata = _merge_metadata(
+                    status=MERGED,
+                    classification="auto_retry_failed_direct_retry_merged"
+                    if direct_retry_merged
+                    else "auto_retry_failed_direct_retry_success",
+                    command=command,
+                    direct_result=result,
+                    pre_view=pre_view,
+                    retry_command=retry_command,
+                    retry_result=retry,
+                    retry_view=retry_view,
+                    verify_view=direct_retry_view,
+                    merged=True,
+                    direct_merge_performed=True,
+                )
+                metadata.update(
+                    {
+                        "direct_retry_command": command,
+                        "direct_retry_return_code": direct_retry.return_code,
+                        "direct_retry_stdout": direct_retry.stdout,
+                        "direct_retry_stderr": direct_retry.stderr,
+                    }
+                )
+                return GitHubResult(
+                    "merge_pr",
+                    False,
+                    command,
+                    0 if direct_retry_merged else direct_retry.return_code,
+                    direct_retry.stdout,
+                    direct_retry.stderr,
+                    blocked=False,
+                    metadata=metadata,
+                )
         retry_classification, retry_status = _classify_merge_failure(retry.stdout, retry.stderr)
         return GitHubResult(
             "merge_pr",

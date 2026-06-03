@@ -296,6 +296,43 @@ def test_merge_pr_arms_auto_merge_for_branch_policy_timing(monkeypatch) -> None:
     assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash", "--delete-branch"]
 
 
+def test_merge_pr_retries_direct_merge_when_auto_merge_disabled_after_checks_clean(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    monkeypatch.setenv("FRONTIER_ALLOW_AUTOMERGE", "1")
+    blocked_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "BLOCKED"}
+    clean_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "CLEAN"}
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(blocked_pr)),
+            Result(
+                ["gh", "pr", "merge"],
+                return_code=1,
+                stderr="base branch policy prohibits the merge. To have the pull request merged after all the requirements have been met, add the `--auto` flag.",
+            ),
+            Result(["gh", "pr", "view"], stdout=json.dumps(blocked_pr)),
+            Result(
+                ["gh", "pr", "merge", "--auto"],
+                return_code=1,
+                stderr="GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)",
+            ),
+            Result(["gh", "pr", "view"], stdout=json.dumps(clean_pr)),
+            Result(["gh", "pr", "merge"], stdout="Merged pull request #3\n"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "MERGED"})),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.ok
+    assert result.metadata["status"] == MERGED
+    assert result.metadata["classification"] == "auto_retry_failed_direct_retry_merged"
+    assert result.metadata["direct_merge_performed"] is True
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash", "--delete-branch"]
+    assert runner.commands[6] == ["gh", "pr", "merge", "3", "--squash", "--delete-branch"]
+
+
 def test_merge_pr_direct_failure_but_pr_is_merged_succeeds(monkeypatch) -> None:
     monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
     monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
@@ -326,6 +363,17 @@ def test_ci_classification_success_failure_pending_timeout() -> None:
     assert classify_ci_checks([{"name": "ci", "conclusion": "failure"}]).state == CI_FAILURE
     assert classify_ci_checks([{"name": "ci", "state": "PENDING"}]).state == CI_PENDING
     assert classify_ci_checks([], timed_out=True).state == "TIMED_OUT"
+
+
+def test_ci_classification_duplicate_required_pending_wins() -> None:
+    checks = [
+        {"name": "validate", "state": "IN_PROGRESS", "bucket": "pending", "event": "pull_request"},
+        {"name": "validate", "state": "SUCCESS", "bucket": "pass", "event": "push"},
+    ]
+
+    result = classify_ci_checks(checks, required_checks=["validate"])
+
+    assert result.state == CI_PENDING
 
 
 def test_ci_classification_uses_state_and_bucket_without_conclusion() -> None:

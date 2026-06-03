@@ -271,6 +271,37 @@ def test_commit_phase_changes_adopts_existing_head_commit(tmp_path: Path) -> Non
     assert result.blocked_files == []
 
 
+def test_commit_phase_changes_adopts_existing_head_commit_without_recorded_base(tmp_path: Path) -> None:
+    base_sha = init_repo(tmp_path)
+    assert git(tmp_path, "update-ref", "refs/remotes/origin/main", base_sha).returncode == 0
+    prepare_phase_branch(tmp_path, "auto/c1/p00", base_ref="main", dry_run=False)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "a.md").write_text("# A\n", encoding="utf-8")
+    assert git(tmp_path, "add", "--", "docs/a.md").returncode == 0
+    assert git(tmp_path, "commit", "-m", "C1/P00: executor commit").returncode == 0
+    head_sha = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+
+    result = commit_phase_changes(
+        root=tmp_path,
+        campaign_id="C1",
+        phase_id="P00",
+        summary="summary",
+        branch="auto/c1/p00",
+        config=CONFIG,
+        dry_run=False,
+        push=False,
+        base_sha=None,
+    )
+
+    assert result.commit_sha == head_sha
+    assert result.base_sha == base_sha
+    assert result.source == "existing_head_commit"
+    assert result.changed_files == ["docs/a.md"]
+    assert result.diff_files == ["docs/a.md"]
+    assert result.staged_files == ["docs/a.md"]
+    assert result.blocked_files == []
+
+
 def test_commit_phase_changes_blocks_clean_head_equal_to_base(tmp_path: Path) -> None:
     base_sha = init_repo(tmp_path)
     prepare_phase_branch(tmp_path, "auto/c1/p00", base_ref="main", dry_run=False)
