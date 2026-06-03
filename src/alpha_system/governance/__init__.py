@@ -9,5 +9,6 @@ __all__ = [
     "label_leakage_guard",
     "label_spec",
     "serialization",
+    "study_spec",
     "validation",
 ]
