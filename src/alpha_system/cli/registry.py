@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from alpha_system.core.registry import inspect_registry_status
+from alpha_system.experiments.audit import registry_status_audit_summary
 
 
 DEFAULT_REGISTRY_PATH = Path("metadata/registry.sqlite3")
@@ -54,6 +55,10 @@ def run_status(args: argparse.Namespace) -> int:
 
     status = inspect_registry_status(registry_path)
     payload = status.to_dict()
+    hardening_summary = (
+        registry_status_audit_summary(registry_path) if status.exists else _empty_hardening_summary()
+    )
+    payload.update(hardening_summary)
     if args.json:
         print(json.dumps(payload, sort_keys=True, indent=2))
     else:
@@ -73,12 +78,41 @@ def run_status(args: argparse.Namespace) -> int:
         print(f"Required tables: {present}/{total} present")
         if status.missing_tables:
             print(f"Missing tables: {', '.join(status.missing_tables)}")
+        audit_summary = hardening_summary["audit"]
+        if audit_summary.get("skipped"):
+            print(f"Audit: skipped ({audit_summary.get('error', 'unavailable')})")
+        else:
+            print(
+                "Audit findings: "
+                f"{audit_summary.get('finding_count', 0)} "
+                f"({'clean' if audit_summary.get('clean') else 'attention required'})"
+            )
+        failed_summary = hardening_summary["failed_runs"]
+        print(f"Failed runs visible: {failed_summary['count']}")
+        promotion_summary = hardening_summary["promotion_decisions"]
+        print(
+            "Promotion approvals without review: "
+            f"{promotion_summary['approval_without_review']}"
+        )
         print(f"Status: {'OK' if status.valid else 'INVALID'}")
 
     if not status.valid:
         print(f"registry status invalid: {status.status_message}", file=sys.stderr)
         return 2
     return 0
+
+
+def _empty_hardening_summary() -> dict[str, object]:
+    return {
+        "audit": {
+            "clean": False,
+            "finding_count": 0,
+            "skipped": True,
+            "error": "missing registry database",
+        },
+        "failed_runs": {"count": 0, "run_ids": []},
+        "promotion_decisions": {"approval_without_review": 0},
+    }
 
 
 def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
