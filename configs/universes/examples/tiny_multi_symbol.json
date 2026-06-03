@@ -1,0 +1,71 @@
+{
+  "universe_id": "tiny_multi_symbol_synthetic",
+  "name": "Tiny Multi-Symbol Synthetic Universe",
+  "data_version": "synthetic:universe:v1",
+  "inclusion_rules": [
+    "explicit_synthetic_fixture_members"
+  ],
+  "exclusion_rules": [
+    "no_real_market_data",
+    "no_live_universe_updates"
+  ],
+  "future_sector_constraints": [
+    {
+      "constraint_id": "synthetic_sector_contract",
+      "mode": "contract_only",
+      "enabled": false,
+      "sector": "synthetic_sector",
+      "max_exposure": "0.50"
+    }
+  ],
+  "future_asset_constraints": [
+    {
+      "constraint_id": "synthetic_asset_contract",
+      "mode": "contract_only",
+      "enabled": false,
+      "asset_class": "equity",
+      "max_exposure": "1.00"
+    }
+  ],
+  "metadata": {
+    "fixture_policy": "tiny deterministic synthetic correctness fixture only"
+  },
+  "instruments": [
+    {
+      "instrument_id": "EQ_US_SYNTH_A",
+      "symbol": "SYN-A",
+      "asset_class": "equity",
+      "exchange": "XNYS",
+      "currency": "USD",
+      "timezone": "America/New_York",
+      "start_date": "2026-01-01",
+      "end_date": null,
+      "data_version": "synthetic:bars:v1",
+      "inclusion_rules": [
+        "listed_in_fixture_config"
+      ],
+      "exclusion_rules": [],
+      "metadata": {
+        "calendar_id": "XNYS_SYNTH"
+      }
+    },
+    {
+      "instrument_id": "EQ_US_SYNTH_B",
+      "symbol": "SYN-B",
+      "asset_class": "equity",
+      "exchange": "XCME",
+      "currency": "USD",
+      "timezone": "America/Chicago",
+      "start_date": "2026-01-01",
+      "end_date": null,
+      "data_version": "synthetic:bars:v1",
+      "inclusion_rules": [
+        "listed_in_fixture_config"
+      ],
+      "exclusion_rules": [],
+      "metadata": {
+        "calendar_id": "XCME_SYNTH"
+      }
+    }
+  ]
+}
