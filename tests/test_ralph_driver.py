@@ -581,6 +581,18 @@ def test_spec_generation_prompt_requires_runs_local_only_artifact_policy() -> No
     assert "Do not list any `runs/` path under Allowed Paths" in prompt
 
 
+def test_spec_generation_prompt_requires_readme_snapshot_policy() -> None:
+    phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW"}
+
+    prompt = ralph_driver.spec_generation_prompt(phase, SAMPLE_CAMPAIGN_ID)
+
+    assert "Include `README.md` under commit-eligible Allowed Paths for every non-mock phase." in prompt
+    assert "current campaign progress, active/next phase, newly added durable modules/docs/commands" in prompt
+    assert "unchanged safety boundaries" in prompt
+    assert "do not add generated run details, local artifact paths" in prompt
+    assert "alpha/profitability claims" in prompt
+
+
 def test_executor_prompt_declares_review_boundary() -> None:
     phase = {"phase_id": "P00", "name": "Prepare fixture", "lane": "YELLOW"}
     phase_dir = ralph_driver.ROOT / "runs/run1/phases/P00"

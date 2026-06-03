@@ -6,6 +6,12 @@ The active campaign is `ALPHA_SYSTEM_V1`, defined in `campaigns/ALPHA_SYSTEM_V1/
 
 This repository is not a broker, paper-trading, live-trading, order-routing, or production execution system. Do not make alpha, profitability, robustness, or tradability claims without evidence and review.
 
+## Current Repo Snapshot
+
+`ALPHA_SYSTEM_V1` has completed phases `ASV1-P00` through `ASV1-P19`; the next planned phase is `ASV1-P20` Strategy Grid Engine MVP. The repo now includes the local-first harness baseline, core contracts, metadata registry, canonical 1-minute data layer, calendar/data-quality checks, factor and label foundations, factor diagnostics/reports, signal and strategy contracts, reference 1-minute backtest truth, cost/slippage semantics, position management, portfolio target/sizing, and fast-path parity scaffolding.
+
+Durable phase docs live under `docs/`, and commit-eligible handoffs live under `handoffs/`. The README is expected to stay as a compact project snapshot after each merged phase; detailed phase evidence belongs in handoffs, reviews, and run-local summaries.
+
 ## Repository Location
 
 Canonical repo path:

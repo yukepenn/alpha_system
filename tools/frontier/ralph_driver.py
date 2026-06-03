@@ -1632,6 +1632,12 @@ def run_artifact_spec_policy(phase_id: str) -> str:
 - If a campaign/spec asks for runs placeholders, resolve that as local-only and do not commit it."""
 
 
+def readme_snapshot_spec_policy() -> str:
+    return """- Include `README.md` under commit-eligible Allowed Paths for every non-mock phase.
+- Require a concise README update that reflects the phase after merge: current campaign progress, active/next phase, newly added durable modules/docs/commands, and unchanged safety boundaries.
+- Keep the README snapshot factual and compact; do not add generated run details, local artifact paths, alpha/profitability claims, broker/live/paper/deployment behavior, or duplicated phase handoff content."""
+
+
 def executor_run_artifact_policy(phase_id: str) -> str:
     return f"""- Do not stage or commit anything under `runs/`.
 - Do not stage run-local `handoff.md` under `runs/<run_id>/...`.
@@ -1662,6 +1668,8 @@ Requirements:
 - Do not introduce live trading, paper trading, broker calls, destructive cleanup, deployment, PR creation, or auto-merge.
 - Make validation commands explicit and safe for this phase.
 - Require explicit staging only; forbid `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, and force push.
+- Include this README snapshot policy in the generated spec:
+{readme_snapshot_spec_policy()}
 - Include a generated spec Artifact Policy section with these exact run-artifact rules:
 {run_artifact_spec_policy(phase["phase_id"])}
 - Separate commit-eligible Allowed Paths from local-only run artifacts.
