@@ -7,13 +7,13 @@ Workflow: `workflow2`
 Run: `2026-06-02T012007Z_ALPHA_SYSTEM_V1`
 Status: `executing`
 
-Current phase: `ASV1-P18` - Portfolio Target and Sizing Layer
-Last completed phase: `ASV1-P17` - Position Management Module
-Last completed status: `PASS_WITH_WARNINGS`
-Passing phases: `18/30`
+Current phase: `ASV1-P19` - Fast Path and Reference Parity
+Last completed phase: `ASV1-P18` - Portfolio Target and Sizing Layer
+Last completed status: `PASS`
+Passing phases: `19/30`
 
 Ralph updates this pointer through reviewed phase commits so the tracked repo stays clean after Workflow 2 stops.
 
 Broker/live trading, paper trading, order routing, raw data commits, heavy artifact commits, local DB commits, and alpha/tradability claims without evidence remain out of scope.
 
-Note: Projected after ASV1-P17 merge.
+Note: Projected after ASV1-P18 merge.
