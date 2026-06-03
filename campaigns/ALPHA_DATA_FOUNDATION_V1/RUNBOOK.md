@@ -7,7 +7,7 @@ campaign under Frontier Harness Generic v3.0 Workflow 2. It covers preflight, th
 Windows/WSL2 IBKR setup, the read-only IBKR connection and clientId safety policy, the
 manifest/pacing/resume protocol, raw and canonical data inspection, dataset versioning,
 STOP/resume, blocked-phase handling, raw/heavy commit prevention, Green/Yellow/Red lane
-behavior, the Red authorization protocol for external IBKR pulls, and closeout.
+behavior, the external IBKR pull authorization protocol, and closeout.
 
 The campaign builds the read-only, provenance-rich, quality-gated historical futures data
 foundation for ES/NQ/RTY research. IBKR is a bootstrap historical data source **only**.
@@ -16,9 +16,10 @@ paper/live trading, and never claims alpha, profitability, or tradability. Real 
 dangerous until it is versioned, quality-checked, provenance-labeled, and local-only.
 Keep that boundary in mind at every state.
 
-The 25 phases `DATA-P00 … DATA-P24` are all YELLOW except `DATA-P22` and `DATA-P23`,
-which are RED. RED here means **external IBKR historical calls and heavy local writes**.
-RED never means trading, orders, accounts, paper, or live.
+All 25 phases `DATA-P00 … DATA-P24` are YELLOW; this campaign has **no RED-lane phases**.
+`DATA-P22` and `DATA-P23` are YELLOW phases that perform **authorized external IBKR
+historical reads and heavy local writes** (see section 30). External reads never mean
+trading, orders, accounts, paper, or live.
 
 ## 2. Preflight Checklist
 
@@ -89,8 +90,9 @@ ls runs/*/STOP 2>/dev/null || echo "no active STOP file"
 * Is any forbidden artifact (raw/canonical data, parquet, DB, provider response, account
   info, heavy artifact) already staged? If so, unstage before starting.
 * Is any broker/order/account/paper/live scope present anywhere? If so, STOP and escalate.
-* For a RED phase (`DATA-P22`/`DATA-P23`): are all scope and data authorization env vars
-  present, scope-matched, and unexpired, with explicit human authorization? If not, do not
+* For an external-pull phase (`DATA-P22`/`DATA-P23`): are the data-pull env vars
+  (`ALPHA_DATA_PULL_AUTHORIZED`, `ALPHA_ALLOW_EXTERNAL_IBKR`) and the IBKR connection env
+  present, and is this running outside CI (a real pull never runs in CI)? If not, do not
   attempt the external pull.
 
 ## 3. WSL2 / Windows IBKR Setup
@@ -117,8 +119,8 @@ must be configured to accept connections from the WSL2 client.
 * clientId `101` and `102` are **forbidden** — reserved for paper-account
   (`paperaccountclient`) separation. A connection profile that accepts `101` or `102`
   fails closed (section 6).
-* A connection doctor must run before any pull. External provider calls require RED-lane
-  authorization and never run in CI.
+* A connection doctor must run before any pull. External provider calls require the
+  data-pull authorization env (section 14) and never run in CI.
 
 ## 5. Connection Doctor
 
@@ -133,8 +135,9 @@ export ALPHA_IBKR_CLIENT_ID=201
 python -m alpha_system.data.ibkr.doctor --host "$ALPHA_IBKR_HOST" --port "$ALPHA_IBKR_PORT" --client-id "$ALPHA_IBKR_CLIENT_ID"
 ```
 
-The doctor module is implemented across `DATA-P03`/`DATA-P04` and exercised under RED only
-in `DATA-P22`/`DATA-P23`. Until those phases land, the command above is a TARGET command,
+The doctor module is implemented across `DATA-P03`/`DATA-P04` and exercised against a live
+host only in the external-pull phases `DATA-P22`/`DATA-P23`. Until those phases land, the
+command above is a TARGET command,
 not a currently working command. A failed reachability check must report clearly and must
 not silently retry into a wrong host.
 
@@ -205,8 +208,11 @@ for g in gates.values():
 assert phase_ids == set(covered), "gate coverage != phase set"
 assert len(covered) == len(set(covered)), "phase in more than one gate"
 red = {ph["id"] for ph in phases if ph["lane"] == "RED"}
-assert red == {"DATA-P22", "DATA-P23"}, f"unexpected RED phases: {red}"
-print(f"OK: {len(phase_ids)} phases, RED={sorted(red)}, gates cover phase set exactly once")
+assert red == set(), f"unexpected RED phases: {red}"
+ext = {"DATA-P22", "DATA-P23"}
+assert ext <= phase_ids, f"missing external-pull phases: {ext - phase_ids}"
+assert all(ph["lane"] == "YELLOW" for ph in phases if ph["id"] in ext), "P22/P23 must be YELLOW"
+print(f"OK: {len(phase_ids)} phases, no RED phases, external-pull YELLOW phases={sorted(ext)}, gates cover phase set exactly once")
 PY
 ```
 
@@ -282,17 +288,12 @@ python -m alpha_system.data.ibkr.plan --batch micro_secondary --start 2020-01-01
 
 ## 14. IBKR Authorization Env Vars
 
-External IBKR pulls (RED phases `DATA-P22`/`DATA-P23`) require both the harness scope
-variables and the data authorization variables present, scope-matched, and unexpired,
-plus explicit human authorization. The modules below do **not** exist yet — these are
-TARGET commands for future phases, not currently working commands.
+External IBKR pulls (YELLOW external-pull phases `DATA-P22`/`DATA-P23`) require the
+data-pull authorization env plus the IBKR connection env present; a real pull never runs
+in CI. The modules below do **not** exist yet — these are TARGET commands for future
+phases, not currently working commands.
 
 ```bash
-# harness RED scope (must be scope-matched and unexpired)
-export PROJECT_OP_AUTHORIZED=1
-export PROJECT_OP_SCOPE="ALPHA_DATA_FOUNDATION_V1:DATA-P22:external_ibkr_historical_smoke"
-export PROJECT_OP_EXPIRES="2026-12-31T00:00:00Z"
-
 # data authorization + connection + data root
 export ALPHA_DATA_PULL_AUTHORIZED=1
 export ALPHA_ALLOW_EXTERNAL_IBKR=1
@@ -512,47 +513,58 @@ Not used by default in this campaign. If a pure-docs phase were ever marked GREE
 still require checks, handoff, and artifact policy.
 
 ### Yellow
-`DATA-P00 … DATA-P21` and `DATA-P24` are YELLOW: automatic execute / repair / PR / merge
-after fresh Claude Opus 4.8 xhigh review with a `PASS` or `PASS_WITH_WARNINGS` verdict and
-all gates passing. No external provider call occurs in any YELLOW phase.
+All 25 phases `DATA-P00 … DATA-P24` are YELLOW: automatic execute / repair / PR / merge
+(auto-merge) after fresh Claude Opus 4.8 xhigh review with a `PASS` or
+`PASS_WITH_WARNINGS` verdict and all gates passing. This campaign has **no RED-lane
+phases**.
+
+`DATA-P22` (Small Authorized IBKR Smoke Pull) and `DATA-P23` (Local Backfill Runbook and
+Resume Drill) are YELLOW phases that perform **authorized external IBKR historical reads
+and heavy local writes** — **never** trading, orders, accounts, paper, or live. They are
+authorized via the data-pull env (section 30), never run a real pull in CI, keep all
+outputs local-only, commit no data artifacts, and auto-merge through the standard YELLOW
+path.
 
 ### Red
-`DATA-P22` (Small Authorized IBKR Smoke Pull) and `DATA-P23` (Local Backfill Runbook and
-Resume Drill) are RED. RED means external IBKR historical calls and heavy local writes —
-**never** trading, orders, accounts, paper, or live. RED requires scoped authorization
-(section 30), Claude review, no CI execution, local-only outputs, no auto-merge, and no
-data artifacts committed.
+Not used by this campaign. In the harness generally, RED would cover external, destructive,
+live, production, costly, or broker-adjacent work requiring scoped `PROJECT_OP_*`
+authorization, Claude review, and a human merge gate (no auto-merge). No phase here uses
+the RED lane.
 
-## 30. Red Authorization for External IBKR Pulls
+## 30. External IBKR Pull Authorization
 
-A RED external pull may proceed only when **all** of the following hold:
+External IBKR pulls (`DATA-P22`/`DATA-P23`) are YELLOW work authorized via the data-pull
+env, not the RED lane. An external pull may proceed only when **all** of the following
+hold:
 
 ```text
-PROJECT_OP_AUTHORIZED       present
-PROJECT_OP_SCOPE            present and scope-matched to the RED phase
-PROJECT_OP_EXPIRES          present and unexpired
 ALPHA_DATA_PULL_AUTHORIZED  present
 ALPHA_ALLOW_EXTERNAL_IBKR   present
-+ explicit human authorization
+ALPHA_IBKR_HOST/PORT/CLIENT_ID  present (connection env)
+ALPHA_DATA_ROOT             present (local data root)
 + connection doctor passes (section 5)
 + clientId safety check passes (section 6)
 + no active STOP file
++ not running in CI
 ```
 
 * The pull never runs in CI (`real_data_pull_forbidden_in_ci`).
-* Outputs are local-only under `$ALPHA_DATA_ROOT`; no raw/canonical/provider/account
-  artifacts are committed; commit only smoke/backfill code, runbook docs, and
-  curated synthetic-or-redacted summaries.
-* `auto_merge = false` for RED; a human reviews and authorizes the merge.
-* RED never authorizes orders, accounts, paper, or live scope in any lane.
+* Reads are **read-only historical only** — no orders, accounts, paper, or live in any
+  lane.
+* Outputs are local-only under `$ALPHA_DATA_ROOT`; raw/canonical/provider/account data is
+  **never committed**; commit only smoke/backfill code, runbook docs, and curated
+  synthetic-or-redacted summaries.
+* These phases **auto-merge** through the standard YELLOW path after a fresh Claude Opus
+  PASS / PASS_WITH_WARNINGS verdict; there is **no human merge gate** and no
+  `PROJECT_OP_*` scope is required.
 
 ```bash
 # authorized small smoke pull only; local-only; no CI; no data commit (TARGET command, future phase)
 python -m alpha_system.data.ibkr.pull --batch mini_main --smoke --max-chunks 1
 ```
 
-After any RED pull, re-run the artifact audit (section 11/28) and confirm `git ls-files
-runs` is empty and no data leaked into the repo.
+After any external pull, re-run the artifact audit (section 11/28) and confirm `git
+ls-files runs` is empty and no data leaked into the repo.
 
 ## 31. Final Closeout (DATA-P24)
 
@@ -649,5 +661,6 @@ alpha/profitability/tradability/production-readiness claims.
 Be aggressive about data admissibility — manifests, pacing, resume ledgers, provenance,
 timestamp semantics, fail-closed quality and coverage, versioning, and local-only artifact
 policy. Be conservative about market claims and trading scope — IBKR is a read-only
-historical data source, RED never means trading, and no result here is alpha, profitable,
-tradable, or production/paper/live/broker-ready.
+historical data source, the authorized external pulls (`DATA-P22`/`DATA-P23`) never mean
+trading, and no result here is alpha, profitable, tradable, or
+production/paper/live/broker-ready.

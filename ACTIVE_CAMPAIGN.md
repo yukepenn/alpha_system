@@ -66,17 +66,19 @@ The full phase plan is in `PHASE_PLAN.md` (human-authoritative) and `campaign.ya
 
 ## External Authorization Summary
 
-Most phases are YELLOW (local-only, no external provider call). Two phases are RED
-because they touch the external IBKR API and write heavy local data:
+All 25 phases are YELLOW and auto-merge after automated Claude Opus review; there are no
+RED-lane phases and no human merge gate. Two phases touch the external IBKR API and write
+heavy local data:
 
 * `DATA-P22` — Small Authorized IBKR Smoke Pull
 * `DATA-P23` — Local Backfill Runbook and Resume Drill
 
-RED phases require explicit local authorization (`ALPHA_DATA_PULL_AUTHORIZED`,
-`ALPHA_ALLOW_EXTERNAL_IBKR`, and the harness scope variables
-`PROJECT_OP_AUTHORIZED` / `PROJECT_OP_SCOPE` / `PROJECT_OP_EXPIRES`), never run in CI,
-never auto-merge data artifacts, and never commit raw or canonical market data. RED here
-means external/stateful/provider-facing — never trading.
+These two are auto-merge like every other phase, but they retain two non-review guards:
+a **real IBKR pull never runs in CI** (CI runs only their local/synthetic checks), and a
+**data-pull authorization env** (`ALPHA_DATA_PULL_AUTHORIZED`, `ALPHA_ALLOW_EXTERNAL_IBKR`)
+must be set for the connector to make any external call — a runtime fail-safe, not a merge
+gate. Real raw/canonical market data, provider responses, and account info are never
+committed in any phase. No order/account/paper/live scope exists anywhere.
 
 ## Acceptance Gate Summary
 

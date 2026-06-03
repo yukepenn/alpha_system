@@ -143,8 +143,11 @@ lane_policy:
     - no_stop_file
     - semantic_done_check_pass
   YELLOW:
-    description: Material data-foundation engineering or research-protocol work; no external
-      provider call.
+    description: Material data-foundation engineering or research-protocol work. Most YELLOW
+      phases are local-only with no external provider call; two phases (DATA-P22, DATA-P23)
+      perform authorized read-only external IBKR historical reads under explicit data-pull
+      env gating and never run a real pull in CI. No order/account/paper/live scope in any
+      YELLOW phase.
     automatic_execute: true
     automatic_repair: true
     automatic_pr: true
@@ -179,10 +182,12 @@ lane_policy:
     required_data_authorization_env:
     - ALPHA_DATA_PULL_AUTHORIZED
     - ALPHA_ALLOW_EXTERNAL_IBKR
-    expected_in_this_campaign: true
-    expected_red_phases:
-    - DATA-P22
-    - DATA-P23
+    expected_in_this_campaign: false
+    expected_red_phases: []
+    note_no_red_phases: This campaign has no RED-lane phases. The former external-pull phases
+      DATA-P22 and DATA-P23 are YELLOW (auto-merge) and rely on the data-pull authorization
+      env and the never-in-CI invariant rather than RED-lane human merge approval. The RED
+      lane definition is retained for harness completeness only.
     red_requires:
     - explicit_external_authorization
     - human_authorization
@@ -268,7 +273,8 @@ data_lifecycle_state_machine:
     requires: manifest, clientId validation, local data root validation
   - from: REQUEST_AUTHORIZED
     to: REQUEST_SUBMITTED
-    requires: RED-lane authorization for external IBKR calls
+    requires: data-pull authorization env (ALPHA_DATA_PULL_AUTHORIZED, ALPHA_ALLOW_EXTERNAL_IBKR)
+      for external IBKR calls
   - from: REQUEST_SUBMITTED
     to: PARTIAL_RAW
     requires: at least one completed chunk
@@ -2284,33 +2290,30 @@ phases:
     explicit_staging_only: true
 - id: DATA-P22
   name: Small Authorized IBKR Smoke Pull
-  lane: RED
+  lane: YELLOW
   dependencies:
   - DATA-P21
   spec_required: true
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  external_authorization_required: true
-  required_authorization_env:
-  - PROJECT_OP_AUTHORIZED
-  - PROJECT_OP_SCOPE
-  - PROJECT_OP_EXPIRES
+  performs_external_ibkr_read: true
+  external_pull_authorization_env:
   - ALPHA_DATA_PULL_AUTHORIZED
   - ALPHA_ALLOW_EXTERNAL_IBKR
-  ci_allowed: false
+  real_pull_ci_allowed: false
+  real_data_pull_local_only: true
   checks:
   - git status --short
   - python tools/verify.py --smoke
   - python -m pytest tests/unit/data -q
   - test -f docs/data_foundation/SMOKE_PULL.md
   - git ls-files runs
-  - git status --short
   - find data -type f '!' -name README.md '!' -name .gitkeep -print
   handoff_required: true
   review_required: true
   auto_pr: true
-  auto_merge: false
+  auto_merge: true
   allowed_paths:
   - src/alpha_system/data/**
   - tests/unit/data/**
@@ -2348,21 +2351,19 @@ phases:
     local_only_pull_outputs: true
 - id: DATA-P23
   name: Local Backfill Runbook and Resume Drill
-  lane: RED
+  lane: YELLOW
   dependencies:
   - DATA-P22
   spec_required: true
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  external_authorization_required: true
-  required_authorization_env:
-  - PROJECT_OP_AUTHORIZED
-  - PROJECT_OP_SCOPE
-  - PROJECT_OP_EXPIRES
+  performs_external_ibkr_read: true
+  external_pull_authorization_env:
   - ALPHA_DATA_PULL_AUTHORIZED
   - ALPHA_ALLOW_EXTERNAL_IBKR
-  ci_allowed: false
+  real_pull_ci_allowed: false
+  real_data_pull_local_only: true
   checks:
   - git status --short
   - python tools/verify.py --smoke
@@ -2373,7 +2374,7 @@ phases:
   handoff_required: true
   review_required: true
   auto_pr: true
-  auto_merge: false
+  auto_merge: true
   allowed_paths:
   - src/alpha_system/data/**
   - tests/unit/data/**
@@ -2635,15 +2636,14 @@ acceptance_gates:
     requires:
     - synthetic_ibkr_fixture_tests_present
     - connector_planner_parser_quality_tested_on_synthetic_fixtures
-    - red_phases_require_explicit_authorization
-    - red_phases_not_run_in_ci
-    - red_phases_do_not_commit_data_artifacts
+    - external_pull_phases_require_data_pull_authorization_env
+    - external_pull_not_run_in_ci
+    - external_pull_phases_do_not_commit_data_artifacts
     - smoke_pull_local_only
     - backfill_runbook_and_resume_drill_present
     - resume_after_interruption_demonstrated_locally
     - phase_handoffs_present
     - yellow_phase_reviews_present_for_yellow_phases
-    - red_phase_reviews_present
     - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
     - artifact_audit_pass
     - no_broker_live_paper_order_or_account_scope
@@ -2735,14 +2735,17 @@ risk_controls:
     - client id guard tests
     - connection profile validation tests
     - Claude review
-  ibkr_external_calls_require_red_authorization:
+  ibkr_external_calls_require_authorization:
     required: true
     rules:
-      external_provider_calls_require_red_authorization: true
+      external_provider_calls_require_data_pull_authorization_env: true
+      data_pull_authorization_env:
+      - ALPHA_DATA_PULL_AUTHORIZED
+      - ALPHA_ALLOW_EXTERNAL_IBKR
       real_data_pull_forbidden_in_ci: true
     detection:
     - data access mode tests
-    - RED-lane authorization checks
+    - data-pull authorization env checks
     - CI configuration audit
   request_manifest_required:
     required: true
@@ -2904,7 +2907,8 @@ stop_conditions:
   condition: connection profile accepts clientId 101 or 102
   action: block_merge_and_repair
 - name: external IBKR pull without authorization
-  condition: external IBKR provider call attempted without RED-lane and data authorization env
+  condition: external IBKR provider call attempted without the data-pull authorization env
+    (ALPHA_DATA_PULL_AUTHORIZED, ALPHA_ALLOW_EXTERNAL_IBKR)
   action: stop_and_escalate
 - name: real data pull run in CI
   condition: a real provider pull executes in CI

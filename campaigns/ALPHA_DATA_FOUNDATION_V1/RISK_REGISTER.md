@@ -57,7 +57,7 @@ every "Blocking condition" as a hard STOP/merge-block.
 | R-022 | Locked-test contamination begins at data foundation stage | S2 | L2 | DATA-P18 | Open |
 | R-023 | Real-time/live feed creep | S1 | L2 | DATA-P04, all | Open |
 | R-024 | Paper/live/broker scope creep | S1 | L2 | DATA-P04, all | Open |
-| R-025 | Human authorization bypassed for external data pulls | S1 | L2 | DATA-P22, DATA-P23 | Open |
+| R-025 | Unintended or unauthorized external data pull | S1 | L1 | DATA-P22, DATA-P23 | Open |
 
 ---
 
@@ -878,8 +878,9 @@ L2 — the broker/order surface is adjacent in the same API and explicitly out o
 
 ### Mitigation
 Global forbidden paths and forbidden global changes block broker/paper/live/order/account
-scope in every lane; RED here authorizes read-only IBKR pulls and heavy local writes only,
-never trading; trading scope triggers STOP/escalation.
+scope in every lane; the authorized external-pull phases (DATA-P22/DATA-P23, now YELLOW
+auto-merge under the data-pull authorization env) cover read-only IBKR pulls and heavy
+local writes only, never trading; trading scope triggers STOP/escalation.
 
 ### Owner
 Ralph (scope/stop enforcement + merge gating) / Claude Opus (boundary review).
@@ -892,38 +893,56 @@ Any broker, paper, live, order-routing, order-placement, account-trading, or exe
 
 ---
 
-## R-025 — Human authorization bypassed for external data pulls
+## R-025 — Unintended or unauthorized external data pull
 
 ### Description
-An external IBKR historical pull is attempted without the required RED-lane scope and
-data-pull authorization, or such a pull is attempted in CI.
+An external IBKR historical pull runs when it should not — for example an accidental or
+automated external call without the data-pull authorization env set, or any real pull
+attempted in CI. The repo owner has authorized external IBKR access for the external-pull
+phases (DATA-P22, DATA-P23) and opted those phases into YELLOW auto-merge, so the control
+here is no longer a human merge gate; the residual risk is an *unintended* external call
+slipping past the runtime fail-safe.
 
 ### Impact
-An external provider call runs without human authorization or in CI, violating the RED-lane
-and external-call policy. S1.
+An external provider call runs that was not intended (no data-pull env, or inside CI),
+spending a connection/pacing budget without authorization and outside the local-only
+boundary. S1.
 
 ### Likelihood
-L2 — automation may attempt a convenient external call without the authorization gate.
+L1 — with the connector fail-closed on the data-pull env and real pulls excluded from CI,
+an unintended external call is unlikely; it remains S1 because the consequence of an
+unauthorized external call is severe.
 
 ### Detection
-* RED-lane authorization checks: `PROJECT_OP_AUTHORIZED` / `PROJECT_OP_SCOPE` / `PROJECT_OP_EXPIRES` present, scope-matched, unexpired.
-* Data-pull authorization: `ALPHA_DATA_PULL_AUTHORIZED` and `ALPHA_ALLOW_EXTERNAL_IBKR` required; never in CI.
-* Merge global-blocker on external IBKR pull attempted without authorization; `real_data_pull_forbidden_in_ci`.
-* Claude Opus review; RED auto-merge disabled (human gate).
+* Data-pull authorization fail-safe: the connector requires `ALPHA_DATA_PULL_AUTHORIZED`
+  and `ALPHA_ALLOW_EXTERNAL_IBKR` before any external call and fails closed when either is
+  absent — a runtime guard against accidental pulls.
+* Real pulls never run in CI: `real_data_pull_forbidden_in_ci` and the per-phase
+  `real_pull_ci_allowed: false` invariant for DATA-P22/DATA-P23.
+* No raw/canonical/provider/account data is ever committed (artifact audit + `never_commit`
+  globs), so an external pull cannot leak its outputs into git.
+* Read-only historical surface only — no order/account/paper/live API is reachable, so a
+  stray call cannot reach a trading surface.
+* Claude Opus review of the external-pull phases (these are YELLOW auto-merge, not RED).
 
 ### Mitigation
-External IBKR pulls require scoped RED authorization plus data-pull env, run local-only,
-never in CI, with `auto_merge: false` for RED; the human owns the final external-pull
-decision; missing authorization fails closed.
+External IBKR pulls require the data-pull authorization env (`ALPHA_DATA_PULL_AUTHORIZED`,
+`ALPHA_ALLOW_EXTERNAL_IBKR`) and fail closed without it; real pulls run local-only and
+never in CI; pull outputs (raw/canonical/provider/account data) are never committed; the
+connector exposes read-only historical only. The repo owner has authorized external access
+and opted DATA-P22/DATA-P23 into YELLOW auto-merge, so the env fail-safe plus the
+never-in-CI and no-data-commit invariants — not a human merge approval — are the controls.
 
 ### Owner
-Ralph (RED authorization + merge gating) / Human (final external-pull judgment).
+Ralph (data-pull env gating, never-in-CI enforcement, artifact + merge gating) / Codex
+(fail-closed connector and local-only pull outputs).
 
 ### Related Phases
 DATA-P22, DATA-P23.
 
 ### Blocking Condition
-An external IBKR pull is attempted without scoped + data-pull authorization, or any external pull runs in CI.
+An external IBKR pull is attempted without the data-pull authorization env, or any external
+real pull runs in CI, or pull outputs (raw/provider/account data) are staged.
 
 ---
 
@@ -937,12 +956,12 @@ phase ineligible for merge until resolved or truthfully blocked.
 
 * Per phase: Claude Opus review checks the risks tied to that phase's Related Phases.
 * Per gate: the acceptance gate re-checks all blocking risks for its phases.
-* RED phases (DATA-P22, DATA-P23): authorization and CI-exclusion blockers (R-025) are re-verified before any external call.
+* External-pull phases (DATA-P22, DATA-P23, YELLOW auto-merge): the data-pull env fail-safe and CI-exclusion blockers (R-025) are re-verified before any external call.
 * Campaign closeout (DATA-P24): full register reviewed in the semantic done-check.
 
 ## Risk Ownership Summary
 
-* **Ralph** — artifact policy, scope/stop enforcement, RED authorization, and merge gating (R-015, R-016, R-021, R-023, R-024, R-025).
+* **Ralph** — artifact policy, scope/stop enforcement, data-pull env gating + never-in-CI enforcement for external pulls, and merge gating (R-015, R-016, R-021, R-023, R-024, R-025).
 * **Codex** — fail-closed validation, ledgers, parsers, quality/coverage, and contract economics (R-001, R-002, R-003, R-004, R-005, R-007, R-008, R-009, R-010, R-012, R-013, R-014, R-017, R-018, R-019, R-020, R-022).
 * **Claude Opus** — semantic review of boundary, provenance, timestamps, claims, and done-check (R-006, R-011, and the semantic review side of every risk).
-* **Human** — direction and final external-pull and capital/live judgment (R-025).
+* **Human (repo owner)** — direction and capital/live judgment; has authorized external IBKR access and opted DATA-P22/DATA-P23 into YELLOW auto-merge, so external pulls run under the data-pull env fail-safe rather than a per-pull human merge gate (R-025).
