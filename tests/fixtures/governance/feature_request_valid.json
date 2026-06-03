@@ -1,0 +1,33 @@
+{
+  "alpha_spec_id": "aspec_af848bc999a4c4b11a421bd0",
+  "approval_status": "PENDING",
+  "availability_assumptions": {
+    "timing": "synthetic inputs are available after the fixture bar closes"
+  },
+  "data_requirements": {
+    "fields": [
+      "synthetic_volume"
+    ],
+    "source": "tiny synthetic fixture fields only"
+  },
+  "duplicate_or_equivalent_exposure_notes": {
+    "checked": true,
+    "findings": [],
+    "guard": "duplicate_exposure",
+    "registry_entries_checked": 0,
+    "registry_status": "EMPTY",
+    "summary": "duplicate-exposure guard checked an empty registry and found no matches"
+  },
+  "feature_request_id": "freq_eb180e1226ce34c048c7e6eb",
+  "formula_sketch": {
+    "inputs": [
+      "synthetic_volume"
+    ],
+    "notes": "synthetic formula metadata only",
+    "operation": "rank",
+    "window": 5
+  },
+  "requested_inputs": [
+    "synthetic_feature_distinct"
+  ]
+}

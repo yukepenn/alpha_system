@@ -1,0 +1,44 @@
+[
+  {
+    "description": "Synthetic registry fixture entry for duplicate-exposure guard tests only.",
+    "factor_id": "synthetic_close_return_1d",
+    "factor_version": "v1",
+    "metadata": {
+      "exposure_family": "synthetic_close_return_1d",
+      "frequency": "daily",
+      "input_fields": [
+        {
+          "name": "synthetic_close"
+        }
+      ],
+      "operation": "pct_change",
+      "window": 1
+    },
+    "name": "Synthetic close return one day",
+    "parameters": {
+      "operation": "pct_change",
+      "window": 1
+    }
+  },
+  {
+    "description": "Synthetic registry fixture entry for equivalent-exposure guard tests only.",
+    "factor_id": "synthetic_close_zscore_20d",
+    "factor_version": "v1",
+    "metadata": {
+      "exposure_family": "synthetic_close_standardized_20d",
+      "frequency": "daily",
+      "input_fields": [
+        {
+          "name": "synthetic_close"
+        }
+      ],
+      "operation": "zscore",
+      "window": 20
+    },
+    "name": "Synthetic close zscore twenty day",
+    "parameters": {
+      "operation": "zscore",
+      "window": 20
+    }
+  }
+]
