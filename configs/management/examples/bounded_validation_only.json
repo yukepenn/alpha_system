@@ -1,0 +1,38 @@
+{
+  "management": {
+    "management_id": "management:example-bounded",
+    "fixed_stop": {
+      "enabled": true,
+      "stop_pct": "0.02"
+    },
+    "target_r_multiple": {
+      "enabled": true,
+      "r_multiple": "2"
+    },
+    "laddered_partial_take_profit": {
+      "enabled": true,
+      "steps": [
+        {
+          "label": "half_at_1r",
+          "threshold_r": "1",
+          "exit_fraction": "0.5"
+        }
+      ]
+    },
+    "eod_exit": true,
+    "cooldown": {
+      "enabled": true,
+      "bars": 2
+    },
+    "max_trades_per_day": 3,
+    "risk_per_trade": "0.01",
+    "max_position_percent": "0.2",
+    "session_reset": true
+  },
+  "management_grid": {
+    "parameters": {
+      "fixed_stop.stop_pct": ["0.01", "0.02"],
+      "target_r_multiple.r_multiple": ["1.5", "2.0"]
+    }
+  }
+}
