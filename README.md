@@ -8,7 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_SYSTEM_V1` has completed phases `ASV1-P00` through `ASV1-P19`; the next planned phase is `ASV1-P20` Strategy Grid Engine MVP. The repo now includes the local-first harness baseline, core contracts, metadata registry, canonical 1-minute data layer, calendar/data-quality checks, factor and label foundations, factor diagnostics/reports, signal and strategy contracts, reference 1-minute backtest truth, cost/slippage semantics, position management, portfolio target/sizing, and fast-path parity scaffolding.
+`ALPHA_SYSTEM_V1` has completed phases `ASV1-P00` through `ASV1-P20`; the next planned phase is `ASV1-P21` Management Grid Engine. The repo now includes the local-first harness baseline, core contracts, metadata registry, canonical 1-minute data layer, calendar/data-quality checks, factor and label foundations, factor diagnostics/reports, signal and strategy contracts, reference 1-minute backtest truth, cost/slippage semantics, position management, portfolio target/sizing, fast-path parity scaffolding, and the bounded `alpha grid run` strategy grid MVP.
+
+The ASV1-P20 grid layer adds `src/alpha_system/experiments/grid*.py` modules, bounded output writers, `src/alpha_system/experiments/runner.py`, `src/alpha_system/experiments/leaderboard.py`, `src/alpha_system/experiments/limits.py`, `docs/GRID_ENGINE.md`, `docs/GRID_OVERFIT_POLICY.md`, and small configs under `configs/grids/examples/`. Safety boundaries are unchanged: local-first execution only, reference engine remains the single PnL truth, fast path is acceleration-only and parity-gated, no broker/live/paper scope, no alpha/tradability claims, and explicit staging only.
 
 Durable phase docs live under `docs/`, and commit-eligible handoffs live under `handoffs/`. The README is expected to stay as a compact project snapshot after each merged phase; detailed phase evidence belongs in handoffs, reviews, and run-local summaries.
 
