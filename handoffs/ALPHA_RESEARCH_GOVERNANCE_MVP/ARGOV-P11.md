@@ -87,7 +87,7 @@ Exact files staged after explicit staging:
 - `src/alpha_system/governance/promotion.py`
 - `src/alpha_system/governance/promotion_gate.py`
 - `tests/unit/governance/test_promotion.py`
-- `tests/unit/governance/test_state_machine.py`
+- `tests/unit/governance/test_promotion_gate_state_machine.py`
 
 No `runs/**` path is staged.
 
@@ -104,17 +104,17 @@ Spec-requested validation:
 ?? docs/governance/PROMOTION_GATE.md
 ?? src/alpha_system/governance/promotion_gate.py
 ?? tests/unit/governance/test_promotion.py
-?? tests/unit/governance/test_state_machine.py
+?? tests/unit/governance/test_promotion_gate_state_machine.py
 ```
 
 - `python tools/verify.py --smoke` - passed with exit 0 and no output.
 
-- `python -m pytest tests/unit/governance/test_promotion.py tests/unit/governance/test_state_machine.py -q`
+- `python -m pytest tests/unit/governance/test_promotion.py tests/unit/governance/test_promotion_gate_state_machine.py -q`
   - passed:
 
 ```text
 .....................................................................    [100%]
-69 passed in 0.05s
+69 passed in 0.07s
 ```
 
 - `python -m pytest tests/unit/governance -q`
@@ -153,17 +153,17 @@ Spec-requested validation:
 
 Additional local validation and formatting:
 
-- `python -m ruff format src/alpha_system/governance/promotion.py src/alpha_system/governance/promotion_gate.py tests/unit/governance/test_promotion.py tests/unit/governance/test_state_machine.py`
+- `python -m ruff format src/alpha_system/governance/promotion.py src/alpha_system/governance/promotion_gate.py tests/unit/governance/test_promotion.py tests/unit/governance/test_promotion_gate_state_machine.py`
   - passed; final formatting run reported files formatted.
 
-- `python -m ruff check src/alpha_system/governance/promotion.py src/alpha_system/governance/promotion_gate.py tests/unit/governance/test_promotion.py tests/unit/governance/test_state_machine.py`
+- `python -m ruff check src/alpha_system/governance/promotion.py src/alpha_system/governance/promotion_gate.py tests/unit/governance/test_promotion.py tests/unit/governance/test_promotion_gate_state_machine.py`
   - passed:
 
 ```text
 All checks passed!
 ```
 
-- `python -m ruff format --check src/alpha_system/governance/promotion.py src/alpha_system/governance/promotion_gate.py tests/unit/governance/test_promotion.py tests/unit/governance/test_state_machine.py`
+- `python -m ruff format --check src/alpha_system/governance/promotion.py src/alpha_system/governance/promotion_gate.py tests/unit/governance/test_promotion.py tests/unit/governance/test_promotion_gate_state_machine.py`
   - passed:
 
 ```text
@@ -185,7 +185,7 @@ handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/ARGOV-P11.md
 src/alpha_system/governance/promotion.py
 src/alpha_system/governance/promotion_gate.py
 tests/unit/governance/test_promotion.py
-tests/unit/governance/test_state_machine.py
+tests/unit/governance/test_promotion_gate_state_machine.py
 ```
 
 - `git diff --cached --check` - passed with exit 0 and no output.
@@ -206,6 +206,27 @@ find . -name *.parquet -not -path ./tests/fixtures/* -print
 
 It failed with shell expansion before `find` evaluation. The exact quoted
 spec-command shown above was rerun and passed with empty output.
+
+CI repair after PR #57:
+
+- GitHub Actions `validate` failed because pytest imported the existing
+  `tests/test_state_machine.py` module, then attempted to collect the new P11
+  state-machine test module with the same basename.
+- Repaired by renaming only the new P11 test module to
+  `tests/unit/governance/test_promotion_gate_state_machine.py`.
+- `python -m pytest` passed after the rename:
+
+```text
+1242 passed in 15.80s
+```
+
+- `python -m pytest tests/unit/governance/test_promotion.py tests/unit/governance/test_promotion_gate_state_machine.py -q`
+  passed:
+
+```text
+.....................................................................    [100%]
+69 passed in 0.07s
+```
 
 Skipped checks: none of the spec-requested executor validation commands were
 skipped. Claude review, reviewer execution, `review.md`, and `verdict.json` were
