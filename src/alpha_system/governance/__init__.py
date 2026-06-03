@@ -3,6 +3,7 @@
 __all__ = [
     "alpha_spec",
     "canaries",
+    "claims",
     "duplicate_exposure",
     "feature_request",
     "hypothesis_card",

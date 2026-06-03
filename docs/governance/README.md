@@ -51,6 +51,8 @@ The MVP governance object list is:
 - `NegativeControlResult` — record that known-bad controls fail closed.
 - `alpha_system.governance.canaries.harness` — synthetic canary harness for
   no-lookahead, label-integrity, and execution-assumption guard checks.
+- `alpha_system.governance.claims` — unsupported-claim guard for governance text
+  artifacts and report templates.
 - `AlphaBookRecord` — future-compatibility pointer stub only.
 
 Each object must stay within its stated purpose. None of these objects implies market truth, live approval, capital allocation, or production readiness.

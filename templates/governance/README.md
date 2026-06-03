@@ -9,6 +9,10 @@ Current object templates:
 - `hypothesis_card.template.yaml`
 - `study_spec.template.yaml`
 
+Current report templates:
+
+- `evidence_governance_report.template.md`
+
 No template is evidence, a report builder, CLI behavior, broker workflow,
 trading workflow, or an alpha/profitability/tradability/production-readiness
 claim.
