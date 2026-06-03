@@ -1,0 +1,40 @@
+{
+  "alpha_spec_id": "aspec_af848bc999a4c4b11a421bd0",
+  "cost_assumptions": {
+    "model": "governance-only research cost model with nonzero synthetic spread assumption",
+    "scope": "costs are assumptions for planning only, not execution evidence"
+  },
+  "created_at": "2026-06-03T13:52:09Z",
+  "created_by": "codex-fixture",
+  "data_assumptions": {
+    "coverage": "daily synthetic close and volume fields are assumed complete",
+    "source": "synthetic fixture bars only, no real market data"
+  },
+  "exclusion_rules": [
+    "exclude instruments with missing synthetic close or volume fields",
+    "exclude rows whose synthetic timestamp is outside the declared fixture window"
+  ],
+  "expected_failure_modes": [
+    "synthetic input coverage may be too small to support later diagnostics",
+    "apparent relationship may disappear when future leakage checks are applied"
+  ],
+  "factor_inputs": [
+    "synthetic_close",
+    "synthetic_volume"
+  ],
+  "hypothesis_id": "hyp_823056fdebf37662ec4c6809",
+  "label_references": [
+    "lspec_d3c81d3601f3b4b30c08a9a6"
+  ],
+  "promotion_criteria": [
+    "future study must satisfy declared diagnostics before any evidence status changes",
+    "future review must reject unsupported alpha or tradability claims"
+  ],
+  "target_instruments": [
+    "SYNTH_US_EQUITY_LARGE_CAP"
+  ],
+  "timestamp_assumptions": {
+    "availability": "features are available only after the synthetic bar timestamp closes",
+    "timezone": "timestamps use UTC and retain explicit timezone information"
+  }
+}
