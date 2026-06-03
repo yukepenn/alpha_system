@@ -1,0 +1,35 @@
+# StudySpec diagnostics-plan template.
+# Replace every angle-bracket placeholder with explicit governance metadata.
+# This template is not diagnostics output, not evidence, not a candidate record,
+# not a factor-library entry, and not an alpha/profitability/tradability/
+# production-readiness claim.
+
+study_spec_id: "<deterministic sspec_... generated from complete content>"
+alpha_spec_id: "<well-formed aspec_... reference; existence checked in later phases>"
+label_spec_id: "<well-formed lspec_... reference; existence checked in later phases>"
+dataset_scope:
+  source: "<explicit dataset scope; no real data ingestion in this template>"
+  instrument_universe: "<declared synthetic or research universe scope>"
+  time_range: "<declared study window or fixture window>"
+split_protocol:
+  train: "<training or development split declaration>"
+  validation: "<validation split declaration>"
+  locked_test: "<locked-test split declaration and access restriction>"
+metrics:
+  - "<declared metric name; this does not compute the metric>"
+cost_assumptions:
+  commission: "<explicit cost assumption for planning only>"
+  slippage: "<explicit slippage/spread assumption for planning only>"
+variant_budget: <positive integer cap>
+locked_test_policy:
+  allowed_touch: "<when, if ever, locked-test data may be inspected>"
+  contamination_handling: "<how later locked-test contact must be recorded>"
+negative_controls:
+  - "random target control"
+  - "permuted labels control"
+  - "future shift control"
+  - "optimistic fill control"
+stopping_rules:
+  - "<stop condition tied to the declared variant budget>"
+  - "<stop condition tied to missing negative-control declarations>"
+  - "<stop condition tied to locked-test contamination metadata>"

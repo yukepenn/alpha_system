@@ -41,7 +41,7 @@ The MVP governance object list is:
 - `AlphaSpec` — pre-registered alpha research specification.
 - `FeatureRequest` — feature or factor input request with duplicate-exposure checks.
 - `LabelSpec` — explicit label definition and leakage guard.
-- `StudySpec` — diagnostics plan and research budget.
+- `StudySpec` — diagnostics plan, research budget, and locked-test policy.
 - `TrialLedgerRecord` — record of each attempt, including failures.
 - `EvidenceBundle` — manifest-backed evidence package.
 - `RejectedIdeaRecord` — first-class research graveyard record.

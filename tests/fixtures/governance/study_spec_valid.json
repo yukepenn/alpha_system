@@ -1,0 +1,41 @@
+{
+  "alpha_spec_id": "aspec_af848bc999a4c4b11a421bd0",
+  "cost_assumptions": {
+    "commission": "synthetic nonzero commission assumption for diagnostics planning only",
+    "slippage": "synthetic nonzero slippage assumption; no execution evidence is produced"
+  },
+  "dataset_scope": {
+    "instrument_universe": "SYNTH_US_EQUITY_LARGE_CAP fixture universe only",
+    "source": "tiny synthetic governance fixture metadata, not real market data",
+    "time_range": "2026-01-01 through 2026-01-31 synthetic timestamps"
+  },
+  "label_spec_id": "lspec_8663589ca7a9f1e5859289c7",
+  "locked_test_policy": {
+    "allowed_touch": "locked test may not be inspected during diagnostics planning",
+    "contamination_handling": "any later locked-test contact must be recorded as contamination metadata",
+    "oos_reuse": "out-of-sample reuse is prohibited unless a later ledger records it explicitly"
+  },
+  "metrics": [
+    "rank_ic",
+    "turnover",
+    "coverage"
+  ],
+  "negative_controls": [
+    "random target control",
+    "permuted labels control",
+    "future shift control",
+    "optimistic fill control"
+  ],
+  "split_protocol": {
+    "locked_test": "final synthetic fixture interval reserved and untouched by diagnostics planning",
+    "train": "first synthetic fixture interval for fitting-free diagnostics metadata",
+    "validation": "middle synthetic fixture interval for diagnostics metadata"
+  },
+  "stopping_rules": [
+    "stop when observed variants reach the declared variant budget",
+    "stop when a required negative control is missing from the future diagnostics plan",
+    "stop if locked-test contact occurs without contamination metadata"
+  ],
+  "study_spec_id": "sspec_438ceffd40855205de5497f0",
+  "variant_budget": 4
+}
