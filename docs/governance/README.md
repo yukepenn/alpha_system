@@ -43,7 +43,8 @@ The MVP governance object list is:
 - `LabelSpec` — explicit label definition and leakage guard.
 - `StudySpec` — diagnostics plan, research budget, and locked-test policy.
 - `TrialLedgerRecord` — record of each attempt, including failures.
-- `EvidenceBundle` — manifest-backed evidence package.
+- `EvidenceBundle` — manifest-backed evidence package required before later
+  candidate-related gates may proceed.
 - `RejectedIdeaRecord` — first-class research graveyard record.
 - `PromotionDecision` — controlled lifecycle state-transition decision.
 - `ReviewerVerdict` — independent semantic review record.
