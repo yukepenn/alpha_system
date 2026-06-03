@@ -1,0 +1,54 @@
+{
+  "example_id": "synthetic_l2_readiness_v1",
+  "description": "Tiny deterministic schema-readiness example. Not real L2 data and not market evidence.",
+  "synthetic": true,
+  "deterministic": true,
+  "correctness_only": true,
+  "real_market_data": false,
+  "schema_version": "l2_readiness_schema_v1",
+  "snapshot_schema_id": "l2_snapshot_v1",
+  "event_delta_schema_id": "l2_event_delta_v1",
+  "instrument_id": "SYNTH-L2-1",
+  "session_id": "2026-01-02_RTH",
+  "timestamp_policy": {
+    "event_ts": "source event timestamp",
+    "receive_ts": "local/feed receive timestamp",
+    "available_ts": "earliest research-use timestamp",
+    "ordering": "event_ts <= receive_ts <= available_ts",
+    "session_assignment": "event_ts"
+  },
+  "snapshot_columns": [
+    "instrument_id",
+    "session_id",
+    "event_ts",
+    "receive_ts",
+    "available_ts",
+    "book_level",
+    "side",
+    "price",
+    "size",
+    "order_count",
+    "data_version",
+    "quality_flags"
+  ],
+  "event_delta_columns": [
+    "instrument_id",
+    "session_id",
+    "event_ts",
+    "receive_ts",
+    "available_ts",
+    "sequence_id",
+    "action",
+    "book_level",
+    "side",
+    "price",
+    "size",
+    "order_count",
+    "data_version",
+    "quality_flags"
+  ],
+  "notes": [
+    "This config documents schema shape only.",
+    "No replay, queue-position, passive-fill, live-feed, broker, paper-trading, or execution behavior is included."
+  ]
+}
