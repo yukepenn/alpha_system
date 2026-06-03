@@ -1,0 +1,28 @@
+from __future__ import annotations
+
+from decimal import Decimal
+
+from alpha_system.core.enums import Direction
+from alpha_system.portfolio.risk import enforce_net_exposure
+from alpha_system.portfolio.sizing import SizeDecision
+from alpha_system.portfolio.spec import PortfolioSpec
+
+
+def test_max_net_exposure_scales_same_direction_targets() -> None:
+    decisions = (
+        SizeDecision("SYNTH_A", Direction.LONG, Decimal("60000"), Decimal("600"), Decimal("0.6"), "sig-1"),
+        SizeDecision("SYNTH_B", Direction.LONG, Decimal("60000"), Decimal("300"), Decimal("0.6"), "sig-2"),
+    )
+    spec = PortfolioSpec.from_mapping(
+        {
+            "position_sizing": {"method": "fixed_notional", "fixed_notional": "60000"},
+            "risk_limits": {"max_net_exposure": "0.5"},
+        }
+    )
+
+    constrained = enforce_net_exposure(decisions, Decimal("100000"), spec)
+
+    assert sum(decision.signed_notional for decision in constrained) == Decimal("50000.0")
+    assert constrained[0].target_notional == Decimal("25000.0")
+    assert constrained[1].target_notional == Decimal("25000.0")
+    assert all("max_net_exposure" in decision.reasons for decision in constrained)

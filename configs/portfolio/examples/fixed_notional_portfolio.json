@@ -1,0 +1,44 @@
+{
+  "description": "Tiny deterministic portfolio configuration example for schema validation only; not market evidence.",
+  "portfolio_id": "portfolio:fixed-notional-example",
+  "portfolio_target": {
+    "schema_version": "portfolio_target_v1",
+    "target_id_prefix": "example-target"
+  },
+  "position_sizing": {
+    "method": "fixed_notional",
+    "fixed_notional": "1000",
+    "allow_fractional": true
+  },
+  "capital_allocation": {
+    "starting_equity": "100000",
+    "cash_buffer": "0.02",
+    "insufficient_capital_policy": "reject"
+  },
+  "risk_limits": {
+    "max_position_percent": "0.10",
+    "max_gross_exposure": "1.00",
+    "max_net_exposure": "0.50"
+  },
+  "multi_symbol_constraints": {
+    "required_identifier": "instrument_id",
+    "max_active_instruments": 20,
+    "allow_repeated_instrument_targets": false
+  },
+  "future_sector_asset_constraints": {
+    "mode": "contract_only",
+    "enabled": false,
+    "rules": []
+  },
+  "future_correlation_aware_allocation": {
+    "mode": "contract_only",
+    "enabled": false,
+    "inputs": []
+  },
+  "signal_to_target_conversion": {
+    "mode": "entry_exit_to_target",
+    "use_desired_exposure": true,
+    "use_confidence": false,
+    "exit_signal_target_percent": "0"
+  }
+}
