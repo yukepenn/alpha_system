@@ -7,13 +7,13 @@ Workflow: `workflow2`
 Run: `2026-06-03T135209Z_ALPHA_RESEARCH_GOVERNANCE_MVP`
 Status: `executing`
 
-Current phase: `ARGOV-P10` - RejectedIdeaLedger / Research Graveyard
-Last completed phase: `ARGOV-P09` - EvidenceBundle and Manifest Contract
+Current phase: `ARGOV-P11` - PromotionDecision and PromotionGate State Machine
+Last completed phase: `ARGOV-P10` - RejectedIdeaLedger / Research Graveyard
 Last completed status: `PASS_WITH_WARNINGS`
-Passing phases: `10/20`
+Passing phases: `11/20`
 
 Ralph updates this pointer through reviewed phase commits so the tracked repo stays clean after Workflow 2 stops.
 
 Broker/live trading, paper trading, order routing, raw data commits, heavy artifact commits, local DB commits, and alpha/tradability claims without evidence remain out of scope.
 
-Note: Projected after ARGOV-P09 merge.
+Note: Projected after ARGOV-P10 merge.
