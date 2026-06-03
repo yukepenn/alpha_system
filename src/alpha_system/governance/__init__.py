@@ -6,6 +6,8 @@ __all__ = [
     "feature_request",
     "hypothesis_card",
     "ids",
+    "label_leakage_guard",
+    "label_spec",
     "serialization",
     "validation",
 ]

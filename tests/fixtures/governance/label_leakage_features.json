@@ -1,0 +1,32 @@
+{
+  "clean_features": [
+    {
+      "information_time": "2026-01-09T00:00:00Z",
+      "reference": "synthetic_volume_rank_5d"
+    }
+  ],
+  "label_as_feature": [
+    {
+      "information_time": "2026-01-09T00:00:00Z",
+      "reference": "synthetic_forward_return_5d"
+    }
+  ],
+  "lookahead_features": [
+    {
+      "information_time": "2026-01-10T00:00:00Z",
+      "reference": "synthetic_volume_rank_5d"
+    }
+  ],
+  "missing_availability": [
+    {
+      "reference": "synthetic_volume_rank_5d"
+    }
+  ],
+  "transform_alias": [
+    {
+      "information_time": "2026-01-09T00:00:00Z",
+      "reference": "synthetic_forward_return_5d",
+      "transform": "rank"
+    }
+  ]
+}
