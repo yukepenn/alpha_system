@@ -1,10 +1,12 @@
 # Negative Controls
 
 `ARGOV-P13` defines the governance negative-control catalog and the
-`NegativeControlResult` record. This is a catalog and contract only. It does not
-execute canaries, run a synthetic harness, ingest real data, compute factors,
-materialize labels, run backtests, route orders, or make any alpha, profitability,
-tradability, capital-allocation, live-readiness, or production-readiness claim.
+`NegativeControlResult` record. `ARGOV-P14` adds a tiny executable synthetic
+harness for the `future_shift`, `permuted_labels`, and `optimistic_fill`
+controls. The catalog and harness do not ingest real data, compute factors,
+materialize labels, run real studies, route orders, or make any alpha,
+profitability, tradability, capital-allocation, live-readiness, or
+production-readiness claim.
 
 Negative controls validate guard behavior only. A passing negative control means
 the relevant guard rejected or flagged a known-bad injected fault. It never means
@@ -64,8 +66,24 @@ The validator does not silently convert a mismatch into a pass. A result whose
 `observed_result` differs from `expected_failure` is valid only when
 `pass_fail` is `FAIL`.
 
-## Deferred Harness Scope
+## Canary Harness
 
-The executable canary harness, no-lookahead test root, and canary-runner
-integration are deferred to `ARGOV-P14`. This phase adds only the catalog, result
-contract, documentation, tests, and README scaffolds under `evals/canaries/`.
+The executable harness lives in
+`alpha_system.governance.canaries.harness` and is documented in
+`docs/governance/CANARY_HARNESS.md`.
+
+The harness runs three ARGOV-P14 synthetic dry-run canaries:
+
+- `future_shift` invokes the label-leakage guard's availability-time check and
+  expects `guard_rejects_or_flags_future_shift_lookahead`.
+- `permuted_labels` invokes the label-leakage guard's forbidden-feature-overlap
+  check and expects `guard_rejects_or_flags_permuted_label_signal`.
+- `optimistic_fill` invokes execution-assumption guards and expects
+  `guard_rejects_or_flags_optimistic_fill_assumption`.
+
+`random_target` remains catalogued but is not executable in ARGOV-P14.
+
+`tools/hooks/canary_runner.py` runs these governance canaries alongside the
+existing Frontier safety canaries. A governance canary passes only when the guard
+catches the injected fault; a missed fault is recorded as `FAIL`, never silently
+treated as success.

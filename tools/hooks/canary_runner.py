@@ -8,7 +8,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 HOOKS = ROOT / "tools" / "hooks"
 
@@ -31,13 +30,40 @@ def write_files(base: Path, paths: dict[str, str]) -> None:
 def run_canary(canary: Canary) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory(prefix=f"frontier-canary-{canary.name}-") as raw_tmp:
         tmp = Path(raw_tmp)
-        subprocess.run(["git", "init"], cwd=tmp, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        subprocess.run(
+            ["git", "init"],
+            cwd=tmp,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
         write_files(tmp, canary.paths)
-        result = subprocess.run(canary.command, cwd=tmp, text=True, capture_output=True, check=False)
+        result = subprocess.run(
+            canary.command,
+            cwd=tmp,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
         blocked = result.returncode != 0
         passed = blocked if canary.expect_block else not blocked
         detail = result.stdout + result.stderr
         return passed, detail.strip()
+
+
+def governance_canary(canary_type: str) -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.harness import main; "
+        f"raise SystemExit(main(['--canary', {canary_type!r}]))"
+    )
+    return Canary(
+        f"governance_{canary_type}",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
 
 
 def scenarios() -> list[Canary]:
@@ -57,7 +83,12 @@ def scenarios() -> list[Canary]:
         Canary(
             "forbidden_test_tamper",
             [py, str(HOOKS / "test_tamper_guard.py"), "tests/test_bad.py"],
-            {"tests/test_bad.py": "import pytest\n\n@pytest.mark.skip(reason='bad')\ndef test_bad():\n    assert True\n"},
+            {
+                "tests/test_bad.py": (
+                    "import pytest\n\n@pytest.mark.skip(reason='bad')\n"
+                    "def test_bad():\n    assert True\n"
+                )
+            },
         ),
         Canary(
             "forbidden_secret",
@@ -113,7 +144,12 @@ def scenarios() -> list[Canary]:
         Canary(
             "forbidden_scope_drift",
             [py, str(HOOKS / "forbidden_pattern_guard.py"), "src/runtime_ops.py"],
-            {"src/runtime_ops.py": "def run():\n    PLACE_LIVE_ORDER = True\n    return PLACE_LIVE_ORDER\n"},
+            {
+                "src/runtime_ops.py": (
+                    "def run():\n    PLACE_LIVE_ORDER = True\n"
+                    "    return PLACE_LIVE_ORDER\n"
+                )
+            },
         ),
         Canary(
             "generated_scaffold_allowed",
@@ -147,6 +183,9 @@ def scenarios() -> list[Canary]:
             },
             expect_block=False,
         ),
+        governance_canary("future_shift"),
+        governance_canary("permuted_labels"),
+        governance_canary("optimistic_fill"),
     ]
 
 

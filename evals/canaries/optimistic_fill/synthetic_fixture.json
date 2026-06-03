@@ -1,0 +1,16 @@
+{
+  "execution_config": {
+    "default_quantity": "1",
+    "eod_flat": false,
+    "execution_timing": "same_bar_optimistic",
+    "same_bar_policy": "target_first",
+    "zero_cost_fixture": false
+  },
+  "fixture_id": "synthetic_optimistic_fill_known_bad_v1",
+  "notes": "Synthetic execution-assumption fixture attempts same-bar optimistic fills and target-first ordering; no backtest, broker, paper, live, or order-routing operation is run.",
+  "related_study_or_evidence": "sspec_438ceffd40855205de5497f0",
+  "same_bar_fill": {
+    "fill_bar_index": 7,
+    "signal_bar_index": 7
+  }
+}

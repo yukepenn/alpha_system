@@ -1,0 +1,45 @@
+{
+  "features": [
+    {
+      "information_time": "2026-01-09T00:00:00Z",
+      "reference": "synthetic_forward_return_5d"
+    }
+  ],
+  "fixture_id": "synthetic_label_integrity_known_bad_v1",
+  "label_spec": {
+    "alpha_spec_id": "aspec_af848bc999a4c4b11a421bd0",
+    "availability_time": "2026-01-10T00:00:00Z",
+    "cost_model": {
+      "fees": "synthetic fixed fee assumption only, not execution evidence",
+      "spread": "synthetic nonzero spread assumption for protocol metadata"
+    },
+    "forbidden_feature_overlap": {
+      "aliases": [
+        "label.synthetic_forward_return_5d",
+        "future_return_5d"
+      ],
+      "label_reference": "synthetic_forward_return_5d",
+      "transforms": [
+        "rank(synthetic_forward_return_5d)",
+        "zscore(synthetic_forward_return_5d)"
+      ]
+    },
+    "horizon": "synthetic 5 day forward return horizon",
+    "label_spec_id": "lspec_8663589ca7a9f1e5859289c7",
+    "leakage_checks": [
+      "label_as_feature",
+      "availability_time"
+    ],
+    "path_rules": {
+      "entry_time": "synthetic bar close at fixture timestamp",
+      "exit_time": "five synthetic sessions after entry timestamp",
+      "path_dependency": "metadata only path rule; no labels are materialized"
+    },
+    "target_stop_rules": {
+      "stop": "metadata-only stop rule; no target or stop values are computed",
+      "target": "metadata-only target definition for future label construction"
+    }
+  },
+  "notes": "Synthetic label-integrity fixture requests a feature that overlaps the forbidden label reference; it is recorded under the catalogued permuted_labels canary and contains no materialized labels.",
+  "related_study_or_evidence": "sspec_438ceffd40855205de5497f0"
+}

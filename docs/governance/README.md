@@ -49,6 +49,8 @@ The MVP governance object list is:
 - `PromotionDecision` — controlled lifecycle state-transition decision.
 - `ReviewerVerdict` — independent semantic review record.
 - `NegativeControlResult` — record that known-bad controls fail closed.
+- `alpha_system.governance.canaries.harness` — synthetic canary harness for
+  no-lookahead, label-integrity, and execution-assumption guard checks.
 - `AlphaBookRecord` — future-compatibility pointer stub only.
 
 Each object must stay within its stated purpose. None of these objects implies market truth, live approval, capital allocation, or production readiness.
