@@ -77,6 +77,13 @@ Any lifecycle state may move to `REJECTED` when a `RejectedIdeaRecord` and reaso
 
 The prohibited MVP state names `LIVE_APPROVED`, `CAPITAL_ALLOCATED`, and `PRODUCTION_READY` are future-only concepts for this campaign. They must remain unreachable in the MVP governance protocol.
 
+## End-to-End Dry Run
+
+`END_TO_END_DRY_RUN.md` summarizes the ARGOV-P18 synthetic lifecycle dry run. The
+dry run composes existing governance objects, gates, registry persistence, CLI
+commands, negative controls, and the unsupported-claim guard over tiny synthetic
+fixtures.
+
 ## Posture
 
 The campaign posture is aggressive about evidence governance and conservative about market claims and trading scope. The layer is meant to make weak evidence, missing prerequisites, self-approval, hidden failures, uncontrolled variants, duplicate exposures, leakage, and unsupported claims detectable and blockable before future research campaigns expand scope.
