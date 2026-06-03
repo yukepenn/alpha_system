@@ -1,0 +1,195 @@
+{
+  "alpha_spec": {
+    "cost_assumptions": {
+      "model": "governance-only research cost model with nonzero synthetic spread assumption",
+      "scope": "costs are assumptions for planning only, not execution evidence"
+    },
+    "created_at": "2026-06-03T13:52:09Z",
+    "created_by": "codex-fixture",
+    "data_assumptions": {
+      "coverage": "daily synthetic close and volume fields are assumed complete",
+      "source": "synthetic fixture bars only, no real market data"
+    },
+    "exclusion_rules": [
+      "exclude instruments with missing synthetic close or volume fields",
+      "exclude rows whose synthetic timestamp is outside the declared fixture window"
+    ],
+    "expected_failure_modes": [
+      "synthetic input coverage may be too small to support later diagnostics",
+      "apparent relationship may disappear when future leakage checks are applied"
+    ],
+    "factor_inputs": [
+      "synthetic_close",
+      "synthetic_volume"
+    ],
+    "promotion_criteria": [
+      "future study must satisfy declared diagnostics before any evidence status changes",
+      "future review must reject unsupported alpha or tradability claims"
+    ],
+    "target_instruments": [
+      "SYNTH_US_EQUITY_LARGE_CAP"
+    ],
+    "timestamp_assumptions": {
+      "availability": "features are available only after the synthetic bar timestamp closes",
+      "timezone": "timestamps use UTC and retain explicit timezone information"
+    }
+  },
+  "clean_feature_references": [
+    {
+      "information_time": "2026-01-09T00:00:00Z",
+      "reference": "synthetic_volume_rank_5d"
+    }
+  ],
+  "config_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "fixture_id": "argov_p18_synthetic_lifecycle_v1",
+  "feature_request": {
+    "availability_assumptions": {
+      "timing": "synthetic inputs are available after the fixture bar closes"
+    },
+    "data_requirements": {
+      "fields": [
+        "synthetic_volume"
+      ],
+      "source": "tiny synthetic fixture fields only"
+    },
+    "formula_sketch": {
+      "exposure_family": "synthetic_volume_rank_5d",
+      "inputs": [
+        "synthetic_volume"
+      ],
+      "notes": "synthetic formula metadata only",
+      "operation": "rank",
+      "window": 5
+    },
+    "requested_inputs": [
+      "synthetic_volume_rank_5d"
+    ]
+  },
+  "hypothesis_card": {
+    "author": "codex-fixture",
+    "created_at": "2026-06-03T13:52:09Z",
+    "expected_mechanism": "The proposed mechanism is that synthetic volume metadata is evaluated only after declared timestamp availability rules.",
+    "falsification_criteria": [
+      "Reject the record if leakage checks find that any required input is unavailable at the declared decision time.",
+      "Block the record if required negative controls are missing or fail to catch their injected faults."
+    ],
+    "family": "synthetic microstructure governance",
+    "rationale": "Synthetic volume availability can document a research premise before any implementation work is considered.",
+    "risks": [
+      "Synthetic fixtures may be too small to represent later research constraints.",
+      "Timestamp assumptions may be incomplete when future governance objects add stricter checks."
+    ],
+    "title": "Synthetic volume availability lifecycle"
+  },
+  "implementer": {
+    "id": "codex:argov-p18-executor",
+    "role": "codex_executor"
+  },
+  "label_spec": {
+    "availability_time": "2026-01-10T00:00:00Z",
+    "cost_model": {
+      "fees": "synthetic fixed fee assumption only, not execution evidence",
+      "spread": "synthetic nonzero spread assumption for protocol metadata"
+    },
+    "forbidden_feature_overlap": {
+      "aliases": [
+        "label.synthetic_forward_return_5d",
+        "future_return_5d"
+      ],
+      "label_reference": "synthetic_forward_return_5d",
+      "transforms": [
+        "rank(synthetic_forward_return_5d)",
+        "zscore(synthetic_forward_return_5d)"
+      ]
+    },
+    "horizon": "synthetic 5 day forward return horizon",
+    "leakage_checks": [
+      "label_as_feature",
+      "availability_time"
+    ],
+    "path_rules": {
+      "entry_time": "synthetic bar close at fixture timestamp",
+      "exit_time": "five synthetic sessions after entry timestamp",
+      "path_dependency": "metadata only path rule; no labels are materialized"
+    },
+    "target_stop_rules": {
+      "stop": "metadata-only stop rule; no target or stop values are computed",
+      "target": "metadata-only target definition for future label construction"
+    }
+  },
+  "manifest_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "reviewer": {
+    "id": "reviewer:argov-p18-independent",
+    "role": "governance_reviewer"
+  },
+  "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "study_spec": {
+    "cost_assumptions": {
+      "commission": "synthetic nonzero commission assumption for diagnostics planning only",
+      "slippage": "synthetic nonzero slippage assumption; no execution evidence is produced"
+    },
+    "dataset_scope": {
+      "instrument_universe": "SYNTH_US_EQUITY_LARGE_CAP fixture universe only",
+      "source": "tiny synthetic governance fixture metadata, not real market data",
+      "time_range": "2026-01-01 through 2026-01-31 synthetic timestamps"
+    },
+    "locked_test_policy": {
+      "allowed_touch": "locked test may not be inspected during diagnostics planning",
+      "contamination_handling": "any later locked-test contact must be recorded as contamination metadata",
+      "oos_reuse": "out-of-sample reuse is prohibited unless a later ledger records it explicitly"
+    },
+    "metrics": [
+      "rank_ic",
+      "turnover",
+      "coverage"
+    ],
+    "negative_controls": [
+      "random_target",
+      "permuted_labels",
+      "future_shift",
+      "optimistic_fill"
+    ],
+    "split_protocol": {
+      "locked_test": "final synthetic fixture interval reserved and untouched by diagnostics planning",
+      "train": "first synthetic fixture interval for fitting-free diagnostics metadata",
+      "validation": "middle synthetic fixture interval for diagnostics metadata"
+    },
+    "stopping_rules": [
+      "stop when observed variants reach the declared variant budget",
+      "stop when a required negative control is missing from the future diagnostics plan",
+      "stop if locked-test contact occurs without contamination metadata"
+    ],
+    "variant_budget": 4
+  },
+  "timestamp": "2026-06-03T13:52:09Z",
+  "trial_records": [
+    {
+      "failure_reason": null,
+      "locked_test_contamination_flag": false,
+      "metrics_summary": {
+        "coverage": 0.75
+      },
+      "oos_touched_flag": false,
+      "parameters": {
+        "threshold": 0.25,
+        "window": 20
+      },
+      "run_id": "diagnostics-run-argov-p18-completed",
+      "status": "COMPLETED",
+      "variant_id": "variant-completed"
+    },
+    {
+      "failure_reason": "synthetic dependency check failed before metrics existed",
+      "locked_test_contamination_flag": false,
+      "metrics_summary": {},
+      "oos_touched_flag": false,
+      "parameters": {
+        "threshold": 0.4,
+        "window": 10
+      },
+      "run_id": "diagnostics-run-argov-p18-failed",
+      "status": "FAILED",
+      "variant_id": "variant-failed"
+    }
+  ]
+}

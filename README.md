@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P17` of the `ARGOV-P00`...`ARGOV-P19` governance campaign and completes the `registry_and_tools` gate after Ralph-owned review and merge gates. `ARGOV-P17` has completed its executor deliverables for Ralph validation and independent review: the unsupported-claim guard now lives under `src/alpha_system/governance/claims.py`, governance report templates live under `templates/governance/**`, and `docs/governance/UNSUPPORTED_CLAIM_GUARD.md` documents the guard contract. Earlier durable governance modules remain in place, including the local governance registry, canary harness, negative-control catalog, governance CLI, validation helper, `NegativeControlResult`, `ReviewerVerdict`, `PromotionDecision`, `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. This is the 18th of 20 planned ARGOV phases after Ralph-owned review and merge gates; no phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P18` of the `ARGOV-P00`...`ARGOV-P19` governance campaign and enters the `end_to_end_and_closeout` gate after Ralph-owned review and merge gates. `ARGOV-P18` has completed its executor deliverables for Ralph validation and independent review: the synthetic end-to-end governance dry run now lives in `tests/integration/governance/test_end_to_end_dry_run.py`, its tiny deterministic fixtures live under `tests/fixtures/governance/end_to_end/**`, and `docs/governance/END_TO_END_DRY_RUN.md` records the curated summary. The dry run composes the existing registry, CLI, promotion gate, negative-control canary harness, and unsupported-claim guard to assert that missing prerequisites block and negative controls fail closed end to end. Earlier durable governance modules remain in place, including the local governance registry, canary harness, negative-control catalog, governance CLI, validation helper, unsupported-claim guard, `NegativeControlResult`, `ReviewerVerdict`, `PromotionDecision`, `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. This is the 19th of 20 planned ARGOV phases after Ralph-owned review and merge gates; no phase PASS verdict is recorded here.
 
-The active/next planned phase is `ARGOV-P18 — Synthetic End-to-End Governance Dry Run`. Governance CLI commands, validation helpers, `docs/governance/CLI.md`, registry integration, `docs/governance/REGISTRY_INTEGRATION.md`, unsupported-claim guard documentation, and governance report templates are now durable machinery for later phases.
+The active/next planned phase is `ARGOV-P19 — Workflow 2 Integration, Acceptance Audit, and Closeout`. Governance CLI commands, validation helpers, `docs/governance/CLI.md`, registry integration, `docs/governance/REGISTRY_INTEGRATION.md`, unsupported-claim guard documentation, governance report templates, and the end-to-end dry-run summary are now durable machinery for closeout.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -43,8 +43,9 @@ The governance docs root currently includes:
 - `docs/governance/REGISTRY_INTEGRATION.md`
 - `docs/governance/CLI.md`
 - `docs/governance/UNSUPPORTED_CLAIM_GUARD.md`
+- `docs/governance/END_TO_END_DRY_RUN.md`
 
-These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, describe the `PromotionDecision` contract plus promotion-gate state machine, describe the `ReviewerVerdict` contract plus reviewer-independence rule, describe the negative-control catalog plus `NegativeControlResult` contract, describe the synthetic canary harness, document governance registry persistence, and document the governance CLI. Report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, describe the `PromotionDecision` contract plus promotion-gate state machine, describe the `ReviewerVerdict` contract plus reviewer-independence rule, describe the negative-control catalog plus `NegativeControlResult` contract, describe the synthetic canary harness, document governance registry persistence, document the governance CLI, document the unsupported-claim guard, and summarize the synthetic end-to-end dry run. Report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -161,6 +162,7 @@ Governance docs:
 - `docs/governance/REGISTRY_INTEGRATION.md`
 - `docs/governance/CLI.md`
 - `docs/governance/UNSUPPORTED_CLAIM_GUARD.md`
+- `docs/governance/END_TO_END_DRY_RUN.md`
 
 ## Directory Layout
 
@@ -200,6 +202,7 @@ The governance CLI command group is `alpha governance`. It includes `validate-sp
 python -c "import alpha_system.governance"
 python -m pytest tests/unit/governance/test_canary_harness.py -q
 python -m pytest tests/unit/governance/test_negative_controls.py -q
+python -m pytest tests/integration/governance/test_end_to_end_dry_run.py -q
 python -m pytest tests/unit/governance -q
 python -m pytest tests/integration/governance -q
 python -m pytest tests/no_lookahead/test_governance_canaries.py -q
