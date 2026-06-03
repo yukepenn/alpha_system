@@ -38,6 +38,9 @@ and mismatched content IDs fail closed with `GovernanceValidationError`.
 - a valid `EvidenceBundle`;
 - complete validated `TrialLedgerRecord` metadata;
 - matching `alpha_spec_id` and `evidence_bundle_id` between the decision and bundle;
+- matching `reviewer_verdict_id` / `reviewer_verdict_reference` links to an
+  independent `ReviewerVerdict`;
+- a `PASS` or `PASS_WITH_WARNINGS` verdict;
 - matching trial reference sets across the decision, evidence bundle, and ledger;
 - no omitted failed or abandoned trial records;
 - explicit locked-test contamination metadata when any trial records contamination.
@@ -52,11 +55,18 @@ or materialize evidence artifacts.
 reason. `REVIEWED -> REJECTED` also requires a matching `PromotionDecision`, because
 the reviewed boundary is governed by the promotion-decision protocol.
 
-## Reviewer Verdict Seam
+## Reviewer Verdict
 
-This phase requires the `reviewer_verdict_id` field and validates it as an opaque
-`rver_...` governance ID. Full reviewer-independence and self-approval enforcement
-is deferred to `ARGOV-P12 - ReviewerVerdict and Independence Rules`.
+`EVIDENCE_READY -> REVIEWED` requires a full `ReviewerVerdict`, not an ID-only
+placeholder. The verdict must validate fail closed, include a non-empty
+`independence_statement`, and pass the independence rule: `reviewer_id` must differ
+from `implementer_id`, and `role` must differ from `implementer_role`.
+
+`REVIEWED -> REJECTED | WATCH | CANDIDATE | VALIDATED` requires the independent
+verdict referenced by the `PromotionDecision`. Candidate and validated promotion
+also require the verdict to be merge eligible. A self-review, missing verdict,
+missing implementer identity, role match, ID mismatch, or non-merge-eligible
+verdict blocks the transition.
 
 ## Safety Boundary
 

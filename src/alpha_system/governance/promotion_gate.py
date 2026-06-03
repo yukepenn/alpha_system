@@ -17,11 +17,6 @@ from alpha_system.governance.hypothesis_card import (
     HypothesisCard,
     validate_pre_registration,
 )
-from alpha_system.governance.ids import (
-    GovernanceIdError,
-    GovernanceIdKind,
-    validate_governance_id,
-)
 from alpha_system.governance.promotion import (
     GOVERNANCE_LIFECYCLE_STATES,
     PROHIBITED_MVP_STATES,
@@ -30,6 +25,11 @@ from alpha_system.governance.promotion import (
     PromotionDecision,
     PromotionLifecycleState,
     validate_promotion_decision,
+)
+from alpha_system.governance.reviewer_verdict import (
+    MERGE_ELIGIBLE_REVIEWER_VERDICTS,
+    ReviewerVerdict,
+    validate_reviewer_verdict,
 )
 from alpha_system.governance.rejected_idea import (
     RejectedIdeaRecord,
@@ -48,7 +48,10 @@ from alpha_system.governance.validation import (
 
 IMPLEMENTATION_HANDOFF_REQUIRED_STATE = "IMPLEMENTED"
 DIAGNOSTICS_RUN_REQUIRED_STATE = "DIAGNOSTICS_RUN"
-REVIEWER_VERDICT_INDEPENDENCE_DEFERRED_TO = "ARGOV-P12"
+POSITIVE_PROMOTION_TARGET_STATES = (
+    "CANDIDATE",
+    "VALIDATED",
+)
 
 ALLOWED_TRANSITIONS = MappingProxyType(
     {
@@ -92,6 +95,9 @@ class PromotionGateContext:
     trial_ledger_records: tuple[TrialLedgerRecord | Mapping[str, Any], ...] = ()
     evidence_bundle: EvidenceBundle | Mapping[str, Any] | None = None
     reviewer_verdict_id: str | None = None
+    reviewer_verdict: ReviewerVerdict | Mapping[str, Any] | None = None
+    implementer_id: str | None = None
+    implementer_role: str | None = None
     promotion_decision: PromotionDecision | Mapping[str, Any] | None = None
     rejected_idea_record: RejectedIdeaRecord | Mapping[str, Any] | None = None
     rejection_reason: str | None = None
@@ -203,19 +209,23 @@ def validate_governance_transition(
         )
 
     if previous_state is PromotionLifecycleState.EVIDENCE_READY:
-        reviewer_verdict_id = _validate_reviewer_verdict_id(
-            active_context.reviewer_verdict_id,
-        )
+        reviewer_verdict = _validate_independent_reviewer_verdict(active_context)
         return GovernanceTransition(
             previous_state,
             next_state,
-            reviewer_verdict_id=reviewer_verdict_id,
+            reviewer_verdict_id=reviewer_verdict.reviewer_verdict_id,
         )
 
     if previous_state is PromotionLifecycleState.REVIEWED:
         promotion_decision = _validate_reviewed_promotion_decision(
             next_state,
             active_context,
+        )
+        reviewer_verdict = _validate_independent_reviewer_verdict(active_context)
+        _validate_promotion_verdict_link(
+            promotion_decision,
+            reviewer_verdict,
+            next_state,
         )
         if next_state in {
             PromotionLifecycleState.CANDIDATE,
@@ -224,6 +234,7 @@ def validate_governance_transition(
             evidence_bundle, trial_refs = _validate_candidate_or_validated_gate(
                 promotion_decision,
                 active_context,
+                reviewer_verdict,
             )
             return GovernanceTransition(
                 previous_state,
@@ -291,8 +302,16 @@ def _validate_rejected_transition(
     rejected_record = _validate_rejected_record(context.rejected_idea_record)
     _validate_rejection_reason(context.rejection_reason)
     promotion_decision = None
+    reviewer_verdict_id = ""
     if previous_state is PromotionLifecycleState.REVIEWED:
         promotion_decision = _validate_reviewed_promotion_decision(next_state, context)
+        reviewer_verdict = _validate_independent_reviewer_verdict(context)
+        _validate_promotion_verdict_link(
+            promotion_decision,
+            reviewer_verdict,
+            next_state,
+        )
+        reviewer_verdict_id = reviewer_verdict.reviewer_verdict_id
     return GovernanceTransition(
         previous_state,
         next_state,
@@ -301,9 +320,7 @@ def _validate_rejected_transition(
         trial_ledger_refs=(
             promotion_decision.trial_ledger_refs if promotion_decision is not None else ()
         ),
-        reviewer_verdict_id=(
-            promotion_decision.reviewer_verdict_id if promotion_decision is not None else ""
-        ),
+        reviewer_verdict_id=reviewer_verdict_id,
     )
 
 
@@ -355,6 +372,7 @@ def _validate_reviewed_promotion_decision(
 def _validate_candidate_or_validated_gate(
     promotion_decision: PromotionDecision,
     context: PromotionGateContext,
+    reviewer_verdict: ReviewerVerdict,
 ) -> tuple[EvidenceBundle, tuple[str, ...]]:
     issues: list[ValidationIssue] = []
     evidence_bundle = _validate_required_evidence_bundle(context.evidence_bundle, issues)
@@ -375,6 +393,16 @@ def _validate_candidate_or_validated_gate(
         )
 
     if evidence_bundle is not None:
+        if evidence_bundle.reviewer_verdict_reference != reviewer_verdict.reviewer_verdict_id:
+            issues.append(
+                ValidationIssue(
+                    field="evidence_bundle.reviewer_verdict_reference",
+                    code="reviewer_verdict_reference_mismatch",
+                    message="EvidenceBundle.reviewer_verdict_reference must match the verdict",
+                    expected=reviewer_verdict.reviewer_verdict_id,
+                    actual=evidence_bundle.reviewer_verdict_reference,
+                )
+            )
         if promotion_decision.evidence_bundle_id != evidence_bundle.evidence_bundle_id:
             issues.append(
                 ValidationIssue(
@@ -619,30 +647,137 @@ def _validate_implementation_handoff(context: PromotionGateContext) -> None:
     )
 
 
-def _validate_reviewer_verdict_id(value: str | None) -> str:
+def _validate_independent_reviewer_verdict(context: PromotionGateContext) -> ReviewerVerdict:
+    issues: list[ValidationIssue] = []
+    reviewer_verdict = _coerce_reviewer_verdict(context.reviewer_verdict, issues)
+    if reviewer_verdict is not None:
+        issues.extend(_validate_reviewer_independence(reviewer_verdict, context))
+    if issues:
+        raise GovernanceValidationError(issues)
+    assert reviewer_verdict is not None
+    return reviewer_verdict
+
+
+def _coerce_reviewer_verdict(
+    value: ReviewerVerdict | Mapping[str, Any] | None,
+    issues: list[ValidationIssue],
+) -> ReviewerVerdict | None:
     if value is None:
-        raise GovernanceValidationError(
+        issues.append(
             ValidationIssue(
-                field="reviewer_verdict_id",
-                code="missing_reviewer_verdict_id",
-                message="ReviewerVerdict ID is required before REVIEWED status",
-                expected=GovernanceIdKind.REVIEWER_VERDICT.value,
+                field="reviewer_verdict",
+                code="missing_reviewer_verdict",
+                message="independent ReviewerVerdict is required before reviewed promotion",
+                expected="validated ReviewerVerdict",
                 actual="missing",
             )
         )
+        return None
     try:
-        validate_governance_id(value, expected_kind=GovernanceIdKind.REVIEWER_VERDICT)
-    except GovernanceIdError as exc:
-        raise GovernanceValidationError(
+        if isinstance(value, ReviewerVerdict):
+            return validate_reviewer_verdict(value.to_dict())
+        if isinstance(value, Mapping):
+            return validate_reviewer_verdict(value)
+    except GovernanceValidationError as exc:
+        issues.extend(exc.issues)
+        return None
+
+    issues.append(
+        ValidationIssue(
+            field="reviewer_verdict",
+            code="invalid_reviewer_verdict_type",
+            message="reviewer_verdict must be a ReviewerVerdict or mapping",
+            expected="ReviewerVerdict or mapping",
+            actual=type(value).__name__,
+        )
+    )
+    return None
+
+
+def _validate_reviewer_independence(
+    reviewer_verdict: ReviewerVerdict,
+    context: PromotionGateContext,
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    if not _is_substantive_text(context.implementer_id):
+        issues.append(
+            ValidationIssue(
+                field="implementer_id",
+                code="missing_implementer_id",
+                message="implementer identity is required to enforce reviewer independence",
+                expected="non-empty implementer identity",
+                actual=str(context.implementer_id),
+            )
+        )
+    if not _is_substantive_text(context.implementer_role):
+        issues.append(
+            ValidationIssue(
+                field="implementer_role",
+                code="missing_implementer_role",
+                message="implementer role is required to enforce reviewer independence",
+                expected="non-empty implementer role",
+                actual=str(context.implementer_role),
+            )
+        )
+    if issues:
+        return issues
+
+    assert context.implementer_id is not None
+    assert context.implementer_role is not None
+    if _normalize_text(reviewer_verdict.reviewer_id) == _normalize_text(context.implementer_id):
+        issues.append(
+            ValidationIssue(
+                field="reviewer_id",
+                code="reviewer_self_approval",
+                message="ReviewerVerdict.reviewer_id must differ from implementer_id",
+                expected="independent reviewer identity",
+                actual=reviewer_verdict.reviewer_id,
+            )
+        )
+    if _normalize_text(reviewer_verdict.role) == _normalize_text(context.implementer_role):
+        issues.append(
+            ValidationIssue(
+                field="role",
+                code="reviewer_role_not_independent",
+                message="ReviewerVerdict.role must differ from implementer_role",
+                expected="independent reviewer role",
+                actual=reviewer_verdict.role,
+            )
+        )
+    return issues
+
+
+def _validate_promotion_verdict_link(
+    promotion_decision: PromotionDecision,
+    reviewer_verdict: ReviewerVerdict,
+    next_state: PromotionLifecycleState,
+) -> None:
+    issues: list[ValidationIssue] = []
+    if promotion_decision.reviewer_verdict_id != reviewer_verdict.reviewer_verdict_id:
+        issues.append(
             ValidationIssue(
                 field="reviewer_verdict_id",
-                code=exc.issue.code,
-                message=exc.issue.message,
-                expected=GovernanceIdKind.REVIEWER_VERDICT.value,
-                actual=str(exc.issue.value),
+                code="reviewer_verdict_id_mismatch",
+                message="PromotionDecision.reviewer_verdict_id must match the verdict",
+                expected=reviewer_verdict.reviewer_verdict_id,
+                actual=promotion_decision.reviewer_verdict_id,
             )
-        ) from exc
-    return value
+        )
+    if (
+        next_state.value in POSITIVE_PROMOTION_TARGET_STATES
+        and not reviewer_verdict.is_merge_eligible
+    ):
+        issues.append(
+            ValidationIssue(
+                field="reviewer_verdict.verdict",
+                code="reviewer_verdict_not_merge_eligible",
+                message="candidate or validated promotion requires a merge-eligible verdict",
+                expected=" | ".join(verdict.value for verdict in MERGE_ELIGIBLE_REVIEWER_VERDICTS),
+                actual=reviewer_verdict.verdict.value,
+            )
+        )
+    if issues:
+        raise GovernanceValidationError(issues)
 
 
 def _validate_rejected_record(
@@ -802,8 +937,8 @@ __all__ = [
     "ALLOWED_TRANSITIONS",
     "IMPLEMENTATION_HANDOFF_REQUIRED_STATE",
     "DIAGNOSTICS_RUN_REQUIRED_STATE",
+    "POSITIVE_PROMOTION_TARGET_STATES",
     "REACHABLE_STATES",
-    "REVIEWER_VERDICT_INDEPENDENCE_DEFERRED_TO",
     "GovernanceTransition",
     "PromotionGateContext",
     "assert_promotion_gate",
