@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P10` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P10` has completed its executor deliverables for Ralph validation and independent review: the `RejectedIdeaRecord` contract, closed reason categories, append-only in-memory `ResearchGraveyardLedger`, explicit linked reconsideration records, focused governance unit tests, and concise governance documentation now exist. The `EvidenceBundle` contract, manifest-entry contract, deterministic `EvidenceBundle` ID check, canonical round-trip helpers, no-EvidenceBundle-no-candidate evidence-ready gate predicate, `TrialLedgerRecord` contract, pure variant accounting, failed-run visibility, OOS/locked-test contamination metadata, `StudySpec` contract, pure study-budget overrun accounting, no-StudySpec-no-diagnostics gate, `LabelSpec` contract, label-leakage guard, `FeatureRequest` contract, duplicate/equivalent exposure guard, `AlphaSpec` contract, no-code gate, `HypothesisCard` contract, and pre-registration protocol from earlier phases remain in place. No phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P11` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P11` has completed its executor deliverables for Ralph validation and independent review: the `PromotionDecision` contract, deterministic `prom_...` ID checks, canonical round-trip helpers, and the promotion-gate state machine now exist. The gate blocks candidate/validated promotion without complete TrialLedger records and a valid EvidenceBundle, blocks failed-run omission and unrecorded locked-test contamination, and keeps prohibited MVP states unreachable. Earlier durable governance modules remain in place, including `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. No phase PASS verdict is recorded here.
 
-The active/just-completed phase is `ARGOV-P10 — RejectedIdeaLedger / Research Graveyard` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P11 — PromotionDecision and PromotionGate State Machine`.
+The active/just-completed phase is `ARGOV-P11 — PromotionDecision and PromotionGate State Machine` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P12 — ReviewerVerdict and Independence Rules`.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -35,8 +35,10 @@ The governance docs root currently includes:
 - `docs/governance/TRIAL_LEDGER.md`
 - `docs/governance/EVIDENCE_BUNDLE.md`
 - `docs/governance/REJECTED_IDEA_LEDGER.md`
+- `docs/governance/PROMOTION_GATE.md`
+- `docs/governance/GOVERNANCE_STATE_MACHINE.md`
 
-These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, and describe the `RejectedIdeaRecord` research graveyard ledger. Additional governance object schemas, registry integration, CLI behavior, and report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, and describe the `PromotionDecision` contract plus promotion-gate state machine. Additional governance object schemas, registry integration, CLI behavior, and report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -145,6 +147,8 @@ Governance docs:
 - `docs/governance/TRIAL_LEDGER.md`
 - `docs/governance/EVIDENCE_BUNDLE.md`
 - `docs/governance/REJECTED_IDEA_LEDGER.md`
+- `docs/governance/PROMOTION_GATE.md`
+- `docs/governance/GOVERNANCE_STATE_MACHINE.md`
 
 ## Directory Layout
 
@@ -175,7 +179,7 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new CLI commands are added by `ARGOV-P10`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, `alpha_system.governance.trial_ledger`, `alpha_system.governance.evidence_bundle`, and `alpha_system.governance.rejected_idea`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
+No new CLI commands are added by `ARGOV-P11`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, `alpha_system.governance.trial_ledger`, `alpha_system.governance.evidence_bundle`, `alpha_system.governance.rejected_idea`, `alpha_system.governance.promotion`, and `alpha_system.governance.promotion_gate`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
 
 ```bash
 python -c "import alpha_system.governance"
