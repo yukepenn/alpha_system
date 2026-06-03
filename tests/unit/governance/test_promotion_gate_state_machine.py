@@ -28,6 +28,10 @@ from alpha_system.governance.promotion_gate import (
     reachable_states,
     validate_governance_transition,
 )
+from alpha_system.governance.reviewer_verdict import (
+    ReviewerVerdict,
+    create_reviewer_verdict,
+)
 from alpha_system.governance.rejected_idea import (
     RejectedIdeaReasonCategory,
     create_rejected_idea_record,
@@ -47,7 +51,10 @@ STUDY_SPEC_FIXTURE = Path("tests/fixtures/governance/study_spec_valid.json")
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 STUDY_SPEC_ID = "sspec_438ceffd40855205de5497f0"
 HYPOTHESIS_ID = "hyp_438ceffd40855205de5497f0"
-REVIEWER_VERDICT_ID = "rver_aaaaaaaaaaaaaaaaaaaaaaaa"
+IMPLEMENTER_ID = "codex:argov-p11-executor"
+IMPLEMENTER_ROLE = "codex_executor"
+REVIEWER_ID = "claude:independent-governance-reviewer"
+REVIEWER_ROLE = "claude_reviewer"
 CODE_HASH = "a" * 64
 CONFIG_HASH = "b" * 64
 MANIFEST_HASH = "c" * 64
@@ -72,6 +79,33 @@ def valid_alpha_spec_payload() -> dict[str, object]:
 
 def valid_study_spec_payload() -> dict[str, object]:
     return load_json(STUDY_SPEC_FIXTURE)
+
+
+def reviewer_verdict() -> ReviewerVerdict:
+    return create_reviewer_verdict(
+        reviewer_id=REVIEWER_ID,
+        role=REVIEWER_ROLE,
+        independence_statement=(
+            "Reviewer identity and role are separate from the Codex implementer."
+        ),
+        verdict="PASS",
+        blocking_issues=[],
+        warnings=["Synthetic governance review only; no market claim is made."],
+        checked_artifacts=[
+            "src/alpha_system/governance/promotion_gate.py",
+            "tests/unit/governance/test_promotion_gate_state_machine.py",
+        ],
+        checked_commands=["python -m pytest tests/unit/governance -q"],
+        timestamp=TIMESTAMP,
+    )
+
+
+def reviewer_context_fields() -> dict[str, object]:
+    return {
+        "reviewer_verdict": reviewer_verdict(),
+        "implementer_id": IMPLEMENTER_ID,
+        "implementer_role": IMPLEMENTER_ROLE,
+    }
 
 
 def trial_record(
@@ -128,7 +162,7 @@ def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> EvidenceBundle:
                 "content_hash": MANIFEST_HASH,
             }
         ],
-        reviewer_verdict_reference=REVIEWER_VERDICT_ID,
+        reviewer_verdict_reference=reviewer_verdict().reviewer_verdict_id,
     )
 
 
@@ -146,7 +180,7 @@ def promotion_decision(
         next_state=target,
         decision=PromotionDecisionOutcome(target.value),
         rationale="Synthetic governance metadata supports this controlled state transition.",
-        reviewer_verdict_id=REVIEWER_VERDICT_ID,
+        reviewer_verdict_id=reviewer_verdict().reviewer_verdict_id,
         warnings=["This decision is not live, capital, or production approval."],
         timestamp=TIMESTAMP,
     )
@@ -287,15 +321,16 @@ def test_diagnostics_run_to_evidence_ready_requires_valid_evidence_bundle() -> N
     assert transition.trial_ledger_refs == (records[0].trial_id,)
 
 
-def test_evidence_ready_to_reviewed_requires_reviewer_verdict_id_seam() -> None:
+def test_evidence_ready_to_reviewed_requires_independent_reviewer_verdict() -> None:
+    verdict = reviewer_verdict()
     transition = validate_governance_transition(
         "EVIDENCE_READY",
         "REVIEWED",
-        PromotionGateContext(reviewer_verdict_id=REVIEWER_VERDICT_ID),
+        PromotionGateContext(**reviewer_context_fields()),
     )
 
     assert transition.next_state is PromotionLifecycleState.REVIEWED
-    assert transition.reviewer_verdict_id == REVIEWER_VERDICT_ID
+    assert transition.reviewer_verdict_id == verdict.reviewer_verdict_id
 
 
 def test_reviewed_to_candidate_requires_complete_promotion_gate() -> None:
@@ -314,6 +349,7 @@ def test_reviewed_to_candidate_requires_complete_promotion_gate() -> None:
             promotion_decision=decision,
             evidence_bundle=bundle,
             trial_ledger_records=records,
+            **reviewer_context_fields(),
         ),
     )
 
@@ -339,6 +375,7 @@ def test_reviewed_to_validated_is_governance_only_not_production_status() -> Non
             promotion_decision=decision,
             evidence_bundle=bundle,
             trial_ledger_records=records,
+            **reviewer_context_fields(),
         ),
     )
 
@@ -361,7 +398,10 @@ def test_reviewed_to_watch_requires_promotion_decision() -> None:
     transition = validate_governance_transition(
         "REVIEWED",
         "WATCH",
-        PromotionGateContext(promotion_decision=decision),
+        PromotionGateContext(
+            promotion_decision=decision,
+            **reviewer_context_fields(),
+        ),
     )
 
     assert transition.next_state is PromotionLifecycleState.WATCH
@@ -391,6 +431,7 @@ def test_candidate_blocks_without_evidence_bundle() -> None:
             PromotionGateContext(
                 promotion_decision=decision,
                 trial_ledger_records=records,
+                **reviewer_context_fields(),
             ),
         )
 
@@ -413,6 +454,7 @@ def test_candidate_blocks_without_trial_ledger_records() -> None:
             PromotionGateContext(
                 promotion_decision=decision,
                 evidence_bundle=bundle,
+                **reviewer_context_fields(),
             ),
         )
 
@@ -436,6 +478,7 @@ def test_candidate_blocks_failed_run_omission_from_decision_refs() -> None:
                 promotion_decision=decision,
                 evidence_bundle=bundle,
                 trial_ledger_records=records,
+                **reviewer_context_fields(),
             ),
         )
 
@@ -459,6 +502,7 @@ def test_candidate_blocks_failed_run_omission_from_evidence_bundle() -> None:
                 promotion_decision=decision,
                 evidence_bundle=incomplete_bundle,
                 trial_ledger_records=records,
+                **reviewer_context_fields(),
             ),
         )
 
@@ -488,6 +532,7 @@ def test_candidate_blocks_unrecorded_locked_test_contamination() -> None:
                 promotion_decision=decision,
                 evidence_bundle=bundle,
                 trial_ledger_records=records,
+                **reviewer_context_fields(),
             ),
         )
 
@@ -520,6 +565,7 @@ def test_candidate_accepts_recorded_locked_test_contamination_metadata() -> None
                 "recorded_trial_id": records[0].trial_id,
                 "summary": "Synthetic locked-test contact was recorded before promotion.",
             },
+            **reviewer_context_fields(),
         ),
     )
 
@@ -581,6 +627,7 @@ def test_reviewed_to_rejected_requires_promotion_decision_plus_rejection_record(
             promotion_decision=decision,
             rejected_idea_record=rejection,
             rejection_reason="Synthetic evidence is insufficient for promotion.",
+            **reviewer_context_fields(),
         ),
     )
     assert transition.next_state is PromotionLifecycleState.REJECTED

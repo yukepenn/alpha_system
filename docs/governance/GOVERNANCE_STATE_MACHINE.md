@@ -57,13 +57,15 @@ handoff reference.
 `DIAGNOSTICS_RUN -> EVIDENCE_READY` requires a valid `EvidenceBundle` with a
 manifest and trial references.
 
-`EVIDENCE_READY -> REVIEWED` requires a `reviewer_verdict_id` seam. P11 validates
-the opaque `rver_...` ID; P12 implements the independent `ReviewerVerdict` object
-and self-approval block.
+`EVIDENCE_READY -> REVIEWED` requires a present, validated, independent
+`ReviewerVerdict`. The reviewer identity and role must differ from the implementer
+identity and role, and the transition records the verdict's computed `rver_...` ID.
 
 `REVIEWED -> REJECTED/WATCH/CANDIDATE/VALIDATED` requires a valid
-`PromotionDecision`. Candidate and validated transitions additionally require the
-complete evidence and trial-ledger gate described in `PROMOTION_GATE.md`.
+`PromotionDecision` and the independent `ReviewerVerdict` referenced by that
+decision. Candidate and validated transitions additionally require a merge-eligible
+verdict plus the complete evidence and trial-ledger gate described in
+`PROMOTION_GATE.md`.
 
 `any -> REJECTED` requires a valid `RejectedIdeaRecord` and explicit reason.
 
@@ -72,8 +74,9 @@ complete evidence and trial-ledger gate described in `PROMOTION_GATE.md`.
 The state machine fails closed for undeclared transitions, unknown states,
 prohibited MVP states, missing `AlphaSpec`, missing `StudySpec`, missing
 `TrialLedger` records, missing `EvidenceBundle`, missing `PromotionDecision`,
-missing `RejectedIdeaRecord`, failed-run omission, and locked-test contamination
-without explicit metadata.
+missing `ReviewerVerdict`, missing implementer identity, self-review, missing
+`RejectedIdeaRecord`, failed-run omission, and locked-test contamination without
+explicit metadata.
 
 Promotion is governance status only. `VALIDATED` is not production approval,
 `CANDIDATE` is not capital allocation, and no transition in this MVP creates live,
