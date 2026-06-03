@@ -1,0 +1,17 @@
+# HypothesisCard pre-registration template.
+# Replace every angle-bracket placeholder with explicit governance metadata.
+# This template is not evidence, not implementation permission, not a candidate
+# record, not a factor-library entry, and not an alpha/profitability/
+# tradability/production-readiness claim.
+
+hypothesis_id: "<deterministic hyp_... generated from complete card content>"
+title: "<short descriptive title for the research idea>"
+family: "<research family or taxonomy bucket>"
+rationale: "<substantive rationale recorded before implementation work>"
+expected_mechanism: "<substantive expected mechanism, stated without evidence claims>"
+falsification_criteria:
+  - "<condition that would reject or block the idea in a later governance step>"
+risks:
+  - "<substantive governance or research risk to preserve before implementation>"
+author: "<author or agent identifier>"
+created_at: "<ISO-8601 timestamp with timezone, for example 2026-06-03T13:52:09Z>"

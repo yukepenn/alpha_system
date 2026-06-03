@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P03` has completed its executor deliverables for Ralph validation and independent review: the `AlphaSpec` contract, deterministic `AlphaSpec` ID check, canonical round-trip helpers, the pure no-code gate for `REGISTERED -> IMPLEMENTATION_ALLOWED`, focused governance unit tests, concise contract documentation, and the governance template now exist. No phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P04` has completed its executor deliverables for Ralph validation and independent review: the `HypothesisCard` contract, deterministic `HypothesisCard` ID check, canonical round-trip helpers, the pure pre-registration check for `DRAFT -> REGISTERED`, focused governance unit tests, concise protocol documentation, and the governance template now exist. The `AlphaSpec` contract and no-code gate from `ARGOV-P03` remain in place. No phase PASS verdict is recorded here.
 
-The active/just-completed phase is `ARGOV-P03 — AlphaSpec Contract and No-Code Gate` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P04 — HypothesisCard and Pre-registration Protocol`.
+The active/just-completed phase is `ARGOV-P04 — HypothesisCard and Pre-registration Protocol` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P05 — FeatureRequest and Duplicate Exposure Guard`.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -25,8 +25,9 @@ The governance docs root currently includes:
 - `docs/governance/NAMING.md`
 - `docs/governance/PRIMITIVES.md`
 - `docs/governance/ALPHA_SPEC.md`
+- `docs/governance/PRE_REGISTRATION.md`
 
-These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, and describe the `AlphaSpec` contract plus no-code gate. Additional governance object schemas, registry integration, CLI behavior, and report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, and describe the `HypothesisCard` plus pre-registration linkage. Additional governance object schemas, registry integration, CLI behavior, and report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -125,6 +126,7 @@ Governance docs:
 - `docs/governance/NAMING.md`
 - `docs/governance/PRIMITIVES.md`
 - `docs/governance/ALPHA_SPEC.md`
+- `docs/governance/PRE_REGISTRATION.md`
 
 ## Directory Layout
 
@@ -154,7 +156,7 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new CLI commands are added by `ARGOV-P03`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, and `alpha_system.governance.alpha_spec`. The AlphaSpec template is `templates/governance/alpha_spec.template.yaml`. Local validation commands include:
+No new CLI commands are added by `ARGOV-P04`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, and `alpha_system.governance.hypothesis_card`. Governance templates now include `templates/governance/alpha_spec.template.yaml` and `templates/governance/hypothesis_card.template.yaml`. Local validation commands include:
 
 ```bash
 python -c "import alpha_system.governance"
