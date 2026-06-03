@@ -10,6 +10,18 @@ from alpha_system.governance.canaries.catalog import (
     get_negative_control_entry,
     iter_negative_control_catalog,
 )
+from alpha_system.governance.canaries.harness import (
+    DEFAULT_CANARY_FIXTURE_PATHS,
+    EXECUTABLE_NEGATIVE_CONTROL_TYPES,
+    CanaryFixture,
+    CanaryGuard,
+    load_default_canary_fixture,
+    run_future_shift_canary,
+    run_governance_canary,
+    run_label_leakage_canary,
+    run_optimistic_fill_canary,
+    run_required_governance_canaries,
+)
 from alpha_system.governance.canaries.negative_control_result import (
     NEGATIVE_CONTROL_RESULT_FIELD_TYPES,
     NEGATIVE_CONTROL_RESULT_ID_COMPONENT_FIELDS,
@@ -24,12 +36,16 @@ from alpha_system.governance.canaries.negative_control_result import (
 )
 
 __all__ = [
+    "DEFAULT_CANARY_FIXTURE_PATHS",
+    "EXECUTABLE_NEGATIVE_CONTROL_TYPES",
     "NEGATIVE_CONTROL_CATALOG",
     "NEGATIVE_CONTROL_RESULT_FIELD_TYPES",
     "NEGATIVE_CONTROL_RESULT_ID_COMPONENT_FIELDS",
     "NEGATIVE_CONTROL_RESULT_IMPLIES_ALPHA_VALIDITY",
     "NEGATIVE_CONTROL_RESULT_REQUIRED_FIELDS",
     "REQUIRED_NEGATIVE_CONTROL_TYPES",
+    "CanaryFixture",
+    "CanaryGuard",
     "NegativeControlCatalogEntry",
     "NegativeControlPassFail",
     "NegativeControlResult",
@@ -40,6 +56,12 @@ __all__ = [
     "generate_negative_control_result_id",
     "get_negative_control_entry",
     "iter_negative_control_catalog",
+    "load_default_canary_fixture",
+    "run_future_shift_canary",
+    "run_governance_canary",
+    "run_label_leakage_canary",
+    "run_optimistic_fill_canary",
+    "run_required_governance_canaries",
     "validate_negative_control_result",
     "validate_negative_control_result_id",
 ]

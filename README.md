@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P13` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P13` has completed its executor deliverables for Ralph validation and independent review: the `alpha_system.governance.canaries` catalog now enumerates `random_target`, `permuted_labels`, `future_shift`, and `optimistic_fill`, and `NegativeControlResult` records deterministic `nctrl_...` result metadata for whether catalogued known-bad controls fail closed. Earlier durable governance modules remain in place, including `ReviewerVerdict`, `PromotionDecision`, `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. This is the 14th of 20 planned ARGOV phases after Ralph-owned review and merge gates; no phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P14` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P14` has completed its executor deliverables for Ralph validation and independent review: the `alpha_system.governance.canaries.harness` module now runs deterministic synthetic no-lookahead, label-integrity, and optimistic-fill canaries, and each records `NegativeControlResult` metadata that passes only when the guard catches the injected known-bad fault. Earlier durable governance modules remain in place, including the negative-control catalog, `NegativeControlResult`, `ReviewerVerdict`, `PromotionDecision`, `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. This is the 15th of 20 planned ARGOV phases after Ralph-owned review and merge gates; no phase PASS verdict is recorded here.
 
-The active/next planned phase is `ARGOV-P14 — No-Lookahead / Label Leakage / Optimistic Fill Canary Harness`. The executable canary harness and canary-runner integration remain deferred to that phase.
+The active/next planned phase is `ARGOV-P15 — Governance Registry Integration`. The canary harness and canary-runner integration are now durable governance machinery for later phases.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -38,9 +38,10 @@ The governance docs root currently includes:
 - `docs/governance/PROMOTION_GATE.md`
 - `docs/governance/REVIEWER_INDEPENDENCE.md`
 - `docs/governance/NEGATIVE_CONTROLS.md`
+- `docs/governance/CANARY_HARNESS.md`
 - `docs/governance/GOVERNANCE_STATE_MACHINE.md`
 
-These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, describe the `PromotionDecision` contract plus promotion-gate state machine, describe the `ReviewerVerdict` contract plus reviewer-independence rule, and describe the negative-control catalog plus `NegativeControlResult` contract. Registry integration, CLI behavior, and report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, describe the `PromotionDecision` contract plus promotion-gate state machine, describe the `ReviewerVerdict` contract plus reviewer-independence rule, describe the negative-control catalog plus `NegativeControlResult` contract, and describe the synthetic canary harness. Registry integration, CLI behavior, and report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -152,6 +153,7 @@ Governance docs:
 - `docs/governance/PROMOTION_GATE.md`
 - `docs/governance/GOVERNANCE_STATE_MACHINE.md`
 - `docs/governance/NEGATIVE_CONTROLS.md`
+- `docs/governance/CANARY_HARNESS.md`
 
 ## Directory Layout
 
@@ -182,12 +184,14 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new CLI commands are added by `ARGOV-P13`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, `alpha_system.governance.trial_ledger`, `alpha_system.governance.evidence_bundle`, `alpha_system.governance.rejected_idea`, `alpha_system.governance.promotion`, `alpha_system.governance.promotion_gate`, `alpha_system.governance.reviewer_verdict`, and `alpha_system.governance.canaries`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
+No new user CLI commands are added by `ARGOV-P14`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, `alpha_system.governance.trial_ledger`, `alpha_system.governance.evidence_bundle`, `alpha_system.governance.rejected_idea`, `alpha_system.governance.promotion`, `alpha_system.governance.promotion_gate`, `alpha_system.governance.reviewer_verdict`, `alpha_system.governance.canaries`, and `alpha_system.governance.canaries.harness`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
 
 ```bash
 python -c "import alpha_system.governance"
+python -m pytest tests/unit/governance/test_canary_harness.py -q
 python -m pytest tests/unit/governance/test_negative_controls.py -q
 python -m pytest tests/unit/governance -q
+python -m pytest tests/no_lookahead/test_governance_canaries.py -q
 python -m pytest tests/no_lookahead -q
 python tools/verify.py --smoke
 python tools/verify.py --all
