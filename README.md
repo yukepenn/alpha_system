@@ -13,11 +13,13 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_DATA_FOUNDATION_V1` is active. `DATA-P00` - Data Foundation Campaign
-Bootstrap - is complete. `DATA-P01` adds the importable data-foundation skeleton
-and naming contract. Ralph-owned review, verdict parsing, semantic done-check,
-PR, CI, and merge gates remain required before any phase PASS is recorded. The
-next phase is `DATA-P02` - Data Source Profiles and Local Data Root Policy.
+`ALPHA_DATA_FOUNDATION_V1` is active. Within the `campaign_bootstrap` gate,
+`DATA-P00` and `DATA-P01` are complete, and the `DATA-P02` executor snapshot
+adds validated `DataSourceProfile` and `LocalDataRootPolicy` records. The active
+phase is `DATA-P02` - Data Source Profiles and Local Data Root Policy. The next
+phase is `DATA-P03` - IBKR Connection Profile and Client ID Guard. Ralph-owned
+review, verdict parsing, semantic done-check, PR, CI, and merge gates remain
+required before any phase PASS is recorded.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -31,20 +33,23 @@ metadata, request manifests and ledgers, raw/parsed/canonical bars, instruments,
 sessions, rolls, series provenance, batches, dataset versions, quality, coverage,
 and partitions.
 
-This phase also adds `tests/unit/data/test_data_foundation_package_skeleton.py`,
-`docs/data_foundation/NAMING.md`, `configs/data/README.md`, and
-`templates/data/README.md`.
+`DATA-P02` adds fail-closed policy behavior for provider usage modes and the
+local data root under `src/alpha_system/data/foundation/sources.py`, plus unit
+tests under `tests/unit/data/` and these durable docs:
+
+- `docs/data_foundation/DATA_SOURCE_PROFILE.md`
+- `docs/data_foundation/LOCAL_DATA_ROOT_POLICY.md`
 
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
 historical futures data foundation.
 
-Safety boundaries are unchanged: read-only data-foundation scope, no real data
-ingestion in this phase, no alpha search, no broker/live/paper work, no order
-routing, no real-time feeds, no production deployment behavior, no raw or heavy
-artifact commits, no local DB commits, explicit staging only, and no alpha,
-profitability, tradability, or production-readiness claims.
+Safety boundaries are unchanged: IBKR remains read-only historical only; no
+broker, order, account, paper, live, or real-time scope is introduced; real data
+is local-only via `ALPHA_DATA_ROOT`; no raw or heavy artifact commits, no local
+DB commits, explicit staging only, and no alpha, profitability, tradability, or
+production-readiness claims.
 
 ## Data Foundation Docs
 
@@ -53,13 +58,16 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/README.md`
 - `docs/data_foundation/DATA_FOUNDATION_OVERVIEW.md`
 - `docs/data_foundation/NAMING.md`
+- `docs/data_foundation/DATA_SOURCE_PROFILE.md`
+- `docs/data_foundation/LOCAL_DATA_ROOT_POLICY.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
 read-only posture, canonical object names, ID prefixes, module names,
-file-naming conventions, directory layout, and the `ALPHA_DATA_ROOT` local-only
-data-root pointer. Field-level contracts, acceptance rules, risks, and operator
-procedures remain in the campaign contract bundle.
+file-naming conventions, directory layout, `DataSourceProfile`,
+`LocalDataRootPolicy`, and the `ALPHA_DATA_ROOT` local-only data-root pointer.
+Field-level acceptance rules, risks, and operator procedures remain in the
+campaign contract bundle.
 
 ## Campaign Source Of Truth
 
