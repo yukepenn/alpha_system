@@ -20,6 +20,9 @@ The Reference engine owns accounting semantics, fill assumptions, cost
 handling, exit ordering, and same-bar ambiguity defaults for v1. It must use
 completed bars only after `bar_end_ts` plus configured latency. Signals on bar
 `t` do not execute inside bar `t` by default.
+When a position opens on the eligible fill bar, Tier 1 may apply stop/target
+policy exits on that same fill bar, resolving an unknowable intrabar
+stop+target ordering conservatively in favor of the stop.
 
 ## Tier 2 - Fast Path Parity
 

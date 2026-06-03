@@ -36,6 +36,10 @@ feature availability.
 When stop and target prices are both possible inside the same bar and the
 ordering is unknowable from 1-minute bars, the Reference engine must use a
 conservative default. Optimistic same-bar handling is not the default.
+Next-bar entry forbids using the signal origin bar for execution, but it does
+not make the entry fill bar immune to risk-management exits; same-fill-bar
+stop/target handling is conservative and must never prefer an optimistic target
+when both stop and target are possible.
 
 ## Fail-Closed Rules
 
