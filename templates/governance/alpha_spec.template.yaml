@@ -1,0 +1,30 @@
+# AlphaSpec pre-registration template.
+# Replace every angle-bracket placeholder with explicit governance metadata.
+# This template is not evidence, not a candidate record, not a factor-library
+# entry, and not an alpha/profitability/tradability/production-readiness claim.
+
+alpha_spec_id: "<deterministic aspec_... generated from complete content>"
+hypothesis_id: "<well-formed hyp_... reference; existence checked in later phases>"
+target_instruments:
+  - "<synthetic or declared research universe/instrument scope>"
+data_assumptions:
+  source: "<explicit data source assumption; no real data ingestion in this template>"
+  coverage: "<explicit coverage/completeness assumption>"
+factor_inputs:
+  - "<declared input name or field reference>"
+label_references:
+  - "<well-formed lspec_... reference; content checked in later phases>"
+exclusion_rules:
+  - "<substantive exclusion rule before implementation work>"
+timestamp_assumptions:
+  availability: "<when each input is assumed available>"
+  timezone: "<timestamp timezone and alignment assumption>"
+cost_assumptions:
+  model: "<explicit research cost assumption>"
+  scope: "<why the assumption is governance metadata, not execution evidence>"
+expected_failure_modes:
+  - "<substantive reason this idea may fail later checks>"
+promotion_criteria:
+  - "<substantive future criterion; this does not grant promotion>"
+created_by: "<author or agent identifier>"
+created_at: "<ISO-8601 timestamp with timezone, for example 2026-06-03T13:52:09Z>"
