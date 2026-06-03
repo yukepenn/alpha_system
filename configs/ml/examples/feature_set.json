@@ -1,0 +1,23 @@
+{
+  "feature_set_id": "fixture_factor_combo",
+  "data_version": "data:fixture:v1",
+  "factor_versions": {
+    "momentum_3": "factor:momentum_3:v1",
+    "reversal_2": "factor:reversal_2:v1"
+  },
+  "features": [
+    {
+      "factor_id": "momentum_3",
+      "factor_version": "factor:momentum_3:v1",
+      "transform": "identity"
+    },
+    {
+      "factor_id": "reversal_2",
+      "factor_version": "factor:reversal_2:v1",
+      "transform": "identity"
+    }
+  ],
+  "instruments": [
+    "SYNTH"
+  ]
+}

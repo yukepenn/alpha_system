@@ -1,0 +1,98 @@
+{
+  "run_id": "ml_fixture_combo",
+  "feature_set": {
+    "feature_set_id": "fixture_factor_combo",
+    "data_version": "data:fixture:v1",
+    "factor_versions": {
+      "momentum_3": "factor:momentum_3:v1",
+      "reversal_2": "factor:reversal_2:v1"
+    },
+    "features": [
+      {
+        "factor_id": "momentum_3",
+        "factor_version": "factor:momentum_3:v1",
+        "transform": "identity"
+      },
+      {
+        "factor_id": "reversal_2",
+        "factor_version": "factor:reversal_2:v1",
+        "transform": "identity"
+      }
+    ],
+    "instruments": [
+      "SYNTH"
+    ]
+  },
+  "label_spec": {
+    "label_id": "forward_return_1",
+    "label_version": "label:forward_return_1:v1",
+    "label_available_ts_field": "label_available_ts",
+    "decision_ts_field": "decision_ts",
+    "horizon_bars": 1,
+    "available_lag_bars": 0
+  },
+  "model_spec": {
+    "model_id": "fixture_ridge_baseline",
+    "model_type": "ridge_baseline",
+    "parameters": {
+      "ridge_l2": 0.1
+    },
+    "fit_intercept": true
+  },
+  "split": {
+    "split_type": "train_validation",
+    "validation_fraction": 0.34,
+    "purge_gap": 0,
+    "embargo_gap": 0
+  },
+  "observations": [
+    {
+      "instrument": "SYNTH",
+      "decision_ts": "2026-01-02T10:00:00Z",
+      "label_available_ts": "2026-01-02T09:59:00Z",
+      "momentum_3": 0.1,
+      "reversal_2": -0.2,
+      "forward_return_1": 0.01
+    },
+    {
+      "instrument": "SYNTH",
+      "decision_ts": "2026-01-02T10:01:00Z",
+      "label_available_ts": "2026-01-02T10:00:00Z",
+      "momentum_3": 0.2,
+      "reversal_2": -0.1,
+      "forward_return_1": 0.02
+    },
+    {
+      "instrument": "SYNTH",
+      "decision_ts": "2026-01-02T10:02:00Z",
+      "label_available_ts": "2026-01-02T10:01:00Z",
+      "momentum_3": -0.1,
+      "reversal_2": 0.2,
+      "forward_return_1": -0.01
+    },
+    {
+      "instrument": "SYNTH",
+      "decision_ts": "2026-01-02T10:03:00Z",
+      "label_available_ts": "2026-01-02T10:02:00Z",
+      "momentum_3": 0.3,
+      "reversal_2": -0.3,
+      "forward_return_1": 0.03
+    },
+    {
+      "instrument": "SYNTH",
+      "decision_ts": "2026-01-02T10:04:00Z",
+      "label_available_ts": "2026-01-02T10:03:00Z",
+      "momentum_3": -0.2,
+      "reversal_2": 0.1,
+      "forward_return_1": -0.02
+    },
+    {
+      "instrument": "SYNTH",
+      "decision_ts": "2026-01-02T10:05:00Z",
+      "label_available_ts": "2026-01-02T10:04:00Z",
+      "momentum_3": 0.4,
+      "reversal_2": -0.4,
+      "forward_return_1": 0.04
+    }
+  ]
+}

@@ -10,6 +10,7 @@ from alpha_system.cli.data import register_subparser as register_data_subparser
 from alpha_system.cli.factor import register_subparser as register_factor_subparser
 from alpha_system.cli.grid import register_subparser as register_grid_subparser
 from alpha_system.cli.management import register_subparser as register_management_subparser
+from alpha_system.cli.ml import register_subparser as register_ml_subparser
 from alpha_system.cli.registry import register_subparser as register_registry_subparser
 from alpha_system.cli.study import register_subparser as register_study_subparser
 
@@ -31,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_factor_subparser(subparsers)
     register_grid_subparser(subparsers)
     register_management_subparser(subparsers)
+    register_ml_subparser(subparsers)
     register_report_subparser(subparsers)
     register_registry_subparser(subparsers)
     register_study_subparser(subparsers)

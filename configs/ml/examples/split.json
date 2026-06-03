@@ -1,0 +1,6 @@
+{
+  "split_type": "train_validation",
+  "validation_fraction": 0.34,
+  "purge_gap": 0,
+  "embargo_gap": 0
+}
