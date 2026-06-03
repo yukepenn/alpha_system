@@ -1,0 +1,80 @@
+{
+  "data_version": "data:management-grid-fixture:v1",
+  "engine": "reference",
+  "factor_versions": {
+    "fixture_factor": "v1"
+  },
+  "grid_id": "tiny_management_grid",
+  "label_versions": {
+    "fixture_label": "v1"
+  },
+  "max_combinations": 2,
+  "parameter_space": {
+    "execution": {
+      "fixed_bps": [
+        "1"
+      ]
+    },
+    "management": {
+      "fixed_stop.stop_pct": [
+        "0.01",
+        "0.02"
+      ],
+      "laddered_partial_take_profit.steps": [
+        [
+          {
+            "exit_fraction": "0.5",
+            "label": "half_at_1r",
+            "threshold_r": "1"
+          }
+        ]
+      ]
+    }
+  },
+  "reference_fallback": true,
+  "run_id": "management_grid_example",
+  "strategy_id": "management_grid_fixture_strategy",
+  "strategy_version": "strategy:management-grid-fixture:v1",
+  "survivors": [
+    {
+      "allowed_management_grid_scope": {
+        "execution_parameters": [
+          "execution.fixed_bps"
+        ],
+        "management_parameters": [
+          "management.fixed_stop.stop_pct",
+          "management.laddered_partial_take_profit.steps"
+        ],
+        "max_combinations": 2
+      },
+      "baseline_management_config": {
+        "eod_exit": true,
+        "fixed_stop": {
+          "enabled": true,
+          "stop_pct": "0.02"
+        },
+        "management_id": "management:baseline"
+      },
+      "baseline_portfolio_config": {
+        "max_gross_exposure": "1",
+        "portfolio_id": "portfolio:baseline"
+      },
+      "candidate_id": "candidate:synthetic-management-fixture",
+      "factor_versions": {
+        "fixture_factor": "v1"
+      },
+      "label_versions": {
+        "fixture_label": "v1"
+      },
+      "review_status": "PASS_WITH_WARNINGS",
+      "source_grid_config_hash": "synthetic-fixture-grid-hash",
+      "source_run_id": "grid:synthetic-fixture-source",
+      "strategy_version": "strategy:management-grid-fixture:v1",
+      "survivor_eligibility_reason": "factor diagnostics, simple signal grid, and baseline management review completed for synthetic fixture",
+      "warnings": [
+        "synthetic correctness fixture only"
+      ]
+    }
+  ],
+  "top_config_count": 2
+}
