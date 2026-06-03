@@ -8,13 +8,13 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P01` has completed its executor deliverables for Ralph validation and independent review: the importable governance package skeleton, governance unit-test root, governance config/template roots, and canonical naming contract now exist. No phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P02` has completed its executor deliverables for Ralph validation and independent review: deterministic governance ID primitives, canonical serialization and content hashing, fail-closed validation helpers, focused governance unit tests, and concise primitives documentation now exist. No phase PASS verdict is recorded here.
 
-The active phase remains `ARGOV-P01` until the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates complete. The next planned phase is `ARGOV-P02 — Governance IDs, Serialization, and Validation Primitives`.
+The active phase is `ARGOV-P02` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P03 — AlphaSpec Contract and No-Code Gate`.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
-Safety boundaries are unchanged: governance-only scope, no real data ingestion, no alpha search, no broker/live/paper work, no order routing, no production deployment behavior, no raw or heavy artifact commits, no local DB commits, and explicit staging only.
+Safety boundaries are unchanged: governance-only scope, no real data ingestion, no alpha search, no broker/live/paper work, no order routing, no production deployment behavior, no raw or heavy artifact commits, no local DB commits, explicit staging only, and no alpha, profitability, tradability, or production-readiness claims.
 
 ## Governance Docs
 
@@ -23,8 +23,9 @@ The governance docs root currently includes:
 - `docs/governance/README.md`
 - `docs/governance/GOVERNANCE_OVERVIEW.md`
 - `docs/governance/NAMING.md`
+- `docs/governance/PRIMITIVES.md`
 
-These docs describe the admissibility protocol at a high level and define the canonical governance object names, ID prefixes, module names, file names, and directory layout. `ARGOV-P01` adds skeleton source modules and import tests only; object logic, validation, serialization, registry integration, CLI behavior, and report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, and document the shared ID, serialization, hashing, and fail-closed validation primitives. Specific governance object schemas, registry integration, gates, CLI behavior, and report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -120,6 +121,8 @@ Governance docs:
 
 - `docs/governance/README.md`
 - `docs/governance/GOVERNANCE_OVERVIEW.md`
+- `docs/governance/NAMING.md`
+- `docs/governance/PRIMITIVES.md`
 
 ## Directory Layout
 
@@ -149,7 +152,7 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new CLI commands are added by `ARGOV-P01`. Local validation commands include:
+No new CLI commands are added by `ARGOV-P02`. Durable governance primitive modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, and `alpha_system.governance.validation`. Local validation commands include:
 
 ```bash
 python -c "import alpha_system.governance"
