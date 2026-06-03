@@ -40,7 +40,7 @@ production readiness.
 | `code_hash` | Lowercase SHA-256 content hash string for the code version. |
 | `config_hash` | Lowercase SHA-256 content hash string for the configuration version. |
 | `diagnostics_summary` | Non-empty explicit summary metadata recorded from diagnostics. |
-| `negative_control_results` | Non-empty list of explicit negative-control result metadata. |
+| `negative_control_results` | Non-empty list of explicit negative-control result metadata. ARGOV-P13 defines the `NegativeControlResult` dictionary contract for catalogued controls. |
 | `limitations` | Non-empty list of declared limitations. |
 | `artifact_manifest` | Non-empty local-only evidence artifact manifest. |
 | `reviewer_verdict_reference` | Opaque reviewer-verdict reference. This phase stores the reference only and does not resolve independence rules. |
