@@ -1,0 +1,2952 @@
+campaign_id: ALPHA_DATA_FOUNDATION_V1
+campaign_name: Read-Only Real-Market-Data Truth Layer for AI Alpha Research
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  primary: trading_research
+  secondary: research
+  project_type: data_foundation
+  profiles:
+  - trading_research
+  - research
+  - data_foundation
+  builds_on:
+  - ALPHA_SYSTEM_V1
+  - ASV1_RELEASE_HYGIENE
+  - ALPHA_RESEARCH_GOVERNANCE_MVP
+  local_first: true
+  data_foundation_layer_not_alpha_search: true
+  ibkr_read_only_historical_source_only: true
+  future_multi_asset_ready: true
+  future_l2_ready: true
+  broker_live_trading_in_scope: false
+  paper_trading_in_scope: false
+  order_placement_in_scope: false
+  account_trading_in_scope: false
+  alpha_search_in_scope: false
+  factor_label_research_in_scope: false
+  production_trading_claims_allowed: false
+  alpha_tradability_claims_allowed_without_evidence: false
+workflow:
+  harness: Frontier Harness Generic
+  harness_version: '3.0'
+  workflow_id: Workflow 2
+  driver: Ralph
+  executor: Codex
+  reviewer: Claude
+  mode: Ralph-driven strict autonomous loop
+  loose_loop: false
+  fresh_context_per_phase: true
+  git_memory: true
+  campaign_contract_based: true
+  automatic_pr_merge_by_lane: true
+  stop_file_supported: true
+  semantic_done_check_required: true
+  handoff_required_per_phase: true
+  review_required_for_yellow: true
+  fake_completion_forbidden: true
+runtime:
+  host: Windows
+  primary_environment: WSL2 Ubuntu
+  primary_runtime: WSL2 Ubuntu
+  repo_must_live_under: ~/projects/alpha_system
+  required_filesystem: WSL2 Linux filesystem
+  forbidden_active_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  forbidden_active_worktree_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  local_first: true
+  cloud_db_required: false
+  paid_db_required: false
+  broker_credentials_required: false
+  live_market_data_required: false
+  external_provider_calls_require_red_authorization: true
+models:
+  strategy:
+    name: ChatGPT Pro GPT-5.5 Thinking
+    model: ChatGPT Pro / GPT-5.5 Thinking
+    responsibilities:
+    - strategy
+    - roadmap
+    - campaign reasoning
+    - post-run reasoning
+  spec_review_donecheck:
+    name: Claude Opus 4.8 xhigh
+    model: Claude Opus
+    responsibilities:
+    - phase specs
+    - architecture specs
+    - semantic review
+    - done-check
+    - campaign decomposition
+  verifier:
+    name: Claude Sonnet 4.6
+    model: Claude Sonnet
+    responsibilities:
+    - source maps
+    - verifier support
+    - audits
+    - mechanical inspection
+  executor:
+    name: Codex GPT-5.5 high
+    model: Codex GPT-5.5 high
+    responsibilities:
+    - implementation
+    - tests
+    - repair
+    - handoff writing
+  orchestrator:
+    name: Ralph
+    model: Ralph
+    responsibilities:
+    - Workflow 2 state machine
+    - run control
+    - phase transitions
+    - STOP/resume
+    - validation ledger
+    - review routing
+    - verdict parsing
+    - PR/CI/merge gates
+    - bounded repair enforcement
+lane_policy:
+  GREEN:
+    description: Low-risk docs, scaffolding, and mechanical work.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: false
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    description: Material data-foundation engineering or research-protocol work; no external
+      provider call.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    most_phases: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  RED:
+    description: External, stateful, local-heavy, provider-facing operations. In this campaign
+      RED means external IBKR calls and heavy local writes; RED never means trading.
+    automatic_execute_when_scoped: true
+    automatic_repair: false
+    automatic_merge: false
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    required_scope_env:
+    - PROJECT_OP_AUTHORIZED
+    - PROJECT_OP_SCOPE
+    - PROJECT_OP_EXPIRES
+    required_data_authorization_env:
+    - ALPHA_DATA_PULL_AUTHORIZED
+    - ALPHA_ALLOW_EXTERNAL_IBKR
+    expected_in_this_campaign: true
+    expected_red_phases:
+    - DATA-P22
+    - DATA-P23
+    red_requires:
+    - explicit_external_authorization
+    - human_authorization
+    - no_ci_execution
+    - local_only_outputs
+    - no_data_artifacts_committed
+    - no_order_api_surface
+    - no_stop_file
+    note: RED here authorizes read-only external IBKR historical pulls and heavy local writes
+      only. Order placement, account trading, paper, and live scope remain forbidden in every
+      lane.
+state_machine:
+  strict: true
+  states:
+  - RUN_INIT
+  - CAMPAIGN_LOAD
+  - PHASE_SELECT
+  - SPEC_GENERATE
+  - SPEC_VALIDATE
+  - WORKTREE_CREATE
+  - CODEX_EXECUTE
+  - CHECKS_RUN
+  - HANDOFF_VALIDATE
+  - CLAUDE_REVIEW
+  - VERDICT_PARSE
+  - PR_CREATE
+  - CI_WAIT
+  - MERGE_GATE
+  - MERGE
+  - DONE_CHECK
+  - NEXT_PHASE
+  - CAMPAIGN_DONE_CHECK
+  - RUN_SUMMARY
+  failure_routes:
+    REWORK:
+      route: bounded_repair_loop
+      repair_attempts_tracked: true
+      max_repair_attempts_default: 3
+      repair_attempts_path: runs/<run_id>/phases/<phase_id>/repair_attempts/
+      requires_repair_attempt_record: true
+      fake_completion_forbidden: true
+    BLOCKED:
+      route: blocked_handoff_and_stop_or_escalation
+      blocked_handoff_required: true
+      dependent_phases_blocked: true
+      fake_completion_allowed: false
+    FAIL:
+      route: checks_failure_repair_loop_or_blocked_handoff
+      repair_attempts_tracked: true
+      fake_completion_forbidden: true
+data_lifecycle_state_machine:
+  description: Lifecycle that future data-foundation objects must enforce. Listed here as the
+    contract Workflow 2 phases implement; not executed by Ralph itself.
+  states:
+  - NOT_REQUESTED
+  - REQUEST_PLANNED
+  - REQUEST_AUTHORIZED
+  - REQUEST_SUBMITTED
+  - PARTIAL_RAW
+  - RAW_COMPLETE
+  - RAW_FAILED
+  - PARSED
+  - CANONICALIZED
+  - QUALITY_CHECKED
+  - VERSIONED
+  - REJECTED
+  - QUARANTINED
+  - READY_FOR_RESEARCH
+  prohibited_mvp_states:
+  - READY_FOR_TRADING
+  - LIVE_FEED_READY
+  - BROKER_ENABLED
+  - ALPHA_VALIDATED
+  - PROFITABLE
+  prohibited_state_note: Listed only as future non-MVP concepts. They must not be reachable by
+    any transition implemented in this campaign.
+  transitions:
+  - from: NOT_REQUESTED
+    to: REQUEST_PLANNED
+    requires: HistoricalRequestSpec
+  - from: REQUEST_PLANNED
+    to: REQUEST_AUTHORIZED
+    requires: manifest, clientId validation, local data root validation
+  - from: REQUEST_AUTHORIZED
+    to: REQUEST_SUBMITTED
+    requires: RED-lane authorization for external IBKR calls
+  - from: REQUEST_SUBMITTED
+    to: PARTIAL_RAW
+    requires: at least one completed chunk
+  - from: PARTIAL_RAW
+    to: RAW_COMPLETE
+    requires: all chunks accounted for or explicit incomplete ledger
+  - from: RAW_COMPLETE
+    to: PARSED
+    requires: parser success and raw object refs
+  - from: PARSED
+    to: CANONICALIZED
+    requires: timestamp/session/contract normalization
+  - from: CANONICALIZED
+    to: QUALITY_CHECKED
+    requires: quality report
+  - from: QUALITY_CHECKED
+    to: VERSIONED
+    requires: coverage report, manifest hash, code hash, config hash
+  - from: VERSIONED
+    to: READY_FOR_RESEARCH
+    requires: dataset version, non-blocking quality status, coverage status, artifact policy pass
+  - from: any
+    to: REJECTED
+    requires: reason and error records
+  - from: any
+    to: QUARANTINED
+    requires: uncertain provenance, gaps, session defects, roll issues, or timestamp defects
+  blocks:
+  - missing manifest blocks provider pull
+  - clientId 101/102 blocks connection
+  - missing pacing guard blocks pull
+  - missing local data root policy blocks raw write
+  - missing available_ts blocks canonicalization
+  - silent gaps block versioning
+  - raw data commit blocks merge
+  - order API surface blocks merge
+  - alpha/tradability claims block merge
+path_policy:
+  exceptions_apply_before_forbidden_globs: true
+  placeholder_exceptions:
+  - '**/.gitkeep'
+  - '**/README.md'
+  tiny_fixture_exceptions:
+  - tests/fixtures/** when tiny synthetic deterministic documented fixture below repository
+    size threshold
+  global_forbidden_paths:
+  - src/alpha_system/execution/broker*
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live*
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper*
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+artifact_policy:
+  never_commit:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - artifacts/**/full_trade_logs/**
+  - '**/*ibkr*account*'
+  - '**/*credential*'
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - source code
+  - configs
+  - schemas
+  - docs
+  - tests
+  - tiny synthetic fixtures
+  - templates
+  - handoffs
+  - reviews
+  - curated summaries
+  - sample manifests with fake or synthetic data only
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_provider_response_commits: true
+    no_account_info_commits: true
+    no_heavy_artifact_commits: true
+    no_local_db_commits: true
+data_artifact_policy:
+  raw_real_data_local_only: true
+  canonical_real_data_local_only: true
+  commit_real_market_data_forbidden: true
+  commit_provider_responses_forbidden: true
+  commit_account_info_forbidden: true
+  real_data_pull_forbidden_in_ci: true
+  suggested_data_root: ~/alpha_data/alpha_system
+  data_root_env: ALPHA_DATA_ROOT
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_provider_responses_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+review_policy:
+  yellow_requires_fresh_claude_review: true
+  green_review_optional_unless_phase_requires: true
+  red_requires_scoped_authorization_and_claude_review: true
+  verdict_json_required: true
+  review_artifact_required_for_yellow: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+  allowed_verdicts_for_merge:
+  - PASS
+  - PASS_WITH_WARNINGS
+  blocked_verdicts:
+  - FAIL
+  - BLOCKED
+  - REWORK_REQUIRED
+  reviewer_independence_required: true
+  implementer_cannot_self_approve: true
+  review_must_check:
+  - phase scope compliance
+  - data-foundation object completeness
+  - fail-closed validation behavior
+  - clientId 101/102 hard-block present
+  - read-only boundary and order-method kill switch present
+  - request manifest, pacing guard, and resume ledger present
+  - no silent gaps in coverage or quality
+  - continuous futures not treated as dated-contract truth
+  - canonical bars carry available_ts and distinct timestamp fields
+  - dataset version, quality report, and coverage report present where required
+  - artifact policy compliance
+  - no raw/canonical/provider/account data committed
+  - no broker/live/paper/order-routing or account-trading scope
+  - no alpha/profitability/tradability claims
+  - no test weakening or gaming
+  - handoff completeness
+  - semantic done criteria
+merge_policy:
+  GREEN:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+    - ci_pass_if_configured
+  RED:
+    auto_pr_if_authorized: true
+    auto_merge: false
+    requires:
+    - scoped_authorization_present
+    - data_pull_authorization_present
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_data_artifacts_committed
+    - no_forbidden_paths
+    - no_stop_file
+    - ci_pass_if_configured
+  green_auto_pr: true
+  green_auto_merge: true
+  yellow_auto_pr: true
+  yellow_auto_merge: true
+  red_auto_pr: true
+  red_auto_merge: false
+  require_ci_pass: true
+  require_artifact_policy_pass: true
+  require_no_stop_file: true
+  require_verdict_json: true
+  require_no_data_artifacts_committed: true
+  global_blockers:
+  - STOP file present
+  - forbidden path staged
+  - raw data staged
+  - canonical data staged
+  - provider response staged
+  - account information staged
+  - heavy artifact staged
+  - local DB staged
+  - real data pull run in CI
+  - broker/live/paper/order-routing scope introduced
+  - order API reachable through data module
+  - clientId 101 or 102 accepted
+  - external IBKR pull attempted without authorization
+  - unsupported alpha/tradability claim introduced
+  - continuous futures treated as dated-contract truth
+  - canonical bars missing available_ts
+  - data gaps silently ignored
+  - test weakening detected
+  - semantic done-check failed
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 3
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - account trading
+  - production execution adapter
+  - real-time market data loop
+  - real alpha search
+  - factor/label/strategy research
+  - raw data commit
+  - canonical data commit
+  - provider response commit
+  - account info commit
+  - heavy artifact commit
+  - local DB commit
+  - alpha/profitability/tradability claim
+  - continuous-futures-as-dated-truth claim
+  - test weakening or gaming
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+ibkr_policy:
+  host_default: "127.0.0.1"
+  port_default: 4002
+  forbidden_client_ids:
+  - 101
+  - 102
+  default_client_id: 201
+  allowed_client_id_range: "201-209"
+  data_hist_client_id_base: 201
+  worker_client_ids:
+    ES: 201
+    NQ: 202
+    RTY: 203
+  client_id_collision_policy: fail_closed
+  read_only_historical_only: true
+  order_placement_forbidden: true
+  account_trading_forbidden: true
+  live_trading_forbidden: true
+  paper_trading_forbidden: true
+  real_time_feed_forbidden: true
+  connection_doctor_required: true
+  explicit_external_authorization_required_for_provider_calls: true
+  env_semantics:
+  - ALPHA_IBKR_HOST
+  - ALPHA_IBKR_PORT
+  - ALPHA_IBKR_CLIENT_ID
+  - ALPHA_IBKR_READ_ONLY_MODE
+  - ALPHA_DATA_ROOT
+  - ALPHA_DATA_PULL_AUTHORIZED
+  - ALPHA_ALLOW_EXTERNAL_IBKR
+  - ALPHA_ALLOW_RAW_LOCAL_WRITE
+  continuous_futures_policy:
+    sec_type: CONTFUT
+    historical_data_only: true
+    not_for_order_placement: true
+    not_for_live_market_data: true
+    labels:
+    - provider_continuous
+    - non_orderable
+    - not_dated_contract_truth
+    - research_diagnostics_only
+  dated_futures_policy:
+    sec_type: FUT
+    include_expired_supported_where_available: true
+    no_full_history_promise: true
+    strongest_for:
+    - current contracts
+    - recent expired contracts available from IBKR
+    - roll validation windows
+  pacing_policy:
+    naive_loop_forbidden: true
+    conservative_throttling_required: true
+    verify_against_current_docs_or_local_smoke: true
+    bid_ask_counts_heavier: true
+    require_chunked_requests: true
+    require_request_id_tracking: true
+    require_duplicate_request_detection: true
+    require_retry_with_backoff: true
+    require_resume_ledger: true
+    require_provider_error_ledger: true
+    require_no_silent_gaps: true
+    require_no_raw_overwrite: true
+symbol_batches:
+  mini_main:
+  - ES
+  - NQ
+  - RTY
+  micro_secondary:
+  - MES
+  - MNQ
+  - M2K
+  max_concurrent_roots: 3
+  do_not_mix_mini_and_micro_batches: true
+  max_open_historical_requests_conservative_and_configurable: true
+historical_windows:
+  primary_common_panel:
+    symbols:
+    - ES
+    - NQ
+    - RTY
+    start_date: "2018-01-01"
+    end_date: present
+    bar_size: "1 min"
+    what_to_show: TRADES
+    session_views:
+    - ETH_canonical
+    - RTH_derived
+  optional_es_nq_long_panel:
+    symbols:
+    - ES
+    - NQ
+    start_date: "2015-01-01"
+    end_date: present
+    provenance: provider_continuous_if_needed
+    use: data_qa_and_regime_baseline
+  rty_transition_qa_panel:
+    symbols:
+    - RTY
+    start_date: "2017-07-10"
+    end_date: "2017-12-31"
+    use: qa_only
+  contract_truth_panel:
+    symbols:
+    - ES
+    - NQ
+    - RTY
+    start_date: rolling_available_expired_window
+    dated_contracts_required: true
+  micro_batch:
+    symbols:
+    - MES
+    - MNQ
+    - M2K
+    start_date: "2020-01-01_or_earliest_clean_available"
+    separate_batch: true
+dataset_partition_plan:
+  development_partition: 2018-01-01 through 2022-12-31
+  validation_partition: 2023-01-01 through 2024-12-31
+  locked_test_candidate: 2025-01-01 through as_of_run
+  latest_shadow_candidate: optional rolling recent period
+  notes:
+  - Data QA may inspect coverage across all partitions.
+  - Alpha research must not use locked_test_candidate without Governance metadata.
+  - Any use of locked partitions must create contamination metadata later.
+data_foundation_objects:
+- name: DataSourceProfile
+  purpose: describe a data provider and allowed usage boundary
+  required_fields:
+  - source_id
+  - provider_name
+  - provider_type
+  - allowed_modes
+  - forbidden_modes
+  - requires_authorization
+  - market_data_permissions_note
+  - created_at
+  must_not_imply: broker readiness, execution permission, or data completeness
+- name: IBKRConnectionProfile
+  purpose: connection settings and diagnostics for TWS / IB Gateway historical pulls
+  required_fields:
+  - host
+  - port
+  - client_id
+  - read_only_mode
+  - environment
+  - connection_timeout
+  - doctor_status
+  - validated_at
+  must_not_imply: account access, order access, or live feed readiness
+- name: IBKRClientIdPolicy
+  purpose: prevent collisions with paper/live clients and enforce the data-client namespace
+  required_fields:
+  - forbidden_client_ids
+  - allowed_range
+  - default_client_id
+  - worker_client_ids
+  - collision_policy
+  must_not_imply: that multiple workers are always safe
+- name: HistoricalRequestSpec
+  purpose: declarative request before any IBKR historical call
+  required_fields:
+  - request_spec_id
+  - source_id
+  - symbol_root
+  - contract_ref
+  - sec_type
+  - exchange
+  - currency
+  - bar_size
+  - what_to_show
+  - use_rth
+  - duration
+  - end_datetime_policy
+  - start_ts
+  - end_ts
+  - chunk_policy
+  - client_id
+  must_not_imply: that data exists or that the request has been executed
+- name: HistoricalRequestManifest
+  purpose: full planned set of chunks and contracts for a pull
+  required_fields:
+  - manifest_id
+  - batch_id
+  - request_specs
+  - chunk_count
+  - expected_coverage
+  - pacing_policy_id
+  - data_root
+  - created_by
+  - created_at
+  - manifest_hash
+  must_not_imply: pull authorization
+- name: HistoricalChunkRecord
+  purpose: one chunk request lifecycle
+  required_fields:
+  - chunk_id
+  - request_spec_id
+  - symbol_root
+  - contract_ref
+  - start_ts
+  - end_ts
+  - status
+  - attempt_count
+  - provider_request_id
+  - raw_object_ref
+  - row_count
+  - error_ref
+  - retrieved_at
+  must_not_imply: that quality passed
+- name: HistoricalPullLedger
+  purpose: audit and resume ledger for historical pulls
+  required_fields:
+  - pull_id
+  - manifest_id
+  - chunk_records
+  - started_at
+  - finished_at
+  - status
+  - resume_token
+  - coverage_summary
+  - error_summary
+  must_not_imply: that a dataset version is ready
+- name: ProviderErrorRecord
+  purpose: permanent log of IBKR errors and incomplete responses
+  required_fields:
+  - error_id
+  - provider
+  - request_id
+  - chunk_id
+  - error_code
+  - error_message
+  - retryable
+  - attempt
+  - timestamp
+  - resolution
+  must_not_imply: fatal unless classified
+- name: RawDataObject
+  purpose: immutable local provider response
+  required_fields:
+  - raw_object_id
+  - source
+  - request_id
+  - chunk_id
+  - path
+  - content_hash
+  - schema_hint
+  - retrieved_at
+  - row_count
+  must_not_imply: canonical truth
+- name: ParsedBarRecord
+  purpose: provider-shaped parsed bar with metadata
+  required_fields:
+  - source
+  - symbol
+  - contract_ref
+  - provider_ts
+  - open
+  - high
+  - low
+  - close
+  - volume
+  - wap_if_available
+  - bar_count_if_available
+  - request_id
+  - raw_object_id
+  must_not_imply: canonical timestamp semantics
+- name: CanonicalBarRecord
+  purpose: research-ready 1m bar
+  required_fields:
+  - instrument_id
+  - contract_id
+  - series_id
+  - bar_start_ts
+  - bar_end_ts
+  - event_ts
+  - available_ts
+  - ingested_at
+  - open
+  - high
+  - low
+  - close
+  - volume
+  - source
+  - source_request_id
+  - data_version
+  - quality_flags
+  - session_label
+  must_not_imply: alpha value or tradability
+- name: InstrumentMasterRecord
+  purpose: root-level futures instrument definition
+  required_fields:
+  - root_symbol
+  - ib_symbol
+  - exchange
+  - currency
+  - asset_class
+  - sec_type
+  - point_value
+  - tick_size
+  - tick_value
+  - multiplier
+  - timezone
+  - session_template_id
+  - roll_policy_id
+  - source
+  - source_retrieved_at
+  must_not_imply: that a current contract is selected
+- name: FuturesContractRecord
+  purpose: dated futures contract identity
+  required_fields:
+  - contract_id
+  - root_symbol
+  - contract_month
+  - ib_symbol
+  - trading_class
+  - con_id
+  - last_trade_date_or_contract_month
+  - expiration
+  - multiplier
+  - exchange
+  - currency
+  - include_expired_support_status
+  must_not_imply: full historical availability
+- name: ContractDetailsSnapshot
+  purpose: immutable snapshot of IBKR contract details response
+  required_fields:
+  - snapshot_id
+  - contract_id
+  - raw_details_ref
+  - normalized_fields
+  - retrieved_at
+  - client_id
+  - source
+  - hash
+  must_not_imply: CME economic truth unless reconciled
+- name: SessionTemplate
+  purpose: RTH / ETH / maintenance break definition
+  required_fields:
+  - template_id
+  - timezone
+  - rth_start
+  - rth_end
+  - eth_start
+  - eth_end
+  - maintenance_breaks
+  - source
+  must_not_imply: holiday completeness
+- name: TradingCalendarRecord
+  purpose: concrete session dates, holidays, early closes
+  required_fields:
+  - calendar_id
+  - instrument_root
+  - date
+  - session_type
+  - open_ts
+  - close_ts
+  - breaks
+  - is_holiday
+  - is_early_close
+  - source
+  must_not_imply: exchange official finality unless sourced
+- name: RollPolicy
+  purpose: define how a canonical continuous series is selected or stitched
+  required_fields:
+  - roll_policy_id
+  - method
+  - roll_trigger
+  - adjustment_method
+  - fallback_rule
+  - uses_volume
+  - uses_open_interest
+  - source
+  must_not_imply: tradable execution roll
+- name: RollCalendarRecord
+  purpose: specific roll dates and contract transitions
+  required_fields:
+  - roll_calendar_id
+  - root_symbol
+  - from_contract
+  - to_contract
+  - roll_date
+  - method
+  - evidence
+  - validation_status
+  must_not_imply: best execution roll
+- name: DatasetVersion
+  purpose: immutable-ish reference to a reproducible canonical dataset
+  required_fields:
+  - dataset_version_id
+  - source
+  - symbol_universe
+  - bar_size
+  - what_to_show
+  - start_ts
+  - end_ts
+  - contract_universe
+  - roll_policy_id
+  - manifest_hash
+  - code_hash
+  - config_hash
+  - quality_report_hash
+  - created_at
+  must_not_imply: research approval
+- name: DataQualityReport
+  purpose: fail-closed quality audit
+  required_fields:
+  - quality_report_id
+  - dataset_version_id
+  - gap_summary
+  - duplicate_summary
+  - non_monotonic_summary
+  - ohlc_errors
+  - zero_negative_price_errors
+  - zero_volume_anomalies
+  - dst_anomalies
+  - session_coverage
+  - roll_discontinuities
+  - provider_error_summary
+  - status
+  must_not_imply: alpha readiness
+- name: CoverageReport
+  purpose: coverage by symbol, contract, session, partition
+  required_fields:
+  - coverage_report_id
+  - dataset_version_id
+  - symbol_coverage
+  - contract_coverage
+  - session_coverage
+  - partition_coverage
+  - missing_intervals
+  - incomplete_chunks
+  must_not_imply: quality passed unless linked to a quality report
+- name: DataIngestionRunRecord
+  purpose: Workflow 2 / local run summary for ingestion
+  required_fields:
+  - ingestion_run_id
+  - manifest_id
+  - pull_ledger_id
+  - dataset_version_id_optional
+  - operator
+  - authorization_env
+  - started_at
+  - finished_at
+  - status
+  must_not_imply: committed artifacts
+- name: LocalDataRootPolicy
+  purpose: prevent accidental commits and unsafe data locations
+  required_fields:
+  - data_root
+  - must_be_local
+  - must_be_ignored
+  - forbidden_repo_paths
+  - allowed_subdirs
+  - max_file_policy
+  must_not_imply: cloud sync safety
+- name: DataAccessMode
+  purpose: mode gate for dry-run, synthetic, smoke, authorized pull
+  required_fields:
+  - mode
+  - requires_env
+  - allows_external_api
+  - allows_raw_write
+  - allows_canonical_write
+  - ci_allowed
+  must_not_imply: trading authorization
+- name: ContinuousFuturesSeriesRecord
+  purpose: provider-continuous (CONTFUT) series provenance
+  required_fields:
+  - series_id
+  - root_symbol
+  - provider
+  - provenance_label
+  - orderable
+  - dated_truth
+  - roll_adjustment_note
+  - source_retrieved_at
+  must_not_imply: dated-contract truth or tradable roll
+- name: DatedFuturesSeriesRecord
+  purpose: dated-contract (FUT) stitched/derived series provenance
+  required_fields:
+  - series_id
+  - root_symbol
+  - contract_universe
+  - roll_policy_id
+  - adjustment_method
+  - availability_window
+  - validation_status
+  must_not_imply: full historical availability or best execution roll
+- name: MicroBatchPolicy
+  purpose: define the micro batch as a separate secondary path
+  required_fields:
+  - batch_id
+  - symbols
+  - start_date
+  - separate_batch
+  - parity_check_targets
+  must_not_imply: that micros are a primary alpha source in V1
+- name: SymbolBatchPlan
+  purpose: declare batched roots and concurrency limits
+  required_fields:
+  - plan_id
+  - mini_main
+  - micro_secondary
+  - max_concurrent_roots
+  - do_not_mix_mini_and_micro_batches
+  must_not_imply: pull authorization
+- name: RequestPacingPolicy
+  purpose: conservative, configurable pacing/throttle rules
+  required_fields:
+  - pacing_policy_id
+  - min_seconds_between_identical_requests
+  - max_requests_per_window
+  - window_seconds
+  - bid_ask_counts_double
+  - backoff_policy
+  - source
+  must_not_imply: that hardcoded values are current truth without verification
+- name: TimestampSemanticsPolicy
+  purpose: align canonical timestamps with V1 no-lookahead semantics
+  required_fields:
+  - policy_id
+  - event_ts_definition
+  - bar_start_ts_definition
+  - bar_end_ts_definition
+  - available_ts_definition
+  - ingested_at_definition
+  - lookahead_rules
+  must_not_imply: that provider timestamps are research-ready
+- name: DatasetPartitionPlan
+  purpose: define train/validation/locked partitions without alpha research
+  required_fields:
+  - plan_id
+  - development_partition
+  - validation_partition
+  - locked_test_candidate
+  - latest_shadow_candidate
+  - contamination_metadata_rules
+  must_not_imply: research approval or any locked-partition use without Governance metadata
+phases:
+- id: DATA-P00
+  name: Data Foundation Campaign Bootstrap
+  lane: YELLOW
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/GOAL.md
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/campaign.yaml
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/RUNBOOK.md
+  - test '!' -f campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md
+  - test -f handoffs/ALPHA_DATA_FOUNDATION_V1/DATA-P00.md
+  - grep -q "ALPHA_DATA_FOUNDATION_V1" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - ACTIVE_CAMPAIGN.md
+  - campaigns/ALPHA_DATA_FOUNDATION_V1/**
+  - docs/data_foundation/README.md
+  - docs/data_foundation/DATA_FOUNDATION_OVERVIEW.md
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/data/ibkr/**
+  - tests/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - campaign files
+    - data-foundation overview docs
+    - commit-eligible handoff
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P01
+  name: Data Package Skeleton and Naming
+  lane: YELLOW
+  dependencies:
+  - DATA-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.data"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/NAMING.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - templates/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - data package skeleton
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P02
+  name: Data Source Profiles and Local Data Root Policy
+  lane: YELLOW
+  dependencies:
+  - DATA-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/DATA_SOURCE_PROFILE.md
+  - test -f docs/data_foundation/LOCAL_DATA_ROOT_POLICY.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - DataSourceProfile code
+    - LocalDataRootPolicy code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P03
+  name: IBKR Connection Profile and Client ID Guard
+  lane: YELLOW
+  dependencies:
+  - DATA-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/IBKR_CONNECTION_PROFILE.md
+  - test -f docs/data_foundation/CLIENT_ID_POLICY.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - IBKRConnectionProfile code
+    - IBKRClientIdPolicy code
+    - connection doctor scaffold
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P04
+  name: Read-Only API Boundary and Order-Method Kill Switch
+  lane: YELLOW
+  dependencies:
+  - DATA-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/READ_ONLY_BOUNDARY.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - read-only boundary code
+    - order-method kill switch
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P05
+  name: Futures Instrument Master and Contract Economics
+  lane: YELLOW
+  dependencies:
+  - DATA-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/INSTRUMENT_MASTER.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - InstrumentMasterRecord code
+    - contract economics
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P06
+  name: Contract Details Snapshot and Contract Discovery
+  lane: YELLOW
+  dependencies:
+  - DATA-P03
+  - DATA-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/CONTRACT_DISCOVERY.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - ContractDetailsSnapshot code
+    - FuturesContractRecord code
+    - contract discovery scaffold
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - provider responses
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P07
+  name: Historical Request Spec and Manifest
+  lane: YELLOW
+  dependencies:
+  - DATA-P03
+  - DATA-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - templates/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - HistoricalRequestSpec code
+    - HistoricalRequestManifest code
+    - sample synthetic manifest
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P08
+  name: Pacing, Chunking, Retry, and Resume Ledger
+  lane: YELLOW
+  dependencies:
+  - DATA-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/PACING_AND_RESUME.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - RequestPacingPolicy code
+    - HistoricalChunkRecord code
+    - HistoricalPullLedger code
+    - ProviderErrorRecord code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P09
+  name: Raw Local Data Lake Layout
+  lane: YELLOW
+  dependencies:
+  - DATA-P02
+  - DATA-P08
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/RAW_DATA_LAKE.md
+  - find data -type f '!' -name README.md '!' -name .gitkeep -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - RawDataObject code
+    - raw data lake layout policy
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - provider responses
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P10
+  name: ES/NQ/RTY Main Batch Pull Plan
+  lane: YELLOW
+  dependencies:
+  - DATA-P07
+  - DATA-P08
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/MINI_BATCH_PLAN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - SymbolBatchPlan code
+    - mini batch pull plan
+    - sample synthetic manifest
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P11
+  name: Continuous Futures vs Dated Futures Provenance
+  lane: YELLOW
+  dependencies:
+  - DATA-P06
+  - DATA-P10
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/PROVENANCE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - ContinuousFuturesSeriesRecord code
+    - DatedFuturesSeriesRecord code
+    - provenance separation
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P12
+  name: Session Templates and Trading Calendar
+  lane: YELLOW
+  dependencies:
+  - DATA-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/SESSIONS_AND_CALENDAR.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - SessionTemplate code
+    - TradingCalendarRecord code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P13
+  name: Roll Policy and Roll Calendar
+  lane: YELLOW
+  dependencies:
+  - DATA-P05
+  - DATA-P06
+  - DATA-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/ROLL_POLICY.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - RollPolicy code
+    - RollCalendarRecord code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P14
+  name: Parser and Parsed Bar Records
+  lane: YELLOW
+  dependencies:
+  - DATA-P09
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/PARSED_BARS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - ParsedBarRecord code
+    - parser code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - provider responses
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P15
+  name: Canonical 1m Bar Contract
+  lane: YELLOW
+  dependencies:
+  - DATA-P12
+  - DATA-P14
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - python -m pytest tests/no_lookahead -q
+  - test -f docs/data_foundation/CANONICAL_BARS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - tests/no_lookahead/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - CanonicalBarRecord code
+    - TimestampSemanticsPolicy code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P16
+  name: Data Quality Checks and Coverage Reports
+  lane: YELLOW
+  dependencies:
+  - DATA-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/DATA_QUALITY.md
+  - test -f docs/data_foundation/COVERAGE_REPORT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - DataQualityReport code
+    - CoverageReport code
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    - curated synthetic report summary
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - full reports with raw data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P17
+  name: Dataset Version Registry Integration
+  lane: YELLOW
+  dependencies:
+  - DATA-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - python -m pytest tests/integration/data -q
+  - test -f docs/data_foundation/DATASET_VERSION.md
+  - find metadata -type f '!' -name README.md '!' -name .gitkeep -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - tests/integration/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - DatasetVersion registry code
+    - migrations
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - metadata/*.sqlite
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P18
+  name: Dataset Partition Plan and Locked-Test Metadata
+  lane: YELLOW
+  dependencies:
+  - DATA-P17
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/PARTITION_PLAN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - DatasetPartitionPlan code
+    - locked-test metadata rules
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P19
+  name: Micro Batch Policy for MES/MNQ/M2K
+  lane: YELLOW
+  dependencies:
+  - DATA-P05
+  - DATA-P10
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/MICRO_BATCH.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - MicroBatchPolicy code
+    - micro batch plan
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P20
+  name: Optional BID_ASK / Spread Proxy Pilot Plan
+  lane: YELLOW
+  dependencies:
+  - DATA-P08
+  - DATA-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/BID_ASK_PILOT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - configs/data/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - BID_ASK pilot plan
+    - spread proxy scaffold
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P21
+  name: Synthetic IBKR Fixture Tests
+  lane: YELLOW
+  dependencies:
+  - DATA-P03
+  - DATA-P05
+  - DATA-P06
+  - DATA-P07
+  - DATA-P08
+  - DATA-P09
+  - DATA-P14
+  - DATA-P15
+  - DATA-P16
+  - DATA-P17
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/verify.py --all
+  - python -m pytest tests/unit/data -q
+  - python -m pytest tests/integration/data -q
+  - test -f docs/data_foundation/SYNTHETIC_FIXTURE_TESTS.md
+  - find . -name "*.parquet" -not -path "./tests/fixtures/*" -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - tests/integration/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - synthetic IBKR fixture tests
+    - synthetic provider-response fixtures
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - real provider responses
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+- id: DATA-P22
+  name: Small Authorized IBKR Smoke Pull
+  lane: RED
+  dependencies:
+  - DATA-P21
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  external_authorization_required: true
+  required_authorization_env:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  - ALPHA_DATA_PULL_AUTHORIZED
+  - ALPHA_ALLOW_EXTERNAL_IBKR
+  ci_allowed: false
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/SMOKE_PULL.md
+  - git ls-files runs
+  - git status --short
+  - find data -type f '!' -name README.md '!' -name .gitkeep -print
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: false
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - smoke pull code
+    - smoke pull runbook doc
+    - curated synthetic-or-redacted summary only
+    - tests
+    - docs
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - provider responses
+    - account info
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+    local_only_pull_outputs: true
+- id: DATA-P23
+  name: Local Backfill Runbook and Resume Drill
+  lane: RED
+  dependencies:
+  - DATA-P22
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  external_authorization_required: true
+  required_authorization_env:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  - ALPHA_DATA_PULL_AUTHORIZED
+  - ALPHA_ALLOW_EXTERNAL_IBKR
+  ci_allowed: false
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/data -q
+  - test -f docs/data_foundation/BACKFILL_RUNBOOK.md
+  - find data -type f '!' -name README.md '!' -name .gitkeep -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: false
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - docs/data_foundation/**
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - backfill runbook doc
+    - resume drill code
+    - curated synthetic-or-redacted summary only
+    - tests
+    - docs
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - provider responses
+    - account info
+    - heavy artifacts
+    - local DB files
+    explicit_staging_only: true
+    local_only_pull_outputs: true
+- id: DATA-P24
+  name: End-to-End Data Foundation Dry Run and Closeout
+  lane: YELLOW
+  dependencies:
+  - DATA-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/verify.py --all
+  - python -m pytest tests/unit/data -q
+  - python -m pytest tests/integration/data -q
+  - test -f campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md
+  - test -f docs/data_foundation/END_TO_END_DRY_RUN.md
+  - find data -type f '!' -name README.md '!' -name .gitkeep -print
+  - find metadata -type f '!' -name README.md '!' -name .gitkeep -print
+  - find artifacts -type f -size +1M -print
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  allowed_paths:
+  - src/alpha_system/data/**
+  - tests/unit/data/**
+  - tests/integration/data/**
+  - docs/data_foundation/**
+  - campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md
+  - tests/fixtures/data/**
+  - handoffs/ALPHA_DATA_FOUNDATION_V1/**
+  - reviews/ALPHA_DATA_FOUNDATION_V1/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - data/raw/**
+  - data/canonical/**
+  - metadata/*.sqlite
+  - artifacts/**/raw_outputs/**
+  - '**/*.parquet'
+  artifact_policy:
+    commit_only:
+    - end-to-end dry-run code
+    - closeout doc
+    - tests
+    - docs
+    - tiny synthetic fixtures
+    - curated synthetic dry-run summary
+    never_commit:
+    - runs/**
+    - raw data
+    - canonical data
+    - heavy artifacts
+    - local DB files
+    - full generated bundles
+    explicit_staging_only: true
+acceptance_gates:
+  campaign_bootstrap:
+    phases:
+    - DATA-P00
+    - DATA-P01
+    - DATA-P02
+    requires:
+    - campaign_control_files_present
+    - no_campaign_local_active_campaign_file
+    - data_package_imports
+    - data_source_profile_present
+    - local_data_root_policy_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  ibkr_read_only_boundary:
+    phases:
+    - DATA-P03
+    - DATA-P04
+    requires:
+    - ibkr_connection_profile_present
+    - client_id_101_102_hard_blocked
+    - default_client_id_201_and_namespace_201_209_enforced
+    - connection_doctor_scaffold_present
+    - read_only_boundary_present
+    - order_method_kill_switch_present
+    - order_api_not_reachable_through_data_module
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  futures_contract_master:
+    phases:
+    - DATA-P05
+    - DATA-P06
+    requires:
+    - instrument_master_present
+    - contract_economics_anchors_encoded_and_verified
+    - tick_value_equals_tick_size_times_point_value_where_applicable
+    - contract_details_snapshot_present
+    - contract_discovery_present
+    - include_expired_availability_logged_not_assumed
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  request_and_storage:
+    phases:
+    - DATA-P07
+    - DATA-P08
+    - DATA-P09
+    - DATA-P10
+    requires:
+    - historical_request_spec_present
+    - historical_request_manifest_present
+    - no_provider_pull_without_manifest
+    - pacing_guard_present
+    - chunking_retry_resume_ledger_present
+    - provider_error_ledger_present
+    - duplicate_request_detection_present
+    - raw_data_lake_immutable_no_overwrite
+    - mini_and_micro_batches_separate
+    - sample_manifests_use_synthetic_data_only
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  provenance_sessions_rolls:
+    phases:
+    - DATA-P11
+    - DATA-P12
+    - DATA-P13
+    requires:
+    - continuous_vs_dated_provenance_separate
+    - continuous_futures_not_treated_as_dated_truth
+    - dated_truth_availability_logged
+    - session_templates_present
+    - trading_calendar_present
+    - dst_and_early_close_handling_present
+    - roll_policy_present
+    - roll_calendar_present
+    - adjusted_vs_unadjusted_explicit
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  canonicalization_quality_versioning:
+    phases:
+    - DATA-P14
+    - DATA-P15
+    - DATA-P16
+    - DATA-P17
+    - DATA-P18
+    requires:
+    - parsed_bar_records_present
+    - canonical_bar_contract_present
+    - canonical_bars_carry_available_ts
+    - event_ts_bar_end_ts_available_ts_not_conflated
+    - timestamp_semantics_policy_present
+    - data_quality_report_present
+    - coverage_report_present
+    - silent_gaps_fail_closed
+    - dataset_version_registry_present
+    - dataset_version_requires_quality_and_coverage_and_manifest
+    - dataset_partition_plan_present
+    - locked_test_metadata_rules_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  secondary_data_tracks:
+    phases:
+    - DATA-P19
+    - DATA-P20
+    requires:
+    - micro_batch_policy_present
+    - micro_batch_separate_from_mini_batch
+    - bid_ask_pilot_marked_optional_and_bounded
+    - bid_ask_heavier_pacing_storage_acknowledged
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  validation_and_authorized_smoke:
+    phases:
+    - DATA-P21
+    - DATA-P22
+    - DATA-P23
+    requires:
+    - synthetic_ibkr_fixture_tests_present
+    - connector_planner_parser_quality_tested_on_synthetic_fixtures
+    - red_phases_require_explicit_authorization
+    - red_phases_not_run_in_ci
+    - red_phases_do_not_commit_data_artifacts
+    - smoke_pull_local_only
+    - backfill_runbook_and_resume_drill_present
+    - resume_after_interruption_demonstrated_locally
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - red_phase_reviews_present
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+  closeout:
+    phases:
+    - DATA-P24
+    requires:
+    - end_to_end_data_foundation_dry_run_pass_or_truthful_BLOCKED
+    - acceptance_audit_pass
+    - semantic_done_check_pass_or_truthful_BLOCKED
+    - closeout_doc_present
+    - final_verdict_recorded
+    - next_campaign_readiness_recorded
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_broker_live_paper_order_or_account_scope
+    - no_alpha_factor_label_or_strategy_research_scope
+    - no_raw_canonical_provider_account_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  no_alpha_claims:
+    required: true
+    blocked_claims:
+    - alpha without evidence
+    - tradability
+    - profitability
+    - market-beating
+    - production-ready
+    - live-ready
+    - broker-ready
+    - data fully pulled
+    - data quality accepted unless describing future criteria
+    detection:
+    - prohibited claim tests
+    - doc grep
+    - Claude review
+  no_raw_data_commits:
+    required: true
+    blocked_patterns:
+    - data/raw/**
+    - data/canonical/**
+    - data/factors/**
+    - data/labels/**
+    - provider responses
+    - account info
+    - '**/*.parquet outside tests/fixtures documented tiny synthetic exceptions'
+    exceptions:
+    - tests/fixtures/** when tiny synthetic fixture and documented
+    - '**/.gitkeep'
+    - '**/README.md'
+    detection:
+    - git status audit
+    - git ls-files audit
+    - artifact policy checks
+  no_heavy_artifacts:
+    required: true
+    detection:
+    - find artifacts -type f -size +1M -print
+    - artifact manifest audit
+    - handoff artifact confirmation
+  no_order_api_surface:
+    required: true
+    rules:
+      data_module_cannot_place_orders: true
+      order_method_kill_switch_required: true
+    detection:
+    - read-only boundary tests
+    - source path audit
+    - Claude review
+  client_id_101_102_forbidden:
+    required: true
+    rules:
+      client_id_101_fail_closed: true
+      client_id_102_fail_closed: true
+      default_client_id_201: true
+      allowed_range_201_209: true
+    detection:
+    - client id guard tests
+    - connection profile validation tests
+    - Claude review
+  ibkr_external_calls_require_red_authorization:
+    required: true
+    rules:
+      external_provider_calls_require_red_authorization: true
+      real_data_pull_forbidden_in_ci: true
+    detection:
+    - data access mode tests
+    - RED-lane authorization checks
+    - CI configuration audit
+  request_manifest_required:
+    required: true
+    rules:
+      no_provider_pull_without_manifest: true
+      duplicate_request_detection_required: true
+    detection:
+    - manifest validation tests
+    - planner tests
+    - Claude review
+  pacing_and_resume_required:
+    required: true
+    rules:
+      pacing_guard_required: true
+      resume_ledger_required: true
+      no_silent_gaps: true
+      no_raw_overwrite: true
+    detection:
+    - pacing policy tests
+    - resume ledger tests
+    - coverage audit
+  provenance_required:
+    required: true
+    rules:
+      continuous_not_dated_truth: true
+      dated_truth_availability_must_be_logged: true
+      adjusted_vs_unadjusted_explicit: true
+    detection:
+    - provenance tests
+    - Claude review
+  timestamp_semantics_required:
+    required: true
+    rules:
+      canonical_available_ts_required: true
+      event_ts_bar_end_ts_available_ts_not_conflated: true
+    detection:
+    - canonical bar tests
+    - no_lookahead test suite
+    - Claude review
+  quality_and_coverage_required:
+    required: true
+    rules:
+      quality_report_required: true
+      coverage_report_required: true
+      silent_gaps_fail_closed: true
+    detection:
+    - quality report tests
+    - coverage report tests
+    - Claude review
+  dataset_version_required:
+    required: true
+    rules:
+      dataset_version_requires_manifest_quality_and_coverage: true
+      reproducible_hashes_required: true
+    detection:
+    - dataset version tests
+    - registry audit
+  locked_test_metadata_required:
+    required: true
+    rules:
+      partition_plan_required: true
+      locked_test_contamination_metadata_rules_required: true
+    detection:
+    - partition plan tests
+    - Claude review
+  batch_separation_required:
+    required: true
+    rules:
+      mini_main_es_nq_rty: true
+      micro_secondary_mes_mnq_m2k: true
+      max_concurrent_roots_le_3: true
+      do_not_mix_mini_and_micro_batches: true
+    detection:
+    - batch plan tests
+    - Claude review
+  acceptance_gate_coverage_required:
+    required: true
+    rules:
+      every_phase_in_exactly_one_gate: true
+      no_phase_missing_from_gates: true
+    detection:
+    - campaign.yaml validation script
+    - PHASE_PLAN cross-check
+  no_test_weakening:
+    required: true
+    rules:
+      test_removals_require_explicit_phase_scope: true
+      review_required_for_test_changes: true
+      fake_completion_forbidden: true
+    detection:
+    - diff review
+    - Claude review
+    - semantic done-check
+  no_broker_live_paper_scope:
+    required: true
+    blocked_scope:
+    - broker execution
+    - order placement
+    - account trading
+    - paper trading
+    - live trading
+    - real-time signal loop
+    - order routing
+    detection:
+    - source path audit
+    - dependency audit
+    - Claude review
+  no_alpha_or_research_scope:
+    required: true
+    blocked_scope:
+    - alpha search
+    - factor research
+    - label research
+    - strategy optimization
+    - portfolio allocation
+    - L2 replay
+    - ML/DL expansion
+    detection:
+    - source path audit
+    - dependency audit
+    - Claude review
+  local_wsl2_path:
+    required: true
+    allowed_repo_root: ~/projects/alpha_system
+    forbidden_paths:
+    - /mnt/c
+    - OneDrive
+    - Dropbox
+    - Google Drive
+    - Windows-synced folders
+    detection:
+    - RUN_INIT preflight
+    - worktree path audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: raw data staged
+  condition: files under data/raw, data/canonical, data/factors, or data/labels staged outside
+    allowed fixtures
+  action: block_merge_and_repair
+- name: provider response or account info staged
+  condition: raw provider responses, IBKR logs, or account information staged
+  action: block_merge_and_repair
+- name: heavy artifact staged
+  condition: large artifacts, parquet/feather/arrow, full generated bundles, or model binaries
+    staged outside allowed synthetic fixtures
+  action: block_merge_and_repair
+- name: local DB staged
+  condition: sqlite/db/db-journal/wal files staged
+  action: block_merge_and_repair
+- name: broker/live/paper/order code introduced
+  condition: broker, live, paper, order-routing, or account-trading implementation appears
+  action: block_merge_and_escalate
+- name: order API reachable through data module
+  condition: the data module can place orders or import order/account trading APIs
+  action: block_merge_and_escalate
+- name: clientId 101 or 102 accepted
+  condition: connection profile accepts clientId 101 or 102
+  action: block_merge_and_repair
+- name: external IBKR pull without authorization
+  condition: external IBKR provider call attempted without RED-lane and data authorization env
+  action: stop_and_escalate
+- name: real data pull run in CI
+  condition: a real provider pull executes in CI
+  action: block_merge_and_escalate
+- name: alpha or research scope creep
+  condition: alpha search, factor/label/strategy research, ML, or portfolio allocation code appears
+  action: block_merge_and_escalate
+- name: continuous futures treated as dated-contract truth
+  condition: provider-continuous CONTFUT history is used as dated-contract truth
+  action: block_merge_and_repair
+- name: canonical bars missing available_ts
+  condition: canonical bar contract omits available_ts or conflates timestamp fields
+  action: block_merge_and_repair
+- name: data gaps silently ignored
+  condition: coverage or quality path permits silent gaps
+  action: block_merge_and_repair
+- name: tests weakened without explicit phase scope
+  condition: tests removed, skipped, or relaxed without explicit authorization and review
+  action: block_merge_and_rework
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, or dependencies disagree between files
+  action: block_campaign_execution_until_fixed
+- name: alpha/profitability/tradability claim detected
+  condition: unqualified alpha, tradability, profitability, market-beating, production-ready,
+    live-ready, or broker-ready claim appears
+  action: block_merge_and_rework
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced
+    folder
+  action: stop_run_init_or_worktree_create
