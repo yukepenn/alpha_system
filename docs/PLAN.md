@@ -44,6 +44,16 @@ The target workflow moves from data quality to reviewed research evidence:
 The workflow does not imply that any factor, strategy, or model is alpha,
 tradable, profitable, robust, or production-ready.
 
+## Onboarding References
+
+- `docs/ONBOARDING.md`
+- `docs/RESEARCHER_GUIDE.md`
+- `docs/AI_AGENT_GUIDE.md`
+- `docs/CLI_REFERENCE.md`
+- `docs/EXAMPLE_WORKFLOWS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/RESEARCH_INTERPRETATION_POLICY.md`
+
 ## V1 Exclusions
 
 The following must not become hard dependencies in v1:

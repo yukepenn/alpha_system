@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_SYSTEM_V1` has completed phases `ASV1-P00` through `ASV1-P27`; the L2 readiness gate from ASV1-P25 to ASV1-P26 is satisfied in design/fixture-only scope. The next planned phase is `ASV1-P28` Documentation, Onboarding, and Agent Runbooks. The repo now includes the local-first harness baseline, core contracts, metadata registry, canonical 1-minute data layer, calendar/data-quality checks, factor and label foundations, factor diagnostics/reports, signal and strategy contracts, reference 1-minute backtest truth, cost/slippage semantics, position management, portfolio target/sizing, fast-path parity scaffolding, bounded grid workflows, hardened experiment registry modules, the ML/factor-combination MVP, multi-symbol universe readiness, design-only L2 readiness schemas, a fixture-only L2-derived feature skeleton, and the review artifact layer.
+`ALPHA_SYSTEM_V1` has completed phases `ASV1-P00` through `ASV1-P28`; the L2 readiness gate from ASV1-P25 to ASV1-P26 is satisfied in design/fixture-only scope. The next planned phase is `ASV1-P29` End-to-End Local v0.1 Validation and Campaign Closeout. The repo now includes the local-first harness baseline, core contracts, metadata registry, canonical 1-minute data layer, calendar/data-quality checks, factor and label foundations, factor diagnostics/reports, signal and strategy contracts, reference 1-minute backtest truth, cost/slippage semantics, position management, portfolio target/sizing, fast-path parity scaffolding, bounded grid workflows, hardened experiment registry modules, the ML/factor-combination MVP, multi-symbol universe readiness, design-only L2 readiness schemas, a fixture-only L2-derived feature skeleton, the review artifact layer, and researcher/AI Agent onboarding docs.
 
-The ASV1-P27 review artifact layer adds `src/alpha_system/reports/review_bundle.py`, `src/alpha_system/reports/source_map.py`, `src/alpha_system/reports/audit_report.py`, `src/alpha_system/reports/release_report.py`, `src/alpha_system/reports/bundle_validation.py`, `src/alpha_system/reports/claim_checks.py`, `docs/REVIEW_BUNDLES.md`, `docs/SOURCE_MAPS.md`, `docs/AUDIT_REPORTS.md`, `configs/reports/review_bundle.yaml`, and the `alpha report build` review-bundle command. Safety boundaries are unchanged: local-first execution only, SQLite remains local-only and uncommitted, reference engine remains the single PnL truth, fast path is acceleration-only and parity-gated, L2 remains design/fixture-only with no replay/queue/passive-fill/live scope, failed runs stay visible, promotion requires review, no broker/live/paper/deployment scope, no alpha/tradability claims, no raw/heavy/local-DB commits, and explicit staging only.
+The ASV1-P28 onboarding layer adds `docs/ONBOARDING.md`, `docs/RESEARCHER_GUIDE.md`, `docs/AI_AGENT_GUIDE.md`, `docs/CLI_REFERENCE.md`, `docs/EXAMPLE_WORKFLOWS.md`, `docs/TROUBLESHOOTING.md`, and `docs/RESEARCH_INTERPRETATION_POLICY.md`, with cross-references in `AGENTS.md` and `CLAUDE.md`. Safety boundaries are unchanged: local-first execution only, SQLite remains local-only and uncommitted, reference engine remains the single PnL truth, fast path is acceleration-only and parity-gated, L2 remains design/fixture-only with no replay/queue/passive-fill/live scope, failed runs stay visible, promotion requires review, no broker/live/paper/deployment scope, no alpha/tradability claims, no raw/heavy/local-DB commits, and explicit staging only.
 
 Durable phase docs live under `docs/`, and commit-eligible handoffs live under `handoffs/`. The README is expected to stay as a compact project snapshot after each merged phase; detailed phase evidence belongs in handoffs, reviews, and run-local summaries.
 
@@ -94,6 +94,13 @@ Architecture and workflow docs:
 
 - `docs/PLAN.md`
 - `docs/ARCHITECTURE.md`
+- `docs/ONBOARDING.md`
+- `docs/RESEARCHER_GUIDE.md`
+- `docs/AI_AGENT_GUIDE.md`
+- `docs/CLI_REFERENCE.md`
+- `docs/EXAMPLE_WORKFLOWS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/RESEARCH_INTERPRETATION_POLICY.md`
 - `docs/LOCAL_FIRST_STACK.md`
 - `docs/RESEARCH_WORKFLOW.md`
 - `docs/DOMAIN_BOUNDARIES.md`

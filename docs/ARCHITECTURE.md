@@ -80,6 +80,18 @@ Reports are local Markdown, CSV, and optional static HTML. They require no
 server. Report language must distinguish diagnostics, candidates, review state,
 and limitations without unsupported claims.
 
+## Onboarding Documents
+
+The practical operating guides for this architecture are:
+
+- `docs/ONBOARDING.md`
+- `docs/RESEARCHER_GUIDE.md`
+- `docs/AI_AGENT_GUIDE.md`
+- `docs/CLI_REFERENCE.md`
+- `docs/EXAMPLE_WORKFLOWS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/RESEARCH_INTERPRETATION_POLICY.md`
+
 ## Workflow 2 Boundary
 
 Ralph owns validation orchestration, review routing, verdict parsing, PR/CI,
