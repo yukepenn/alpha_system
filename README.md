@@ -14,12 +14,14 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_DATA_FOUNDATION_V1` is active. Within the `campaign_bootstrap` gate,
-`DATA-P00` and `DATA-P01` are complete, and the `DATA-P02` executor snapshot
-adds validated `DataSourceProfile` and `LocalDataRootPolicy` records. The active
-phase is `DATA-P02` - Data Source Profiles and Local Data Root Policy. The next
-phase is `DATA-P03` - IBKR Connection Profile and Client ID Guard. Ralph-owned
-review, verdict parsing, semantic done-check, PR, CI, and merge gates remain
-required before any phase PASS is recorded.
+`DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
+validated `DataSourceProfile` and `LocalDataRootPolicy` records; and the
+`DATA-P03` executor snapshot adds `IBKRConnectionProfile`,
+`IBKRClientIdPolicy`, and a diagnostic-only connection-doctor scaffold. The
+active phase is `DATA-P03` - IBKR Connection Profile and Client ID Guard. The
+next phase is `DATA-P04` - IBKR Read-Only Boundary and Order Method Kill
+Switch. Ralph-owned review, verdict parsing, semantic done-check, PR, CI, and
+merge gates remain required before any phase PASS is recorded.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -39,6 +41,15 @@ tests under `tests/unit/data/` and these durable docs:
 
 - `docs/data_foundation/DATA_SOURCE_PROFILE.md`
 - `docs/data_foundation/LOCAL_DATA_ROOT_POLICY.md`
+
+`DATA-P03` adds fail-closed IBKR historical connection configuration under
+`src/alpha_system/data/foundation/ibkr.py`. clientId `101` and `102` are
+hard-blocked, the data namespace is `201-209` with default `201`, worker IDs are
+`ES=201`, `NQ=202`, `RTY=203`, and the connection doctor records scaffold
+reachability status without opening a socket or calling IBKR. It also adds:
+
+- `docs/data_foundation/IBKR_CONNECTION_PROFILE.md`
+- `docs/data_foundation/CLIENT_ID_POLICY.md`
 
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
@@ -60,14 +71,16 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/NAMING.md`
 - `docs/data_foundation/DATA_SOURCE_PROFILE.md`
 - `docs/data_foundation/LOCAL_DATA_ROOT_POLICY.md`
+- `docs/data_foundation/IBKR_CONNECTION_PROFILE.md`
+- `docs/data_foundation/CLIENT_ID_POLICY.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
 read-only posture, canonical object names, ID prefixes, module names,
 file-naming conventions, directory layout, `DataSourceProfile`,
-`LocalDataRootPolicy`, and the `ALPHA_DATA_ROOT` local-only data-root pointer.
-Field-level acceptance rules, risks, and operator procedures remain in the
-campaign contract bundle.
+`LocalDataRootPolicy`, `IBKRConnectionProfile`, `IBKRClientIdPolicy`, and the
+`ALPHA_DATA_ROOT` local-only data-root pointer. Field-level acceptance rules,
+risks, and operator procedures remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 
