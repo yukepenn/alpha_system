@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P07` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P07` has completed its executor deliverables for Ralph validation and independent review: the `StudySpec` contract, deterministic `StudySpec` ID check, canonical round-trip helpers, pure study-budget overrun accounting, the no-StudySpec-no-diagnostics gate, focused governance unit tests, a tiny synthetic study fixture, concise governance documentation, and the `templates/governance/study_spec.template.yaml` template now exist. The `LabelSpec` contract, label-leakage guard, `FeatureRequest` contract, duplicate/equivalent exposure guard, `AlphaSpec` contract, no-code gate, `HypothesisCard` contract, and pre-registration protocol from earlier phases remain in place. No phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P08` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P08` has completed its executor deliverables for Ralph validation and independent review: the `TrialLedgerRecord` contract, deterministic `TrialLedgerRecord` ID check, canonical round-trip helpers, pure variant accounting, failed-run visibility, OOS/locked-test contamination metadata, focused governance unit tests, and concise governance documentation now exist. The `StudySpec` contract, pure study-budget overrun accounting, no-StudySpec-no-diagnostics gate, `LabelSpec` contract, label-leakage guard, `FeatureRequest` contract, duplicate/equivalent exposure guard, `AlphaSpec` contract, no-code gate, `HypothesisCard` contract, and pre-registration protocol from earlier phases remain in place. No phase PASS verdict is recorded here.
 
-The active/just-completed phase is `ARGOV-P07 — StudySpec and Study Budget Protocol` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P08 — TrialLedger and Variant Accounting`, which depends on `ARGOV-P07`.
+The active/just-completed phase is `ARGOV-P08 — TrialLedger and Variant Accounting` while the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates run. The next planned phase is `ARGOV-P09 — EvidenceBundle and Manifest Contract`, which depends on `ARGOV-P07` and `ARGOV-P08`.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -32,8 +32,9 @@ The governance docs root currently includes:
 - `docs/governance/LABEL_LEAKAGE_GUARD.md`
 - `docs/governance/STUDY_SPEC.md`
 - `docs/governance/STUDY_BUDGET.md`
+- `docs/governance/TRIAL_LEDGER.md`
 
-These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, and describe the `StudySpec` contract plus study-budget protocol. Additional governance object schemas, registry integration, CLI behavior, and report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, and describe the `TrialLedgerRecord` contract plus variant accounting. Additional governance object schemas, registry integration, CLI behavior, and report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -139,6 +140,7 @@ Governance docs:
 - `docs/governance/LABEL_LEAKAGE_GUARD.md`
 - `docs/governance/STUDY_SPEC.md`
 - `docs/governance/STUDY_BUDGET.md`
+- `docs/governance/TRIAL_LEDGER.md`
 
 ## Directory Layout
 
@@ -169,7 +171,7 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new CLI commands are added by `ARGOV-P07`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, and `alpha_system.governance.study_spec`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
+No new CLI commands are added by `ARGOV-P08`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, and `alpha_system.governance.trial_ledger`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
 
 ```bash
 python -c "import alpha_system.governance"
