@@ -1,0 +1,23 @@
+bundle_type: review_bundle
+review_status: not_reviewed
+no_lookahead_validation_status: not_recorded
+source_patterns:
+  - src/alpha_system/reports/review_bundle.py
+  - src/alpha_system/reports/source_map.py
+  - src/alpha_system/reports/audit_report.py
+  - src/alpha_system/reports/release_report.py
+  - src/alpha_system/reports/bundle_validation.py
+  - src/alpha_system/reports/claim_checks.py
+  - src/alpha_system/cli/report.py
+config_patterns:
+  - configs/reports/review_bundle.yaml
+test_patterns:
+  - tests/unit/reports/**/*.py
+  - tests/unit/test_source_map*.py
+  - tests/unit/test_review_bundle*.py
+  - tests/integration/test_report_build_cli_help.py
+  - tests/integration/test_review_bundle*.py
+known_limitations:
+  - The bundle is inspection evidence only.
+  - The bundle does not mutate registry or promotion state.
+  - Missing, failed, and rejected evidence is surfaced for review.
