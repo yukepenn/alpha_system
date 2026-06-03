@@ -56,9 +56,9 @@ closed.
 diagnostics. The field is consumed by later ledger and promotion phases; this
 phase only requires the declaration.
 
-`negative_controls` declares the controls a later study must run, such as random
-target, permuted labels, future-shift, and optimistic-fill controls. The
-catalog and harness are later phases.
+`negative_controls` declares the controls a later study must run. The ARGOV-P13
+catalog names are `random_target`, `permuted_labels`, `future_shift`, and
+`optimistic_fill`. The executable harness remains later scope.
 
 ## Diagnostics Gate
 

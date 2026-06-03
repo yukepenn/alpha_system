@@ -2,6 +2,7 @@
 
 __all__ = [
     "alpha_spec",
+    "canaries",
     "duplicate_exposure",
     "feature_request",
     "hypothesis_card",
