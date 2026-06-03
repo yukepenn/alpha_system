@@ -8,9 +8,9 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or 
 
 ## Current Repo Snapshot
 
-`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P15` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P15` has completed its executor deliverables for Ralph validation and independent review: the `alpha_system.governance.registry` module now persists and resolves validated governance objects by typed ID and lifecycle state using the existing local SQLite registry contract, and its integration tests use a temporary database with no database committed. Earlier durable governance modules remain in place, including the canary harness, negative-control catalog, `NegativeControlResult`, `ReviewerVerdict`, `PromotionDecision`, `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. This is the 16th of 20 planned ARGOV phases after Ralph-owned review and merge gates; no phase PASS verdict is recorded here.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway through `ARGOV-P16` of the `ARGOV-P00`...`ARGOV-P19` governance campaign. `ARGOV-P16` has completed its executor deliverables for Ralph validation and independent review: governance CLI commands now live under `src/alpha_system/cli/**`, local validation helpers live under `tools/governance/**`, and `docs/governance/CLI.md` documents the command surface. Earlier durable governance modules remain in place, including the local governance registry, canary harness, negative-control catalog, `NegativeControlResult`, `ReviewerVerdict`, `PromotionDecision`, `RejectedIdeaRecord`, `EvidenceBundle`, `TrialLedgerRecord`, `StudySpec`, `LabelSpec`, `FeatureRequest`, `AlphaSpec`, `HypothesisCard`, and their associated gates. This is the 17th of 20 planned ARGOV phases after Ralph-owned review and merge gates; no phase PASS verdict is recorded here.
 
-The active/next planned phase is `ARGOV-P16 — Governance CLI and Validation Tools`. Governance registry integration and `docs/governance/REGISTRY_INTEGRATION.md` are now durable machinery for later phases.
+The active/next planned phase is `ARGOV-P17 — Unsupported-Claim Guard and Governance Report Templates`. Governance CLI commands, validation helpers, `docs/governance/CLI.md`, registry integration, and `docs/governance/REGISTRY_INTEGRATION.md` are now durable machinery for later phases.
 
 The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
 
@@ -41,8 +41,9 @@ The governance docs root currently includes:
 - `docs/governance/CANARY_HARNESS.md`
 - `docs/governance/GOVERNANCE_STATE_MACHINE.md`
 - `docs/governance/REGISTRY_INTEGRATION.md`
+- `docs/governance/CLI.md`
 
-These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, describe the `PromotionDecision` contract plus promotion-gate state machine, describe the `ReviewerVerdict` contract plus reviewer-independence rule, describe the negative-control catalog plus `NegativeControlResult` contract, describe the synthetic canary harness, and document governance registry persistence. CLI behavior and report builders remain for later phases.
+These docs describe the admissibility protocol at a high level, define the canonical governance object names and prefixes, document the shared ID, serialization, hashing, and fail-closed validation primitives, describe the `AlphaSpec` contract plus no-code gate, describe the `HypothesisCard` plus pre-registration linkage, describe the `FeatureRequest` contract plus duplicate-exposure guard, describe the `LabelSpec` contract plus label-leakage guard, describe the `StudySpec` contract plus study-budget protocol, describe the `TrialLedgerRecord` contract plus variant accounting, describe the `EvidenceBundle` contract plus manifest contract, describe the `RejectedIdeaRecord` research graveyard ledger, describe the `PromotionDecision` contract plus promotion-gate state machine, describe the `ReviewerVerdict` contract plus reviewer-independence rule, describe the negative-control catalog plus `NegativeControlResult` contract, describe the synthetic canary harness, document governance registry persistence, and document the governance CLI. Report builders remain for later phases.
 
 ## Campaign Source Of Truth
 
@@ -152,9 +153,12 @@ Governance docs:
 - `docs/governance/EVIDENCE_BUNDLE.md`
 - `docs/governance/REJECTED_IDEA_LEDGER.md`
 - `docs/governance/PROMOTION_GATE.md`
+- `docs/governance/REVIEWER_INDEPENDENCE.md`
 - `docs/governance/GOVERNANCE_STATE_MACHINE.md`
 - `docs/governance/NEGATIVE_CONTROLS.md`
 - `docs/governance/CANARY_HARNESS.md`
+- `docs/governance/REGISTRY_INTEGRATION.md`
+- `docs/governance/CLI.md`
 
 ## Directory Layout
 
@@ -169,8 +173,11 @@ Commit-eligible policy and campaign files live under:
 - `evals/`
 - `configs/`
 - `templates/`
+- `src/alpha_system/cli/`
 - `src/alpha_system/governance/`
+- `tools/governance/`
 - `tests/unit/governance/`
+- `tests/integration/governance/`
 - `tests/no_lookahead/`
 
 Local data and generated artifact roots are present for structure only:
@@ -185,15 +192,17 @@ Local data and generated artifact roots are present for structure only:
 
 ## Useful Commands
 
-No new user CLI commands are added by `ARGOV-P14`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, `alpha_system.governance.trial_ledger`, `alpha_system.governance.evidence_bundle`, `alpha_system.governance.rejected_idea`, `alpha_system.governance.promotion`, `alpha_system.governance.promotion_gate`, `alpha_system.governance.reviewer_verdict`, `alpha_system.governance.canaries`, and `alpha_system.governance.canaries.harness`. Governance templates now include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
+The governance CLI command group is `alpha governance`. It includes `validate-spec`, `register-trial`, `build-evidence`, `review`, and `promote`; see `docs/governance/CLI.md` for arguments and gate behavior. The batch validation helper is `python tools/governance/validate_objects.py`. Durable governance modules now include `alpha_system.governance.ids`, `alpha_system.governance.serialization`, `alpha_system.governance.validation`, `alpha_system.governance.alpha_spec`, `alpha_system.governance.hypothesis_card`, `alpha_system.governance.feature_request`, `alpha_system.governance.duplicate_exposure`, `alpha_system.governance.label_spec`, `alpha_system.governance.label_leakage_guard`, `alpha_system.governance.study_spec`, `alpha_system.governance.trial_ledger`, `alpha_system.governance.evidence_bundle`, `alpha_system.governance.rejected_idea`, `alpha_system.governance.promotion`, `alpha_system.governance.promotion_gate`, `alpha_system.governance.reviewer_verdict`, `alpha_system.governance.registry`, `alpha_system.governance.canaries`, and `alpha_system.governance.canaries.harness`. Governance templates include `templates/governance/alpha_spec.template.yaml`, `templates/governance/hypothesis_card.template.yaml`, and `templates/governance/study_spec.template.yaml`. Local validation commands include:
 
 ```bash
 python -c "import alpha_system.governance"
 python -m pytest tests/unit/governance/test_canary_harness.py -q
 python -m pytest tests/unit/governance/test_negative_controls.py -q
 python -m pytest tests/unit/governance -q
+python -m pytest tests/integration/governance -q
 python -m pytest tests/no_lookahead/test_governance_canaries.py -q
 python -m pytest tests/no_lookahead -q
+python tools/governance/validate_objects.py --object AlphaSpec:tests/fixtures/governance/alpha_spec_valid.json
 python tools/verify.py --smoke
 python tools/verify.py --all
 python tools/hooks/canary_runner.py
