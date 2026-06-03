@@ -13,6 +13,7 @@ GOVERNANCE_MODULES = (
     "alpha_system.governance.feature_request",
     "alpha_system.governance.duplicate_exposure",
     "alpha_system.governance.label_spec",
+    "alpha_system.governance.label_leakage_guard",
     "alpha_system.governance.study_spec",
     "alpha_system.governance.trial_ledger",
     "alpha_system.governance.evidence_bundle",
