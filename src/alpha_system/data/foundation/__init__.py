@@ -20,6 +20,9 @@ from alpha_system.data.foundation.datasets import (
 from alpha_system.data.foundation.ibkr import (
     IBKRClientIdPolicy,
     IBKRConnectionProfile,
+    IBKRReadOnlyApiBoundary,
+    ReadOnlyBoundaryViolation,
+    build_read_only_ibkr_boundary,
     run_connection_doctor,
 )
 from alpha_system.data.foundation.instruments import (
@@ -67,6 +70,7 @@ __all__ = [
     "HistoricalRequestSpec",
     "IBKRClientIdPolicy",
     "IBKRConnectionProfile",
+    "IBKRReadOnlyApiBoundary",
     "InstrumentMasterRecord",
     "LocalDataRootPolicy",
     "MicroBatchPolicy",
@@ -80,5 +84,7 @@ __all__ = [
     "SymbolBatchPlan",
     "TimestampSemanticsPolicy",
     "TradingCalendarRecord",
+    "ReadOnlyBoundaryViolation",
+    "build_read_only_ibkr_boundary",
     "run_connection_doctor",
 ]

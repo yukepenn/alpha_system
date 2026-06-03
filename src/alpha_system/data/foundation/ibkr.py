@@ -7,14 +7,18 @@ no sockets, imports no IBKR client library, and reads no credentials at import t
 
 from __future__ import annotations
 
+import logging
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from ipaddress import ip_address
 from types import MappingProxyType
 
-from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sources import (
+    DataAccessMode,
+    DataFoundationValidationError,
+)
 
 DEFAULT_IBKR_HOST = "127.0.0.1"
 DEFAULT_IBKR_PORT = 4002
@@ -30,6 +34,55 @@ DEFAULT_IBKR_WORKER_CLIENT_IDS: Mapping[str, int] = MappingProxyType(
 )
 IBKR_CLIENT_ID_COLLISION_POLICY = "fail_closed"
 ALLOWED_IBKR_ENVIRONMENTS = frozenset({"local_wsl2", "local_linux", "ci_scaffold"})
+READ_ONLY_IBKR_API_METHODS: frozenset[str] = frozenset(
+    {
+        "cancelHistoricalData",
+        "reqHeadTimeStamp",
+        "reqHistoricalData",
+        "reqHistoricalSchedule",
+    }
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+_FORBIDDEN_API_METHOD_TERMS: frozenset[str] = frozenset(
+    {
+        "account",
+        "accounts",
+        "broker",
+        "execution",
+        "executions",
+        "fill",
+        "fills",
+        "globalcancel",
+        "live",
+        "openorder",
+        "openorders",
+        "order",
+        "orders",
+        "portfolio",
+        "position",
+        "positions",
+        "paper",
+        "trade",
+        "trades",
+        "trading",
+    }
+)
+
+_FORBIDDEN_API_METHOD_SUBSTRINGS: tuple[str, ...] = (
+    "account",
+    "broker",
+    "execution",
+    "globalcancel",
+    "openorder",
+    "order",
+    "portfolio",
+    "position",
+    "paper",
+    "trade",
+    "trading",
+)
 
 
 def _now_utc() -> datetime:
@@ -276,7 +329,9 @@ class IBKRClientIdPolicy:
         )
         return normalized
 
-    def check_collision(self, requested_client_id: object, active_client_ids: Iterable[object]) -> int:
+    def check_collision(
+        self, requested_client_id: object, active_client_ids: Iterable[object]
+    ) -> int:
         """Validate that a requested clientId is not already active."""
 
         requested = self.validate_client_id(requested_client_id)
@@ -286,10 +341,7 @@ class IBKRClientIdPolicy:
 
         active = {self.validate_client_id(client_id) for client_id in active_client_ids}
         if requested in active:
-            msg = (
-                f"client_id {requested} is already in use; "
-                "collision_policy fail_closed"
-            )
+            msg = f"client_id {requested} is already in use; collision_policy fail_closed"
             raise DataFoundationValidationError(msg)
         return requested
 
@@ -569,6 +621,219 @@ def run_connection_doctor(
     )
 
 
+class ReadOnlyBoundaryViolation(DataFoundationValidationError, AttributeError):
+    """Raised when the IBKR data boundary refuses a non-historical API method."""
+
+
+def _api_method_token(value: object) -> str:
+    raw = _require_text(value, "method_name")
+    normalized: list[str] = []
+    previous = ""
+    for character in raw:
+        if character in {"-", ".", " "}:
+            normalized.append("_")
+        elif character == "_":
+            normalized.append(character)
+        elif character.isupper():
+            if previous and (previous.islower() or previous.isdigit()):
+                normalized.append("_")
+            normalized.append(character.lower())
+        else:
+            normalized.append(character.lower())
+        previous = character
+
+    token = "".join(normalized).strip("_")
+    while "__" in token:
+        token = token.replace("__", "_")
+    if not token.replace("_", "").isalnum():
+        msg = f"method_name contains invalid API method token {raw!r}"
+        raise DataFoundationValidationError(msg)
+    return token
+
+
+def _api_method_is_forbidden(method_name: object) -> bool:
+    token = _api_method_token(method_name)
+    parts = frozenset(token.split("_"))
+    compact = token.replace("_", "")
+    return bool(
+        parts & _FORBIDDEN_API_METHOD_TERMS
+        or any(term in compact for term in _FORBIDDEN_API_METHOD_SUBSTRINGS)
+    )
+
+
+def _refuse_api_method(method_name: object, reason: str) -> None:
+    method = _require_text(method_name, "method_name")
+    _LOGGER.error(
+        "IBKR data read-only boundary refused API method %s",
+        method,
+        extra={"ibkr_api_method": method, "reason": reason},
+    )
+    msg = (
+        f"IBKR data read-only boundary refuses API method {method!r}: {reason}. "
+        "Only registered historical read-only methods are allowed."
+    )
+    raise ReadOnlyBoundaryViolation(msg)
+
+
+def _validate_read_only_api_method(method_name: object) -> str:
+    method = _require_text(method_name, "method_name")
+    if _api_method_is_forbidden(method):
+        _refuse_api_method(method, "method is outside the historical data surface")
+    if method not in READ_ONLY_IBKR_API_METHODS:
+        _refuse_api_method(method, "method is not in the registered read-only surface")
+    return method
+
+
+def _normalize_read_only_methods(
+    value: object,
+) -> Mapping[str, Callable[..., object]]:
+    if not isinstance(value, Mapping):
+        msg = "read_only_methods must be a mapping of read-only API method names to callables"
+        raise DataFoundationValidationError(msg)
+
+    normalized: dict[str, Callable[..., object]] = {}
+    for method_name, handler in value.items():
+        method = _validate_read_only_api_method(method_name)
+        if not callable(handler):
+            msg = f"read_only_methods[{method!r}] must be callable"
+            raise DataFoundationValidationError(msg)
+        normalized[method] = handler
+    return MappingProxyType(normalized)
+
+
+@dataclass(frozen=True, slots=True)
+class IBKRReadOnlyApiBoundary:
+    """Single historical-data seam for IBKR access from the data module."""
+
+    profile: IBKRConnectionProfile = field(default_factory=IBKRConnectionProfile.ibkr_historical)
+    access_mode: DataAccessMode = field(default_factory=DataAccessMode.dry_run)
+    read_only_methods: Mapping[str, Callable[..., object]] = field(
+        default_factory=lambda: MappingProxyType({}),
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.profile, IBKRConnectionProfile):
+            msg = "IBKRReadOnlyApiBoundary requires an IBKRConnectionProfile"
+            raise DataFoundationValidationError(msg)
+        if self.profile.read_only_mode is not True:
+            msg = "IBKRReadOnlyApiBoundary requires read_only_mode=true"
+            raise DataFoundationValidationError(msg)
+        if not isinstance(self.access_mode, DataAccessMode):
+            msg = "IBKRReadOnlyApiBoundary requires a DataAccessMode"
+            raise DataFoundationValidationError(msg)
+
+        methods = _normalize_read_only_methods(self.read_only_methods)
+        object.__setattr__(self, "read_only_methods", methods)
+
+    def __getattr__(self, name: str) -> object:
+        if name.startswith("__"):
+            raise AttributeError(name)
+        self.refuse_api_method(name)
+
+    def assert_read_only_method(self, method_name: object) -> str:
+        """Return a validated historical read-only API method or fail closed."""
+
+        return _validate_read_only_api_method(method_name)
+
+    def refuse_api_method(self, method_name: object) -> None:
+        """Log and refuse any method outside the historical read-only surface."""
+
+        reason = (
+            "method is not exposed by the data module; broker, account, "
+            "position, and trading surfaces are refused"
+        )
+        _refuse_api_method(method_name, reason)
+
+    def call_read_only_api(
+        self,
+        method_name: object,
+        *args: object,
+        env: Mapping[str, str] | None = None,
+        ci: bool | None = None,
+        **kwargs: object,
+    ) -> object:
+        """Call a registered historical read-only method after mode-gate validation."""
+
+        method = self.assert_read_only_method(method_name)
+        self.access_mode.validate_runtime_env(env, ci=ci)
+        if not self.access_mode.allows_external_api:
+            _refuse_api_method(
+                method, f"DataAccessMode {self.access_mode.mode!r} forbids API calls"
+            )
+
+        handler = self.read_only_methods.get(method)
+        if handler is None:
+            msg = f"no read-only API handler registered for {method!r}"
+            raise DataFoundationValidationError(msg)
+        return handler(*args, **kwargs)
+
+    def request_historical_data(
+        self,
+        *args: object,
+        env: Mapping[str, str] | None = None,
+        ci: bool | None = None,
+        **kwargs: object,
+    ) -> object:
+        """Call the registered historical-data request method."""
+
+        return self.call_read_only_api("reqHistoricalData", *args, env=env, ci=ci, **kwargs)
+
+    def cancel_historical_data(
+        self,
+        *args: object,
+        env: Mapping[str, str] | None = None,
+        ci: bool | None = None,
+        **kwargs: object,
+    ) -> object:
+        """Call the registered historical-data cancellation method."""
+
+        return self.call_read_only_api("cancelHistoricalData", *args, env=env, ci=ci, **kwargs)
+
+    def request_head_timestamp(
+        self,
+        *args: object,
+        env: Mapping[str, str] | None = None,
+        ci: bool | None = None,
+        **kwargs: object,
+    ) -> object:
+        """Call the registered historical head-timestamp request method."""
+
+        return self.call_read_only_api("reqHeadTimeStamp", *args, env=env, ci=ci, **kwargs)
+
+    def request_historical_schedule(
+        self,
+        *args: object,
+        env: Mapping[str, str] | None = None,
+        ci: bool | None = None,
+        **kwargs: object,
+    ) -> object:
+        """Call the registered historical schedule request method."""
+
+        return self.call_read_only_api(
+            "reqHistoricalSchedule",
+            *args,
+            env=env,
+            ci=ci,
+            **kwargs,
+        )
+
+
+def build_read_only_ibkr_boundary(
+    *,
+    profile: IBKRConnectionProfile | None = None,
+    access_mode: DataAccessMode | None = None,
+    read_only_methods: Mapping[str, Callable[..., object]] | None = None,
+) -> IBKRReadOnlyApiBoundary:
+    """Build the default fail-closed IBKR historical-data boundary."""
+
+    return IBKRReadOnlyApiBoundary(
+        profile=profile or IBKRConnectionProfile.ibkr_historical(),
+        access_mode=access_mode or DataAccessMode.dry_run(),
+        read_only_methods=read_only_methods or MappingProxyType({}),
+    )
+
+
 __all__ = [
     "ALLOWED_IBKR_CLIENT_ID_RANGE",
     "DEFAULT_IBKR_CLIENT_ID",
@@ -582,5 +847,9 @@ __all__ = [
     "IBKR_CLIENT_ID_COLLISION_POLICY",
     "IBKRClientIdPolicy",
     "IBKRConnectionProfile",
+    "IBKRReadOnlyApiBoundary",
+    "READ_ONLY_IBKR_API_METHODS",
+    "ReadOnlyBoundaryViolation",
+    "build_read_only_ibkr_boundary",
     "run_connection_doctor",
 ]
