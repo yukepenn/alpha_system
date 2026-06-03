@@ -2,17 +2,41 @@
 
 `alpha_system` is a local-first, research-only trading harness for developing an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
-The active campaign is `ALPHA_SYSTEM_V1`, defined in `campaigns/ALPHA_SYSTEM_V1/`. Current phase progress is tracked in `ACTIVE_CAMPAIGN.md`; run-local state and summaries live under `runs/<run_id>/` and are never committed.
+The active campaign is `ALPHA_RESEARCH_GOVERNANCE_MVP`, defined in `campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/`. Current phase progress is tracked in `ACTIVE_CAMPAIGN.md`.
 
-This repository is not a broker, paper-trading, live-trading, order-routing, or production execution system. Do not make alpha, profitability, robustness, or tradability claims without evidence and review.
+This repository is not a broker, paper-trading, live-trading, order-routing, or production execution system. It must not introduce alpha, profitability, tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_SYSTEM_V1` has executor coverage for phases `ASV1-P00` through `ASV1-P29`; ASV1-P29 is the final End-to-End Local v0.1 Validation and Campaign Closeout phase with executor recommendation `COMPLETE_WITH_WARNINGS` after clean local re-validation with PR/merge environment variables unset and the package importable via `PYTHONPATH=src`. Ralph still owns formal validation, Claude review, verdict parsing, semantic done-check, PR, CI, and merge gates. The repo includes the local-first harness baseline, core contracts, metadata registry, canonical 1-minute data layer, calendar/data-quality checks, factor and label foundations, factor diagnostics/reports, signal and strategy contracts, reference 1-minute backtest truth, cost/slippage semantics, position management, portfolio target/sizing, fast-path parity scaffolding, bounded grid workflows, hardened experiment registry modules, the ML/factor-combination MVP, multi-symbol universe readiness, design-only L2 readiness schemas, a fixture-only L2-derived feature skeleton, review artifacts, onboarding docs, and final closeout artifacts.
+`ALPHA_RESEARCH_GOVERNANCE_MVP` is underway. `ARGOV-P00` has completed its executor bootstrap deliverables for Ralph validation and independent review: the governance documentation root now exists, the repository campaign pointer references this campaign, and the root README snapshot reflects the governance campaign. No phase PASS verdict is recorded here.
 
-The ASV1-P29 closeout layer adds `docs/V0_1_VALIDATION.md`, `docs/V0_1_RELEASE_NOTES.md`, `docs/KNOWN_LIMITATIONS.md`, `docs/NEXT_CAMPAIGN_CANDIDATES.md`, `campaigns/ALPHA_SYSTEM_V1/CLOSEOUT.md`, curated `evals/v0_1/` summaries, and `tests/integration/test_end_to_end_v0_1.py`. Safety boundaries are unchanged: local-first execution only, SQLite remains local-only and uncommitted, reference engine remains the single PnL truth, fast path is acceleration-only and parity-gated, L2 remains design/fixture-only with no replay/queue/passive-fill/live scope, failed runs stay visible, promotion requires review, no broker/live/paper/deployment scope, no alpha/tradability claims, no raw/heavy/local-DB commits, and explicit staging only.
+The active phase remains `ARGOV-P00` until the Ralph-owned validation, review, verdict, PR, CI, merge, and done-check gates complete. The next planned phase is `ARGOV-P01 — Governance Package Skeleton and Canonical Naming`.
 
-Durable phase docs live under `docs/`, and commit-eligible handoffs live under `handoffs/`. The README is expected to stay as a compact project snapshot after each merged phase; detailed phase evidence belongs in handoffs, reviews, and run-local summaries.
+The prior `ALPHA_SYSTEM_V1` and `ASV1_RELEASE_HYGIENE` baselines are treated as complete. This governance campaign builds on that local-first research harness by adding the admissibility and evidence-governance protocol that future research must pass through before broader research campaigns begin.
+
+Safety boundaries are unchanged: governance-only scope, no real data ingestion, no alpha search, no broker/live/paper work, no order routing, no production deployment behavior, no raw or heavy artifact commits, no local DB commits, and explicit staging only.
+
+## Governance Docs
+
+`ARGOV-P00` adds the durable governance docs root:
+
+- `docs/governance/README.md`
+- `docs/governance/GOVERNANCE_OVERVIEW.md`
+
+These docs describe the admissibility protocol at a high level: governance objects, hard rules, lifecycle states, prohibited future-only state names, and the campaign posture of strict evidence governance with conservative market scope. No source modules, tests, configs, templates, or commands are added by this phase.
+
+## Campaign Source Of Truth
+
+The active campaign contract bundle lives under `campaigns/ALPHA_RESEARCH_GOVERNANCE_MVP/`:
+
+- `GOAL.md`
+- `PHASE_PLAN.md`
+- `campaign.yaml`
+- `ACCEPTANCE.md`
+- `RISK_REGISTER.md`
+- `RUNBOOK.md`
+
+`ACTIVE_CAMPAIGN.md` is the repository-level active-campaign pointer. Do not create a campaign-local active-campaign pointer for this campaign.
 
 ## Repository Location
 
@@ -26,25 +50,14 @@ The active repo and any active worktree must live on the WSL2 Linux filesystem. 
 
 ## Workflow 2 Boundary
 
-Frontier Workflow 2 uses Ralph as the strict autonomous driver. Codex executes generated phase specs and writes executor output and handoffs. Ralph owns formal validation, Claude review, verdict parsing, repair orchestration, semantic done-checks, PR creation, CI, and merge gates.
+Frontier Workflow 2 uses Ralph as the strict autonomous driver. Codex executes generated phase specs and writes executor output and commit-eligible handoffs. Ralph owns formal validation, independent review, verdict parsing, repair orchestration, semantic done-checks, PR creation, CI, and merge gates.
 
 Required safety defaults:
 
-- STOP files stop before provider, done-check, PR, CI, merge, or next-phase actions.
-- Failed runs must remain visible in run artifacts and handoffs.
-- Yellow phases require fresh Claude Opus review before merge eligibility.
+- STOP files halt the Workflow 2 loop at the configured checkpoints.
+- Failed runs and rejected ideas must remain visible to the governance process.
+- Yellow phases require fresh independent review before merge eligibility.
 - No phase may weaken or game tests.
-
-Normal provider-wired campaign commands:
-
-```bash
-just frontier-run-next ALPHA_SYSTEM_V1
-just frontier-run-next-x ALPHA_SYSTEM_V1 <phase_count>
-```
-
-Both commands create PRs, wait for required checks, run merge gate, and attempt the normal protected-branch merge path with auto-merge fallback when GitHub branch policy is still settling. They do not use `--admin`.
-
-Use `ACTIVE_CAMPAIGN.md` as the durable tracked pointer after each phase. Use `runs/<run_id>/RUN_SUMMARY.md` for the local audit trail of a specific run.
 
 ## Git Discipline
 
@@ -63,23 +76,15 @@ Before any commit, inspect:
 ```bash
 git status --short
 git diff --cached --name-only
-git ls-files runs .frontier/upgrade_reports
 ```
 
-`git diff --cached --name-only` must contain no `runs/` path, and `git ls-files runs .frontier/upgrade_reports` must return empty.
+The staged set must contain only commit-eligible paths for the active phase and must not include forbidden data, cache, log, DB, or heavy artifact paths.
 
 ## Artifact Policy
 
 Never commit raw data, canonical generated data, materialized factor values, materialized label values, local SQLite or DB files, heavy artifacts, generated reports, logs, caches, local model artifacts, credential material, or local environment files.
 
-Local-only paths include:
-
-- `runs/**`
-- data payloads under `data/raw/`, `data/canonical/`, `data/factors/`, `data/labels/`, and `data/cache/`
-- local DB files under `metadata/`
-- generated outputs under `artifacts/`
-
-Permitted placeholders are limited to `.gitkeep` or `README.md` files where the campaign policy allows them. Commit-eligible phase handoffs belong under `handoffs/<PHASE_ID>.md`; run-local handoffs under `runs/<run_id>/...` are never staged or committed.
+Permitted placeholders are limited to `.gitkeep` or `README.md` files where the campaign policy allows them. Commit-eligible phase handoffs for this campaign belong under `handoffs/ALPHA_RESEARCH_GOVERNANCE_MVP/`.
 
 ## Documentation Map
 
@@ -110,7 +115,10 @@ Architecture and workflow docs:
 - `docs/REPRODUCIBILITY_PRINCIPLES.md`
 - `docs/CLI_COMMANDS_TARGET.md`
 
-Domain docs are added by phase under `docs/`, with matching handoffs under `handoffs/`. The campaign source of truth remains `campaigns/ALPHA_SYSTEM_V1/`.
+Governance docs:
+
+- `docs/governance/README.md`
+- `docs/governance/GOVERNANCE_OVERVIEW.md`
 
 ## Directory Layout
 
@@ -134,27 +142,13 @@ Local data and generated artifact roots are present for structure only:
 - `data/cache/`
 - `metadata/`
 - `artifacts/`
-- `runs/`
 
 ## Useful Commands
+
+No new commands are added by `ARGOV-P00`. Existing local validation commands include:
 
 ```bash
 python tools/verify.py --smoke
 python tools/verify.py --all
 python tools/hooks/canary_runner.py
-python tools/frontier/bootstrap.py doctor
-just frontier-run-campaign <campaign>
-just frontier-run-next <campaign>
-just frontier-run-next-x <campaign> <phase_count>
-just frontier-run-campaign-mock <campaign>
-just frontier-run-next-mock <campaign>
-just frontier-run-next-x-mock <campaign> <phase_count>
-just frontier-run-campaign-ledger <campaign>
-just frontier-run-overnight <campaign>
-just frontier-resume <run_id>
-just frontier-tail <run_id>
-just frontier-summary <run_id>
-just frontier-stop <run_id>
-just frontier-heartbeat <run_id>
-just frontier-acceptance
 ```
