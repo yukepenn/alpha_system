@@ -106,6 +106,7 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
         "src/**",
         "tests/**",
         "configs/**",
+        "templates/**",
         "factors/.gitkeep",
         "factors/**/.gitkeep",
         "strategies/.gitkeep",

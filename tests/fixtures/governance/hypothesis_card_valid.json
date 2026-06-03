@@ -1,0 +1,17 @@
+{
+  "hypothesis_id": "hyp_bfdf9c2db762c2c88a68b1c5",
+  "title": "Synthetic volume availability hypothesis",
+  "family": "synthetic microstructure governance",
+  "rationale": "Synthetic volume availability can document a research premise before any implementation work is considered.",
+  "expected_mechanism": "The proposed mechanism is that synthetic volume changes would only be evaluated after declared timestamp availability rules.",
+  "falsification_criteria": [
+    "Reject the record if future leakage checks find that any required input is unavailable at the declared decision time.",
+    "Block the record if future diagnostics cannot separate the proposed mechanism from a simple synthetic null control."
+  ],
+  "risks": [
+    "Synthetic fixtures may be too small to represent later research constraints.",
+    "Timestamp assumptions may be incomplete when future governance objects add stricter checks."
+  ],
+  "author": "codex-fixture",
+  "created_at": "2026-06-03T13:52:09Z"
+}

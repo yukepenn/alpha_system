@@ -320,6 +320,7 @@ artifacts:
     - "src/**"
     - "tests/**"
     - "configs/**"
+    - "templates/**"
     - "factors/.gitkeep"
     - "factors/**/.gitkeep"
     - "strategies/.gitkeep"
