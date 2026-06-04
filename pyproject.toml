@@ -18,6 +18,9 @@ dev = [
 ibkr = [
     "ib_insync>=0.9.86",
 ]
+databento = [
+    "databento>=0.79",
+]
 
 [project.scripts]
 alpha = "alpha_system.cli.main:main"
