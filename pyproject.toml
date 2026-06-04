@@ -15,6 +15,9 @@ dev = [
     "pytest>=7.4",
     "ruff>=0.8",
 ]
+ibkr = [
+    "ib_insync>=0.9.86",
+]
 
 [project.scripts]
 alpha = "alpha_system.cli.main:main"
