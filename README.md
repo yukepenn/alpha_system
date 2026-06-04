@@ -20,15 +20,14 @@ validated `DataSourceProfile` and `LocalDataRootPolicy` records; and the
 `IBKRClientIdPolicy`, and a diagnostic-only connection-doctor scaffold. The
 `ibkr_read_only_boundary` gate has the `DATA-P04` executor scope complete:
 read-only IBKR API boundary, order-method kill switch, and `DataAccessMode`
-gate. The `futures_contract_master` gate is progressing with the `DATA-P05`
-executor scope complete: `InstrumentMasterRecord`, six to-be-verified futures
+gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
+`DATA-P05` adds `InstrumentMasterRecord`, six to-be-verified futures
 contract-economics anchors, and exact `tick_value = tick_size * point_value`
-validation. The active phase is `DATA-P05` - Futures Instrument Master and
-Contract Economics. The next dependent phase is `DATA-P06` - Contract Details
-Snapshot and Contract Discovery. The reviewed passing baseline remains
-`DATA-P00` through `DATA-P04` (5 of 25 phases) until Ralph-owned review,
-verdict parsing, semantic done-check, PR, CI, and merge gates record the next
-phase outcome.
+validation; `DATA-P06` adds `ContractDetailsSnapshot`,
+`FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
+next phase is `DATA-P07` - Historical Request Spec and Manifest. Ralph still
+owns formal validation, independent review, verdict parsing, semantic
+done-check, PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -77,6 +76,14 @@ value. It also adds:
 
 - `docs/data_foundation/INSTRUMENT_MASTER.md`
 
+`DATA-P06` adds dated futures contract identity and contract-details provenance
+under `src/alpha_system/data/foundation/instruments.py`. It defines
+`FuturesContractRecord`, immutable content-addressed `ContractDetailsSnapshot`
+records, and a pure contract-discovery scaffold that logs includeExpired
+availability as discovered, not assumed. It also adds:
+
+- `docs/data_foundation/CONTRACT_DISCOVERY.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -102,6 +109,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/CLIENT_ID_POLICY.md`
 - `docs/data_foundation/READ_ONLY_BOUNDARY.md`
 - `docs/data_foundation/INSTRUMENT_MASTER.md`
+- `docs/data_foundation/CONTRACT_DISCOVERY.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -109,9 +117,10 @@ read-only posture, canonical object names, ID prefixes, module names,
 file-naming conventions, directory layout, `DataSourceProfile`,
 `LocalDataRootPolicy`, `IBKRConnectionProfile`, `IBKRClientIdPolicy`,
 `IBKRReadOnlyApiBoundary`, `DataAccessMode`, `InstrumentMasterRecord`,
-contract-economics anchors, and the `ALPHA_DATA_ROOT` local-only data-root
-pointer. Field-level acceptance rules, risks, and operator procedures remain in
-the campaign contract bundle.
+contract-economics anchors, `FuturesContractRecord`,
+`ContractDetailsSnapshot`, contract-discovery availability logging, and the
+`ALPHA_DATA_ROOT` local-only data-root pointer. Field-level acceptance rules,
+risks, and operator procedures remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 

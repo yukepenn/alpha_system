@@ -1,0 +1,42 @@
+{
+  "fixture_kind": "synthetic_contract_details",
+  "synthetic": true,
+  "description": "Tiny synthetic DATA-P06 contract-details fixture; not an IBKR provider response.",
+  "root_symbol": "ES",
+  "sec_type": "FUT",
+  "include_expired": true,
+  "include_expired_support_status": "supported",
+  "evidence_ref": "fixture:tests/fixtures/data/synthetic_contract_details_es_h5.json",
+  "contract_record": {
+    "contract_id": "fcr_es_2025_03",
+    "root_symbol": "ES",
+    "contract_month": "2025-03",
+    "ib_symbol": "ES",
+    "trading_class": "ES",
+    "con_id": 123456789,
+    "last_trade_date_or_contract_month": "20250321",
+    "expiration": "2025-03-21",
+    "multiplier": "50",
+    "exchange": "CME",
+    "currency": "USD",
+    "include_expired_support_status": "not_checked"
+  },
+  "snapshot": {
+    "snapshot_id": "cds_es_2025_03_synthetic",
+    "contract_id": "fcr_es_2025_03",
+    "raw_details_ref": "fixture:tests/fixtures/data/synthetic_contract_details_es_h5.json#normalized_fields",
+    "retrieved_at": "2026-06-03T00:00:00+00:00",
+    "client_id": 201,
+    "source": "dsrc_synthetic_contract_details"
+  },
+  "normalized_fields": {
+    "symbol": "ES",
+    "secType": "FUT",
+    "exchange": "CME",
+    "currency": "USD",
+    "tradingClass": "ES",
+    "conId": 123456789,
+    "lastTradeDateOrContractMonth": "20250321",
+    "multiplier": "50"
+  }
+}
