@@ -54,8 +54,12 @@ unadjusted state, required roll evidence and validation status, and
 `docs/data_foundation/ROLL_POLICY.md`. The `canonicalization_quality_versioning`
 gate has the `DATA-P14` executor scope complete: provider-shaped
 `ParsedBarRecord` validation, deterministic raw-object bar parsing with
-raw-to-parsed provenance, and `docs/data_foundation/PARSED_BARS.md`. The next
-phase is `DATA-P15` - Canonical 1m Bar Contract. Ralph still owns formal validation,
+raw-to-parsed provenance, and `docs/data_foundation/PARSED_BARS.md`; DATA-P15
+adds `CanonicalBarRecord`, `TimestampSemanticsPolicy`, explicit
+`available_ts` no-lookahead validation, canonical timestamp tests, and
+`docs/data_foundation/CANONICAL_BARS.md`. This advances the
+`canonicalization_quality_versioning` gate through DATA-P15. The next phase is
+`DATA-P16` - Data Quality Checks and Coverage Reports. Ralph still owns formal validation,
 independent review, verdict parsing, semantic done-check, PR, CI, and merge
 gates.
 
@@ -191,6 +195,15 @@ fail-closed malformed-row behavior. It also adds:
 
 - `docs/data_foundation/PARSED_BARS.md`
 
+`DATA-P15` adds the canonical 1-minute bar contract under
+`src/alpha_system/data/foundation/bars.py`. It defines `CanonicalBarRecord` and
+`TimestampSemanticsPolicy` with separate `bar_start_ts`, `bar_end_ts`,
+`event_ts`, `available_ts`, and `ingested_at` fields, mandatory
+`available_ts`, `available_ts >= bar_end_ts`, OHLCV/session/quality-flag
+validation, and no-lookahead tests under `tests/no_lookahead/`. It also adds:
+
+- `docs/data_foundation/CANONICAL_BARS.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -228,6 +241,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/SESSIONS_AND_CALENDAR.md`
 - `docs/data_foundation/ROLL_POLICY.md`
 - `docs/data_foundation/PARSED_BARS.md`
+- `docs/data_foundation/CANONICAL_BARS.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -251,7 +265,9 @@ session templates, dated trading calendar records, explicit timezone/DST and
 early-close/holiday handling, roll policy, roll calendar records, required
 roll evidence and validation status, provider-continuous vs derived roll
 separation, provider-shaped parsed bars, raw-to-parsed provenance links, the
-parsed-not-canonical boundary, and the `ALPHA_DATA_ROOT` local-only data-root
+parsed-not-canonical boundary, canonical 1-minute bar fields,
+`TimestampSemanticsPolicy`, explicit `available_ts` no-lookahead semantics, and
+the `ALPHA_DATA_ROOT` local-only data-root
 pointer. Field-level
 acceptance rules, risks, and operator procedures remain in the campaign
 contract bundle.
