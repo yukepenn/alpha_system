@@ -144,3 +144,115 @@ operator-supervised ES/NQ/RTY 2018-01-01 -> present 1-minute TRADES resumable
 local backfill, which canonicalizes session-complete data and registers the
 first real accepted DatasetVersion (with DataQualityReport + CoverageReport).
 Task 1B is intentionally not started in this merge.
+
+## Task 1B — Backfill machinery + first real DatasetVersion
+
+### Files Added Or Edited
+
+Stage A merged-ready code already exists:
+
+- `src/alpha_system/data/ibkr/backfill_connect.py`
+- `src/alpha_system/data/ibkr/manifest_builder.py`
+- `src/alpha_system/data/materialize.py`
+- `configs/data/ibkr_es_nq_rty_instruments.json`
+- `configs/data/ibkr_materialize_validation.json`
+- `tests/unit/data/test_ibkr_backfill_connect.py`
+- `tests/unit/data/test_manifest_builder.py`
+- `tests/unit/data/test_materialize.py`
+- `src/alpha_system/data/ibkr/backfill.py` small edit allowing
+  `interrupt_after_chunks >= planned_count` straight pulls; the default still
+  drills.
+
+Stage C finalization edits:
+
+- `src/alpha_system/data/materialize.py` comments only.
+- `docs/data_foundation/BACKFILL_RUNBOOK.md` Task 1B operator runbook section.
+- `handoffs/ADF1_LOCAL_RESEARCH_DATA_BACKFILL.md` this handoff section.
+
+The `backfill.py` straight-pull edit lets `backfill_connect` use the guarded
+resume-drill machinery for a no-simulated-interruption pull by setting
+`interrupt_after_chunks=manifest.chunk_count`. This preserves the default drill
+behavior and does not weaken authorization, CI, raw-write, pacing-policy,
+client-id, STOP-file, or read-only boundary guards.
+
+### Independent Review
+
+Independent Opus review verdict: PASS_WITH_WARNINGS, with no blocking issues.
+Concise warning map:
+
+- W1: calendar shim is the default path for the shipped session-template config.
+- W2: coverage is wall-clock/window-shape sensitive; the operator must pass one
+  contiguous full ETH session.
+- W3: the template calendar is holiday/half-day blind and intentionally
+  over-expects bars until real calendar awareness is wired.
+- W4: the full manifest can over-generate lead/tail quarters around the desired
+  historical scope.
+- W5: `SessionType.OVERNIGHT` vs foundation `ETH` vocabulary differs internally.
+- W6: partition metadata persistence has a non-atomic re-run edge if the same
+  DatasetVersion is re-registered.
+
+### Orchestrator-Provided Stage B Results
+
+- Stage A merged-ready code already exists: `backfill_connect.py`,
+  `manifest_builder.py`, `materialize.py`, 2 configs, 3 test files, + a small
+  `backfill.py` edit (allows `interrupt_after_chunks >= planned_count` straight
+  pull; default still drills). `CI=true python -m pytest -q` → 1731 passed.
+  Independent Opus review: PASS_WITH_WARNINGS, no blocking issues.
+- Manifests generated locally: recent_slice (3 chunks, ES/NQ/RTY CONTFUT 2D) and
+  full_backfill (108 chunks = 3 symbols × 9 years 2018–2026 × 4 quarterly dated
+  FUT contracts H/M/U/Z).
+- Live recent-slice pull via `backfill_connect`: 3 raw objects, COMPLETE, 0
+  provider errors, straight pull (interruption_simulated=false), gateway
+  127.0.0.1:4002 clientId 201.
+- First REAL accepted DatasetVersion registered via `materialize`:
+  `dsv_ibkr_es_nq_rty_eth_20260603_v1`, symbols ES/NQ/RTY, window
+  2026-06-02T22:00:00Z→2026-06-03T21:00:00Z (one complete CME index ETH
+  session, America/Chicago 17:00→16:00), canonical_row_count=4140 (1380×3,
+  session-complete), coverage_status=PASSING, quality_status=WARNING
+  (non-blocking zero-volume overnight minutes), partition=latest_shadow_candidate
+  with contamination metadata, registered into a LOCAL-ONLY sqlite registry
+  outside the repo. No data/registry artifacts committed.
+
+Registry note: the accepted DatasetVersion was registered into a local-only
+SQLite registry outside the repository, matching the operator command shape
+`$ALPHA_DATA_ROOT/registry/datasets.sqlite`; the registry path/artifact was NOT
+committed.
+
+### Stage C Readiness
+
+The full 2018→present pull is ready for an operator-supervised launch path:
+
+- `full_backfill_manifest.json` shape is 108 chunks for ES/NQ/RTY quarterly dated
+  FUT contracts across 2018–2026.
+- `docs/data_foundation/BACKFILL_RUNBOOK.md` now documents prerequisites,
+  manifest generation, recent-slice materialization, resumable full-backfill
+  command shape, and the full-session materialize window rule.
+- Full backfill is explicitly multi-day, pacing-limited, and
+  operator-supervised.
+- Full 2018→present pull not executed (operator-supervised).
+
+Before launching the full job, verify that `run_local_backfill_resume_drill`
+enforces real pacing sleeps for large chunk counts. The current runner remains
+drill-oriented; a production pacing loop may be a follow-up.
+
+### Validation
+
+- `CI=true python -m pytest -q` — PASS (`1731 passed`) from the orchestrator's
+  gated Stage B run.
+- Artifact audit clean from the orchestrator's gated Stage B run; no real data,
+  registry, raw payload, cache, log, DB, Parquet, Arrow, or Feather artifacts
+  were committed.
+- `python -m compileall src/alpha_system/data` — PASS.
+- `python -m ruff check src/alpha_system/data/materialize.py` — PASS.
+- `CI=true python -m pytest tests/unit/data/test_materialize.py -q` — PASS
+  (`2 passed`).
+
+### Explicit Scope Statements
+
+- No real data/registry committed.
+- No order/account/broker scope.
+- No alpha/feature/label research.
+- No raw market rows included in this handoff.
+- No live IBKR call, network call, pip install, or git command was run by Codex
+  during Stage C.
+- Full 2018→present pull not executed (operator-supervised).
