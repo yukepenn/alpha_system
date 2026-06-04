@@ -32,6 +32,10 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
 - `MINI_BATCH_PLAN.md` describes the ES/NQ/RTY mini main-batch plan, optional
   QA/diagnostic panels, the mini/micro separation guard, the concurrency limit,
   and the no-authorization posture.
+- `PROVENANCE.md` documents the continuous-vs-dated futures provenance split,
+  the mandatory continuous diagnostic labels, discovered-not-assumed dated
+  availability, adjusted-vs-unadjusted explicitness, and the no-roll-logic
+  boundary.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator

@@ -25,7 +25,7 @@ gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
 contract-economics anchors, and exact `tick_value = tick_size * point_value`
 validation; `DATA-P06` adds `ContractDetailsSnapshot`,
 `FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
-`request_and_storage` is in progress through `DATA-P10`: `DATA-P07` adds
+`request_and_storage` is complete through `DATA-P10`: `DATA-P07` adds
 `HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
 `manifest_hash` validation, the no-manifest-no-pull guard, the synthetic sample
 manifest under `templates/data/`, and
@@ -38,8 +38,13 @@ resolution, raw-slot immutability/no-overwrite validation, and
 `docs/data_foundation/RAW_DATA_LAKE.md`. The `DATA-P10` executor scope adds
 `SymbolBatchPlan`, the ES/NQ/RTY mini main-batch pull plan, labeled optional
 secondary panels, the synthetic mini-batch manifest, and
-`docs/data_foundation/MINI_BATCH_PLAN.md`. The next phase is `DATA-P11` -
-Continuous Futures vs Dated Futures Provenance. Ralph still owns formal
+`docs/data_foundation/MINI_BATCH_PLAN.md`. The `provenance_sessions_rolls` gate
+is in progress with the `DATA-P11` executor snapshot: DATA-P11 of
+DATA-P00...DATA-P24 adds provenance-rich
+`ContinuousFuturesSeriesRecord` and `DatedFuturesSeriesRecord` validation in
+`src/alpha_system/data/foundation/series.py`, plus
+`docs/data_foundation/PROVENANCE.md`. The next phase is `DATA-P12` - Session
+Templates and Trading Calendar. Ralph still owns formal
 validation, independent review, verdict parsing, semantic done-check, PR, CI,
 and merge gates.
 
@@ -136,6 +141,17 @@ contract-truth diagnostic panels, plus the synthetic-only mini manifest
 
 - `docs/data_foundation/MINI_BATCH_PLAN.md`
 
+`DATA-P11` adds futures series provenance validation under
+`src/alpha_system/data/foundation/series.py`. It defines
+`ContinuousFuturesSeriesRecord` with the required
+`provider_continuous` / `non_orderable` / `not_dated_contract_truth` /
+`research_diagnostics_only` labels, `orderable = false`, and
+`dated_truth = false`; and it defines `DatedFuturesSeriesRecord` with explicit
+adjustment method, dated-contract universe validation, and
+`availability_source = discovered_not_assumed`. It also adds:
+
+- `docs/data_foundation/PROVENANCE.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -144,11 +160,11 @@ historical futures data foundation.
 Safety boundaries are unchanged: IBKR remains read-only historical only;
 clientId `101` and `102` remain fail-closed, the data namespace remains
 `201-209`; mini and micro batches remain separate; no provider pull proceeds
-without manifest, pacing guard, and resume ledger; no broker, order, account,
-paper, live, or real-time scope is introduced; real data is local-only via
-`ALPHA_DATA_ROOT`; no raw or heavy artifact commits, no local DB commits,
-explicit staging only, and no alpha, profitability, tradability, or
-production-readiness claims.
+without manifest, pacing guard, and resume ledger; continuous futures are never
+dated-contract truth; no broker, order, account, paper, live, or real-time
+scope is introduced; real data is local-only via `ALPHA_DATA_ROOT`; no raw or
+heavy artifact commits, no local DB commits, explicit staging only, and no
+alpha, profitability, tradability, or production-readiness claims.
 
 ## Data Foundation Docs
 
@@ -168,6 +184,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/PACING_AND_RESUME.md`
 - `docs/data_foundation/RAW_DATA_LAKE.md`
 - `docs/data_foundation/MINI_BATCH_PLAN.md`
+- `docs/data_foundation/PROVENANCE.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -184,9 +201,11 @@ duplicate-request detection, retry/backoff classification, `resume_token`, the
 no-silent-gaps and no-raw-overwrite guards, `RawDataObject`, the raw data-lake
 layout policy, immutable raw object refs, raw-slot immutability validation,
 `SymbolBatchPlan`, mini/micro batch separation, the ES/NQ/RTY primary common
-panel, labeled optional secondary panels, and the `ALPHA_DATA_ROOT` local-only
-data-root pointer. Field-level acceptance rules, risks, and operator procedures
-remain in the campaign contract bundle.
+panel, labeled optional secondary panels, continuous-vs-dated futures
+provenance separation, mandatory continuous diagnostic labels,
+discovered-not-assumed dated availability, adjusted-vs-unadjusted explicitness,
+and the `ALPHA_DATA_ROOT` local-only data-root pointer. Field-level acceptance
+rules, risks, and operator procedures remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 
