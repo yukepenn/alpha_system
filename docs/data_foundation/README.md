@@ -52,6 +52,8 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
 - `BACKFILL_RUNBOOK.md` documents the DATA-P23 local backfill resume drill,
   authorization gates, local-only output locations, resume-token behavior,
   and artifact audit.
+- `END_TO_END_DRY_RUN.md` documents the DATA-P24 synthetic end-to-end dry run,
+  lifecycle-block assertions, acceptance-audit posture, and closeout verdict.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator
