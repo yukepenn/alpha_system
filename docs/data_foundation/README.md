@@ -29,6 +29,9 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
 - `DATA_FOUNDATION_OVERVIEW.md` summarizes the read-only data truth layer,
   campaign hard rules, data-foundation object list, lifecycle state model, and
   IBKR read-only posture.
+- `MINI_BATCH_PLAN.md` describes the ES/NQ/RTY mini main-batch plan, optional
+  QA/diagnostic panels, the mini/micro separation guard, the concurrency limit,
+  and the no-authorization posture.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator

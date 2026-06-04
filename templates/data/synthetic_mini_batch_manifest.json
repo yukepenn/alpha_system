@@ -1,0 +1,106 @@
+{
+  "manifest_id": "hrm_synthetic_mini_main_es_nq_rty_common_panel_v1",
+  "batch_id": "batch_synthetic_mini_main_es_nq_rty_planning_only",
+  "request_specs": [
+    {
+      "request_spec_id": "hrs_synthetic_mini_es_common_panel_v1",
+      "source_id": "dsrc_ibkr_historical",
+      "symbol_root": "ES",
+      "contract_ref": "fcr_synthetic_es_contfut_common_panel",
+      "sec_type": "CONTFUT",
+      "exchange": "CME",
+      "currency": "USD",
+      "bar_size": "1 min",
+      "what_to_show": "TRADES",
+      "use_rth": false,
+      "duration": "synthetic multi-year planning chunks",
+      "end_datetime_policy": "present_as_of_run_explicit_end_ts_required",
+      "start_ts": "2018-01-01T00:00:00+00:00",
+      "end_ts": "2026-06-03T00:00:00+00:00",
+      "chunk_policy": {
+        "planned_chunks": 1,
+        "max_duration": "synthetic placeholder only",
+        "policy": "synthetic_planning_only_no_pull_authorization"
+      },
+      "client_id": 201
+    },
+    {
+      "request_spec_id": "hrs_synthetic_mini_nq_common_panel_v1",
+      "source_id": "dsrc_ibkr_historical",
+      "symbol_root": "NQ",
+      "contract_ref": "fcr_synthetic_nq_contfut_common_panel",
+      "sec_type": "CONTFUT",
+      "exchange": "CME",
+      "currency": "USD",
+      "bar_size": "1 min",
+      "what_to_show": "TRADES",
+      "use_rth": false,
+      "duration": "synthetic multi-year planning chunks",
+      "end_datetime_policy": "present_as_of_run_explicit_end_ts_required",
+      "start_ts": "2018-01-01T00:00:00+00:00",
+      "end_ts": "2026-06-03T00:00:00+00:00",
+      "chunk_policy": {
+        "planned_chunks": 1,
+        "max_duration": "synthetic placeholder only",
+        "policy": "synthetic_planning_only_no_pull_authorization"
+      },
+      "client_id": 202
+    },
+    {
+      "request_spec_id": "hrs_synthetic_mini_rty_common_panel_v1",
+      "source_id": "dsrc_ibkr_historical",
+      "symbol_root": "RTY",
+      "contract_ref": "fcr_synthetic_rty_contfut_common_panel",
+      "sec_type": "CONTFUT",
+      "exchange": "CME",
+      "currency": "USD",
+      "bar_size": "1 min",
+      "what_to_show": "TRADES",
+      "use_rth": false,
+      "duration": "synthetic multi-year planning chunks",
+      "end_datetime_policy": "present_as_of_run_explicit_end_ts_required",
+      "start_ts": "2018-01-01T00:00:00+00:00",
+      "end_ts": "2026-06-03T00:00:00+00:00",
+      "chunk_policy": {
+        "planned_chunks": 1,
+        "max_duration": "synthetic placeholder only",
+        "policy": "synthetic_planning_only_no_pull_authorization"
+      },
+      "client_id": 203
+    }
+  ],
+  "chunk_count": 3,
+  "expected_coverage": {
+    "synthetic": true,
+    "sample_manifest": true,
+    "plan_id": "sbp_mini_main_es_nq_rty_v1",
+    "panel_id": "mini_primary_common_panel",
+    "coverage_status": "planned_only_not_requested",
+    "roots": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "micro_roots_included": [],
+    "start_date": "2018-01-01",
+    "end_date_policy": "present_as_of_run",
+    "bar_size": "1 min",
+    "what_to_show": "TRADES",
+    "session_views": [
+      "ETH_canonical",
+      "RTH_derived"
+    ],
+    "manifest_contract": "HistoricalRequestManifest",
+    "pacing_policy_id": "rpp_ibkr_historical_conservative_tobeverified_v1",
+    "mini_micro_mixed": false,
+    "real_coverage_claim": false,
+    "authorization_claim": false,
+    "pull_authorization": false,
+    "data_exists_claim": false
+  },
+  "pacing_policy_id": "rpp_ibkr_historical_conservative_tobeverified_v1",
+  "data_root": "~/alpha_data/alpha_system",
+  "created_by": "DATA-P10 synthetic mini batch template",
+  "created_at": "2026-06-03T21:52:49+00:00",
+  "manifest_hash": "e13898961c95beb66a5707bb1549ec91ee9187ac3d38f46c6d191696429dc0d1"
+}

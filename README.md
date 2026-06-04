@@ -25,7 +25,7 @@ gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
 contract-economics anchors, and exact `tick_value = tick_size * point_value`
 validation; `DATA-P06` adds `ContractDetailsSnapshot`,
 `FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
-`request_and_storage` is in progress through `DATA-P09`: `DATA-P07` adds
+`request_and_storage` is in progress through `DATA-P10`: `DATA-P07` adds
 `HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
 `manifest_hash` validation, the no-manifest-no-pull guard, the synthetic sample
 manifest under `templates/data/`, and
@@ -35,9 +35,13 @@ adds `RequestPacingPolicy`, `HistoricalChunkRecord`, `HistoricalPullLedger`,
 `docs/data_foundation/PACING_AND_RESUME.md`. The `DATA-P09` executor scope adds
 `RawDataObject`, `RawDataLakeLayoutPolicy`, content-addressed raw path
 resolution, raw-slot immutability/no-overwrite validation, and
-`docs/data_foundation/RAW_DATA_LAKE.md`. The next phase is `DATA-P10` - ES/NQ/RTY
-Main Batch Pull Plan. Ralph still owns formal validation, independent review,
-verdict parsing, semantic done-check, PR, CI, and merge gates.
+`docs/data_foundation/RAW_DATA_LAKE.md`. The `DATA-P10` executor scope adds
+`SymbolBatchPlan`, the ES/NQ/RTY mini main-batch pull plan, labeled optional
+secondary panels, the synthetic mini-batch manifest, and
+`docs/data_foundation/MINI_BATCH_PLAN.md`. The next phase is `DATA-P11` -
+Continuous Futures vs Dated Futures Provenance. Ralph still owns formal
+validation, independent review, verdict parsing, semantic done-check, PR, CI,
+and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -121,6 +125,17 @@ state, no-silent-gaps reconciliation, and immutable content-addressed
 
 - `docs/data_foundation/RAW_DATA_LAKE.md`
 
+`DATA-P10` adds the mini main-batch plan under
+`src/alpha_system/data/foundation/batches.py`. It defines `SymbolBatchPlan`
+with exact ES/NQ/RTY mini roots, MES/MNQ/M2K micro roots,
+`max_concurrent_roots = 3`, and fail-closed rejection for any mini/micro mix.
+It also defines the primary `2018-01-01 -> present_as_of_run`, `1 min`,
+`TRADES` mini panel, the labeled optional ES/NQ long, RTY transition QA, and
+contract-truth diagnostic panels, plus the synthetic-only mini manifest
+`templates/data/synthetic_mini_batch_manifest.json`. It also adds:
+
+- `docs/data_foundation/MINI_BATCH_PLAN.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -128,11 +143,12 @@ historical futures data foundation.
 
 Safety boundaries are unchanged: IBKR remains read-only historical only;
 clientId `101` and `102` remain fail-closed, the data namespace remains
-`201-209`; no provider pull proceeds without manifest, pacing guard, and
-resume ledger; no broker, order, account, paper, live, or real-time scope is
-introduced; real data is local-only via `ALPHA_DATA_ROOT`; no raw or heavy
-artifact commits, no local DB commits, explicit staging only, and no alpha,
-profitability, tradability, or production-readiness claims.
+`201-209`; mini and micro batches remain separate; no provider pull proceeds
+without manifest, pacing guard, and resume ledger; no broker, order, account,
+paper, live, or real-time scope is introduced; real data is local-only via
+`ALPHA_DATA_ROOT`; no raw or heavy artifact commits, no local DB commits,
+explicit staging only, and no alpha, profitability, tradability, or
+production-readiness claims.
 
 ## Data Foundation Docs
 
@@ -151,6 +167,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`
 - `docs/data_foundation/PACING_AND_RESUME.md`
 - `docs/data_foundation/RAW_DATA_LAKE.md`
+- `docs/data_foundation/MINI_BATCH_PLAN.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -165,9 +182,11 @@ contract-economics anchors, `FuturesContractRecord`,
 `HistoricalChunkRecord`, `HistoricalPullLedger`, `ProviderErrorRecord`,
 duplicate-request detection, retry/backoff classification, `resume_token`, the
 no-silent-gaps and no-raw-overwrite guards, `RawDataObject`, the raw data-lake
-layout policy, immutable raw object refs, raw-slot immutability validation, and
-the `ALPHA_DATA_ROOT` local-only data-root pointer. Field-level acceptance rules,
-risks, and operator procedures remain in the campaign contract bundle.
+layout policy, immutable raw object refs, raw-slot immutability validation,
+`SymbolBatchPlan`, mini/micro batch separation, the ES/NQ/RTY primary common
+panel, labeled optional secondary panels, and the `ALPHA_DATA_ROOT` local-only
+data-root pointer. Field-level acceptance rules, risks, and operator procedures
+remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 
