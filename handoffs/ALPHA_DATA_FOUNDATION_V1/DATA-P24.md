@@ -3,11 +3,13 @@
 ## Branch And Commit State
 
 - Branch: `auto/alpha_data_foundation_v1/data-p24-end-to-end-data-foundation-dry-run-and-closeout`
-- Commits by Codex in this execution: none. Files are prepared for explicit
-  staging and Ralph-owned downstream validation/review/PR/merge gates.
-- Phase outcome from Codex: `BLOCKED`, because the required broad verifier
-  command `python tools/verify.py --all` failed outside the DATA-P24
-  data-foundation scope. This handoff does not mark the phase `PASS`.
+- Commits by Codex in this execution: none. Ralph owned downstream
+  validation/review/PR/merge gates and merged PR #94.
+- Final Ralph phase status: `PASS_WITH_WARNINGS`; campaign run status:
+  `COMPLETED` with 25 of 25 phases passing.
+- Post-run reconciliation: the initial executor handoff recorded a broad
+  verifier failure, but a rerun on the final merged state passed:
+  `python tools/verify.py --all` reported `1711 passed` plus `compileall`.
 
 ## Scope Executed
 
@@ -71,19 +73,21 @@ The lifecycle-block assertions cover:
 Added `docs/data_foundation/END_TO_END_DRY_RUN.md` with a curated synthetic
 summary, lifecycle-block summary, and boundary interpretation policy.
 
-Added `campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md` with final closeout
-verdict `BLOCKED`. The blocker is the required broad verifier failure listed
-below, not an in-scope DATA-P24 dry-run failure.
+Added `campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md`; post-run
+reconciliation records final closeout verdict `COMPLETE_WITH_WARNINGS`.
 
 Updated `ACTIVE_CAMPAIGN.md` to show DATA-P24 as the final phase, no next phase
-in this campaign, and the executor closeout verdict `BLOCKED`.
+in this campaign, and campaign status `complete`.
 
 Updated `README.md` with a compact DATA-P24 snapshot and unchanged safety
 boundaries. Updated `docs/data_foundation/README.md` to link the dry-run doc.
 
 ## Validation Results
 
-No required validation command was skipped. One required command failed.
+No required validation command remains failed in the final merged state. The
+initial executor run observed a broad verifier failure in Workflow/GitHub driver
+tests; after Ralph completed the phase and the final branch merged, the same
+command passed locally.
 
 | Command | Result |
 | --- | --- |
@@ -92,7 +96,7 @@ No required validation command was skipped. One required command failed.
 | `python -m pytest tests/unit/data -q` | Passed: `344 passed in 0.30s`. |
 | `python -m pytest tests/integration/data -q` | Passed: `9 passed in 1.16s`. |
 | `python -m pytest tests/no_lookahead -q` | Passed: `61 passed in 0.37s`. |
-| `python tools/verify.py --all` | Failed: `7 failed, 1704 passed in 24.07s`. Failures were `tests/test_github_utils.py::test_dry_run_pr_does_not_call_network` (`GitHubResult.dry_run` was `False`) and six `tests/test_ralph_driver.py` provider-wired/mock-resume tests where state/status was `PUSH_BLOCKED` instead of expected `STOPPED`, `PASS`, or `COMPLETED`. These failures are outside DATA-P24 allowed edit scope. |
+| `python tools/verify.py --all` | Passed on final merged state: `1711 passed in 24.08s`, followed by `compileall`. |
 | `test -f campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md` | Passed with no output. |
 | `test -f docs/data_foundation/END_TO_END_DRY_RUN.md` | Passed with no output. |
 | `python -m pytest tests/unit/data/test_data_foundation_dry_run.py -q` | Passed: `4 passed in 0.05s`. |
@@ -159,6 +163,7 @@ final phase outcome.
 
 ## Next Step
 
-Ralph should treat DATA-P24 as blocked on the required broad verifier failure
-unless the Workflow/GitHub driver failures are repaired or explicitly accepted
-by the appropriate gate.
+No DATA-P24 phase blocker remains. Future campaigns should consume the
+data-foundation layer only under their own contracts and without real-data
+completeness, alpha, profitability, tradability, broker, paper, live, or
+production-readiness claims.
