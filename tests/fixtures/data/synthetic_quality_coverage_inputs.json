@@ -1,0 +1,77 @@
+{
+  "fixture_id": "synthetic_quality_coverage_inputs_v1",
+  "fixture_note": "Tiny hand-authored synthetic bars and coverage expectations for DATA-P16 unit tests only; not market data and not a quality or coverage report.",
+  "bars": [
+    {
+      "instrument_id": "inst_synth_es",
+      "contract_id": "fut_es_202606",
+      "series_id": "series_es_front_unadjusted",
+      "bar_start_ts": "2026-06-01T14:30:00+00:00",
+      "bar_end_ts": "2026-06-01T14:31:00+00:00",
+      "event_ts": "2026-06-01T14:30:30+00:00",
+      "available_ts": "2026-06-01T14:31:05+00:00",
+      "ingested_at": "2026-06-01T14:32:00+00:00",
+      "open": "5000.25",
+      "high": "5001.00",
+      "low": "4999.75",
+      "close": "5000.50",
+      "volume": "100",
+      "source": "dsrc_ibkr_historical",
+      "source_request_id": "hrs_synthetic_quality_coverage",
+      "data_version": "canonical-bars-v1",
+      "quality_flags": [],
+      "session_label": "ETH"
+    },
+    {
+      "instrument_id": "inst_synth_es",
+      "contract_id": "fut_es_202606",
+      "series_id": "series_es_front_unadjusted",
+      "bar_start_ts": "2026-06-01T14:31:00+00:00",
+      "bar_end_ts": "2026-06-01T14:32:00+00:00",
+      "event_ts": "2026-06-01T14:31:30+00:00",
+      "available_ts": "2026-06-01T14:32:05+00:00",
+      "ingested_at": "2026-06-01T14:33:00+00:00",
+      "open": "5000.50",
+      "high": "5001.25",
+      "low": "5000.00",
+      "close": "5000.75",
+      "volume": "110",
+      "source": "dsrc_ibkr_historical",
+      "source_request_id": "hrs_synthetic_quality_coverage",
+      "data_version": "canonical-bars-v1",
+      "quality_flags": [],
+      "session_label": "ETH"
+    },
+    {
+      "instrument_id": "inst_synth_es",
+      "contract_id": "fut_es_202606",
+      "series_id": "series_es_front_unadjusted",
+      "bar_start_ts": "2026-06-01T14:32:00+00:00",
+      "bar_end_ts": "2026-06-01T14:33:00+00:00",
+      "event_ts": "2026-06-01T14:32:30+00:00",
+      "available_ts": "2026-06-01T14:33:05+00:00",
+      "ingested_at": "2026-06-01T14:34:00+00:00",
+      "open": "5000.75",
+      "high": "5001.50",
+      "low": "5000.25",
+      "close": "5001.00",
+      "volume": "120",
+      "source": "dsrc_ibkr_historical",
+      "source_request_id": "hrs_synthetic_quality_coverage",
+      "data_version": "canonical-bars-v1",
+      "quality_flags": [],
+      "session_label": "ETH"
+    }
+  ],
+  "expected_intervals": [
+    {
+      "symbol": "ES",
+      "instrument_id": "inst_synth_es",
+      "contract_id": "fut_es_202606",
+      "session_label": "ETH",
+      "start_ts": "2026-06-01T14:30:00+00:00",
+      "end_ts": "2026-06-01T14:33:00+00:00",
+      "partition_id": "partition_synth_20260601"
+    }
+  ]
+}

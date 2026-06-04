@@ -19,3 +19,8 @@ calendar, not a holiday-complete source, and not market data.
 for parser correctness tests. The provider timestamp, contract reference, WAP,
 and bar-count fields are hand-authored fixture values only; the file is not a
 provider response and is not canonical market data.
+
+`synthetic_quality_coverage_inputs.json` contains three tiny hand-authored
+canonical-shaped bar mappings and one aggregate coverage expectation for
+DATA-P16 quality and coverage report tests. It is not real market data and is
+not a full quality or coverage report.

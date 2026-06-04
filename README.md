@@ -57,9 +57,13 @@ gate has the `DATA-P14` executor scope complete: provider-shaped
 raw-to-parsed provenance, and `docs/data_foundation/PARSED_BARS.md`; DATA-P15
 adds `CanonicalBarRecord`, `TimestampSemanticsPolicy`, explicit
 `available_ts` no-lookahead validation, canonical timestamp tests, and
-`docs/data_foundation/CANONICAL_BARS.md`. This advances the
-`canonicalization_quality_versioning` gate through DATA-P15. The next phase is
-`DATA-P16` - Data Quality Checks and Coverage Reports. Ralph still owns formal validation,
+`docs/data_foundation/CANONICAL_BARS.md`; DATA-P16 adds fail-closed
+`DataQualityReport` and `CoverageReport` contracts, aggregate quality and
+coverage tests, and `docs/data_foundation/DATA_QUALITY.md` /
+`docs/data_foundation/COVERAGE_REPORT.md`. This advances the
+`canonicalization_quality_versioning` gate through DATA-P16. The active phase is
+`DATA-P16` - Data Quality Checks and Coverage Reports; the next phase is
+`DATA-P17` - Dataset Version Registry Integration. Ralph still owns formal validation,
 independent review, verdict parsing, semantic done-check, PR, CI, and merge
 gates.
 
@@ -203,6 +207,19 @@ fail-closed malformed-row behavior. It also adds:
 validation, and no-lookahead tests under `tests/no_lookahead/`. It also adds:
 
 - `docs/data_foundation/CANONICAL_BARS.md`
+
+`DATA-P16` adds fail-closed quality and coverage reports under
+`src/alpha_system/data/foundation/datasets.py`. `DataQualityReport` classifies
+aggregate gaps, duplicate and non-monotonic timestamps, OHLC/price defects,
+zero-volume anomalies, DST anomalies, session coverage, roll discontinuities,
+and provider errors with explicit `PASSING` / `WARNING` / `BLOCKING` status.
+`CoverageReport` records aggregate symbol, contract, session, and partition
+coverage plus missing intervals and incomplete chunks; coverage alone is not
+quality unless linked to a non-blocking `DataQualityReport` for the same dataset
+version. It also adds:
+
+- `docs/data_foundation/DATA_QUALITY.md`
+- `docs/data_foundation/COVERAGE_REPORT.md`
 
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
