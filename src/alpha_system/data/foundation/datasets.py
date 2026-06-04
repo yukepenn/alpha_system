@@ -6,6 +6,7 @@ DATA-P18 own dataset versioning and partition planning behavior.
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from enum import StrEnum
 from math import isfinite
 from types import MappingProxyType
 
+from alpha_system.core.hashing import hash_config
 from alpha_system.data.foundation.bars import (
     CANONICAL_BAR_RECORD_FIELDS,
     CanonicalBarRecord,
@@ -50,6 +52,27 @@ COVERAGE_REPORT_FIELDS: tuple[str, ...] = (
     "incomplete_chunks",
 )
 
+DATASET_VERSION_FIELDS: tuple[str, ...] = (
+    "dataset_version_id",
+    "source",
+    "symbol_universe",
+    "bar_size",
+    "what_to_show",
+    "start_ts",
+    "end_ts",
+    "contract_universe",
+    "roll_policy_id",
+    "manifest_hash",
+    "code_hash",
+    "config_hash",
+    "quality_report_hash",
+    "created_at",
+)
+
+DATASET_VERSION_ADMISSIBLE_STATES: frozenset[str] = frozenset(
+    {"VERSIONED", "READY_FOR_RESEARCH"}
+)
+
 QUALITY_BLOCKING_SUMMARY_FIELDS: frozenset[str] = frozenset(
     {
         "gap_summary",
@@ -83,6 +106,8 @@ _RAW_BAR_DUMP_KEYS: frozenset[str] = frozenset(
     }
 )
 
+_SHA256_HEX_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
 
 class ReportStatus(StrEnum):
     """Quality and coverage gate status values."""
@@ -114,10 +139,6 @@ class _CanonicalBarView:
     session_label: str
 
 
-class DatasetVersion:
-    """DATA-P18 placeholder for a versioned canonical dataset."""
-
-
 def _require_text(value: object, field_name: str) -> str:
     if not isinstance(value, str):
         msg = f"{field_name} must be a non-empty string"
@@ -138,6 +159,14 @@ def _normalize_id(value: object, field_name: str) -> str:
         msg = f"{field_name} must be an alphanumeric identifier"
         raise DataFoundationValidationError(msg)
     return token
+
+
+def _normalize_sha256_hash(value: object, field_name: str) -> str:
+    digest = _require_text(value, field_name).lower()
+    if not _SHA256_HEX_PATTERN.fullmatch(digest):
+        msg = f"{field_name} must be a lowercase sha256 hex digest"
+        raise DataFoundationValidationError(msg)
+    return digest
 
 
 def _require_bool(value: object, field_name: str) -> bool:
@@ -206,6 +235,41 @@ def _normalize_text_collection(value: object, field_name: str) -> tuple[str, ...
         msg = f"{field_name} must not contain duplicate values: "
         raise DataFoundationValidationError(msg + ", ".join(duplicate_items))
     return items
+
+
+def _normalize_symbol_universe(value: object) -> tuple[str, ...]:
+    symbols = tuple(
+        symbol.upper() for symbol in _normalize_text_collection(value, "symbol_universe")
+    )
+    if not symbols:
+        msg = "symbol_universe must contain at least one symbol"
+        raise DataFoundationValidationError(msg)
+    invalid = tuple(symbol for symbol in symbols if not symbol.isalnum())
+    if invalid:
+        msg = "symbol_universe symbols must be alphanumeric: " + ", ".join(invalid)
+        raise DataFoundationValidationError(msg)
+    duplicates = tuple(sorted({symbol for symbol in symbols if symbols.count(symbol) > 1}))
+    if duplicates:
+        msg = "symbol_universe must not contain duplicate values: " + ", ".join(duplicates)
+        raise DataFoundationValidationError(msg)
+    return symbols
+
+
+def _normalize_contract_universe(value: object) -> tuple[str, ...]:
+    contracts = tuple(
+        _normalize_id(contract_id, "contract_universe")
+        for contract_id in _normalize_text_collection(value, "contract_universe")
+    )
+    if not contracts:
+        msg = "contract_universe must contain at least one contract"
+        raise DataFoundationValidationError(msg)
+    duplicates = tuple(
+        sorted({contract for contract in contracts if contracts.count(contract) > 1})
+    )
+    if duplicates:
+        msg = "contract_universe must not contain duplicate values: " + ", ".join(duplicates)
+        raise DataFoundationValidationError(msg)
+    return contracts
 
 
 def _normalize_status(value: object, field_name: str) -> ReportStatus:
@@ -364,7 +428,10 @@ def _finding_summary(
     return MappingProxyType(summary)
 
 
-def _passing_summary(sample_key: str, extra: Mapping[str, object] | None = None) -> Mapping[str, object]:
+def _passing_summary(
+    sample_key: str,
+    extra: Mapping[str, object] | None = None,
+) -> Mapping[str, object]:
     return _finding_summary(
         count=0,
         status=ReportStatus.PASSING,
@@ -1004,6 +1071,15 @@ class DataQualityReport:
         )
 
 
+def compute_quality_report_hash(report: DataQualityReport) -> str:
+    """Return the deterministic hash a DatasetVersion must bind to."""
+
+    if not isinstance(report, DataQualityReport):
+        msg = "quality_report_hash binding requires a DataQualityReport"
+        raise DataFoundationValidationError(msg)
+    return hash_config(report.to_mapping())
+
+
 def _normalize_expected_interval(value: object) -> Mapping[str, object]:
     if isinstance(value, str) or not isinstance(value, Mapping):
         msg = "expected_intervals must contain aggregate interval mappings"
@@ -1161,7 +1237,10 @@ def _normalize_coverage_summary(value: object, field_name: str) -> Mapping[str, 
     return MappingProxyType(summary)
 
 
-def _normalize_interval_summaries(value: object, field_name: str) -> tuple[Mapping[str, object], ...]:
+def _normalize_interval_summaries(
+    value: object,
+    field_name: str,
+) -> tuple[Mapping[str, object], ...]:
     if isinstance(value, str) or not isinstance(value, Iterable):
         msg = f"{field_name} must be an explicit collection of aggregate intervals"
         raise DataFoundationValidationError(msg)
@@ -1552,6 +1631,230 @@ class CoverageReport:
         )
 
 
+def _extract_manifest_hash(source_manifest: object) -> str:
+    if source_manifest is None:
+        msg = "source manifest is required before dataset versioning"
+        raise DataFoundationValidationError(msg)
+    if isinstance(source_manifest, Mapping):
+        if "manifest_hash" not in source_manifest:
+            msg = "source manifest must expose manifest_hash"
+            raise DataFoundationValidationError(msg)
+        return _normalize_sha256_hash(
+            source_manifest["manifest_hash"],
+            "source_manifest.manifest_hash",
+        )
+    manifest_hash = getattr(source_manifest, "manifest_hash", None)
+    if manifest_hash is None:
+        msg = "source manifest must expose manifest_hash"
+        raise DataFoundationValidationError(msg)
+    return _normalize_sha256_hash(manifest_hash, "source_manifest.manifest_hash")
+
+
+@dataclass(frozen=True, slots=True)
+class DatasetVersion:
+    """Reproducible canonical dataset version bound to quality and manifest hashes.
+
+    The object is a data-admissibility record only. It does not imply research
+    approval, tradability, alpha value, or production readiness.
+    """
+
+    dataset_version_id: str
+    source: str
+    symbol_universe: tuple[str, ...]
+    bar_size: str
+    what_to_show: str
+    start_ts: datetime
+    end_ts: datetime
+    contract_universe: tuple[str, ...]
+    roll_policy_id: str
+    manifest_hash: str
+    code_hash: str
+    config_hash: str
+    quality_report_hash: str
+    created_at: datetime
+
+    def __post_init__(self) -> None:
+        dataset_version_id = _normalize_id(self.dataset_version_id, "dataset_version_id")
+        source = _normalize_id(self.source, "source")
+        symbol_universe = _normalize_symbol_universe(self.symbol_universe)
+        bar_size = _require_text(self.bar_size, "bar_size")
+        what_to_show = _require_text(self.what_to_show, "what_to_show").upper()
+        start_ts = _parse_aware_datetime(self.start_ts, "start_ts")
+        end_ts = _parse_aware_datetime(self.end_ts, "end_ts")
+        if end_ts < start_ts:
+            msg = "end_ts must not be earlier than start_ts"
+            raise DataFoundationValidationError(msg)
+        contract_universe = _normalize_contract_universe(self.contract_universe)
+        roll_policy_id = _normalize_id(self.roll_policy_id, "roll_policy_id")
+        manifest_hash = _normalize_sha256_hash(self.manifest_hash, "manifest_hash")
+        code_hash = _normalize_sha256_hash(self.code_hash, "code_hash")
+        config_hash = _normalize_sha256_hash(self.config_hash, "config_hash")
+        quality_report_hash = _normalize_sha256_hash(
+            self.quality_report_hash,
+            "quality_report_hash",
+        )
+        created_at = _parse_aware_datetime(self.created_at, "created_at")
+
+        object.__setattr__(self, "dataset_version_id", dataset_version_id)
+        object.__setattr__(self, "source", source)
+        object.__setattr__(self, "symbol_universe", symbol_universe)
+        object.__setattr__(self, "bar_size", bar_size)
+        object.__setattr__(self, "what_to_show", what_to_show)
+        object.__setattr__(self, "start_ts", start_ts)
+        object.__setattr__(self, "end_ts", end_ts)
+        object.__setattr__(self, "contract_universe", contract_universe)
+        object.__setattr__(self, "roll_policy_id", roll_policy_id)
+        object.__setattr__(self, "manifest_hash", manifest_hash)
+        object.__setattr__(self, "code_hash", code_hash)
+        object.__setattr__(self, "config_hash", config_hash)
+        object.__setattr__(self, "quality_report_hash", quality_report_hash)
+        object.__setattr__(self, "created_at", created_at)
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, object]) -> DatasetVersion:
+        """Build a dataset version from persisted data and reject loose fields."""
+
+        missing = tuple(field for field in DATASET_VERSION_FIELDS if field not in values)
+        if missing:
+            msg = "DatasetVersion missing required fields: " + ", ".join(missing)
+            raise DataFoundationValidationError(msg)
+        extra = tuple(field for field in values if field not in DATASET_VERSION_FIELDS)
+        if extra:
+            msg = "DatasetVersion includes unsupported fields: " + ", ".join(extra)
+            raise DataFoundationValidationError(msg)
+        return cls(
+            dataset_version_id=_require_text(
+                values["dataset_version_id"],
+                "dataset_version_id",
+            ),
+            source=_require_text(values["source"], "source"),
+            symbol_universe=_normalize_symbol_universe(values["symbol_universe"]),
+            bar_size=_require_text(values["bar_size"], "bar_size"),
+            what_to_show=_require_text(values["what_to_show"], "what_to_show"),
+            start_ts=_parse_aware_datetime(values["start_ts"], "start_ts"),
+            end_ts=_parse_aware_datetime(values["end_ts"], "end_ts"),
+            contract_universe=_normalize_contract_universe(values["contract_universe"]),
+            roll_policy_id=_require_text(values["roll_policy_id"], "roll_policy_id"),
+            manifest_hash=_require_text(values["manifest_hash"], "manifest_hash"),
+            code_hash=_require_text(values["code_hash"], "code_hash"),
+            config_hash=_require_text(values["config_hash"], "config_hash"),
+            quality_report_hash=_require_text(
+                values["quality_report_hash"],
+                "quality_report_hash",
+            ),
+            created_at=_parse_aware_datetime(values["created_at"], "created_at"),
+        )
+
+    @property
+    def reproducibility_hashes(self) -> Mapping[str, str]:
+        """Return the complete hash set that defines reproducibility."""
+
+        return MappingProxyType(
+            {
+                "manifest_hash": self.manifest_hash,
+                "code_hash": self.code_hash,
+                "config_hash": self.config_hash,
+                "quality_report_hash": self.quality_report_hash,
+            }
+        )
+
+    def require_versioned_prerequisites(
+        self,
+        *,
+        quality_report: DataQualityReport | None,
+        coverage_report: CoverageReport | None,
+        source_manifest: object,
+        code_hash: object,
+        config_hash: object,
+    ) -> DatasetVersion:
+        """Require all inputs needed for the QUALITY_CHECKED -> VERSIONED gate."""
+
+        if quality_report is None:
+            msg = "linked DataQualityReport is required before dataset versioning"
+            raise DataFoundationValidationError(msg)
+        if not isinstance(quality_report, DataQualityReport):
+            msg = "linked quality_report must be a DataQualityReport"
+            raise DataFoundationValidationError(msg)
+        if quality_report.dataset_version_id != self.dataset_version_id:
+            msg = "DatasetVersion and DataQualityReport dataset_version_id must match"
+            raise DataFoundationValidationError(msg)
+        if quality_report.blocks_versioning:
+            msg = "blocking DataQualityReport prevents dataset versioning"
+            raise DataFoundationValidationError(msg)
+        if compute_quality_report_hash(quality_report) != self.quality_report_hash:
+            msg = "quality_report_hash does not match linked DataQualityReport"
+            raise DataFoundationValidationError(msg)
+
+        if coverage_report is None:
+            msg = "linked CoverageReport is required before dataset versioning"
+            raise DataFoundationValidationError(msg)
+        if not isinstance(coverage_report, CoverageReport):
+            msg = "linked coverage_report must be a CoverageReport"
+            raise DataFoundationValidationError(msg)
+        if coverage_report.dataset_version_id != self.dataset_version_id:
+            msg = "DatasetVersion and CoverageReport dataset_version_id must match"
+            raise DataFoundationValidationError(msg)
+        coverage_report.require_linked_quality_report(quality_report)
+
+        if _extract_manifest_hash(source_manifest) != self.manifest_hash:
+            msg = "manifest_hash does not match linked source manifest"
+            raise DataFoundationValidationError(msg)
+        if _normalize_sha256_hash(code_hash, "code_hash") != self.code_hash:
+            msg = "code_hash does not match linked code hash"
+            raise DataFoundationValidationError(msg)
+        if _normalize_sha256_hash(config_hash, "config_hash") != self.config_hash:
+            msg = "config_hash does not match linked config hash"
+            raise DataFoundationValidationError(msg)
+        return self
+
+    def require_lifecycle_prerequisites(
+        self,
+        lifecycle_state: object,
+        *,
+        quality_report: DataQualityReport | None,
+        coverage_report: CoverageReport | None,
+        source_manifest: object,
+        code_hash: object,
+        config_hash: object,
+    ) -> DatasetVersion:
+        """Require bound inputs for VERSIONED or READY_FOR_RESEARCH admissibility."""
+
+        state = _require_text(lifecycle_state, "lifecycle_state").upper()
+        if state not in DATASET_VERSION_ADMISSIBLE_STATES:
+            allowed = ", ".join(sorted(DATASET_VERSION_ADMISSIBLE_STATES))
+            msg = f"lifecycle_state must be one of {allowed}"
+            raise DataFoundationValidationError(msg)
+        return self.require_versioned_prerequisites(
+            quality_report=quality_report,
+            coverage_report=coverage_report,
+            source_manifest=source_manifest,
+            code_hash=code_hash,
+            config_hash=config_hash,
+        )
+
+    def to_mapping(self) -> Mapping[str, object]:
+        """Return a JSON-stable dataset-version mapping."""
+
+        return MappingProxyType(
+            {
+                "dataset_version_id": self.dataset_version_id,
+                "source": self.source,
+                "symbol_universe": self.symbol_universe,
+                "bar_size": self.bar_size,
+                "what_to_show": self.what_to_show,
+                "start_ts": self.start_ts.isoformat(),
+                "end_ts": self.end_ts.isoformat(),
+                "contract_universe": self.contract_universe,
+                "roll_policy_id": self.roll_policy_id,
+                "manifest_hash": self.manifest_hash,
+                "code_hash": self.code_hash,
+                "config_hash": self.config_hash,
+                "quality_report_hash": self.quality_report_hash,
+                "created_at": self.created_at.isoformat(),
+            }
+        )
+
+
 class DatasetPartitionPlan:
     """DATA-P18 placeholder for dataset partition planning."""
 
@@ -1560,8 +1863,11 @@ __all__ = [
     "COVERAGE_REPORT_FIELDS",
     "CoverageReport",
     "DATA_QUALITY_REPORT_FIELDS",
+    "DATASET_VERSION_ADMISSIBLE_STATES",
+    "DATASET_VERSION_FIELDS",
     "DataQualityReport",
     "DatasetPartitionPlan",
     "DatasetVersion",
     "ReportStatus",
+    "compute_quality_report_hash",
 ]
