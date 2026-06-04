@@ -39,10 +39,16 @@ from alpha_system.data.foundation.requests import (
     DataIngestionRunRecord,
     HistoricalChunkRecord,
     HistoricalPullLedger,
+    HistoricalRequestLifecycleState,
     HistoricalRequestManifest,
     HistoricalRequestSpec,
     ProviderErrorRecord,
     RequestPacingPolicy,
+    authorize_historical_request_transition,
+    compute_historical_request_manifest_hash,
+    plan_historical_request_transition,
+    provider_pull_manifest_guard,
+    require_validated_manifest_for_provider_pull,
 )
 from alpha_system.data.foundation.rolls import RollCalendarRecord, RollPolicy
 from alpha_system.data.foundation.series import (
@@ -75,6 +81,7 @@ __all__ = [
     "IncludeExpiredSupportStatus",
     "HistoricalChunkRecord",
     "HistoricalPullLedger",
+    "HistoricalRequestLifecycleState",
     "HistoricalRequestManifest",
     "HistoricalRequestSpec",
     "IBKRClientIdPolicy",
@@ -95,6 +102,11 @@ __all__ = [
     "TradingCalendarRecord",
     "ReadOnlyBoundaryViolation",
     "build_read_only_ibkr_boundary",
+    "authorize_historical_request_transition",
+    "compute_historical_request_manifest_hash",
+    "plan_historical_request_transition",
+    "provider_pull_manifest_guard",
+    "require_validated_manifest_for_provider_pull",
     "run_connection_doctor",
     "record_contract_discovery",
 ]

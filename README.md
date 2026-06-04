@@ -25,9 +25,14 @@ gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
 contract-economics anchors, and exact `tick_value = tick_size * point_value`
 validation; `DATA-P06` adds `ContractDetailsSnapshot`,
 `FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
-next phase is `DATA-P07` - Historical Request Spec and Manifest. Ralph still
-owns formal validation, independent review, verdict parsing, semantic
-done-check, PR, CI, and merge gates.
+`request_and_storage` gate begins at `DATA-P07`: the active phase adds
+`HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
+`manifest_hash` validation, the no-manifest-no-pull guard, the synthetic sample
+manifest under `templates/data/`, and
+`docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`. The next phase is
+`DATA-P08` - Pacing, Chunking, Retry, and Resume Ledger. Ralph still owns
+formal validation, independent review, verdict parsing, semantic done-check,
+PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -84,6 +89,15 @@ availability as discovered, not assumed. It also adds:
 
 - `docs/data_foundation/CONTRACT_DISCOVERY.md`
 
+`DATA-P07` adds historical request planning under
+`src/alpha_system/data/foundation/requests.py`. It defines
+`HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
+`manifest_hash` computation, and a lifecycle guard that blocks provider-pull
+preflight without a valid manifest. It also adds the synthetic-only manifest
+template `templates/data/synthetic_historical_request_manifest.json` and:
+
+- `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -110,6 +124,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/READ_ONLY_BOUNDARY.md`
 - `docs/data_foundation/INSTRUMENT_MASTER.md`
 - `docs/data_foundation/CONTRACT_DISCOVERY.md`
+- `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -119,8 +134,10 @@ file-naming conventions, directory layout, `DataSourceProfile`,
 `IBKRReadOnlyApiBoundary`, `DataAccessMode`, `InstrumentMasterRecord`,
 contract-economics anchors, `FuturesContractRecord`,
 `ContractDetailsSnapshot`, contract-discovery availability logging, and the
-`ALPHA_DATA_ROOT` local-only data-root pointer. Field-level acceptance rules,
-risks, and operator procedures remain in the campaign contract bundle.
+`HistoricalRequestSpec` / `HistoricalRequestManifest` planning records,
+`manifest_hash`, the no-manifest-no-pull block, and the `ALPHA_DATA_ROOT`
+local-only data-root pointer. Field-level acceptance rules, risks, and operator
+procedures remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 
