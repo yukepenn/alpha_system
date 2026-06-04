@@ -25,15 +25,18 @@ gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
 contract-economics anchors, and exact `tick_value = tick_size * point_value`
 validation; `DATA-P06` adds `ContractDetailsSnapshot`,
 `FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
-`request_and_storage` is in progress through `DATA-P08`: `DATA-P07` adds
+`request_and_storage` is in progress through `DATA-P09`: `DATA-P07` adds
 `HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
 `manifest_hash` validation, the no-manifest-no-pull guard, the synthetic sample
 manifest under `templates/data/`, and
 `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`. `DATA-P08` is complete and
 adds `RequestPacingPolicy`, `HistoricalChunkRecord`, `HistoricalPullLedger`,
 `ProviderErrorRecord`, conservative to-be-verified pacing config, and
-`docs/data_foundation/PACING_AND_RESUME.md`. The next phase is `DATA-P09` - Raw
-Local Data Lake Layout. Ralph still owns formal validation, independent review,
+`docs/data_foundation/PACING_AND_RESUME.md`. The `DATA-P09` executor scope adds
+`RawDataObject`, `RawDataLakeLayoutPolicy`, content-addressed raw path
+resolution, raw-slot immutability/no-overwrite validation, and
+`docs/data_foundation/RAW_DATA_LAKE.md`. The next phase is `DATA-P10` - ES/NQ/RTY
+Main Batch Pull Plan. Ralph still owns formal validation, independent review,
 verdict parsing, semantic done-check, PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
@@ -110,6 +113,14 @@ state, no-silent-gaps reconciliation, and immutable content-addressed
 - `configs/data/request_pacing_policy_to_be_verified.json`
 - `docs/data_foundation/PACING_AND_RESUME.md`
 
+`DATA-P09` adds the raw local data lake contract under
+`src/alpha_system/data/foundation/bars.py`. It defines `RawDataObject`,
+`RawDataLakeLayoutPolicy`, content-addressed raw object refs compatible with
+`HistoricalChunkRecord.raw_object_ref`, local-only raw path validation under
+`ALPHA_DATA_ROOT`, and the raw-slot immutability guard. It also adds:
+
+- `docs/data_foundation/RAW_DATA_LAKE.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -139,6 +150,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/CONTRACT_DISCOVERY.md`
 - `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`
 - `docs/data_foundation/PACING_AND_RESUME.md`
+- `docs/data_foundation/RAW_DATA_LAKE.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -152,9 +164,10 @@ contract-economics anchors, `FuturesContractRecord`,
 `manifest_hash`, the no-manifest-no-pull block, `RequestPacingPolicy`,
 `HistoricalChunkRecord`, `HistoricalPullLedger`, `ProviderErrorRecord`,
 duplicate-request detection, retry/backoff classification, `resume_token`, the
-no-silent-gaps and no-raw-overwrite guards, and the `ALPHA_DATA_ROOT` local-only
-data-root pointer. Field-level acceptance rules, risks, and operator procedures
-remain in the campaign contract bundle.
+no-silent-gaps and no-raw-overwrite guards, `RawDataObject`, the raw data-lake
+layout policy, immutable raw object refs, raw-slot immutability validation, and
+the `ALPHA_DATA_ROOT` local-only data-root pointer. Field-level acceptance rules,
+risks, and operator procedures remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 

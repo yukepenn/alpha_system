@@ -7,8 +7,13 @@ validation behavior, schemas, persistence, and provider integrations.
 from alpha_system.data.foundation.bars import (
     CanonicalBarRecord,
     ParsedBarRecord,
+    RawDataLakeLayoutPolicy,
     RawDataObject,
     TimestampSemanticsPolicy,
+    assert_raw_slot_immutable,
+    raw_object_ref_for_content_hash,
+    require_raw_data_lake_layout_policy,
+    resolve_raw_object_storage_path,
 )
 from alpha_system.data.foundation.batches import MicroBatchPolicy, SymbolBatchPlan
 from alpha_system.data.foundation.datasets import (
@@ -102,6 +107,7 @@ __all__ = [
     "ParsedBarRecord",
     "ProviderErrorResolution",
     "ProviderErrorRecord",
+    "RawDataLakeLayoutPolicy",
     "RawDataObject",
     "RequestPacingPolicy",
     "RollCalendarRecord",
@@ -119,8 +125,12 @@ __all__ = [
     "plan_historical_request_transition",
     "provider_pull_manifest_guard",
     "provider_pull_pacing_guard",
+    "assert_raw_slot_immutable",
+    "raw_object_ref_for_content_hash",
+    "require_raw_data_lake_layout_policy",
     "require_pacing_policy_for_provider_pull",
     "require_validated_manifest_for_provider_pull",
+    "resolve_raw_object_storage_path",
     "run_connection_doctor",
     "record_contract_discovery",
 ]
