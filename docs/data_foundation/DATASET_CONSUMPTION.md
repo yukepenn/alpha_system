@@ -38,6 +38,14 @@ from an existing SQLite connection. Future data-foundation consumers should use
 `resolve_dataset_version(...)` when they need the full DATA-P17 object and
 reproducibility bindings.
 
+## Databento Companion DatasetVersions
+
+Databento OHLCV-1m and BBO-1m DatasetVersions are resolved separately and must
+remain separate from IBKR DatasetVersions. See
+`docs/data_foundation/databento/CONSUMPTION.md` for BBO-aware fields,
+continuous-provenance caveats, cross-source diagnostic boundaries, and
+partition rules.
+
 ## First Real Local DatasetVersion
 
 The first real local-only accepted DatasetVersion recorded by the ADF1
