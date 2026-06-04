@@ -29,3 +29,10 @@ not a full quality or coverage report.
 BID_ASK-like observations for DATA-P20 spread-proxy scaffold tests. It is not a
 provider response, not real market data, and not evidence about any venue,
 spread, transaction cost, liquidity, or tradability.
+
+`synthetic_ibkr_e2e_provider_fixture.json` contains a tiny hand-authored
+IBKR-shaped provider-response fixture for DATA-P21 composition tests. It
+includes a fake connection profile, fake contract-details payload, fake
+historical-bar CSV payload, manifest expectations, and canonical timestamp
+expectations. It is synthetic, deterministic, not an IBKR pull, and not raw or
+canonical market data.

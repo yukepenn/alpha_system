@@ -1,0 +1,138 @@
+{
+  "fixture_id": "synthetic_ibkr_e2e_provider_fixture_v1",
+  "fixture_kind": "synthetic_ibkr_provider_response",
+  "synthetic": true,
+  "real_provider_response": false,
+  "description": "Tiny hand-authored IBKR-shaped fixture for DATA-P21 end-to-end composition tests; not derived from an IBKR pull.",
+  "connection_profile": {
+    "host": "127.0.0.1",
+    "port": 4002,
+    "client_id": 201,
+    "read_only_mode": true,
+    "environment": "ci_scaffold",
+    "connection_timeout": 10.0,
+    "validated_at": "2026-06-04T00:00:00+00:00"
+  },
+  "contract_details": {
+    "request": {
+      "root_symbol": "ES",
+      "sec_type": "FUT",
+      "include_expired": true,
+      "client_id": 201,
+      "source": "dsrc_ibkr_historical"
+    },
+    "contract_record": {
+      "contract_id": "fut_es_202606",
+      "root_symbol": "ES",
+      "contract_month": "2026-06",
+      "ib_symbol": "ES",
+      "trading_class": "ES",
+      "con_id": 998877661,
+      "last_trade_date_or_contract_month": "20260619",
+      "expiration": "2026-06-19",
+      "multiplier": "50",
+      "exchange": "CME",
+      "currency": "USD",
+      "include_expired_support_status": "supported"
+    },
+    "snapshot": {
+      "snapshot_id": "cds_synthetic_ibkr_e2e_es_m6",
+      "contract_id": "fut_es_202606",
+      "raw_details_ref": "fixture:tests/fixtures/data/synthetic_ibkr_e2e_provider_fixture.json#contract_details",
+      "retrieved_at": "2026-06-04T00:00:00+00:00",
+      "client_id": 201,
+      "source": "dsrc_ibkr_historical"
+    },
+    "normalized_fields": {
+      "symbol": "ES",
+      "secType": "FUT",
+      "exchange": "CME",
+      "currency": "USD",
+      "tradingClass": "ES",
+      "conId": 998877661,
+      "lastTradeDateOrContractMonth": "20260619",
+      "multiplier": "50"
+    }
+  },
+  "historical_request": {
+    "request_spec_id": "hrs_synthetic_ibkr_e2e_es_m6",
+    "source_id": "dsrc_ibkr_historical",
+    "symbol_root": "ES",
+    "contract_ref": "fut_es_202606",
+    "sec_type": "FUT",
+    "exchange": "CME",
+    "currency": "USD",
+    "bar_size": "1 min",
+    "what_to_show": "TRADES",
+    "use_rth": false,
+    "duration": "180 S",
+    "end_datetime_policy": "explicit_utc_end",
+    "start_ts": "2026-06-01T14:30:00+00:00",
+    "end_ts": "2026-06-01T14:33:00+00:00",
+    "chunk_policy": {
+      "max_duration": "180 S",
+      "bar_size": "1 min",
+      "expected_chunk_seconds": 180
+    },
+    "client_id": 201
+  },
+  "manifest": {
+    "manifest_id": "hrm_synthetic_ibkr_e2e_v1",
+    "batch_id": "batch_synthetic_ibkr_e2e_v1",
+    "chunk_count": 2,
+    "expected_coverage": {
+      "symbol_root": "ES",
+      "contract_ref": "fut_es_202606",
+      "expected_chunk_ids": [
+        "hchunk_synthetic_ibkr_e2e_a",
+        "hchunk_synthetic_ibkr_e2e_b"
+      ],
+      "expected_bar_count": 3
+    },
+    "pacing_policy_id": "rpp_ibkr_historical_conservative_tobeverified_v1",
+    "created_by": "DATA-P21 synthetic fixture"
+  },
+  "historical_bars_csv": "symbol,contract_ref,provider_ts,open,high,low,close,volume,wap,barCount\nES,fut_es_202606,2026-06-01 14:30:00 UTC,5000.25,5001.00,4999.75,5000.50,100,5000.40,3\nES,fut_es_202606,2026-06-01 14:31:00 UTC,5000.50,5001.25,5000.00,5000.75,110,5000.80,4\nES,fut_es_202606,2026-06-01 14:32:00 UTC,5000.75,5001.50,5000.25,5001.00,120,5001.10,5\n",
+  "raw_object": {
+    "raw_object_id": "raw_synthetic_ibkr_e2e_bars",
+    "request_id": "hrs_synthetic_ibkr_e2e_es_m6",
+    "chunk_id": "hchunk_synthetic_ibkr_e2e_a",
+    "schema_hint": "ibkr_historical_bars_raw_v1",
+    "retrieved_at": "2026-06-04T00:00:00+00:00",
+    "row_count": 3
+  },
+  "canonicalization_expectations": [
+    {
+      "bar_start_ts": "2026-06-01T14:30:00+00:00",
+      "bar_end_ts": "2026-06-01T14:31:00+00:00",
+      "event_ts": "2026-06-01T14:30:30+00:00",
+      "available_ts": "2026-06-01T14:31:05+00:00",
+      "ingested_at": "2026-06-01T14:31:45+00:00"
+    },
+    {
+      "bar_start_ts": "2026-06-01T14:31:00+00:00",
+      "bar_end_ts": "2026-06-01T14:32:00+00:00",
+      "event_ts": "2026-06-01T14:31:30+00:00",
+      "available_ts": "2026-06-01T14:32:05+00:00",
+      "ingested_at": "2026-06-01T14:32:45+00:00"
+    },
+    {
+      "bar_start_ts": "2026-06-01T14:32:00+00:00",
+      "bar_end_ts": "2026-06-01T14:33:00+00:00",
+      "event_ts": "2026-06-01T14:32:30+00:00",
+      "available_ts": "2026-06-01T14:33:05+00:00",
+      "ingested_at": "2026-06-01T14:33:45+00:00"
+    }
+  ],
+  "coverage_expected_intervals": [
+    {
+      "symbol": "ES",
+      "instrument_id": "inst_synth_es",
+      "contract_id": "fut_es_202606",
+      "session_label": "ETH",
+      "start_ts": "2026-06-01T14:30:00+00:00",
+      "end_ts": "2026-06-01T14:33:00+00:00",
+      "partition_id": "partition_synthetic_ibkr_e2e_20260601"
+    }
+  ]
+}

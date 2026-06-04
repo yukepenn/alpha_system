@@ -43,6 +43,9 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
 - `BID_ASK_PILOT.md` documents the optional bounded BID_ASK pilot plan, heavier
   pacing/storage posture, spread-proxy diagnostics scaffold, quality/coverage
   linkage, and non-goals.
+- `SYNTHETIC_FIXTURE_TESTS.md` documents the DATA-P21 synthetic IBKR fixture
+  tests, the no-external-call mechanism, composed fail-closed assertions, and
+  artifact-policy posture.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator
