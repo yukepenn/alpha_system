@@ -71,13 +71,15 @@ locked-test candidate windows, the optional latest-shadow candidate, the
 locked-test contamination-metadata rules, and
 `docs/data_foundation/PARTITION_PLAN.md`. This advances the
 `canonicalization_quality_versioning` gate through the DATA-P18 executor
-snapshot. The `secondary_data_tracks` gate has started; the DATA-P19 executor
-scope is complete and adds `MicroBatchPolicy`, the separate MES/MNQ/M2K
+snapshot. The `secondary_data_tracks` gate has progressed through the DATA-P20
+executor snapshot: DATA-P19 adds `MicroBatchPolicy`, the separate MES/MNQ/M2K
 secondary micro-batch plan, mini-to-micro parity-check target declarations, and
-`docs/data_foundation/MICRO_BATCH.md`. The next phase is `DATA-P20` - Optional
-BID_ASK / Spread Proxy Pilot Plan. Ralph still owns formal validation,
-independent review, verdict parsing, semantic done-check, PR, CI, and merge
-gates.
+`docs/data_foundation/MICRO_BATCH.md`; DATA-P20 adds the optional bounded
+`BidAskPilotPlan`, the pilot-only `SpreadProxyMetric` scaffold, the
+declarative BID_ASK pilot config, synthetic spread-proxy fixture tests, and
+`docs/data_foundation/BID_ASK_PILOT.md`. The next phase is `DATA-P21` -
+Synthetic IBKR Fixture Tests. Ralph still owns formal validation, independent
+review, verdict parsing, semantic done-check, PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -269,6 +271,17 @@ also adds:
 
 - `docs/data_foundation/MICRO_BATCH.md`
 
+`DATA-P20` adds the optional BID_ASK pilot plan and spread-proxy scaffold under
+`src/alpha_system/data/foundation/bid_ask_pilot.py`. The pilot is optional,
+bounded, secondary to the primary TRADES panel, and tied to the DATA-P08
+manifest/pacing/resume contracts and DATA-P16 quality/coverage contracts. The
+spread proxy is pilot-only and research-diagnostics-only; it computes from tiny
+synthetic inputs and makes no tradability, cost, liquidity, or execution-truth
+claim. It also adds:
+
+- `configs/data/bid_ask_pilot_plan.json`
+- `docs/data_foundation/BID_ASK_PILOT.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -311,6 +324,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/DATA_QUALITY.md`
 - `docs/data_foundation/COVERAGE_REPORT.md`
 - `docs/data_foundation/DATASET_VERSION.md`
+- `docs/data_foundation/BID_ASK_PILOT.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -327,7 +341,8 @@ duplicate-request detection, retry/backoff classification, `resume_token`, the
 no-silent-gaps and no-raw-overwrite guards, `RawDataObject`, the raw data-lake
 layout policy, immutable raw object refs, raw-slot immutability validation,
 `SymbolBatchPlan`, mini/micro batch separation, the ES/NQ/RTY primary common
-panel, labeled optional secondary panels, continuous-vs-dated futures
+panel, labeled optional secondary panels, `MicroBatchPolicy`,
+`BidAskPilotPlan`, `SpreadProxyMetric`, continuous-vs-dated futures
 provenance separation, mandatory continuous diagnostic labels,
 discovered-not-assumed dated availability, adjusted-vs-unadjusted explicitness,
 session templates, dated trading calendar records, explicit timezone/DST and

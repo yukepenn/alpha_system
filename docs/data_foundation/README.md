@@ -40,6 +40,9 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
   `TradingCalendarRecord` contracts, explicit timezone handling, DST and
   early-close representation, holiday handling, and the no-official-calendar
   non-claims.
+- `BID_ASK_PILOT.md` documents the optional bounded BID_ASK pilot plan, heavier
+  pacing/storage posture, spread-proxy diagnostics scaffold, quality/coverage
+  linkage, and non-goals.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator
@@ -81,7 +84,7 @@ The data-foundation objects are grouped by purpose:
   `CanonicalBarRecord`, `DataQualityReport`, `CoverageReport`,
   `DatasetVersion`, `TimestampSemanticsPolicy`.
 - Batches and partitions: `SymbolBatchPlan`, `MicroBatchPolicy`,
-  `DatasetPartitionPlan`.
+  `BidAskPilotPlan`, `SpreadProxyMetric`, `DatasetPartitionPlan`.
 
 Field-level contracts and acceptance criteria remain in `campaign.yaml` and
 `ACCEPTANCE.md`.
