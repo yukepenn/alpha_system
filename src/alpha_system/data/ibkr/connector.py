@@ -3,7 +3,10 @@
 This module exposes historical data only. It adds no order, account, broker,
 position, paper, live, or trading surface. ``ib_insync`` is an optional
 dependency and is imported lazily only when a real IBKR client or contract class
-is needed.
+is needed. For a real operator pull, install the optional dependency in a local
+venv with ``python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"``. If a
+venv is not available, use ``python -m pip install --target ~/.alpha_ibkr_libs
+ib_insync`` and run with ``PYTHONPATH=src:~/.alpha_ibkr_libs``.
 """
 
 from __future__ import annotations
@@ -59,7 +62,13 @@ CSV_HEADER: tuple[str, ...] = (
 )
 
 _HISTORICAL_METHOD_NAME = "reqHistoricalData"
-_IBKR_EXTRA_INSTALL_HINT = 'pip install -e ".[ibkr]"'
+_IBKR_EXTRA_INSTALL_HINT = (
+    'python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"'
+)
+_IBKR_TARGET_INSTALL_HINT = (
+    "python -m pip install --target ~/.alpha_ibkr_libs ib_insync "
+    "and run with PYTHONPATH=src:~/.alpha_ibkr_libs"
+)
 _CONTRACT_MONTH_RE = re.compile(r"(?<!\d)(\d{6}|\d{8})(?!\d)")
 
 
@@ -89,7 +98,7 @@ def _load_ib_insync() -> ModuleType:
     except ImportError as exc:
         msg = (
             "ib_insync is required for real IBKR historical pulls; install it with "
-            f"{_IBKR_EXTRA_INSTALL_HINT}"
+            f"{_IBKR_EXTRA_INSTALL_HINT}; fallback: {_IBKR_TARGET_INSTALL_HINT}"
         )
         raise ImportError(msg) from exc
     return ib_insync

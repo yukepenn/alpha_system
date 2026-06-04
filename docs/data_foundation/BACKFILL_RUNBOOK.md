@@ -40,11 +40,22 @@ unless a manifest is supplied programmatically. It performs no network call.
 
 ## Live Read-Only Connector (Real Pull)
 
-The minimal live connector is only for the gated smoke pull, not for automated
-backfill. Install the optional dependency explicitly:
+An optional lazy read-only IBKR historical connector now exists. It registers
+only `reqHistoricalData`; no generic IB client escapes the adapter; broker,
+order, account, position, paper, and live surfaces remain forbidden. Real pulls
+are operator-only and never run in CI.
+
+Install the optional dependency in a local venv:
 
 ```bash
-pip install -e ".[ibkr]"
+python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"
+```
+
+Fallback for an operator machine without a venv:
+
+```bash
+python -m pip install --target ~/.alpha_ibkr_libs ib_insync
+export PYTHONPATH=src:~/.alpha_ibkr_libs
 ```
 
 Arm all four authorization gates with true values and configure the exact IBKR
@@ -80,8 +91,9 @@ cache, log, DB, Parquet, Arrow, or Feather output is commit-eligible.
 
 Prerequisites:
 
-- Install the optional IBKR dependency with `pip install -e ".[ibkr]"`, or use
-  the isolated-libs approach from the gated smoke run.
+- Install the optional IBKR dependency with
+  `python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"`, or use the
+  `~/.alpha_ibkr_libs` target-install fallback above.
 - Arm all eight authorization/connection values:
   `ALPHA_DATA_PULL_AUTHORIZED=1`, `ALPHA_ALLOW_EXTERNAL_IBKR=1`,
   `ALPHA_IBKR_READ_ONLY_MODE=1`, `ALPHA_ALLOW_RAW_LOCAL_WRITE=1`,
@@ -137,13 +149,16 @@ python -m alpha_system.data.ibkr.backfill_connect \
 
 The full pull is resumable through the resume token and ledgers under
 `$ALPHA_DATA_ROOT/metadata`; re-run the connector to resume pending chunks. For
-the 2018→2026 ES/NQ/RTY scope, the generated full manifest contains 108
-chunks: three symbols times nine years times four quarterly contracts.
+the 2018→2026 ES/NQ/RTY scope, the generated full manifest contains 108 dated
+quarterly `FUT` request specs: three symbols times nine years times four
+quarterly contracts. At runtime the runner expands dated `1 min` `FUT` specs
+into stable one-day sub-chunks before provider requests and ledgers are built.
+`CONTFUT` recent slices are not sub-chunked and still use `endDateTime=""`.
 
-This is a multi-day, pacing-limited, operator-supervised job. Before launching
-the full job, verify that `run_local_backfill_resume_drill` enforces real
-pacing sleeps for large chunk counts. The current runner is drill-oriented, so
-a production pacing loop may be a follow-up before sustained unattended use.
+This is a multi-day, pacing-limited, operator-supervised job. The runner
+enforces the configured `RequestPacingPolicy` immediately before each real
+provider request, retries provider exceptions with deterministic backoff, and
+continues later chunks after quarantining an exhausted chunk.
 
 ## Authorization Gates
 
@@ -164,10 +179,10 @@ A real authorized resume drill fails closed unless all runtime gates pass:
   are present
 - the read-only boundary has a registered `reqHistoricalData` handler
 
-The committed entry point does not import a generic IBKR client library. A
-local operator wrapper must register only the historical `reqHistoricalData`
-callable on `IBKRReadOnlyApiBoundary`. Broker, order, position, paper, live,
-and account methods are not exposed.
+The committed connector imports `ib_insync` lazily only on real connector
+paths. It registers only the historical `reqHistoricalData` callable on
+`IBKRReadOnlyApiBoundary`. Broker, order, position, paper, live, and account
+methods are not exposed.
 
 ## Local Output Locations
 

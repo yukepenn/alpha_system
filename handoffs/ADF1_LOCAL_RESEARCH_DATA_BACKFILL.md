@@ -42,7 +42,14 @@ use_default_pacing_policy=True)`, and prints a redacted summary as JSON.
 Install optional dependency:
 
 ```bash
-pip install -e ".[ibkr]"
+python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"
+```
+
+Fallback:
+
+```bash
+python -m pip install --target ~/.alpha_ibkr_libs ib_insync
+export PYTHONPATH=src:~/.alpha_ibkr_libs
 ```
 
 Required env var names:
@@ -145,6 +152,95 @@ local backfill, which canonicalizes session-complete data and registers the
 first real accepted DatasetVersion (with DataQualityReport + CoverageReport).
 Task 1B is intentionally not started in this merge.
 
+## ADF1 Full Backfill — Run 1 Runner Hardening
+
+### Scope Completed
+
+Production-hardened the backfill runner request path for a real
+multi-thousand-chunk 1-minute historical pull without running a live IBKR call.
+
+Implemented in `src/alpha_system/data/ibkr/backfill.py`:
+
+- injectable real-request pacing controls:
+  `clock: Callable[[], float] = time.monotonic` and
+  `sleep: Callable[[float], None] = time.sleep`;
+- a provider-request rate limiter applied immediately before
+  `reqHistoricalData`, enforcing both identical-request minimum interval and
+  sliding-window request cap from the validated `RequestPacingPolicy`;
+- synthetic mode remains unpaced and performs no sleep;
+- per-chunk provider retry/backoff using
+  `RequestPacingPolicy.backoff_delay_seconds(attempt)` and
+  `can_retry_attempt(next_attempt)`;
+- retry exhaustion records a redacted provider error, quarantines only that
+  chunk, and continues later chunks;
+- final summary reports coarse `INCOMPLETE` for any non-complete final ledger,
+  while `resumed_ledger_status` preserves the exact ledger-derived status;
+- dated `FUT` `1 min` specs expand before execution into stable one-day
+  sub-chunks with suffixed `chunk_id` and `request_spec_id`, per-window
+  `start_ts`, `end_ts`, and duration;
+- `CONTFUT` `1 min` specs are not sub-chunked and continue to use the connector
+  path with `endDateTime=""`;
+- explicit expanded `max_chunks` bounds fail closed instead of truncating;
+  connector default is not treated as an expanded-plan cap unless the operator
+  supplies `--max-chunks`.
+
+Threaded in `src/alpha_system/data/ibkr/backfill_connect.py`:
+
+- `--max-request-span-days` optional override for the default one-day `1 min`
+  request span;
+- operator-supplied `--max-chunks` as an explicit expanded-plan bound;
+- `interrupt_after_chunks=sys.maxsize` for straight connector pulls, so daily
+  sub-chunk expansion does not accidentally simulate an interruption.
+
+### Install And Connector Posture
+
+The `[ibkr]` extra remains the correct optional dependency path. Because system
+Python may be PEP 668 / externally managed, the documented install path is now:
+
+```bash
+python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"
+```
+
+Fallback:
+
+```bash
+python -m pip install --target ~/.alpha_ibkr_libs ib_insync
+export PYTHONPATH=src:~/.alpha_ibkr_libs
+```
+
+The optional lazy connector exists only for read-only IBKR historical data.
+Only `reqHistoricalData` is registered. No generic IB client escapes the
+adapter. Broker, order, account, position, paper, live, and trading surfaces
+remain forbidden. Real pulls are operator-only and never run in CI.
+
+### Files Added Or Edited In This Run
+
+- `src/alpha_system/data/ibkr/backfill.py`
+- `src/alpha_system/data/ibkr/backfill_connect.py`
+- `src/alpha_system/data/ibkr/connector.py`
+- `tests/unit/data/test_backfill_pacing_and_subchunk.py`
+- `configs/data/ibkr_mes_mnq_m2k_instruments.json`
+- `docs/data_foundation/BACKFILL_RUNBOOK.md`
+- `docs/data_foundation/SMOKE_PULL.md`
+- `handoffs/ADF1_LOCAL_RESEARCH_DATA_BACKFILL.md`
+
+### Validation
+
+- `python -m compileall src/alpha_system/data tests/unit/data` — PASS.
+- `python -m ruff check src/alpha_system/data/ibkr/backfill.py src/alpha_system/data/ibkr/backfill_connect.py src/alpha_system/data/ibkr/connector.py tests/unit/data/test_backfill_pacing_and_subchunk.py` — PASS.
+- `python -m pytest tests/unit/data/test_backfill_pacing_and_subchunk.py tests/unit/data/test_ibkr_backfill_resume_drill.py tests/unit/data/test_ibkr_backfill_connect.py tests/unit/data/test_ibkr_connector.py -q` — PASS (`28 passed`).
+- `CI=true python -m pytest -q` — PASS (`1742 passed`).
+
+### Explicit Non-Runs
+
+- No live IBKR call.
+- No network call.
+- No `pip install`.
+- No git command.
+- No raw data, registry, cache, log, DB, Parquet, Arrow, Feather, or real data
+  artifact intentionally written or committed.
+- No materialize, coverage, dataset, or calendar changes in this run.
+
 ## Task 1B — Backfill machinery + first real DatasetVersion
 
 ### Files Added Or Edited
@@ -231,9 +327,10 @@ The full 2018→present pull is ready for an operator-supervised launch path:
   operator-supervised.
 - Full 2018→present pull not executed (operator-supervised).
 
-Before launching the full job, verify that `run_local_backfill_resume_drill`
-enforces real pacing sleeps for large chunk counts. The current runner remains
-drill-oriented; a production pacing loop may be a follow-up.
+Run 1 hardening now makes `run_local_backfill_resume_drill` enforce configured
+pacing sleeps, retry/backoff, and dated `1 min` FUT daily sub-chunking before a
+full operator-supervised pull. The full 2018→present pull still remains
+operator-supervised and was not executed by Codex.
 
 ### Validation
 
