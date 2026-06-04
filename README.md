@@ -78,21 +78,26 @@ secondary micro-batch plan, mini-to-micro parity-check target declarations, and
 `BidAskPilotPlan`, the pilot-only `SpreadProxyMetric` scaffold, the
 declarative BID_ASK pilot config, synthetic spread-proxy fixture tests, and
 `docs/data_foundation/BID_ASK_PILOT.md`. The
-`validation_and_authorized_smoke` gate has progressed through the DATA-P23
-executor snapshot, 24 of 25 DATA-P00 through DATA-P24 phases: DATA-P21
-synthetic IBKR-shaped fixture tests compose the
+`validation_and_authorized_smoke` gate is complete through the DATA-P23
+executor snapshot: DATA-P21 synthetic IBKR-shaped fixture tests compose the
 read-only boundary, manifest, pacing/resume ledger, parser, canonical bars,
 quality/coverage, and dataset-version registry path with no external provider
 call; DATA-P22 adds the guarded read-only IBKR smoke-pull entry point and
 `docs/data_foundation/SMOKE_PULL.md`; DATA-P23 adds the local backfill
 resume-drill entry point under `src/alpha_system/data/ibkr/backfill.py` and
-`docs/data_foundation/BACKFILL_RUNBOOK.md`. The
-`validation_and_authorized_smoke` gate executor scope is complete. The active
-phase is `DATA-P23` - Local Backfill Runbook and Resume Drill; next phase is
-`DATA-P24` - End-to-End Data Foundation Dry Run and Closeout. The read-only
-IBKR boundary, clientId `101`/`102` hard-block, data-client namespace `201-209`
-with default `201`, never-in-CI external pulls, local-only data artifacts, and
-no order/account/paper/live scope are unchanged. Ralph still owns formal
+`docs/data_foundation/BACKFILL_RUNBOOK.md`. DATA-P24 is the final closeout
+phase, bringing `DATA-P00` through `DATA-P24` to 25 of 25 executor scopes. It
+adds the synthetic end-to-end dry-run entry point
+`alpha_system.data.foundation.dry_run`,
+`docs/data_foundation/END_TO_END_DRY_RUN.md`, and
+`campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md`; the closeout verdict is
+`BLOCKED` because the required broad verifier currently fails in existing
+Workflow/GitHub driver tests outside the DATA-P24 data-foundation scope. The
+active phase is `DATA-P24` - End-to-End Data Foundation Dry Run and Closeout;
+there is no next phase in this campaign. The read-only IBKR boundary, clientId
+`101`/`102` hard-block, data-client namespace `201-209` with default `201`,
+never-in-CI external pulls, local-only data artifacts, and no
+broker/order/account/paper/live scope are unchanged. Ralph still owns formal
 validation, independent review, verdict parsing, semantic done-check, PR, CI,
 and merge gates.
 
@@ -319,6 +324,18 @@ resume/no-gap/no-overwrite unit tests, and
 operator-run only, requires the data-pull authorization env, never runs in CI,
 and writes only under `$ALPHA_DATA_ROOT` outside the repo.
 
+`DATA-P24` adds the synthetic end-to-end dry-run entry point under
+`src/alpha_system/data/foundation/dry_run.py`, plus
+`tests/unit/data/test_data_foundation_dry_run.py`,
+`tests/integration/data/test_end_to_end_data_foundation_dry_run.py`,
+`docs/data_foundation/END_TO_END_DRY_RUN.md`, and
+`campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md`. The dry run exercises
+source, connection, manifest, pacing/resume ledger, raw object metadata,
+parsed bars, canonical bars, quality/coverage reports, dataset-version
+prerequisites, registry round-trip, and partition metadata over synthetic
+fixtures only. The campaign has no next phase; future campaigns consume this
+layer under their own contracts.
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -365,6 +382,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/SYNTHETIC_FIXTURE_TESTS.md`
 - `docs/data_foundation/SMOKE_PULL.md`
 - `docs/data_foundation/BACKFILL_RUNBOOK.md`
+- `docs/data_foundation/END_TO_END_DRY_RUN.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
