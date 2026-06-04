@@ -289,6 +289,7 @@ def test_smoke_connect_short_circuits_unreachable_doctor(
     env = {**VALID_ENV, "ALPHA_DATA_ROOT": tmp_path.as_posix()}
     for name, value in env.items():
         monkeypatch.setenv(name, value)
+    monkeypatch.delenv("CI", raising=False)
 
     sys.modules.pop("ib_insync", None)
 
@@ -315,6 +316,45 @@ def test_smoke_connect_short_circuits_unreachable_doctor(
     assert "127.0.0.1:4002" in captured.err
     assert "unit-unreachable" in captured.err
     assert "NOT changed automatically" in captured.err
+
+
+def test_smoke_connect_refuses_external_access_in_ci(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    env = {**VALID_ENV, "ALPHA_DATA_ROOT": tmp_path.as_posix()}
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("CI", "true")
+
+    probe_calls = 0
+    boundary_calls = 0
+
+    def reachable_probe(profile: IBKRConnectionProfile) -> SmokePullDoctorReport:
+        nonlocal probe_calls
+        probe_calls += 1
+        return SmokePullDoctorReport(
+            profile=run_connection_doctor(profile),
+            reachable=True,
+            probe_performed=True,
+        )
+
+    def fail_open_boundary(*args: object, **kwargs: object) -> object:
+        nonlocal boundary_calls
+        del args, kwargs
+        boundary_calls += 1
+        raise AssertionError("open_ibkr_historical_boundary must not be reached")
+
+    monkeypatch.setattr(smoke_connect, "open_ibkr_historical_boundary", fail_open_boundary)
+
+    result = smoke_connect.main([], reachability_probe=reachable_probe)
+    captured = capsys.readouterr()
+
+    assert result == 2
+    assert probe_calls == 0
+    assert boundary_calls == 0
+    assert "CI" in captured.err
 
 
 def test_smoke_connect_validates_authorization_before_reachability_probe(
