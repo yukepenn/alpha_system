@@ -21,6 +21,12 @@ from alpha_system.data.foundation.bars import (
     CANONICAL_BAR_RECORD_FIELDS,
     CanonicalBarRecord,
 )
+from alpha_system.data.foundation.quotes import (
+    CANONICAL_BBO_RECORD_FIELDS,
+    CANONICAL_BBO_REQUIRED_FIELDS,
+    MISSING_BBO_QUALITY_FLAG,
+    CanonicalBBORecord,
+)
 from alpha_system.data.foundation.requests import ProviderErrorRecord
 from alpha_system.data.foundation.sessions import SUPPORTED_SESSION_TYPES
 from alpha_system.data.foundation.sources import DataFoundationValidationError
@@ -198,6 +204,29 @@ class _CanonicalBarView:
     low: Decimal
     close: Decimal
     volume: Decimal
+    source: str
+    source_request_id: str
+    data_version: str
+    quality_flags: tuple[str, ...]
+    session_label: str
+
+
+@dataclass(frozen=True, slots=True)
+class _CanonicalBBOView:
+    instrument_id: str
+    contract_id: str
+    series_id: str
+    bar_start_ts: datetime
+    bar_end_ts: datetime
+    event_ts: datetime
+    available_ts: datetime
+    ingested_at: datetime
+    bid: Decimal
+    ask: Decimal
+    bid_size: Decimal
+    ask_size: Decimal
+    mid: Decimal
+    spread: Decimal
     source: str
     source_request_id: str
     data_version: str
@@ -811,6 +840,53 @@ def _canonical_bar_view(bar: CanonicalBarRecord | Mapping[str, object]) -> _Cano
     )
 
 
+def _canonical_bbo_view(bbo: CanonicalBBORecord | Mapping[str, object]) -> _CanonicalBBOView:
+    if isinstance(bbo, CanonicalBBORecord):
+        values = bbo.to_mapping()
+    elif isinstance(bbo, Mapping):
+        values = bbo
+    else:
+        msg = "canonical BBOs must be CanonicalBBORecord instances or canonical mappings"
+        raise DataFoundationValidationError(msg)
+
+    missing = tuple(field for field in CANONICAL_BBO_REQUIRED_FIELDS if field not in values)
+    if missing:
+        msg = "canonical BBO audit input missing required fields: " + ", ".join(missing)
+        raise DataFoundationValidationError(msg)
+    extra = tuple(field for field in values if field not in CANONICAL_BBO_RECORD_FIELDS)
+    if extra:
+        msg = "canonical BBO audit input includes unsupported fields: " + ", ".join(extra)
+        raise DataFoundationValidationError(msg)
+
+    start = _parse_aware_datetime(values["bar_start_ts"], "bar_start_ts")
+    end = _parse_aware_datetime(values["bar_end_ts"], "bar_end_ts")
+    if end <= start:
+        msg = "bar_end_ts must be greater than bar_start_ts before BBO quality audit"
+        raise DataFoundationValidationError(msg)
+
+    return _CanonicalBBOView(
+        instrument_id=_normalize_id(values["instrument_id"], "instrument_id"),
+        contract_id=_normalize_id(values["contract_id"], "contract_id"),
+        series_id=_normalize_id(values["series_id"], "series_id"),
+        bar_start_ts=start,
+        bar_end_ts=end,
+        event_ts=_parse_aware_datetime(values["event_ts"], "event_ts"),
+        available_ts=_parse_aware_datetime(values["available_ts"], "available_ts"),
+        ingested_at=_parse_aware_datetime(values["ingested_at"], "ingested_at"),
+        bid=_parse_decimal(values["bid"], "bid"),
+        ask=_parse_decimal(values["ask"], "ask"),
+        bid_size=_parse_decimal(values["bid_size"], "bid_size"),
+        ask_size=_parse_decimal(values["ask_size"], "ask_size"),
+        mid=_parse_decimal(values["mid"], "mid"),
+        spread=_parse_decimal(values["spread"], "spread"),
+        source=_require_text(values["source"], "source"),
+        source_request_id=_normalize_id(values["source_request_id"], "source_request_id"),
+        data_version=_require_text(values["data_version"], "data_version"),
+        quality_flags=_normalize_text_collection(values["quality_flags"], "quality_flags"),
+        session_label=_require_text(values["session_label"], "session_label").upper(),
+    )
+
+
 def _expected_interval_seconds(value: object) -> int:
     interval_seconds = _require_positive_int(value, "expected_interval_seconds")
     if interval_seconds != BAR_SIZE_SECONDS_1M:
@@ -1271,6 +1347,342 @@ def _compute_quality_summaries(
     )
 
 
+def _bbo_group_key(bbo: _CanonicalBBOView) -> tuple[str, str, str]:
+    return (bbo.instrument_id, bbo.contract_id, bbo.series_id)
+
+
+def _bbo_minute_key(bbo: _CanonicalBBOView) -> tuple[str, str, str, datetime]:
+    return (bbo.instrument_id, bbo.contract_id, bbo.series_id, bbo.bar_start_ts)
+
+
+def _bar_minute_key(bar: _CanonicalBarView) -> tuple[str, str, str, datetime]:
+    return (bar.instrument_id, bar.contract_id, bar.series_id, bar.bar_start_ts)
+
+
+def _normalize_optional_decimal(value: object, field_name: str) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    parsed = _parse_decimal(value, field_name)
+    if parsed < 0:
+        msg = f"{field_name} must be non-negative"
+        raise DataFoundationValidationError(msg)
+    return parsed
+
+
+def _bbo_expected_missing_findings(
+    *,
+    bbos: tuple[_CanonicalBBOView, ...],
+    expected_ohlcv_bars: Iterable[CanonicalBarRecord | Mapping[str, object]] | None,
+) -> tuple[Mapping[str, object], ...]:
+    missing_flag = MISSING_BBO_QUALITY_FLAG.lower()
+    findings: list[Mapping[str, object]] = [
+        {
+            "instrument_id": bbo.instrument_id,
+            "contract_id": bbo.contract_id,
+            "series_id": bbo.series_id,
+            "bar_start_ts": bbo.bar_start_ts.isoformat(),
+            "finding": "missing_bbo_flagged",
+        }
+        for bbo in bbos
+        if missing_flag in {flag.lower() for flag in bbo.quality_flags}
+    ]
+    if expected_ohlcv_bars is None:
+        return tuple(findings)
+
+    expected_keys = {
+        _bar_minute_key(_canonical_bar_view(bar)) for bar in expected_ohlcv_bars
+    }
+    observed_keys = {_bbo_minute_key(bbo) for bbo in bbos}
+    for instrument_id, contract_id, series_id, bar_start_ts in sorted(
+        expected_keys.difference(observed_keys),
+        key=lambda item: (item[0], item[1], item[2], item[3]),
+    ):
+        findings.append(
+            {
+                "instrument_id": instrument_id,
+                "contract_id": contract_id,
+                "series_id": series_id,
+                "bar_start_ts": bar_start_ts.isoformat(),
+                "finding": "missing_bbo_record_for_ohlcv_minute",
+            }
+        )
+    return tuple(findings)
+
+
+def _bbo_alignment_findings(
+    *,
+    bbos: tuple[_CanonicalBBOView, ...],
+    expected_ohlcv_bars: Iterable[CanonicalBarRecord | Mapping[str, object]] | None,
+    expected_interval_seconds: int,
+) -> tuple[Mapping[str, object], ...]:
+    findings: list[Mapping[str, object]] = []
+    expected_keys = (
+        {_bar_minute_key(_canonical_bar_view(bar)) for bar in expected_ohlcv_bars}
+        if expected_ohlcv_bars is not None
+        else None
+    )
+    for bbo in bbos:
+        duration_seconds = int((bbo.bar_end_ts - bbo.bar_start_ts).total_seconds())
+        if duration_seconds != expected_interval_seconds:
+            findings.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "bar_end_ts": bbo.bar_end_ts.isoformat(),
+                    "finding": "bbo_bar_duration_not_1m",
+                    "duration_seconds": duration_seconds,
+                }
+            )
+        if bbo.event_ts < bbo.bar_start_ts or bbo.event_ts > bbo.bar_end_ts:
+            findings.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "bar_end_ts": bbo.bar_end_ts.isoformat(),
+                    "event_ts": bbo.event_ts.isoformat(),
+                    "finding": "bbo_event_outside_bar_interval",
+                }
+            )
+        if bbo.available_ts < bbo.bar_end_ts:
+            findings.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "bar_end_ts": bbo.bar_end_ts.isoformat(),
+                    "available_ts": bbo.available_ts.isoformat(),
+                    "finding": "bbo_available_before_bar_end",
+                }
+            )
+        if expected_keys is not None and _bbo_minute_key(bbo) not in expected_keys:
+            findings.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "series_id": bbo.series_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "bbo_minute_without_ohlcv",
+                }
+            )
+    return tuple(findings)
+
+
+def _compute_bbo_quality_summaries(
+    bbos: tuple[_CanonicalBBOView, ...],
+    *,
+    expected_interval_seconds: int,
+    expected_sessions: Iterable[str] | None,
+    expected_ohlcv_bars: Iterable[CanonicalBarRecord | Mapping[str, object]] | None,
+    abnormal_spread_threshold: Decimal | None,
+    provider_errors: Iterable[ProviderErrorRecord | Mapping[str, object]],
+) -> Mapping[str, Mapping[str, object]]:
+    grouped: dict[tuple[str, str, str], list[_CanonicalBBOView]] = defaultdict(list)
+    for bbo in bbos:
+        grouped[_bbo_group_key(bbo)].append(bbo)
+
+    duplicate_counts = Counter(
+        (
+            bbo.instrument_id,
+            bbo.contract_id,
+            bbo.series_id,
+            bbo.bar_start_ts.isoformat(),
+        )
+        for bbo in bbos
+    )
+    duplicates = [
+        {
+            "instrument_id": key[0],
+            "contract_id": key[1],
+            "series_id": key[2],
+            "bar_start_ts": key[3],
+            "duplicate_count": count,
+        }
+        for key, count in sorted(duplicate_counts.items())
+        if count > 1
+    ]
+
+    non_monotonic: list[Mapping[str, object]] = []
+    previous_by_group: dict[tuple[str, str, str], _CanonicalBBOView] = {}
+    for bbo in bbos:
+        key = _bbo_group_key(bbo)
+        previous = previous_by_group.get(key)
+        if previous is not None and bbo.bar_start_ts < previous.bar_start_ts:
+            non_monotonic.append(
+                {
+                    "instrument_id": key[0],
+                    "contract_id": key[1],
+                    "series_id": key[2],
+                    "previous_bar_start_ts": previous.bar_start_ts.isoformat(),
+                    "current_bar_start_ts": bbo.bar_start_ts.isoformat(),
+                }
+            )
+        previous_by_group[key] = bbo
+
+    missing_findings = _bbo_expected_missing_findings(
+        bbos=bbos,
+        expected_ohlcv_bars=expected_ohlcv_bars,
+    )
+    alignment_findings = _bbo_alignment_findings(
+        bbos=bbos,
+        expected_ohlcv_bars=expected_ohlcv_bars,
+        expected_interval_seconds=expected_interval_seconds,
+    )
+    quote_errors: list[Mapping[str, object]] = []
+    zero_size_anomalies: list[Mapping[str, object]] = []
+    missing_flag = MISSING_BBO_QUALITY_FLAG.lower()
+    for bbo in bbos:
+        flags = {flag.lower() for flag in bbo.quality_flags}
+        is_missing = missing_flag in flags
+        values = {
+            "bid": bbo.bid,
+            "ask": bbo.ask,
+            "bid_size": bbo.bid_size,
+            "ask_size": bbo.ask_size,
+            "spread": bbo.spread,
+        }
+        for field_name, value in values.items():
+            if value < 0:
+                quote_errors.append(
+                    {
+                        "instrument_id": bbo.instrument_id,
+                        "contract_id": bbo.contract_id,
+                        "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                        "field": field_name,
+                        "finding": "negative_bbo_value",
+                    }
+                )
+        if bbo.ask < bbo.bid:
+            quote_errors.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "bid_above_ask",
+                }
+            )
+        if bbo.mid != (bbo.bid + bbo.ask) / Decimal("2"):
+            quote_errors.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "mid_mismatch",
+                }
+            )
+        if bbo.spread != bbo.ask - bbo.bid:
+            quote_errors.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "spread_mismatch",
+                }
+            )
+        if (
+            abnormal_spread_threshold is not None
+            and not is_missing
+            and bbo.spread > abnormal_spread_threshold
+        ):
+            quote_errors.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "abnormal_spread_outlier",
+                    "spread": str(bbo.spread),
+                    "threshold": str(abnormal_spread_threshold),
+                }
+            )
+        if not is_missing and (bbo.bid_size == 0 or bbo.ask_size == 0):
+            zero_size_anomalies.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "zero_displayed_bbo_size",
+                }
+            )
+
+    session_proxy_bars = tuple(
+        _CanonicalBarView(
+            instrument_id=bbo.instrument_id,
+            contract_id=bbo.contract_id,
+            series_id=bbo.series_id,
+            bar_start_ts=bbo.bar_start_ts,
+            bar_end_ts=bbo.bar_end_ts,
+            event_ts=bbo.event_ts,
+            available_ts=bbo.available_ts,
+            ingested_at=bbo.ingested_at,
+            open=bbo.bid,
+            high=max(bbo.bid, bbo.ask),
+            low=min(bbo.bid, bbo.ask),
+            close=bbo.ask,
+            volume=bbo.bid_size + bbo.ask_size,
+            source=bbo.source,
+            source_request_id=bbo.source_request_id,
+            data_version=bbo.data_version,
+            quality_flags=bbo.quality_flags,
+            session_label=bbo.session_label,
+        )
+        for bbo in bbos
+    )
+
+    return MappingProxyType(
+        {
+            "gap_summary": _finding_summary(
+                count=len(missing_findings),
+                status=_status_for_blocking_count(len(missing_findings)),
+                sample_key="sample_intervals",
+                samples=missing_findings,
+            ),
+            "duplicate_summary": _finding_summary(
+                count=len(duplicates),
+                status=_status_for_blocking_count(len(duplicates)),
+                sample_key="sample_duplicates",
+                samples=duplicates,
+            ),
+            "non_monotonic_summary": _finding_summary(
+                count=len(non_monotonic),
+                status=_status_for_blocking_count(len(non_monotonic)),
+                sample_key="sample_pairs",
+                samples=non_monotonic,
+            ),
+            "ohlc_errors": _finding_summary(
+                count=len(alignment_findings),
+                status=_status_for_blocking_count(len(alignment_findings)),
+                sample_key="sample_errors",
+                samples=alignment_findings,
+            ),
+            "zero_negative_price_errors": _finding_summary(
+                count=len(quote_errors),
+                status=_status_for_blocking_count(len(quote_errors)),
+                sample_key="sample_errors",
+                samples=quote_errors,
+            ),
+            "zero_volume_anomalies": _finding_summary(
+                count=len(zero_size_anomalies),
+                status=_status_for_warning_count(len(zero_size_anomalies)),
+                sample_key="sample_anomalies",
+                samples=zero_size_anomalies,
+            ),
+            "dst_anomalies": _passing_summary("sample_anomalies"),
+            "session_coverage": _quality_session_summary(
+                session_proxy_bars,
+                expected_sessions,
+            ),
+            "roll_discontinuities": _roll_discontinuity_summary(
+                session_proxy_bars,
+                None,
+            ),
+            "provider_error_summary": _provider_error_summary(provider_errors),
+        }
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class DataQualityReport:
     """Fail-closed aggregate quality audit for canonical 1-minute bars.
@@ -1441,6 +1853,55 @@ class DataQualityReport:
             status=status,
         )
 
+    @classmethod
+    def from_canonical_bbos(
+        cls,
+        *,
+        quality_report_id: object,
+        dataset_version_id: object,
+        bbos: Iterable[CanonicalBBORecord | Mapping[str, object]],
+        expected_ohlcv_bars: Iterable[CanonicalBarRecord | Mapping[str, object]] | None = None,
+        provider_errors: Iterable[ProviderErrorRecord | Mapping[str, object]] = (),
+        expected_interval_seconds: object = BAR_SIZE_SECONDS_1M,
+        expected_sessions: Iterable[str] | None = None,
+        abnormal_spread_threshold: object | None = None,
+    ) -> DataQualityReport:
+        """Compute aggregate quality findings from canonical 1-minute BBO fields."""
+
+        interval_seconds = _expected_interval_seconds(expected_interval_seconds)
+        bbo_views = tuple(_canonical_bbo_view(bbo) for bbo in bbos)
+        if not bbo_views:
+            msg = "DataQualityReport requires at least one canonical BBO"
+            raise DataFoundationValidationError(msg)
+        threshold = _normalize_optional_decimal(
+            abnormal_spread_threshold,
+            "abnormal_spread_threshold",
+        )
+        summaries = _compute_bbo_quality_summaries(
+            bbo_views,
+            expected_interval_seconds=interval_seconds,
+            expected_sessions=expected_sessions,
+            expected_ohlcv_bars=expected_ohlcv_bars,
+            abnormal_spread_threshold=threshold,
+            provider_errors=provider_errors,
+        )
+        status = _derive_quality_status(summaries.values())
+        return cls(
+            quality_report_id=_require_text(quality_report_id, "quality_report_id"),
+            dataset_version_id=_require_text(dataset_version_id, "dataset_version_id"),
+            gap_summary=summaries["gap_summary"],
+            duplicate_summary=summaries["duplicate_summary"],
+            non_monotonic_summary=summaries["non_monotonic_summary"],
+            ohlc_errors=summaries["ohlc_errors"],
+            zero_negative_price_errors=summaries["zero_negative_price_errors"],
+            zero_volume_anomalies=summaries["zero_volume_anomalies"],
+            dst_anomalies=summaries["dst_anomalies"],
+            session_coverage=summaries["session_coverage"],
+            roll_discontinuities=summaries["roll_discontinuities"],
+            provider_error_summary=summaries["provider_error_summary"],
+            status=status,
+        )
+
     @property
     def blocks_versioning(self) -> bool:
         """Return true when quality findings must block dataset versioning."""
@@ -1541,6 +2002,26 @@ def _observed_count_for_interval(
         and bar.session_label == interval["session_label"]
         and start <= bar.bar_start_ts
         and bar.bar_end_ts <= end
+    )
+
+
+def _observed_bbo_count_for_interval(
+    bbos: tuple[_CanonicalBBOView, ...],
+    interval: Mapping[str, object],
+) -> int:
+    start = interval["start_ts"]
+    end = interval["end_ts"]
+    if not isinstance(start, datetime) or not isinstance(end, datetime):
+        msg = "normalized coverage interval carries invalid timestamps"
+        raise DataFoundationValidationError(msg)
+    return sum(
+        1
+        for bbo in bbos
+        if bbo.instrument_id == interval["instrument_id"]
+        and bbo.contract_id == interval["contract_id"]
+        and bbo.session_label == interval["session_label"]
+        and start <= bbo.bar_start_ts
+        and bbo.bar_end_ts <= end
     )
 
 
@@ -1907,6 +2388,111 @@ class CoverageReport:
                 raise DataFoundationValidationError(msg)
             expected_count = _expected_bar_count(start, end, interval_seconds)
             observed_count = _observed_count_for_interval(bar_views, interval)
+            missing_count = max(0, expected_count - observed_count)
+            keys = {
+                "symbol": str(interval["symbol"]),
+                "contract": str(interval["contract_id"]),
+                "session": str(interval["session_label"]),
+                "partition": str(interval["partition_id"]),
+            }
+            for entries, key_name in (
+                (symbol_entries, "symbol"),
+                (contract_entries, "contract"),
+                (session_entries, "session"),
+                (partition_entries, "partition"),
+            ):
+                entries[keys[key_name]]["expected"] += expected_count
+                entries[keys[key_name]]["observed"] += observed_count
+                entries[keys[key_name]]["missing"] += missing_count
+            if missing_count:
+                missing_interval_summaries.append(
+                    {
+                        "symbol": interval["symbol"],
+                        "instrument_id": interval["instrument_id"],
+                        "contract_id": interval["contract_id"],
+                        "session_label": interval["session_label"],
+                        "partition_id": interval["partition_id"],
+                        "start_ts": start.isoformat(),
+                        "end_ts": end.isoformat(),
+                        "expected_bar_count": expected_count,
+                        "observed_bar_count": observed_count,
+                        "missing_bar_count": missing_count,
+                        "status": ReportStatus.BLOCKING.value,
+                    }
+                )
+
+        chunk_summaries = tuple(
+            _normalize_input_incomplete_chunk(chunk) for chunk in incomplete_chunks
+        )
+        missing_interval_count = len(missing_interval_summaries)
+        incomplete_chunk_count = len(chunk_summaries)
+        return cls(
+            coverage_report_id=_require_text(coverage_report_id, "coverage_report_id"),
+            dataset_version_id=_require_text(dataset_version_id, "dataset_version_id"),
+            symbol_coverage=_coverage_bucket_summary(
+                bucket_name="symbol",
+                entries=symbol_entries,
+            ),
+            contract_coverage=_coverage_bucket_summary(
+                bucket_name="contract",
+                entries=contract_entries,
+            ),
+            session_coverage=_coverage_bucket_summary(
+                bucket_name="session",
+                entries=session_entries,
+            ),
+            partition_coverage=_coverage_bucket_summary(
+                bucket_name="partition",
+                entries=partition_entries,
+                missing_interval_count=missing_interval_count,
+                incomplete_chunk_count=incomplete_chunk_count,
+            ),
+            missing_intervals=tuple(missing_interval_summaries),
+            incomplete_chunks=chunk_summaries,
+        )
+
+    @classmethod
+    def from_canonical_bbos(
+        cls,
+        *,
+        coverage_report_id: object,
+        dataset_version_id: object,
+        bbos: Iterable[CanonicalBBORecord | Mapping[str, object]],
+        expected_intervals: Iterable[Mapping[str, object]],
+        incomplete_chunks: Iterable[Mapping[str, object]] = (),
+        expected_interval_seconds: object = BAR_SIZE_SECONDS_1M,
+    ) -> CoverageReport:
+        """Compute BBO symbol, contract, session, and partition coverage summaries."""
+
+        interval_seconds = _expected_interval_seconds(expected_interval_seconds)
+        bbo_views = tuple(_canonical_bbo_view(bbo) for bbo in bbos)
+        intervals = tuple(_normalize_expected_interval(interval) for interval in expected_intervals)
+        if not intervals:
+            msg = "CoverageReport requires explicit expected_intervals"
+            raise DataFoundationValidationError(msg)
+
+        symbol_entries: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"expected": 0, "observed": 0, "missing": 0}
+        )
+        contract_entries: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"expected": 0, "observed": 0, "missing": 0}
+        )
+        session_entries: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"expected": 0, "observed": 0, "missing": 0}
+        )
+        partition_entries: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"expected": 0, "observed": 0, "missing": 0}
+        )
+        missing_interval_summaries = []
+
+        for interval in intervals:
+            start = interval["start_ts"]
+            end = interval["end_ts"]
+            if not isinstance(start, datetime) or not isinstance(end, datetime):
+                msg = "normalized coverage interval carries invalid timestamps"
+                raise DataFoundationValidationError(msg)
+            expected_count = _expected_bar_count(start, end, interval_seconds)
+            observed_count = _observed_bbo_count_for_interval(bbo_views, interval)
             missing_count = max(0, expected_count - observed_count)
             keys = {
                 "symbol": str(interval["symbol"]),
