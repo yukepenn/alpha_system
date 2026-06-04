@@ -78,13 +78,17 @@ secondary micro-batch plan, mini-to-micro parity-check target declarations, and
 `BidAskPilotPlan`, the pilot-only `SpreadProxyMetric` scaffold, the
 declarative BID_ASK pilot config, synthetic spread-proxy fixture tests, and
 `docs/data_foundation/BID_ASK_PILOT.md`. The
-`validation_and_authorized_smoke` gate has the DATA-P21 executor snapshot:
-synthetic IBKR-shaped fixture tests compose the read-only boundary, manifest,
-pacing/resume ledger, parser, canonical bars, quality/coverage, and
-dataset-version registry path with no external provider call. The next phase is
-`DATA-P22` - Small Authorized IBKR Smoke Pull. Ralph still owns formal
-validation, independent review, verdict parsing, semantic done-check, PR, CI,
-and merge gates.
+`validation_and_authorized_smoke` gate has progressed through the DATA-P22
+executor snapshot: DATA-P21 synthetic IBKR-shaped fixture tests compose the
+read-only boundary, manifest, pacing/resume ledger, parser, canonical bars,
+quality/coverage, and dataset-version registry path with no external provider
+call; DATA-P22 adds the guarded read-only IBKR smoke-pull entry point and
+`docs/data_foundation/SMOKE_PULL.md`. The read-only IBKR boundary, clientId
+`101`/`102` hard-block, never-in-CI external pulls, and local-only data
+artifact boundaries are unchanged. The next phase is `DATA-P23` - Local
+Backfill Runbook and Resume Drill. Ralph still owns formal validation,
+independent review, verdict parsing, semantic done-check, PR, CI, and merge
+gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
