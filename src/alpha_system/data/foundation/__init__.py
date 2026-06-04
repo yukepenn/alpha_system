@@ -28,13 +28,16 @@ from alpha_system.data.foundation.bars import (
 )
 from alpha_system.data.foundation.batches import MicroBatchPolicy, SymbolBatchPlan
 from alpha_system.data.foundation.datasets import (
+    CONTAMINATION_METADATA_RULE_FIELDS,
     DATASET_VERSION_ADMISSIBLE_STATES,
     DATASET_VERSION_FIELDS,
+    REQUIRED_DATASET_PARTITION_PLAN_FIELDS,
     CoverageReport,
     DataQualityReport,
     DatasetPartitionPlan,
     DatasetVersion,
     compute_quality_report_hash,
+    require_governance_metadata_for_locked_partition_use,
 )
 from alpha_system.data.foundation.ibkr import (
     IBKRClientIdPolicy,
@@ -102,6 +105,7 @@ __all__ = [
     "ContractDiscoveryRequest",
     "ContractDiscoveryResult",
     "ContinuousFuturesSeriesRecord",
+    "CONTAMINATION_METADATA_RULE_FIELDS",
     "CoverageReport",
     "DATASET_VERSION_ADMISSIBLE_STATES",
     "DATASET_VERSION_FIELDS",
@@ -133,6 +137,7 @@ __all__ = [
     "ParsedBarParser",
     "ProviderErrorResolution",
     "ProviderErrorRecord",
+    "REQUIRED_DATASET_PARTITION_PLAN_FIELDS",
     "REQUIRED_PARSED_BAR_RECORD_FIELDS",
     "RawDataLakeLayoutPolicy",
     "RawDataObject",
@@ -152,6 +157,7 @@ __all__ = [
     "build_read_only_ibkr_boundary",
     "authorize_historical_request_transition",
     "compute_quality_report_hash",
+    "require_governance_metadata_for_locked_partition_use",
     "compute_historical_pull_resume_token",
     "compute_historical_request_manifest_hash",
     "forbid_naive_request_loop",

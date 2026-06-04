@@ -90,6 +90,10 @@ Field-level contracts and acceptance criteria remain in `campaign.yaml` and
 adapter, reproducibility hash binding, lifecycle gate, and local-only registry
 policy.
 
+`PARTITION_PLAN.md` documents the DATA-P18 `DatasetPartitionPlan` contract,
+canonical development / validation / locked-test candidate windows, optional
+latest-shadow candidate, and locked-test contamination-metadata rules.
+
 ## Lifecycle Summary
 
 Future data-foundation objects move through this controlled lifecycle:

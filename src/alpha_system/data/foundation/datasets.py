@@ -10,7 +10,7 @@ import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from math import isfinite
@@ -69,8 +69,74 @@ DATASET_VERSION_FIELDS: tuple[str, ...] = (
     "created_at",
 )
 
+REQUIRED_DATASET_PARTITION_PLAN_FIELDS: tuple[str, ...] = (
+    "plan_id",
+    "development_partition",
+    "validation_partition",
+    "locked_test_candidate",
+    "latest_shadow_candidate",
+    "contamination_metadata_rules",
+)
+
+PARTITION_BOUND_FIELDS: tuple[str, ...] = (
+    "partition_id",
+    "start_date",
+    "end_date",
+    "role",
+)
+
+LATEST_SHADOW_PARTITION_FIELDS: tuple[str, ...] = (
+    "partition_id",
+    "start_date",
+    "end_date",
+    "role",
+    "rolling",
+    "optional",
+)
+
+CONTAMINATION_METADATA_RULE_FIELDS: tuple[str, ...] = (
+    "data_qa_coverage_inspection_allowed",
+    "locked_partition_ids",
+    "locked_partition_use_requires_governance_metadata",
+    "locked_partition_use_requires_contamination_metadata",
+    "alpha_research_without_governance_metadata",
+    "implies_research_approval",
+)
+
+CANONICAL_DEVELOPMENT_START = date(2018, 1, 1)
+CANONICAL_DEVELOPMENT_END = date(2022, 12, 31)
+CANONICAL_VALIDATION_START = date(2023, 1, 1)
+CANONICAL_VALIDATION_END = date(2024, 12, 31)
+CANONICAL_LOCKED_TEST_START = date(2025, 1, 1)
+CANONICAL_LOCKED_TEST_END = "as_of_run"
+
 DATASET_VERSION_ADMISSIBLE_STATES: frozenset[str] = frozenset(
     {"VERSIONED", "READY_FOR_RESEARCH"}
+)
+
+DATASET_PARTITION_QA_PURPOSES: frozenset[str] = frozenset(
+    {
+        "coverage_qa",
+        "coverage_inspection",
+        "data_qa_coverage",
+        "data_qa_coverage_inspection",
+    }
+)
+
+DEFAULT_LOCKED_PARTITION_IDS: tuple[str, ...] = (
+    "locked_test_candidate",
+    "latest_shadow_candidate",
+)
+
+DEFAULT_CONTAMINATION_METADATA_RULES: Mapping[str, object] = MappingProxyType(
+    {
+        "data_qa_coverage_inspection_allowed": True,
+        "locked_partition_ids": DEFAULT_LOCKED_PARTITION_IDS,
+        "locked_partition_use_requires_governance_metadata": True,
+        "locked_partition_use_requires_contamination_metadata": True,
+        "alpha_research_without_governance_metadata": "REJECT",
+        "implies_research_approval": False,
+    }
 )
 
 QUALITY_BLOCKING_SUMMARY_FIELDS: frozenset[str] = frozenset(
@@ -210,6 +276,20 @@ def _parse_aware_datetime(value: object, field_name: str) -> datetime:
     return parsed
 
 
+def _parse_partition_date(value: object, field_name: str) -> date:
+    if isinstance(value, datetime):
+        msg = f"{field_name} must be an ISO-8601 date, not a datetime"
+        raise DataFoundationValidationError(msg)
+    if isinstance(value, date):
+        return value
+    raw = _require_text(value, field_name)
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        msg = f"{field_name} must be an ISO-8601 date"
+        raise DataFoundationValidationError(msg) from exc
+
+
 def _parse_decimal(value: object, field_name: str) -> Decimal:
     if isinstance(value, bool):
         msg = f"{field_name} must be a finite decimal"
@@ -341,6 +421,251 @@ def _require_summary_mapping(value: object, field_name: str) -> Mapping[str, obj
         msg = f"{field_name} must be an aggregate summary mapping"
         raise DataFoundationValidationError(msg)
     return frozen
+
+
+def _require_exact_mapping_fields(
+    value: Mapping[object, object],
+    *,
+    required_fields: tuple[str, ...],
+    object_name: str,
+) -> None:
+    missing = tuple(field for field in required_fields if field not in value)
+    if missing:
+        msg = f"{object_name} missing required fields: " + ", ".join(missing)
+        raise DataFoundationValidationError(msg)
+    extra = tuple(str(field) for field in value if field not in required_fields)
+    if extra:
+        msg = f"{object_name} includes unsupported fields: " + ", ".join(extra)
+        raise DataFoundationValidationError(msg)
+
+
+def _normalize_fixed_partition(
+    value: object,
+    *,
+    field_name: str,
+    expected_partition_id: str,
+    expected_start: date,
+    expected_end: date | str,
+) -> Mapping[str, object]:
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = f"{field_name} must be a partition-bound mapping"
+        raise DataFoundationValidationError(msg)
+    _require_exact_mapping_fields(
+        value,
+        required_fields=PARTITION_BOUND_FIELDS,
+        object_name=field_name,
+    )
+    partition_id = _normalize_id(value["partition_id"], f"{field_name}.partition_id")
+    if partition_id != expected_partition_id:
+        msg = f"{field_name}.partition_id must be {expected_partition_id}"
+        raise DataFoundationValidationError(msg)
+    role = _normalize_id(value["role"], f"{field_name}.role")
+    if role != expected_partition_id:
+        msg = f"{field_name}.role must be {expected_partition_id}"
+        raise DataFoundationValidationError(msg)
+
+    start_date = _parse_partition_date(value["start_date"], f"{field_name}.start_date")
+    if expected_end == CANONICAL_LOCKED_TEST_END:
+        end_date: date | str = _require_text(value["end_date"], f"{field_name}.end_date")
+        if end_date != CANONICAL_LOCKED_TEST_END:
+            msg = f"{field_name}.end_date must be {CANONICAL_LOCKED_TEST_END}"
+            raise DataFoundationValidationError(msg)
+    else:
+        end_date = _parse_partition_date(value["end_date"], f"{field_name}.end_date")
+        if end_date < start_date:
+            msg = f"{field_name}.end_date must not be earlier than start_date"
+            raise DataFoundationValidationError(msg)
+
+    if start_date != expected_start:
+        msg = f"{field_name}.start_date must be {expected_start.isoformat()}"
+        raise DataFoundationValidationError(msg)
+    if isinstance(expected_end, date) and end_date != expected_end:
+        msg = f"{field_name}.end_date must be {expected_end.isoformat()}"
+        raise DataFoundationValidationError(msg)
+
+    return MappingProxyType(
+        {
+            "partition_id": partition_id,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date if isinstance(end_date, str) else end_date.isoformat(),
+            "role": role,
+        }
+    )
+
+
+def _normalize_latest_shadow_partition(value: object) -> Mapping[str, object] | None:
+    if value is None:
+        return None
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = "latest_shadow_candidate must be null or a partition-bound mapping"
+        raise DataFoundationValidationError(msg)
+    _require_exact_mapping_fields(
+        value,
+        required_fields=LATEST_SHADOW_PARTITION_FIELDS,
+        object_name="latest_shadow_candidate",
+    )
+    partition_id = _normalize_id(
+        value["partition_id"],
+        "latest_shadow_candidate.partition_id",
+    )
+    if partition_id != "latest_shadow_candidate":
+        msg = "latest_shadow_candidate.partition_id must be latest_shadow_candidate"
+        raise DataFoundationValidationError(msg)
+    role = _normalize_id(value["role"], "latest_shadow_candidate.role")
+    if role != "latest_shadow_candidate":
+        msg = "latest_shadow_candidate.role must be latest_shadow_candidate"
+        raise DataFoundationValidationError(msg)
+    rolling = _require_bool(value["rolling"], "latest_shadow_candidate.rolling")
+    optional = _require_bool(value["optional"], "latest_shadow_candidate.optional")
+    if not rolling or not optional:
+        msg = "latest_shadow_candidate must be explicitly rolling and optional"
+        raise DataFoundationValidationError(msg)
+
+    raw_start = value["start_date"]
+    if isinstance(raw_start, str) and raw_start.strip() == "rolling_recent":
+        start_date: date | str = raw_start
+    else:
+        start_date = _parse_partition_date(
+            raw_start,
+            "latest_shadow_candidate.start_date",
+        )
+    raw_end = value["end_date"]
+    if isinstance(raw_end, str) and raw_end.strip() == CANONICAL_LOCKED_TEST_END:
+        end_date: date | str = raw_end
+    else:
+        end_date = _parse_partition_date(raw_end, "latest_shadow_candidate.end_date")
+
+    if isinstance(start_date, date) and isinstance(end_date, date) and end_date < start_date:
+        msg = "latest_shadow_candidate.end_date must not be earlier than start_date"
+        raise DataFoundationValidationError(msg)
+
+    return MappingProxyType(
+        {
+            "partition_id": partition_id,
+            "start_date": start_date if isinstance(start_date, str) else start_date.isoformat(),
+            "end_date": end_date if isinstance(end_date, str) else end_date.isoformat(),
+            "role": role,
+            "rolling": rolling,
+            "optional": optional,
+        }
+    )
+
+
+def _normalize_contamination_metadata_rules(
+    value: object,
+) -> Mapping[str, object]:
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = "contamination_metadata_rules must be a structured rule mapping"
+        raise DataFoundationValidationError(msg)
+    _require_exact_mapping_fields(
+        value,
+        required_fields=CONTAMINATION_METADATA_RULE_FIELDS,
+        object_name="contamination_metadata_rules",
+    )
+
+    qa_allowed = _require_bool(
+        value["data_qa_coverage_inspection_allowed"],
+        "contamination_metadata_rules.data_qa_coverage_inspection_allowed",
+    )
+    if not qa_allowed:
+        msg = "contamination_metadata_rules must allow data QA coverage inspection"
+        raise DataFoundationValidationError(msg)
+
+    locked_partition_ids = tuple(
+        _normalize_id(item, "contamination_metadata_rules.locked_partition_ids")
+        for item in _normalize_text_collection(
+            value["locked_partition_ids"],
+            "contamination_metadata_rules.locked_partition_ids",
+        )
+    )
+    if set(locked_partition_ids) != set(DEFAULT_LOCKED_PARTITION_IDS):
+        msg = "contamination_metadata_rules.locked_partition_ids must identify held-out partitions"
+        raise DataFoundationValidationError(msg)
+
+    requires_governance = _require_bool(
+        value["locked_partition_use_requires_governance_metadata"],
+        "contamination_metadata_rules.locked_partition_use_requires_governance_metadata",
+    )
+    requires_contamination = _require_bool(
+        value["locked_partition_use_requires_contamination_metadata"],
+        "contamination_metadata_rules.locked_partition_use_requires_contamination_metadata",
+    )
+    if not requires_governance or not requires_contamination:
+        msg = "locked partition use must require Governance contamination metadata"
+        raise DataFoundationValidationError(msg)
+
+    alpha_without_metadata = _require_text(
+        value["alpha_research_without_governance_metadata"],
+        "contamination_metadata_rules.alpha_research_without_governance_metadata",
+    ).upper()
+    if alpha_without_metadata != "REJECT":
+        msg = "alpha research without Governance metadata must be rejected"
+        raise DataFoundationValidationError(msg)
+
+    implies_approval = _require_bool(
+        value["implies_research_approval"],
+        "contamination_metadata_rules.implies_research_approval",
+    )
+    if implies_approval:
+        msg = "DatasetPartitionPlan must not imply research approval"
+        raise DataFoundationValidationError(msg)
+
+    return MappingProxyType(
+        {
+            "data_qa_coverage_inspection_allowed": qa_allowed,
+            "locked_partition_ids": locked_partition_ids,
+            "locked_partition_use_requires_governance_metadata": requires_governance,
+            "locked_partition_use_requires_contamination_metadata": requires_contamination,
+            "alpha_research_without_governance_metadata": alpha_without_metadata,
+            "implies_research_approval": implies_approval,
+        }
+    )
+
+
+def _require_substantive_governance_metadata(value: object) -> Mapping[str, object]:
+    if isinstance(value, str) or not isinstance(value, Mapping) or not value:
+        msg = "locked partition use requires explicit Governance contamination metadata"
+        raise DataFoundationValidationError(msg)
+    normalized: dict[str, object] = {}
+    vague_text = {"n/a", "na", "none", "todo", "tbd", "unknown"}
+    for raw_key, raw_value in value.items():
+        key = _require_text(raw_key, "governance_metadata.key")
+        if key.lower() in vague_text:
+            msg = "governance metadata keys must be substantive"
+            raise DataFoundationValidationError(msg)
+        if raw_value is None:
+            msg = f"governance_metadata.{key} must not be null"
+            raise DataFoundationValidationError(msg)
+        if isinstance(raw_value, str) and raw_value.strip().lower() in vague_text | {""}:
+            msg = f"governance_metadata.{key} must be substantive"
+            raise DataFoundationValidationError(msg)
+        normalized[key] = _freeze_json_value(raw_value, f"governance_metadata.{key}")
+    return MappingProxyType(normalized)
+
+
+def _partition_start_date(partition: Mapping[str, object], field_name: str) -> date:
+    return _parse_partition_date(partition["start_date"], f"{field_name}.start_date")
+
+
+def _partition_end_date(partition: Mapping[str, object], field_name: str) -> date:
+    return _parse_partition_date(partition["end_date"], f"{field_name}.end_date")
+
+
+def _validate_canonical_partition_order(
+    development_partition: Mapping[str, object],
+    validation_partition: Mapping[str, object],
+    locked_test_candidate: Mapping[str, object],
+) -> None:
+    development_end = _partition_end_date(development_partition, "development_partition")
+    validation_start = _partition_start_date(validation_partition, "validation_partition")
+    validation_end = _partition_end_date(validation_partition, "validation_partition")
+    locked_start = _partition_start_date(locked_test_candidate, "locked_test_candidate")
+    if development_end >= validation_start:
+        msg = "development_partition must end before validation_partition starts"
+        raise DataFoundationValidationError(msg)
+    if validation_end >= locked_start:
+        msg = "validation_partition must end before locked_test_candidate starts"
+        raise DataFoundationValidationError(msg)
 
 
 def _normalize_quality_summary(value: object, field_name: str) -> Mapping[str, object]:
@@ -1855,19 +2180,227 @@ class DatasetVersion:
         )
 
 
+@dataclass(frozen=True, slots=True)
 class DatasetPartitionPlan:
-    """DATA-P18 placeholder for dataset partition planning."""
+    """Dataset partition plan and locked-test metadata rules.
+
+    The plan is a data-admissibility descriptor only. It does not imply
+    research approval, alpha value, tradability, production readiness, or
+    permitted locked-partition use without Governance contamination metadata.
+    """
+
+    plan_id: str
+    development_partition: Mapping[str, object]
+    validation_partition: Mapping[str, object]
+    locked_test_candidate: Mapping[str, object]
+    latest_shadow_candidate: Mapping[str, object] | None
+    contamination_metadata_rules: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        plan_id = _normalize_id(self.plan_id, "plan_id")
+        development_partition = _normalize_fixed_partition(
+            self.development_partition,
+            field_name="development_partition",
+            expected_partition_id="development_partition",
+            expected_start=CANONICAL_DEVELOPMENT_START,
+            expected_end=CANONICAL_DEVELOPMENT_END,
+        )
+        validation_partition = _normalize_fixed_partition(
+            self.validation_partition,
+            field_name="validation_partition",
+            expected_partition_id="validation_partition",
+            expected_start=CANONICAL_VALIDATION_START,
+            expected_end=CANONICAL_VALIDATION_END,
+        )
+        locked_test_candidate = _normalize_fixed_partition(
+            self.locked_test_candidate,
+            field_name="locked_test_candidate",
+            expected_partition_id="locked_test_candidate",
+            expected_start=CANONICAL_LOCKED_TEST_START,
+            expected_end=CANONICAL_LOCKED_TEST_END,
+        )
+        latest_shadow_candidate = _normalize_latest_shadow_partition(
+            self.latest_shadow_candidate,
+        )
+        contamination_metadata_rules = _normalize_contamination_metadata_rules(
+            self.contamination_metadata_rules,
+        )
+        _validate_canonical_partition_order(
+            development_partition,
+            validation_partition,
+            locked_test_candidate,
+        )
+
+        object.__setattr__(self, "plan_id", plan_id)
+        object.__setattr__(self, "development_partition", development_partition)
+        object.__setattr__(self, "validation_partition", validation_partition)
+        object.__setattr__(self, "locked_test_candidate", locked_test_candidate)
+        object.__setattr__(self, "latest_shadow_candidate", latest_shadow_candidate)
+        object.__setattr__(
+            self,
+            "contamination_metadata_rules",
+            contamination_metadata_rules,
+        )
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, object]) -> DatasetPartitionPlan:
+        """Build a partition plan from structured data and reject loose fields."""
+
+        missing = tuple(
+            field for field in REQUIRED_DATASET_PARTITION_PLAN_FIELDS if field not in values
+        )
+        if missing:
+            msg = "DatasetPartitionPlan missing required fields: " + ", ".join(missing)
+            raise DataFoundationValidationError(msg)
+        extra = tuple(
+            field for field in values if field not in REQUIRED_DATASET_PARTITION_PLAN_FIELDS
+        )
+        if extra:
+            msg = "DatasetPartitionPlan includes unsupported fields: " + ", ".join(extra)
+            raise DataFoundationValidationError(msg)
+        return cls(
+            plan_id=_require_text(values["plan_id"], "plan_id"),
+            development_partition=values["development_partition"],
+            validation_partition=values["validation_partition"],
+            locked_test_candidate=values["locked_test_candidate"],
+            latest_shadow_candidate=values["latest_shadow_candidate"],
+            contamination_metadata_rules=values["contamination_metadata_rules"],
+        )
+
+    @classmethod
+    def canonical(
+        cls,
+        *,
+        plan_id: object = "dataset_partition_plan_v1",
+        latest_shadow_candidate: Mapping[str, object] | None = None,
+    ) -> DatasetPartitionPlan:
+        """Return the campaign-canonical DATA-P18 partition descriptor."""
+
+        return cls(
+            plan_id=_require_text(plan_id, "plan_id"),
+            development_partition={
+                "partition_id": "development_partition",
+                "start_date": CANONICAL_DEVELOPMENT_START.isoformat(),
+                "end_date": CANONICAL_DEVELOPMENT_END.isoformat(),
+                "role": "development_partition",
+            },
+            validation_partition={
+                "partition_id": "validation_partition",
+                "start_date": CANONICAL_VALIDATION_START.isoformat(),
+                "end_date": CANONICAL_VALIDATION_END.isoformat(),
+                "role": "validation_partition",
+            },
+            locked_test_candidate={
+                "partition_id": "locked_test_candidate",
+                "start_date": CANONICAL_LOCKED_TEST_START.isoformat(),
+                "end_date": CANONICAL_LOCKED_TEST_END,
+                "role": "locked_test_candidate",
+            },
+            latest_shadow_candidate=latest_shadow_candidate,
+            contamination_metadata_rules=DEFAULT_CONTAMINATION_METADATA_RULES,
+        )
+
+    @property
+    def partition_ids(self) -> tuple[str, ...]:
+        """Return the plan's explicit partition identifiers."""
+
+        partition_ids = [
+            str(self.development_partition["partition_id"]),
+            str(self.validation_partition["partition_id"]),
+            str(self.locked_test_candidate["partition_id"]),
+        ]
+        if self.latest_shadow_candidate is not None:
+            partition_ids.append(str(self.latest_shadow_candidate["partition_id"]))
+        return tuple(partition_ids)
+
+    @property
+    def locked_partition_ids(self) -> tuple[str, ...]:
+        """Return partitions requiring Governance metadata outside coverage QA."""
+
+        return tuple(self.contamination_metadata_rules["locked_partition_ids"])
+
+    def permits_coverage_qa(self, partition_id: object) -> bool:
+        """Return true when coverage QA may inspect the requested partition."""
+
+        normalized = _normalize_id(partition_id, "partition_id")
+        if normalized not in self.partition_ids:
+            msg = "partition_id is not present in DatasetPartitionPlan"
+            raise DataFoundationValidationError(msg)
+        return bool(self.contamination_metadata_rules["data_qa_coverage_inspection_allowed"])
+
+    def to_mapping(self) -> Mapping[str, object]:
+        """Return a JSON-stable partition-plan mapping."""
+
+        return MappingProxyType(
+            {
+                "plan_id": self.plan_id,
+                "development_partition": self.development_partition,
+                "validation_partition": self.validation_partition,
+                "locked_test_candidate": self.locked_test_candidate,
+                "latest_shadow_candidate": self.latest_shadow_candidate,
+                "contamination_metadata_rules": self.contamination_metadata_rules,
+            }
+        )
+
+
+def require_governance_metadata_for_locked_partition_use(
+    *,
+    partition_id: object,
+    purpose: object,
+    governance_metadata: Mapping[str, object] | None = None,
+    plan: DatasetPartitionPlan | None = None,
+) -> bool:
+    """Fail closed unless locked-partition use has Governance metadata.
+
+    Coverage QA may inspect coverage across partitions without recording
+    contamination. Any non-QA use of `locked_test_candidate` or
+    `latest_shadow_candidate` must provide substantive Governance
+    contamination metadata.
+    """
+
+    normalized_partition_id = _normalize_id(partition_id, "partition_id")
+    normalized_purpose = _require_text(purpose, "purpose").lower()
+    if plan is not None and not isinstance(plan, DatasetPartitionPlan):
+        msg = "plan must be a DatasetPartitionPlan"
+        raise DataFoundationValidationError(msg)
+    if plan is not None and normalized_partition_id not in plan.partition_ids:
+        msg = "partition_id is not present in DatasetPartitionPlan"
+        raise DataFoundationValidationError(msg)
+
+    locked_partition_ids = (
+        plan.locked_partition_ids if plan is not None else DEFAULT_LOCKED_PARTITION_IDS
+    )
+    if normalized_purpose in DATASET_PARTITION_QA_PURPOSES:
+        return True
+    if normalized_partition_id not in locked_partition_ids:
+        return True
+
+    if plan is not None:
+        rules = plan.contamination_metadata_rules
+        if (
+            not rules["locked_partition_use_requires_governance_metadata"]
+            or not rules["locked_partition_use_requires_contamination_metadata"]
+        ):
+            msg = "DatasetPartitionPlan does not enforce locked-partition metadata"
+            raise DataFoundationValidationError(msg)
+
+    _require_substantive_governance_metadata(governance_metadata)
+    return True
 
 
 __all__ = [
+    "CONTAMINATION_METADATA_RULE_FIELDS",
     "COVERAGE_REPORT_FIELDS",
     "CoverageReport",
     "DATA_QUALITY_REPORT_FIELDS",
+    "DATASET_PARTITION_QA_PURPOSES",
     "DATASET_VERSION_ADMISSIBLE_STATES",
     "DATASET_VERSION_FIELDS",
     "DataQualityReport",
     "DatasetPartitionPlan",
     "DatasetVersion",
+    "REQUIRED_DATASET_PARTITION_PLAN_FIELDS",
     "ReportStatus",
     "compute_quality_report_hash",
+    "require_governance_metadata_for_locked_partition_use",
 ]

@@ -65,12 +65,15 @@ coverage tests, and `docs/data_foundation/DATA_QUALITY.md` /
 existing local SQLite `dataset_versions` table, duplicate-ID rejection,
 reproducibility hash binding enforced before registry writes, temp-DB registry
 tests, and
-`docs/data_foundation/DATASET_VERSION.md`. This advances the
-`canonicalization_quality_versioning` gate through DATA-P17. The active phase is
-`DATA-P17` - Dataset Version Registry Integration; the next phase is
-`DATA-P18` - Dataset Partition Plan and Locked-Test Metadata. Ralph still owns
-formal validation, independent review, verdict parsing, semantic done-check,
-PR, CI, and merge gates.
+`docs/data_foundation/DATASET_VERSION.md`; DATA-P18 adds the
+`DatasetPartitionPlan` contract, canonical development / validation /
+locked-test candidate windows, the optional latest-shadow candidate, the
+locked-test contamination-metadata rules, and
+`docs/data_foundation/PARTITION_PLAN.md`. This advances the
+`canonicalization_quality_versioning` gate through the DATA-P18 executor
+snapshot. The next phase is `DATA-P19` - Micro Batch Policy for MES/MNQ/M2K.
+Ralph still owns formal validation, independent review, verdict parsing,
+semantic done-check, PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -237,6 +240,18 @@ object in `metadata_json`, resolves by `dataset_version_id`, and rejects
 duplicate IDs without overwrite. It also adds:
 
 - `docs/data_foundation/DATASET_VERSION.md`
+
+`DATA-P18` adds the data-foundation `DatasetPartitionPlan` contract under
+`src/alpha_system/data/foundation/datasets.py`. The plan pins the canonical
+development window (`2018-01-01` through `2022-12-31`), validation window
+(`2023-01-01` through `2024-12-31`), locked-test candidate window
+(`2025-01-01` through `as_of_run`), and optional latest-shadow candidate. Its
+structured contamination-metadata rules allow data QA coverage inspection across
+partitions while requiring Governance contamination metadata before any future
+non-QA use of locked partitions. It does not authorize locked-partition use. It
+also adds:
+
+- `docs/data_foundation/PARTITION_PLAN.md`
 
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
