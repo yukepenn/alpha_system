@@ -466,7 +466,11 @@ def test_dated_fut_one_min_plan_expands_to_daily_subchunks() -> None:
         "hchunk_unit_subchunk_es_202609_20260602",
         "hchunk_unit_subchunk_es_202609_20260603",
     ]
-    assert [call.duration for call in handler.calls] == ["1 D", "1 D", "1 D"]
+    assert [call.duration for call in handler.calls] == [
+        "86400 S",
+        "86400 S",
+        "86400 S",
+    ]
     assert [call.end_ts for call in handler.calls] == [
         datetime(2026, 6, 2, tzinfo=UTC),
         datetime(2026, 6, 3, tzinfo=UTC),

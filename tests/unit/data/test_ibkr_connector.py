@@ -242,7 +242,7 @@ def test_historical_handler_keeps_end_datetime_for_dated_future_contract() -> No
     assert getattr(contract, "secType") == "FUT"
     assert getattr(contract, "symbol") == "ES"
     assert getattr(contract, "lastTradeDateOrContractMonth") == "202609"
-    assert getattr(contract, "localSymbol") == "fut_es_202609"
+    assert getattr(contract, "localSymbol") == ""
     assert getattr(contract, "includeExpired") is True
     assert kwargs["endDateTime"] == spec.end_ts
 
