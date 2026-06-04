@@ -121,6 +121,11 @@ def scenarios() -> list[Canary]:
             {"raw_backup.raw": "raw,value\n1,2\n"},
         ),
         Canary(
+            "forbidden_stray_dbn_suffix",
+            [py, str(HOOKS / "artifact_guard.py"), "root_sample.dbn"],
+            {"root_sample.dbn": "raw\n"},
+        ),
+        Canary(
             "forbidden_cache_data_commit",
             [py, str(HOOKS / "artifact_guard.py"), "data/cache/cache.db"],
             {"data/cache/cache.db": "cache\n"},

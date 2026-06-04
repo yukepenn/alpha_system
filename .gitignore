@@ -52,6 +52,10 @@ __pycache__/
 **/*-private-key.*
 
 # Local data and model artifacts
+**/*.dbn
+**/*.dbn.*
+**/*.zst
+**/*.zstd
 **/*.parquet
 **/*.arrow
 **/*.feather
@@ -101,6 +105,12 @@ data/cache/**
 !data/cache/
 !data/cache/.gitkeep
 !data/cache/README.md
+
+# Databento local-only payload directories.
+databento/**
+data/databento/**
+data/raw/databento/**
+data/canonical/databento/**
 
 # Local metadata directory: keep placeholders only.
 metadata/**
