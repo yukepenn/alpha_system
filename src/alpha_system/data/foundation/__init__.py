@@ -27,6 +27,16 @@ from alpha_system.data.foundation.bars import (
     resolve_raw_object_storage_path,
 )
 from alpha_system.data.foundation.batches import MicroBatchPolicy, SymbolBatchPlan
+from alpha_system.data.foundation.bid_ask_pilot import (
+    BID_ASK_PILOT_PLAN,
+    BID_ASK_PILOT_PLAN_ID,
+    BID_ASK_PILOT_WHAT_TO_SHOW,
+    REQUIRED_BID_ASK_PILOT_PLAN_FIELDS,
+    REQUIRED_SPREAD_PROXY_INPUT_FIELDS,
+    BidAskPilotPlan,
+    SpreadProxyMetric,
+    compute_spread_proxy_metrics,
+)
 from alpha_system.data.foundation.datasets import (
     CONTAMINATION_METADATA_RULE_FIELDS,
     DATASET_VERSION_ADMISSIBLE_STATES,
@@ -99,6 +109,10 @@ from alpha_system.data.foundation.version_registry import (
 __all__ = [
     "CANONICAL_BAR_RECORD_FIELDS",
     "CANONICAL_BAR_TIMESTAMP_FIELDS",
+    "BID_ASK_PILOT_PLAN",
+    "BID_ASK_PILOT_PLAN_ID",
+    "BID_ASK_PILOT_WHAT_TO_SHOW",
+    "BidAskPilotPlan",
     "CanonicalBarRecord",
     "ContractDetailsSnapshot",
     "ContractDiscoveryAvailabilityLogEntry",
@@ -137,8 +151,10 @@ __all__ = [
     "ParsedBarParser",
     "ProviderErrorResolution",
     "ProviderErrorRecord",
+    "REQUIRED_BID_ASK_PILOT_PLAN_FIELDS",
     "REQUIRED_DATASET_PARTITION_PLAN_FIELDS",
     "REQUIRED_PARSED_BAR_RECORD_FIELDS",
+    "REQUIRED_SPREAD_PROXY_INPUT_FIELDS",
     "RawDataLakeLayoutPolicy",
     "RawDataObject",
     "RawPayloadLoader",
@@ -146,6 +162,7 @@ __all__ = [
     "RollCalendarRecord",
     "RollPolicy",
     "SessionTemplate",
+    "SpreadProxyMetric",
     "SymbolBatchPlan",
     "TIMESTAMP_SEMANTICS_POLICY_FIELDS",
     "TimestampSemanticsPolicy",
@@ -160,6 +177,7 @@ __all__ = [
     "require_governance_metadata_for_locked_partition_use",
     "compute_historical_pull_resume_token",
     "compute_historical_request_manifest_hash",
+    "compute_spread_proxy_metrics",
     "forbid_naive_request_loop",
     "plan_historical_request_transition",
     "provider_pull_manifest_guard",

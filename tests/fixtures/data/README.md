@@ -24,3 +24,8 @@ provider response and is not canonical market data.
 canonical-shaped bar mappings and one aggregate coverage expectation for
 DATA-P16 quality and coverage report tests. It is not real market data and is
 not a full quality or coverage report.
+
+`synthetic_bid_ask_spread_proxy_inputs.json` contains tiny hand-authored
+BID_ASK-like observations for DATA-P20 spread-proxy scaffold tests. It is not a
+provider response, not real market data, and not evidence about any venue,
+spread, transaction cost, liquidity, or tradability.

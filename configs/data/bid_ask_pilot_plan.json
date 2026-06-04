@@ -1,0 +1,35 @@
+{
+  "plan_id": "bap_bid_ask_spread_proxy_pilot_v1",
+  "optional": true,
+  "pilot_only": true,
+  "research_diagnostics_only": true,
+  "secondary_to_primary_trades_panel": true,
+  "what_to_show": "BID_ASK",
+  "symbols": [
+    "ES"
+  ],
+  "contract_refs": [
+    "fcr_synthetic_es_h5"
+  ],
+  "start_date": "2025-01-02",
+  "end_date": "2025-01-03",
+  "max_symbols": 1,
+  "max_contracts": 1,
+  "max_date_window_days": 3,
+  "max_chunk_count": 4,
+  "planned_chunk_count": 2,
+  "max_local_storage_bytes": 5242880,
+  "estimated_local_storage_bytes": 131072,
+  "pacing_policy_id": "rpp_ibkr_historical_conservative_tobeverified_v1",
+  "request_spec_contract": "HistoricalRequestSpec",
+  "manifest_contract": "HistoricalRequestManifest",
+  "resume_ledger_contract": "HistoricalPullLedger",
+  "provider_error_contract": "ProviderErrorRecord",
+  "quality_report_contract": "DataQualityReport",
+  "coverage_report_contract": "CoverageReport",
+  "merge_into_primary_trades_panel": false,
+  "implies_pull_authorization": false,
+  "external_provider_call": false,
+  "real_data_pull": false,
+  "storage_scope": "local_only_under_alpha_data_root_never_repo_data"
+}
