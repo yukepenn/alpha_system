@@ -6,13 +6,15 @@ import argparse
 import json
 import os
 import sys
-from collections.abc import Mapping, Sequence
-from datetime import datetime
-from pathlib import Path
-from types import MappingProxyType
+from collections.abc import Sequence
 
-from alpha_system.data.foundation.ibkr import IBKRClientIdPolicy, IBKRConnectionProfile
-from alpha_system.data.foundation.sources import DataAccessMode, DataFoundationValidationError
+from alpha_system.data.foundation.ibkr import IBKRConnectionProfile
+from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.ibkr._connection import (
+    connection_doctor_blocked_message,
+    gate_read_only_ibkr_access,
+)
+from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 from alpha_system.data.ibkr.connector import open_ibkr_historical_boundary
 from alpha_system.data.ibkr.pull import (
     DEFAULT_SMOKE_BATCH_ID,
@@ -31,39 +33,9 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _json_ready(value: object) -> object:
-    if isinstance(value, Mapping | MappingProxyType):
-        return {str(key): _json_ready(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if hasattr(value, "value") and isinstance(value.value, str):
-        return value.value
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    msg = f"value {value!r} is not JSON-stable"
-    raise DataFoundationValidationError(msg)
-
-
 def _print_summary(summary: object) -> None:
     payload = summary.to_mapping() if hasattr(summary, "to_mapping") else summary
     print(json.dumps(_json_ready(payload), indent=2, sort_keys=True))
-
-
-def _connection_doctor_blocked_message(
-    profile: IBKRConnectionProfile,
-    failure_reason: str | None,
-) -> str:
-    reason = failure_reason or "unreachable"
-    return (
-        "IBKR read-only smoke connector blocked: connection doctor could not reach "
-        f"{profile.host}:{profile.port} ({reason}). Set ALPHA_IBKR_HOST to a "
-        "Windows-reachable address or enable WSL2 mirrored networking; host/port are "
-        "NOT changed automatically."
-    )
 
 
 def main(
@@ -77,14 +49,13 @@ def main(
     profile: IBKRConnectionProfile | None = None
     probe = reachability_probe or probe_ibkr_host_port
     try:
-        profile = IBKRConnectionProfile.from_env(os.environ)
-        IBKRClientIdPolicy.default().validate_client_id(profile.client_id)
-        access_mode = DataAccessMode.authorized_pull()
-        access_mode.validate_runtime_env(os.environ, ci=None)
-        doctor = probe(profile)
+        profile, access_mode, doctor = gate_read_only_ibkr_access(
+            os.environ,
+            reachability_probe=probe,
+        )
         if not doctor.reachable:
             print(
-                _connection_doctor_blocked_message(profile, doctor.failure_reason),
+                connection_doctor_blocked_message(profile, doctor.failure_reason),
                 file=sys.stderr,
             )
             return 2
@@ -110,7 +81,7 @@ def main(
             print(f"IBKR read-only smoke connector blocked: {exc}", file=sys.stderr)
         else:
             print(
-                _connection_doctor_blocked_message(
+                connection_doctor_blocked_message(
                     profile,
                     f"{type(exc).__name__}: {exc}",
                 ),

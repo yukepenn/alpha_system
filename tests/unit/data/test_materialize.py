@@ -6,10 +6,13 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from alpha_system.core.registry import connect_registry
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import resolve_dataset_version
-from alpha_system.data.materialize import main as materialize_main
-from alpha_system.data.materialize import run_materialize
+from alpha_system.data.ibkr.materialize import main as materialize_main
+from alpha_system.data.ibkr.materialize import run_materialize
 
 START = datetime(2026, 6, 1, 14, 30, tzinfo=UTC)
 END = datetime(2026, 6, 1, 14, 33, tzinfo=UTC)
@@ -214,3 +217,26 @@ def test_materialize_gap_refuses_registry_write(
     payload = json.loads(captured.out)
     assert payload["registered"] is False
     assert payload["quality_status"] == "BLOCKING"
+
+
+def test_materialize_refuses_in_repo_data_root(tmp_path: Path) -> None:
+    repo_root = Path.cwd()
+    instrument, calendar, validation = _configs(tmp_path)
+
+    with pytest.raises(
+        DataFoundationValidationError,
+        match="ALPHA_DATA_ROOT must not resolve inside",
+    ):
+        run_materialize(
+            symbols=("ES",),
+            registry_path=tmp_path / "registry.sqlite",
+            data_version="dsv_materialize_in_repo_root_unit_v1",
+            partition="locked_test_candidate",
+            start_ts=START,
+            end_ts=END,
+            instrument_config_path=instrument,
+            calendar_config_path=calendar,
+            validation_config_path=validation,
+            env={"ALPHA_DATA_ROOT": (repo_root / "data" / "raw_local").as_posix()},
+            now=NOW,
+        )

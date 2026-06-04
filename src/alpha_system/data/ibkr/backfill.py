@@ -42,6 +42,7 @@ from alpha_system.data.foundation.requests import (
     require_validated_manifest_for_provider_pull,
 )
 from alpha_system.data.foundation.sources import DataAccessMode, DataFoundationValidationError
+from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 from alpha_system.data.ibkr.pull import (
     RawPayloadWriteResult,
     SmokePullDoctorReport,
@@ -361,23 +362,6 @@ def _require_mapping(value: object, field_name: str) -> Mapping[str, object]:
         msg = f"{field_name} must be a JSON object"
         raise DataFoundationValidationError(msg)
     return value
-
-
-def _json_ready(value: object) -> object:
-    if isinstance(value, Mapping):
-        return {str(key): _json_ready(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if hasattr(value, "value") and isinstance(value.value, str):
-        return value.value
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    msg = f"value {value!r} is not JSON-stable"
-    raise DataFoundationValidationError(msg)
 
 
 def _load_json_mapping(path: Path) -> Mapping[str, object]:

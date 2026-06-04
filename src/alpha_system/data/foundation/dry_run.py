@@ -67,6 +67,7 @@ from alpha_system.data.foundation.version_registry import (
     persist_dataset_version,
     resolve_dataset_version,
 )
+from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 
 DEFAULT_E2E_FIXTURE_RELATIVE_PATH = Path(
     "tests/fixtures/data/synthetic_ibkr_e2e_provider_fixture.json"
@@ -260,23 +261,6 @@ def _parse_aware_datetime(value: object, field_name: str) -> datetime:
         msg = f"{field_name} must be timezone-aware"
         raise DataFoundationValidationError(msg)
     return parsed
-
-
-def _json_ready(value: object) -> object:
-    if isinstance(value, Mapping):
-        return {str(key): _json_ready(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if hasattr(value, "value") and isinstance(value.value, str):
-        return value.value
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    msg = f"value {value!r} is not JSON-stable"
-    raise DataFoundationValidationError(msg)
 
 
 def _content_hash(payload: bytes) -> str:

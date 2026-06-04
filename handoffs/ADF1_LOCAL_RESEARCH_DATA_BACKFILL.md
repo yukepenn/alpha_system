@@ -153,7 +153,7 @@ Stage A merged-ready code already exists:
 
 - `src/alpha_system/data/ibkr/backfill_connect.py`
 - `src/alpha_system/data/ibkr/manifest_builder.py`
-- `src/alpha_system/data/materialize.py`
+- `src/alpha_system/data/ibkr/materialize.py`
 - `configs/data/ibkr_es_nq_rty_instruments.json`
 - `configs/data/ibkr_materialize_validation.json`
 - `tests/unit/data/test_ibkr_backfill_connect.py`
@@ -165,7 +165,7 @@ Stage A merged-ready code already exists:
 
 Stage C finalization edits:
 
-- `src/alpha_system/data/materialize.py` comments only.
+- `src/alpha_system/data/ibkr/materialize.py` comments only.
 - `docs/data_foundation/BACKFILL_RUNBOOK.md` Task 1B operator runbook section.
 - `handoffs/ADF1_LOCAL_RESEARCH_DATA_BACKFILL.md` this handoff section.
 
@@ -243,7 +243,7 @@ drill-oriented; a production pacing loop may be a follow-up.
   registry, raw payload, cache, log, DB, Parquet, Arrow, or Feather artifacts
   were committed.
 - `python -m compileall src/alpha_system/data` — PASS.
-- `python -m ruff check src/alpha_system/data/materialize.py` — PASS.
+- `python -m ruff check src/alpha_system/data/ibkr/materialize.py` — PASS.
 - `CI=true python -m pytest tests/unit/data/test_materialize.py -q` — PASS
   (`2 passed`).
 
