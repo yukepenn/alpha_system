@@ -7,9 +7,11 @@ module import time.
 
 from __future__ import annotations
 
+import argparse
 import importlib
 import json
 import os
+import sys
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -922,4 +924,45 @@ def _write_dataset_manifest(
     )
 
 
-__all__ = ["CanonicalizeSummary", "run_canonicalize"]
+def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Canonicalize local Databento DBN files into OHLCV-1m and BBO-1m refs",
+    )
+    parser.add_argument("--file-manifest", type=Path, required=True)
+    parser.add_argument("--request-spec", type=Path, required=True)
+    parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--instrument-config", type=Path, required=True)
+    parser.add_argument("--calendar-config", type=Path, required=True)
+    parser.add_argument("--validation-config", type=Path, required=True)
+    return parser.parse_args(argv)
+
+
+def _print_summary(summary: CanonicalizeSummary) -> None:
+    print(json.dumps(_json_ready(summary.to_mapping()), indent=2, sort_keys=True))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI for ``python -m alpha_system.data.databento.canonicalize``."""
+
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+    try:
+        summary = run_canonicalize(
+            file_manifest_path=args.file_manifest,
+            request_spec=DatabentoRequestSpec.from_mapping(load_json_mapping(args.request_spec)),
+            output_root=args.output_root,
+            instrument_config_path=args.instrument_config,
+            calendar_config_path=args.calendar_config,
+            validation_config_path=args.validation_config,
+        )
+    except DataFoundationValidationError as exc:
+        print(f"canonicalize blocked: {exc}", file=sys.stderr)
+        return 2
+    _print_summary(summary)
+    return 0
+
+
+__all__ = ["CanonicalizeSummary", "main", "run_canonicalize"]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
