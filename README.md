@@ -71,9 +71,13 @@ locked-test candidate windows, the optional latest-shadow candidate, the
 locked-test contamination-metadata rules, and
 `docs/data_foundation/PARTITION_PLAN.md`. This advances the
 `canonicalization_quality_versioning` gate through the DATA-P18 executor
-snapshot. The next phase is `DATA-P19` - Micro Batch Policy for MES/MNQ/M2K.
-Ralph still owns formal validation, independent review, verdict parsing,
-semantic done-check, PR, CI, and merge gates.
+snapshot. The `secondary_data_tracks` gate has started; the DATA-P19 executor
+scope is complete and adds `MicroBatchPolicy`, the separate MES/MNQ/M2K
+secondary micro-batch plan, mini-to-micro parity-check target declarations, and
+`docs/data_foundation/MICRO_BATCH.md`. The next phase is `DATA-P20` - Optional
+BID_ASK / Spread Proxy Pilot Plan. Ralph still owns formal validation,
+independent review, verdict parsing, semantic done-check, PR, CI, and merge
+gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -253,6 +257,18 @@ also adds:
 
 - `docs/data_foundation/PARTITION_PLAN.md`
 
+`DATA-P19` adds the micro-batch policy under
+`src/alpha_system/data/foundation/batches.py`. It defines `MicroBatchPolicy`
+with exact MES/MNQ/M2K symbols, `start_date = 2020-01-01` as a to-be-verified
+planning default, `separate_batch = true`, and declaration-only parity-check
+targets ES->MES, NQ->MNQ, and RTY->M2K. The policy references the DATA-P05
+`InstrumentMasterRecord` economics for micro roots and the DATA-P10
+mini/micro separation contract without duplicating economics or mixing batches.
+Micros remain a separate secondary path, not a primary alpha source in V1. It
+also adds:
+
+- `docs/data_foundation/MICRO_BATCH.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -286,6 +302,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/PACING_AND_RESUME.md`
 - `docs/data_foundation/RAW_DATA_LAKE.md`
 - `docs/data_foundation/MINI_BATCH_PLAN.md`
+- `docs/data_foundation/MICRO_BATCH.md`
 - `docs/data_foundation/PROVENANCE.md`
 - `docs/data_foundation/SESSIONS_AND_CALENDAR.md`
 - `docs/data_foundation/ROLL_POLICY.md`
