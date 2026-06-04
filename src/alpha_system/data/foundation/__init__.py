@@ -27,8 +27,13 @@ from alpha_system.data.foundation.ibkr import (
 )
 from alpha_system.data.foundation.instruments import (
     ContractDetailsSnapshot,
+    ContractDiscoveryAvailabilityLogEntry,
+    ContractDiscoveryRequest,
+    ContractDiscoveryResult,
     FuturesContractRecord,
+    IncludeExpiredSupportStatus,
     InstrumentMasterRecord,
+    record_contract_discovery,
 )
 from alpha_system.data.foundation.requests import (
     DataIngestionRunRecord,
@@ -54,6 +59,9 @@ from alpha_system.data.foundation.sources import (
 __all__ = [
     "CanonicalBarRecord",
     "ContractDetailsSnapshot",
+    "ContractDiscoveryAvailabilityLogEntry",
+    "ContractDiscoveryRequest",
+    "ContractDiscoveryResult",
     "ContinuousFuturesSeriesRecord",
     "CoverageReport",
     "DataAccessMode",
@@ -64,6 +72,7 @@ __all__ = [
     "DatasetVersion",
     "DatedFuturesSeriesRecord",
     "FuturesContractRecord",
+    "IncludeExpiredSupportStatus",
     "HistoricalChunkRecord",
     "HistoricalPullLedger",
     "HistoricalRequestManifest",
@@ -87,4 +96,5 @@ __all__ = [
     "ReadOnlyBoundaryViolation",
     "build_read_only_ibkr_boundary",
     "run_connection_doctor",
+    "record_contract_discovery",
 ]
