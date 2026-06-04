@@ -7,12 +7,13 @@ import fnmatch
 import re
 from pathlib import PurePosixPath
 
-
 FORBIDDEN_SUFFIXES = {
     ".key",
     ".pem",
     ".parquet",
     ".feather",
+    ".arrow",
+    ".raw",
     ".sqlite",
     ".db",
     ".duckdb",
@@ -23,9 +24,27 @@ FORBIDDEN_SUFFIXES = {
     ".pkl",
     ".joblib",
 }
-FORBIDDEN_PARTS = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "cache", "logs"}
+FORBIDDEN_PARTS = {
+    "node_modules",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    "cache",
+    "logs",
+}
 FORBIDDEN_PREFIXES = (".frontier/upgrade_reports", "logs", "runs")
-LOCAL_ONLY_PREFIXES = {"data/raw", "raw", "data/cache", "data/canonical", "data/factors", "data/labels", "metadata", "artifacts"}
+LOCAL_ONLY_PREFIXES = {
+    "data/raw",
+    "raw",
+    "data/cache",
+    "data/canonical",
+    "data/factors",
+    "data/labels",
+    "metadata",
+    "artifacts",
+}
 PLACEHOLDER_EXCEPTIONS = ("**/.gitkeep", "**/README.md")
 PLACEHOLDER_DIRS = (
     "data/raw/**",
@@ -54,7 +73,11 @@ def normalized(path: str) -> str:
 
 def is_curated_summary(path: str) -> bool:
     parsed = PurePosixPath(normalized(path))
-    return parsed.suffix.lower() in CURATED_SUFFIXES and parsed.parts and parsed.parts[0] in CURATED_PREFIXES
+    return (
+        parsed.suffix.lower() in CURATED_SUFFIXES
+        and parsed.parts
+        and parsed.parts[0] in CURATED_PREFIXES
+    )
 
 
 def effective_name(name: str) -> str:
