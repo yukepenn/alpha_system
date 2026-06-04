@@ -19,7 +19,7 @@ def _timestamps() -> dict[str, datetime]:
     return {
         "bar_start_ts": start,
         "bar_end_ts": start + timedelta(minutes=1),
-        "event_ts": start + timedelta(minutes=1),
+        "event_ts": start + timedelta(seconds=30),
         "available_ts": start + timedelta(minutes=1, seconds=1),
         "ingested_at": start + timedelta(minutes=2),
     }
@@ -63,10 +63,31 @@ def test_canonical_bbo_round_trips_and_exposes_required_fields() -> None:
     assert round_tripped == record
     assert record.mid == Decimal("5000.125")
     assert record.spread == Decimal("0.25")
-    assert record.available_ts >= record.event_ts >= record.bar_end_ts
+    assert record.bar_start_ts < record.event_ts < record.bar_end_ts
+    assert record.available_ts >= record.bar_end_ts
 
     with pytest.raises(FrozenInstanceError):
         record.available_ts = record.event_ts  # type: ignore[misc]
+
+
+def test_canonical_bbo_enforces_quote_interval_and_availability() -> None:
+    times = _timestamps()
+
+    with pytest.raises(DataFoundationValidationError, match="event_ts"):
+        CanonicalBBORecord.from_mapping(
+            _bbo_values(event_ts=times["bar_start_ts"] - timedelta(microseconds=1))
+        )
+    with pytest.raises(DataFoundationValidationError, match="event_ts"):
+        CanonicalBBORecord.from_mapping(
+            _bbo_values(event_ts=times["bar_end_ts"] + timedelta(microseconds=1))
+        )
+    with pytest.raises(DataFoundationValidationError, match="available_ts"):
+        CanonicalBBORecord.from_mapping(
+            _bbo_values(
+                event_ts=times["bar_start_ts"],
+                available_ts=times["bar_end_ts"] - timedelta(microseconds=1),
+            )
+        )
 
 
 def test_canonical_bbo_rejects_crossed_quote() -> None:
@@ -97,6 +118,7 @@ def test_canonical_bbo_rejects_ingested_at_as_available_ts() -> None:
 def test_missing_bbo_must_be_explicitly_flagged_and_not_forward_filled() -> None:
     missing_record = CanonicalBBORecord.from_mapping(
         _bbo_values(
+            event_ts=_timestamps()["bar_end_ts"],
             bid="0",
             ask="0",
             bid_size="0",

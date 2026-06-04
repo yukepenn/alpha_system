@@ -1,0 +1,44 @@
+{
+  "schema": "alpha_system.databento_instrument_config.v1",
+  "source": "configs/data/futures_instrument_master.json",
+  "session_template_id": "session_cme_index_futures_eth",
+  "allow_non_fixture_input": true,
+  "roll_policy_id": "roll_cme_index_futures_quarterly",
+  "session_label": "ETH",
+  "continuous_provenance": {
+    "provider_continuous": true,
+    "front_month": true,
+    "unadjusted": true,
+    "not_roll_truth": true,
+    "primary_research_corpus": true
+  },
+  "instruments": [
+    {
+      "symbol": "ES",
+      "databento_symbol": "ES.v.0",
+      "instrument_id": "inst_databento_es",
+      "contract_id": "contract_databento_es_v_0_front",
+      "series_id": "series_databento_es_front_unadjusted",
+      "roll_policy_id": "roll_cme_index_futures_quarterly",
+      "session_label": "ETH"
+    },
+    {
+      "symbol": "NQ",
+      "databento_symbol": "NQ.v.0",
+      "instrument_id": "inst_databento_nq",
+      "contract_id": "contract_databento_nq_v_0_front",
+      "series_id": "series_databento_nq_front_unadjusted",
+      "roll_policy_id": "roll_cme_index_futures_quarterly",
+      "session_label": "ETH"
+    },
+    {
+      "symbol": "RTY",
+      "databento_symbol": "RTY.v.0",
+      "instrument_id": "inst_databento_rty",
+      "contract_id": "contract_databento_rty_v_0_front",
+      "series_id": "series_databento_rty_front_unadjusted",
+      "roll_policy_id": "roll_cme_index_futures_quarterly",
+      "session_label": "ETH"
+    }
+  ]
+}

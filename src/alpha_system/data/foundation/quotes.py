@@ -279,11 +279,11 @@ class CanonicalBBORecord:
         if bar_end_ts <= bar_start_ts:
             msg = "bar_end_ts must be greater than bar_start_ts"
             raise DataFoundationValidationError(msg)
-        if event_ts < bar_end_ts:
-            msg = "event_ts must be greater than or equal to bar_end_ts"
+        if event_ts < bar_start_ts or event_ts > bar_end_ts:
+            msg = "event_ts must fall within the BBO bar interval"
             raise DataFoundationValidationError(msg)
-        if available_ts < event_ts:
-            msg = "available_ts must be greater than or equal to event_ts"
+        if available_ts < bar_end_ts:
+            msg = "available_ts must be greater than or equal to bar_end_ts"
             raise DataFoundationValidationError(msg)
         if ingested_at == available_ts:
             msg = "ingested_at must be distinct from available_ts"
