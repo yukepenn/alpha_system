@@ -51,8 +51,11 @@ provenance-rich `ContinuousFuturesSeriesRecord` and
 `RollPolicy` and `RollCalendarRecord` validation in
 `src/alpha_system/data/foundation/rolls.py`, with explicit adjusted vs
 unadjusted state, required roll evidence and validation status, and
-`docs/data_foundation/ROLL_POLICY.md`. The next phase is `DATA-P14` - Parser
-and Parsed Bar Records. Ralph still owns formal validation,
+`docs/data_foundation/ROLL_POLICY.md`. The `canonicalization_quality_versioning`
+gate has the `DATA-P14` executor scope complete: provider-shaped
+`ParsedBarRecord` validation, deterministic raw-object bar parsing with
+raw-to-parsed provenance, and `docs/data_foundation/PARSED_BARS.md`. The next
+phase is `DATA-P15` - Canonical 1m Bar Contract. Ralph still owns formal validation,
 independent review, verdict parsing, semantic done-check, PR, CI, and merge
 gates.
 
@@ -179,6 +182,15 @@ separation. It also adds:
 
 - `docs/data_foundation/ROLL_POLICY.md`
 
+`DATA-P14` adds parsed bronze bar records and a deterministic raw-object parser
+under `src/alpha_system/data/foundation/bars.py`. It defines
+`ParsedBarRecord`, `ParsedBarParser`, and `parse_raw_bar_records()` with
+provider-shaped timestamp preservation, optional WAP/bar-count fields,
+mandatory `request_id` and `raw_object_id` provenance, payload hash checks, and
+fail-closed malformed-row behavior. It also adds:
+
+- `docs/data_foundation/PARSED_BARS.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -215,6 +227,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/PROVENANCE.md`
 - `docs/data_foundation/SESSIONS_AND_CALENDAR.md`
 - `docs/data_foundation/ROLL_POLICY.md`
+- `docs/data_foundation/PARSED_BARS.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -237,7 +250,9 @@ discovered-not-assumed dated availability, adjusted-vs-unadjusted explicitness,
 session templates, dated trading calendar records, explicit timezone/DST and
 early-close/holiday handling, roll policy, roll calendar records, required
 roll evidence and validation status, provider-continuous vs derived roll
-separation, and the `ALPHA_DATA_ROOT` local-only data-root pointer. Field-level
+separation, provider-shaped parsed bars, raw-to-parsed provenance links, the
+parsed-not-canonical boundary, and the `ALPHA_DATA_ROOT` local-only data-root
+pointer. Field-level
 acceptance rules, risks, and operator procedures remain in the campaign
 contract bundle.
 

@@ -1,0 +1,3 @@
+symbol,contract_ref,provider_ts,open,high,low,close,volume,wap,barCount
+SYNTHES,synth-contract:ESH5,2025-01-02 08:30:00 US/Central,5000.25,5001.00,4999.75,5000.50,100,5000.40,3
+SYNTHES,synth-contract:ESH5,2025-01-02 08:31:00 US/Central,5000.50,5002.00,5000.25,5001.25,125,5001.10,4
