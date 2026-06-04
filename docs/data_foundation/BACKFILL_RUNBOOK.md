@@ -38,6 +38,39 @@ The entry point is driven by `DataAccessMode`.
 Synthetic mode uses `tests/fixtures/data/synthetic_backfill_resume_drill.json`
 unless a manifest is supplied programmatically. It performs no network call.
 
+## Live Read-Only Connector (Real Pull)
+
+The minimal live connector is only for the gated smoke pull, not for automated
+backfill. Install the optional dependency explicitly:
+
+```bash
+pip install -e ".[ibkr]"
+```
+
+Arm all four authorization gates with true values and configure the exact IBKR
+endpoint and local data root:
+
+```bash
+export ALPHA_DATA_PULL_AUTHORIZED=1
+export ALPHA_ALLOW_EXTERNAL_IBKR=1
+export ALPHA_IBKR_READ_ONLY_MODE=1
+export ALPHA_ALLOW_RAW_LOCAL_WRITE=1
+export ALPHA_IBKR_HOST=127.0.0.1
+export ALPHA_IBKR_PORT=4002
+export ALPHA_IBKR_CLIENT_ID=201
+export ALPHA_DATA_ROOT=~/alpha_data/alpha_system
+```
+
+Run the bounded smoke connector:
+
+```bash
+python -m alpha_system.data.ibkr.smoke_connect --batch mini_main --max-chunks 1
+```
+
+This connector is read-only historical data only. It requests one tiny ES
+historical chunk, keeps raw output under `ALPHA_DATA_ROOT`, does not register a
+dataset version, and must never run in CI.
+
 ## Authorization Gates
 
 A real authorized resume drill fails closed unless all runtime gates pass:
