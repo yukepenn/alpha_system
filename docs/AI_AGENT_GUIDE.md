@@ -145,6 +145,17 @@ git add -A
 
 Force push is forbidden.
 
+## Data-Heavy Phases
+
+Before any data-heavy phase, read `docs/data_foundation/README.md`,
+`docs/data_foundation/DATASET_VERSION.md`,
+`docs/data_foundation/DATASET_CONSUMPTION.md`, and
+`docs/data_foundation/PARTITION_PLAN.md`. IBKR data entry points live under
+`src/alpha_system/data/ibkr/` (`connector.py`, `backfill_connect.py`,
+`materialize.py`); use `docs/data_foundation/BACKFILL_RUNBOOK.md` only for an
+authorized backfill. Dry-run, smoke, and synthetic modes are CI-safe; real
+external pulls require `ALPHA_IBKR_*`/data-pull env gates and never run in CI.
+
 ## Avoid Hidden Failed Runs
 
 Failed steps, rejected configs, missing artifacts, warnings, dirty-tree state,
