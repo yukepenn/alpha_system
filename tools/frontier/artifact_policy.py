@@ -38,6 +38,12 @@ FORBIDDEN_PREFIXES = (
     "logs",
     "runs",
 )
+LOCAL_AGENT_ARTIFACT_PATTERNS = (
+    ".claude/*.lock",
+    ".claude/**/*.lock",
+    ".codex/*.lock",
+    ".codex/**/*.lock",
+)
 SECRET_TOKENS = {"secret", "secrets"}
 SECRET_TOOLING_TOKENS = {"canary", "forbidden", "guard", "policy", "scan", "scanner", "scanning"}
 TOKEN_TOKENS = {"token", "tokens"}
@@ -88,6 +94,8 @@ def check_path(path: Path) -> bool:
     parts = path_parts(path)
     normalized = "/".join(parts)
     if any(normalized == prefix or normalized.startswith(prefix + "/") for prefix in FORBIDDEN_PREFIXES):
+        return False
+    if matches_any(normalized, list(LOCAL_AGENT_ARTIFACT_PATTERNS)):
         return False
     return not any(is_forbidden_part(part) for part in parts)
 

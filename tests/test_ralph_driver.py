@@ -1822,6 +1822,35 @@ def test_stop_prevents_next_phase(tmp_path, monkeypatch) -> None:
     assert pass_count(run_dir) == 0
 
 
+def test_late_stop_after_phase_selection_prevents_execution(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    run_dir = ralph_driver.initialize_provider_wired_run(campaign, 1, "test")
+    state = state_json(run_dir)
+    original_next = ralph_driver.next_pending_provider_phase
+
+    def next_with_late_stop(state_arg):
+        phase = original_next(state_arg)
+        (run_dir / "STOP").write_text("late stop\n", encoding="utf-8")
+        return phase
+
+    def fail_execute(*args, **kwargs):
+        raise AssertionError("execute_provider_phase must not run after late STOP")
+
+    monkeypatch.setattr(ralph_driver, "next_pending_provider_phase", next_with_late_stop)
+    monkeypatch.setattr(ralph_driver, "execute_provider_phase", fail_execute)
+
+    status = ralph_driver.continue_provider_wired_run(run_dir, state, 1, "test")
+
+    assert status == 0
+    updated = state_json(run_dir)
+    assert updated["status"] == "STOPPED"
+    assert updated["stop_requested"] is True
+    assert pass_count(run_dir) == 0
+
+
 def test_budget_stop(tmp_path, monkeypatch) -> None:
     write_sample_campaign(tmp_path)
     monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
