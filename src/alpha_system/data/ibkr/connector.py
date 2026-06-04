@@ -141,7 +141,6 @@ def _contract_for_spec(request_spec: HistoricalRequestSpec, *, ib: object) -> ob
             exchange=request_spec.exchange,
             currency=request_spec.currency,
             lastTradeDateOrContractMonth=_contract_month_from_ref(request_spec.contract_ref),
-            localSymbol=request_spec.contract_ref,
             includeExpired=True,
         )
     msg = f"unsupported IBKR historical sec_type {request_spec.sec_type!r}"

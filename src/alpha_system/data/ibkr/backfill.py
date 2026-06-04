@@ -576,8 +576,8 @@ def _duration_for_window(start_ts: datetime, end_ts: datetime) -> str:
         msg = "sub-window duration must be a positive whole number of seconds"
         raise DataFoundationValidationError(msg)
     seconds = int(seconds_float)
-    if seconds % 86_400 == 0:
-        return f"{seconds // 86_400} D"
+    # Dated-future probes showed IBKR can return only about 60 one-minute
+    # bars for "1 D", while "86400 S" returns the full 1440-bar day.
     return f"{seconds} S"
 
 
