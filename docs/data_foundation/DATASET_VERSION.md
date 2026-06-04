@@ -97,6 +97,14 @@ checks that the table columns are still bound to the same object. Duplicate
 No registry migration was required for DATA-P17 because the existing table can
 store the full object losslessly in `metadata_json`.
 
+## Consumption By Later Campaigns
+
+Future feature/label campaigns should read
+`docs/data_foundation/DATASET_CONSUMPTION.md` before loading an accepted
+DatasetVersion from the local registry. Resolving a DatasetVersion is only a
+data-admissibility step; it does not imply alpha value, profitability,
+tradability, or readiness.
+
 ## Local-Only DB Policy
 
 The registry database is local-only metadata. It must not be committed.

@@ -113,7 +113,7 @@ python -m alpha_system.data.ibkr.backfill_connect \
 Register the first DatasetVersion from a complete ETH session:
 
 ```bash
-python -m alpha_system.data.materialize \
+python -m alpha_system.data.ibkr.materialize \
   --symbols ES,NQ,RTY \
   --registry-path "$ALPHA_DATA_ROOT/registry/datasets.sqlite" \
   --data-version <id> \

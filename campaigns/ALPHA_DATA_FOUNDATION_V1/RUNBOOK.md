@@ -122,6 +122,11 @@ must be configured to accept connections from the WSL2 client.
 * A connection doctor must run before any pull. External provider calls require the
   data-pull authorization env (section 14) and never run in CI.
 
+Note: `python -m alpha_system.data.ibkr.*` commands are operator-only direct
+module invocations. `--dry-run`, `--smoke`, and synthetic modes are CI-safe;
+real external pulls require `ALPHA_IBKR_*`/data-pull env gates and never run in
+CI.
+
 ## 5. Connection Doctor
 
 Run the connection doctor before any historical pull. It reports host/port reachability

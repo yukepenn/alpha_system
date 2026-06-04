@@ -54,6 +54,9 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
   and artifact audit.
 - `END_TO_END_DRY_RUN.md` documents the DATA-P24 synthetic end-to-end dry run,
   lifecycle-block assertions, acceptance-audit posture, and closeout verdict.
+- `DATASET_CONSUMPTION.md` documents how later feature/label campaigns resolve
+  and consume accepted local DatasetVersions while preserving no-lookahead,
+  partition, and no-claims rules.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator
@@ -103,6 +106,10 @@ Field-level contracts and acceptance criteria remain in `campaign.yaml` and
 `DATASET_VERSION.md` documents the DATA-P17 `DatasetVersion` contract, registry
 adapter, reproducibility hash binding, lifecycle gate, and local-only registry
 policy.
+
+`DATASET_CONSUMPTION.md` documents DatasetVersion lookup, the first real local
+DatasetVersion ID, canonical timestamp semantics, and downstream
+feature/label consumption boundaries.
 
 `PARTITION_PLAN.md` documents the DATA-P18 `DatasetPartitionPlan` contract,
 canonical development / validation / locked-test candidate windows, optional

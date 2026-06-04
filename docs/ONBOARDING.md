@@ -86,6 +86,18 @@ Start with read-only orientation:
 5. Use tiny synthetic fixtures or temp directories for initial command checks.
 6. Keep generated outputs local-only and out of git.
 
+## Data-Heavy Work
+
+For data-heavy phases, read `docs/data_foundation/README.md`,
+`docs/data_foundation/DATASET_VERSION.md`,
+`docs/data_foundation/DATASET_CONSUMPTION.md`, and
+`docs/data_foundation/PARTITION_PLAN.md` before touching data paths. IBKR
+entry points live under `src/alpha_system/data/ibkr/` (`connector.py`,
+`backfill_connect.py`, `materialize.py`). Use
+`docs/data_foundation/BACKFILL_RUNBOOK.md` only when a backfill is explicitly
+authorized; real external pulls require `ALPHA_IBKR_*`/data-pull env gates and
+never run in CI.
+
 ## Artifact Discipline
 
 Never stage or commit:

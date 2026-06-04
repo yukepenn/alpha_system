@@ -3,9 +3,9 @@
 `alpha_system` is a local-first, research-only trading harness for developing
 an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
-The active campaign is `ALPHA_DATA_FOUNDATION_V1`, defined in
-`campaigns/ALPHA_DATA_FOUNDATION_V1/`. Current campaign state is tracked in the
-repository-level `ACTIVE_CAMPAIGN.md`.
+The repository-level campaign pointer records `ALPHA_DATA_FOUNDATION_V1` as
+complete, with current phase `none`. Campaign state is tracked in
+`ACTIVE_CAMPAIGN.md`.
 
 This repository is not a broker, paper-trading, live-trading, order-routing, or
 production execution system. It must not introduce alpha, profitability,
@@ -13,7 +13,7 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_DATA_FOUNDATION_V1` is active. Within the `campaign_bootstrap` gate,
+`ALPHA_DATA_FOUNDATION_V1` is complete. Within the `campaign_bootstrap` gate,
 `DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
 validated `DataSourceProfile` and `LocalDataRootPolicy` records; and the
 `DATA-P03` executor snapshot adds `IBKRConnectionProfile`,
@@ -376,6 +376,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/DATA_QUALITY.md`
 - `docs/data_foundation/COVERAGE_REPORT.md`
 - `docs/data_foundation/DATASET_VERSION.md`
+- `docs/data_foundation/DATASET_CONSUMPTION.md`
 - `docs/data_foundation/BID_ASK_PILOT.md`
 - `docs/data_foundation/SYNTHETIC_FIXTURE_TESTS.md`
 - `docs/data_foundation/SMOKE_PULL.md`
@@ -409,16 +410,17 @@ parsed-not-canonical boundary, canonical 1-minute bar fields,
 `TimestampSemanticsPolicy`, explicit `available_ts` no-lookahead semantics, and
 fail-closed data quality and coverage reports, `DatasetVersion`,
 reproducibility hash binding, local SQLite registry integration, duplicate-ID
-rejection, the `QUALITY_CHECKED -> VERSIONED -> READY_FOR_RESEARCH`
-data-admissibility gate, synthetic IBKR fixture composition tests with a
-no-external-call proof, the guarded smoke pull, local backfill resume drill,
-and the `ALPHA_DATA_ROOT` local-only data-root pointer.
+rejection, DatasetVersion consumption rules for later feature/label campaigns,
+the `QUALITY_CHECKED -> VERSIONED -> READY_FOR_RESEARCH` data-admissibility
+gate, synthetic IBKR fixture composition tests with a no-external-call proof,
+the guarded smoke pull, local backfill resume drill, and the `ALPHA_DATA_ROOT`
+local-only data-root pointer.
 Field-level acceptance rules, risks, and operator procedures remain in the
 campaign contract bundle.
 
 ## Campaign Source Of Truth
 
-The active campaign contract bundle lives under
+The current completed campaign contract bundle lives under
 `campaigns/ALPHA_DATA_FOUNDATION_V1/`:
 
 - `GOAL.md`

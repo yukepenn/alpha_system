@@ -7,13 +7,16 @@ import json
 import os
 import sys
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 from pathlib import Path
-from types import MappingProxyType
 
-from alpha_system.data.foundation.ibkr import IBKRClientIdPolicy, IBKRConnectionProfile
+from alpha_system.data.foundation.ibkr import IBKRConnectionProfile
 from alpha_system.data.foundation.requests import HistoricalRequestManifest, RequestPacingPolicy
-from alpha_system.data.foundation.sources import DataAccessMode, DataFoundationValidationError
+from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.ibkr._connection import (
+    connection_doctor_blocked_message,
+    gate_read_only_ibkr_access,
+)
+from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 from alpha_system.data.ibkr.backfill import run_local_backfill_resume_drill
 from alpha_system.data.ibkr.connector import open_ibkr_historical_boundary
 from alpha_system.data.ibkr.pull import ReachabilityProbe, probe_ibkr_host_port
@@ -65,39 +68,9 @@ def _load_pacing_policy(path: Path) -> RequestPacingPolicy:
     return RequestPacingPolicy.from_mapping(_load_json_mapping(path))
 
 
-def _json_ready(value: object) -> object:
-    if isinstance(value, Mapping | MappingProxyType):
-        return {str(key): _json_ready(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if hasattr(value, "value") and isinstance(value.value, str):
-        return value.value
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    msg = f"value {value!r} is not JSON-stable"
-    raise DataFoundationValidationError(msg)
-
-
 def _print_summary(summary: object) -> None:
     payload = summary.to_mapping() if hasattr(summary, "to_mapping") else summary
     print(json.dumps(_json_ready(payload), indent=2, sort_keys=True))
-
-
-def _connection_doctor_blocked_message(
-    profile: IBKRConnectionProfile,
-    failure_reason: str | None,
-) -> str:
-    reason = failure_reason or "unreachable"
-    return (
-        "IBKR read-only backfill connector blocked: connection doctor could not reach "
-        f"{profile.host}:{profile.port} ({reason}). Set ALPHA_IBKR_HOST to a "
-        "Windows-reachable address or enable WSL2 mirrored networking; host/port are "
-        "NOT changed automatically."
-    )
 
 
 def main(
@@ -111,19 +84,22 @@ def main(
     profile: IBKRConnectionProfile | None = None
     probe = reachability_probe or probe_ibkr_host_port
     try:
-        profile = IBKRConnectionProfile.from_env(os.environ)
-        IBKRClientIdPolicy.default().validate_client_id(profile.client_id)
-        access_mode = DataAccessMode.authorized_pull()
-        access_mode.validate_runtime_env(os.environ, ci=None)
+        profile, access_mode, doctor = gate_read_only_ibkr_access(
+            os.environ,
+            reachability_probe=probe,
+        )
 
         manifest = _load_manifest(args.manifest)
         pacing_policy = _load_pacing_policy(args.pacing_policy)
         max_chunks = args.max_chunks if args.max_chunks is not None else manifest.chunk_count
 
-        doctor = probe(profile)
         if not doctor.reachable:
             print(
-                _connection_doctor_blocked_message(profile, doctor.failure_reason),
+                connection_doctor_blocked_message(
+                    profile,
+                    doctor.failure_reason,
+                    connector_name="backfill",
+                ),
                 file=sys.stderr,
             )
             return 2
@@ -151,9 +127,10 @@ def main(
             print(f"IBKR read-only backfill connector blocked: {exc}", file=sys.stderr)
         else:
             print(
-                _connection_doctor_blocked_message(
+                connection_doctor_blocked_message(
                     profile,
                     f"{type(exc).__name__}: {exc}",
+                    connector_name="backfill",
                 ),
                 file=sys.stderr,
             )

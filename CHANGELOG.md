@@ -39,5 +39,11 @@ Status: executor-complete with warnings on deterministic fixtures.
 
 ## Unreleased
 
-- Post-closeout release hygiene: `ASV1_RELEASE_HYGIENE`.
-- Next intended macro-campaign: `ALPHA_RESEARCH_GOVERNANCE_MVP`.
+- `ALPHA_RESEARCH_GOVERNANCE_MVP` closeout is present with verdict
+  `COMPLETE_WITH_WARNINGS`.
+- `ALPHA_DATA_FOUNDATION_V1` closeout is present with verdict
+  `COMPLETE_WITH_WARNINGS` and `25/25` phases passing.
+- Post-closeout ADF1 Task 1A/1B added the read-only IBKR connector,
+  resumable backfill/materialize path, and first real local-only
+  DatasetVersion `dsv_ibkr_es_nq_rty_eth_20260603_v1`.
+- Next intended macro-campaign: `ALPHA_FEATURE_LABEL_FOUNDATION_V1`.

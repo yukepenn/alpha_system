@@ -13,7 +13,6 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
 from zoneinfo import ZoneInfo
@@ -45,6 +44,7 @@ from alpha_system.data.foundation.sessions import (
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import persist_dataset_version
+from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 from alpha_system.data.quality import evaluate_data_quality, normalize_quality_flags
 from alpha_system.data.sessionize import sessionize_bars
 from alpha_system.data.sessions import build_session_id, session_contains_bar
@@ -52,19 +52,19 @@ from alpha_system.data.validation import validate_bars
 
 SOURCE_ID = "dsrc_ibkr_historical"
 DEFAULT_INSTRUMENT_CONFIG = (
-    Path(__file__).resolve(strict=False).parents[3]
+    Path(__file__).resolve(strict=False).parents[4]
     / "configs"
     / "data"
     / "ibkr_es_nq_rty_instruments.json"
 )
 DEFAULT_CALENDAR_CONFIG = (
-    Path(__file__).resolve(strict=False).parents[3]
+    Path(__file__).resolve(strict=False).parents[4]
     / "configs"
     / "data"
     / "session_templates_and_calendar.json"
 )
 DEFAULT_VALIDATION_CONFIG = (
-    Path(__file__).resolve(strict=False).parents[3]
+    Path(__file__).resolve(strict=False).parents[4]
     / "configs"
     / "data"
     / "ibkr_materialize_validation.json"
@@ -147,6 +147,8 @@ class MaterializeSummary:
 
 @dataclass(frozen=True, slots=True)
 class _MaterializeTemplateCalendar:
+    """Strict ETH template shim that over-expects bars and fails closed."""
+
     # This shim models the full roughly 23-hour CME index ETH overnight session.
     # It hardcodes is_holiday=False and is_half_day=False, so it intentionally
     # OVER-expects bars and fails closed. It must gain holiday/half-day
@@ -220,7 +222,7 @@ class _MaterializeTemplateCalendar:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve(strict=False).parents[3]
+    return Path(__file__).resolve(strict=False).parents[4]
 
 
 def _parse_symbols(value: str) -> tuple[str, ...]:
@@ -263,12 +265,31 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_data_root(root: Path, repo_root: Path) -> Path:
+    """Reject ALPHA_DATA_ROOT locations inside the repository."""
+
+    resolved = root.expanduser().resolve(strict=False)
+    resolved_repo = repo_root.expanduser().resolve(strict=False)
+    if resolved == resolved_repo or _is_relative_to(resolved, resolved_repo):
+        msg = "ALPHA_DATA_ROOT must not resolve inside the alpha_system repository"
+        raise DataFoundationValidationError(msg)
+    return resolved
+
+
 def _require_data_root(env: Mapping[str, str]) -> Path:
     value = env.get("ALPHA_DATA_ROOT")
     if value is None or not value.strip():
         msg = "ALPHA_DATA_ROOT is required for raw-lake materialization"
         raise DataFoundationValidationError(msg)
-    return Path(value).expanduser().resolve(strict=False)
+    return _validate_data_root(Path(value), _repo_root())
 
 
 def _validate_registry_path(path: Path) -> Path:
@@ -277,25 +298,6 @@ def _validate_registry_path(path: Path) -> Path:
         msg = f"registry path is not local-only: {resolved.as_posix()}"
         raise DataFoundationValidationError(msg)
     return resolved
-
-
-def _json_ready(value: object) -> object:
-    if isinstance(value, Mapping | MappingProxyType):
-        return {str(key): _json_ready(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    if isinstance(value, datetime | date):
-        return value.isoformat()
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, Path):
-        return value.as_posix()
-    if hasattr(value, "value") and isinstance(value.value, str):
-        return value.value
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    msg = f"value {value!r} is not JSON-stable"
-    raise DataFoundationValidationError(msg)
 
 
 def _row_count(path: Path) -> int:
@@ -367,6 +369,8 @@ def _discover_raw_records(
     return tuple(records)
 
 
+# Connector provider timestamp formatting and materialize provider_ts parsing serve
+# different boundaries; both helpers intentionally remain separate.
 def _parse_provider_ts(value: object) -> datetime:
     raw = str(value).strip()
     if not raw:
@@ -797,7 +801,12 @@ def run_materialize(
     env: Mapping[str, str] | None = None,
     now: datetime | None = None,
 ) -> MaterializeSummary:
-    """Materialize local raw bars and register only passing DatasetVersions."""
+    """Materialize raw bars with the no-lookahead five-timestamp policy.
+
+    Canonical output keeps bar_start_ts, bar_end_ts, event_ts, available_ts,
+    and ingested_at distinct. available_ts is bar_end_ts plus configured
+    latency; ingested_at remains the local materialization timestamp.
+    """
 
     if end_ts <= start_ts:
         msg = "end_ts must be greater than start_ts"
@@ -939,7 +948,7 @@ def run_materialize(
     )
     code_hash = hash_config(
         {
-            "module": "alpha_system.data.materialize",
+            "module": "alpha_system.data.ibkr.materialize",
             "canonical_schema": "foundation.CanonicalBarRecord",
         }
     )
@@ -1011,7 +1020,7 @@ def _print_summary(summary: MaterializeSummary) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI for ``python -m alpha_system.data.materialize``."""
+    """CLI for ``python -m alpha_system.data.ibkr.materialize``."""
 
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:

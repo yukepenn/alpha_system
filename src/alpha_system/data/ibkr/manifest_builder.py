@@ -21,6 +21,8 @@ from alpha_system.data.foundation.requests import (
     HistoricalRequestSpec,
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.ibkr._connection import require_env_present
+from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 
 DEFAULT_SYMBOLS: tuple[str, ...] = ("ES", "NQ", "RTY")
 DEFAULT_PACING_POLICY_ID = "rpp_ibkr_historical_conservative_tobeverified_v1"
@@ -29,14 +31,6 @@ BAR_SIZE = "1 min"
 WHAT_TO_SHOW = "TRADES"
 QUARTER_MONTH_CODES: Mapping[int, str] = MappingProxyType({3: "H", 6: "M", 9: "U", 12: "Z"})
 QUARTER_START_MONTHS: Mapping[int, int] = MappingProxyType({3: 1, 6: 4, 9: 7, 12: 10})
-
-
-def _require_env_present(env: Mapping[str, str], name: str) -> str:
-    value = env.get(name)
-    if value is None or not value.strip():
-        msg = f"{name} is required to build an IBKR backfill manifest"
-        raise DataFoundationValidationError(msg)
-    return value
 
 
 def _normalize_symbols(symbols: Sequence[str]) -> tuple[str, ...]:
@@ -129,7 +123,11 @@ def build_recent_slice_manifest(
 
     roots = _normalize_symbols(symbols)
     day_count = _require_positive_int(trading_days, "trading_days")
-    data_root = _require_env_present(env, "ALPHA_DATA_ROOT")
+    data_root = require_env_present(
+        env,
+        "ALPHA_DATA_ROOT",
+        purpose="to build an IBKR backfill manifest",
+    )
     created_at = _utc_minute(now)
     end_ts = created_at
     start_ts = end_ts - timedelta(days=day_count)
@@ -237,7 +235,11 @@ def build_full_backfill_manifest(
         msg = "end_date must be greater than or equal to start_date"
         raise DataFoundationValidationError(msg)
     roots = _normalize_symbols(symbols)
-    data_root = _require_env_present(env, "ALPHA_DATA_ROOT")
+    data_root = require_env_present(
+        env,
+        "ALPHA_DATA_ROOT",
+        purpose="to build an IBKR backfill manifest",
+    )
     created_at = _utc_minute(now)
     request_specs = tuple(
         _full_request_spec(
@@ -274,21 +276,6 @@ def build_full_backfill_manifest(
         created_by="ADF1 Task 1B Stage A manifest_builder",
         created_at=created_at,
     )
-
-
-def _json_ready(value: object) -> object:
-    if isinstance(value, Mapping | MappingProxyType):
-        return {str(key): _json_ready(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    if isinstance(value, datetime | date):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    msg = f"value {value!r} is not JSON-stable"
-    raise DataFoundationValidationError(msg)
 
 
 def write_manifest_json(manifest: HistoricalRequestManifest, path: str | Path) -> Path:
