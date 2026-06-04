@@ -3,7 +3,7 @@
 DATA-P10 owns the ES/NQ/RTY mini main-batch plan and its hard separation from
 the MES/MNQ/M2K micro batch. The records in this module are planning records
 only: they perform no provider calls, authorize no pull, and write no data.
-DATA-P19 owns future ``MicroBatchPolicy`` behavior.
+DATA-P19 owns the separate MES/MNQ/M2K ``MicroBatchPolicy`` secondary path.
 """
 
 from __future__ import annotations
@@ -22,19 +22,40 @@ REQUIRED_SYMBOL_BATCH_PLAN_FIELDS: tuple[str, ...] = (
     "do_not_mix_mini_and_micro_batches",
 )
 
+REQUIRED_MICRO_BATCH_POLICY_FIELDS: tuple[str, ...] = (
+    "batch_id",
+    "symbols",
+    "start_date",
+    "separate_batch",
+    "parity_check_targets",
+)
+
 CANONICAL_MINI_MAIN_ROOTS: tuple[str, ...] = ("ES", "NQ", "RTY")
 CANONICAL_MICRO_SECONDARY_ROOTS: tuple[str, ...] = ("MES", "MNQ", "M2K")
 CANONICAL_MAX_CONCURRENT_ROOTS = 3
 CANONICAL_SYMBOL_BATCH_PLAN_ID = "sbp_mini_main_es_nq_rty_v1"
+CANONICAL_MICRO_BATCH_POLICY_ID = "mbp_micro_secondary_mes_mnq_m2k_v1"
+CANONICAL_MICRO_BATCH_START_DATE = "2020-01-01"
+EARLIEST_CLEAN_AVAILABLE_MARKER = "earliest_clean_available_to_be_verified"
+MICRO_BATCH_START_DATE_STATUS = "planning_default_to_be_verified_not_data_claim"
+INSTRUMENT_MASTER_RECORD_CONTRACT = "InstrumentMasterRecord"
+DATA_P05_INSTRUMENT_ECONOMICS_REFERENCE = "DATA-P05 InstrumentMasterRecord"
+DATA_P10_SEPARATION_CONTRACT_REFERENCE = "DATA-P10 SymbolBatchPlan"
 HISTORICAL_REQUEST_MANIFEST_CONTRACT = "HistoricalRequestManifest"
 REQUEST_PACING_POLICY_CONTRACT = "RequestPacingPolicy"
 CANONICAL_REQUEST_PACING_POLICY_ID = "rpp_ibkr_historical_conservative_tobeverified_v1"
+CANONICAL_MINI_MICRO_PARITY_TARGETS: tuple[tuple[str, str], ...] = (
+    ("ES", "MES"),
+    ("NQ", "MNQ"),
+    ("RTY", "M2K"),
+)
 
 _CANONICAL_MINI_MAIN_ROOT_SET = frozenset(CANONICAL_MINI_MAIN_ROOTS)
 _CANONICAL_MICRO_SECONDARY_ROOT_SET = frozenset(CANONICAL_MICRO_SECONDARY_ROOTS)
 _CANONICAL_BATCH_ROOT_SET = (
     _CANONICAL_MINI_MAIN_ROOT_SET | _CANONICAL_MICRO_SECONDARY_ROOT_SET
 )
+_CANONICAL_PARITY_TARGET_SET = frozenset(CANONICAL_MINI_MICRO_PARITY_TARGETS)
 _PRESENT_AS_OF_RUN = "present_as_of_run"
 _ROLLING_AVAILABLE_EXPIRED_WINDOW = "rolling_available_expired_window"
 _ALLOWED_NON_DATE_WINDOW_MARKERS = frozenset(
@@ -147,6 +168,18 @@ def _require_date_or_window_marker(value: object, field_name: str) -> str:
     raise DataFoundationValidationError(msg)
 
 
+def _require_micro_start_date(value: object) -> str:
+    token = _require_text(value, "start_date")
+    if token in {CANONICAL_MICRO_BATCH_START_DATE, EARLIEST_CLEAN_AVAILABLE_MARKER}:
+        return token
+
+    msg = (
+        "start_date must be 2020-01-01 or "
+        "earliest_clean_available_to_be_verified"
+    )
+    raise DataFoundationValidationError(msg)
+
+
 def _normalize_session_views(value: object) -> tuple[str, ...]:
     if isinstance(value, str) or not isinstance(value, Iterable):
         msg = "session_views must be a non-empty iterable of labels"
@@ -156,6 +189,71 @@ def _normalize_session_views(value: object) -> tuple[str, ...]:
         msg = "session_views must not be empty"
         raise DataFoundationValidationError(msg)
     return views
+
+
+def _normalize_parity_target_pair(value: object) -> tuple[str, str]:
+    if isinstance(value, Mapping):
+        allowed_keys = {"mini_root", "micro_root"}
+        provided_keys = set(value)
+        if provided_keys != allowed_keys:
+            msg = (
+                "parity_check_targets are declarations only and must contain "
+                "only mini_root and micro_root"
+            )
+            raise DataFoundationValidationError(msg)
+        mini_root = _normalize_root(value["mini_root"], "parity_check_targets.mini_root")
+        micro_root = _normalize_root(
+            value["micro_root"],
+            "parity_check_targets.micro_root",
+        )
+    else:
+        if isinstance(value, str) or not isinstance(value, Iterable):
+            msg = "parity_check_targets entries must be mini/micro root pairs"
+            raise DataFoundationValidationError(msg)
+        parts = tuple(value)
+        if len(parts) != 2:
+            msg = "parity_check_targets entries must contain exactly two roots"
+            raise DataFoundationValidationError(msg)
+        mini_root = _normalize_root(parts[0], "parity_check_targets.mini_root")
+        micro_root = _normalize_root(parts[1], "parity_check_targets.micro_root")
+
+    if mini_root not in _CANONICAL_MINI_MAIN_ROOT_SET:
+        msg = "parity_check_targets mini_root must be one of ES/NQ/RTY"
+        raise DataFoundationValidationError(msg)
+    if micro_root not in _CANONICAL_MICRO_SECONDARY_ROOT_SET:
+        msg = "parity_check_targets micro_root must be one of MES/MNQ/M2K"
+        raise DataFoundationValidationError(msg)
+    if (mini_root, micro_root) not in _CANONICAL_PARITY_TARGET_SET:
+        msg = "parity_check_targets must use canonical ES-MES, NQ-MNQ, RTY-M2K pairs"
+        raise DataFoundationValidationError(msg)
+    return mini_root, micro_root
+
+
+def _normalize_parity_check_targets(value: object) -> tuple[tuple[str, str], ...]:
+    if isinstance(value, Mapping):
+        raw_targets = tuple(value.items())
+    else:
+        if isinstance(value, str) or not isinstance(value, Iterable):
+            msg = "parity_check_targets must be a non-empty iterable of root pairs"
+            raise DataFoundationValidationError(msg)
+        raw_targets = tuple(value)
+
+    if not raw_targets:
+        msg = "parity_check_targets must not be empty"
+        raise DataFoundationValidationError(msg)
+
+    targets = tuple(_normalize_parity_target_pair(target) for target in raw_targets)
+    duplicate_targets = sorted({target for target in targets if targets.count(target) > 1})
+    if duplicate_targets:
+        formatted = ", ".join(f"{mini}-{micro}" for mini, micro in duplicate_targets)
+        msg = "parity_check_targets contains duplicate pairs: " + formatted
+        raise DataFoundationValidationError(msg)
+
+    if frozenset(targets) != _CANONICAL_PARITY_TARGET_SET:
+        msg = "parity_check_targets must equal ES<->MES, NQ<->MNQ, RTY<->M2K"
+        raise DataFoundationValidationError(msg)
+
+    return CANONICAL_MINI_MICRO_PARITY_TARGETS
 
 
 @dataclass(frozen=True, slots=True)
@@ -323,6 +421,182 @@ class SymbolBatchPlan:
                 "do_not_mix_mini_and_micro_batches": (
                     self.do_not_mix_mini_and_micro_batches
                 ),
+            }
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class MicroBatchPolicy:
+    """Fail-closed MES/MNQ/M2K micro secondary-batch policy.
+
+    The policy is declarative. It references DATA-P05 instrument economics and
+    DATA-P10 mini/micro separation contracts, but does not duplicate economics,
+    authorize provider pulls, or contain parity results.
+    """
+
+    batch_id: str
+    symbols: tuple[str, ...]
+    start_date: str
+    separate_batch: bool
+    parity_check_targets: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        batch_id = _normalize_id(self.batch_id, "batch_id")
+        symbols = _normalize_roots(self.symbols, "symbols")
+        shared_roots = sorted(frozenset(symbols) & _CANONICAL_MINI_MAIN_ROOT_SET)
+        if shared_roots:
+            msg = "symbols must be disjoint from mini roots: " + ", ".join(shared_roots)
+            raise DataFoundationValidationError(msg)
+        symbols = _canonicalize_expected_roots(
+            symbols,
+            expected_roots=CANONICAL_MICRO_SECONDARY_ROOTS,
+            field_name="symbols",
+        )
+
+        start_date = _require_micro_start_date(self.start_date)
+        separate_batch = _require_bool(self.separate_batch, "separate_batch")
+        if not separate_batch:
+            msg = "separate_batch must be true"
+            raise DataFoundationValidationError(msg)
+
+        parity_check_targets = _normalize_parity_check_targets(
+            self.parity_check_targets,
+        )
+
+        object.__setattr__(self, "batch_id", batch_id)
+        object.__setattr__(self, "symbols", symbols)
+        object.__setattr__(self, "start_date", start_date)
+        object.__setattr__(self, "separate_batch", separate_batch)
+        object.__setattr__(self, "parity_check_targets", parity_check_targets)
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, object]) -> MicroBatchPolicy:
+        """Build a micro-batch policy from configured values and fail closed."""
+
+        missing = tuple(
+            field for field in REQUIRED_MICRO_BATCH_POLICY_FIELDS if field not in values
+        )
+        if missing:
+            msg = "MicroBatchPolicy missing required fields: " + ", ".join(missing)
+            raise DataFoundationValidationError(msg)
+
+        return cls(
+            batch_id=_require_text(values["batch_id"], "batch_id"),
+            symbols=_normalize_roots(values["symbols"], "symbols"),
+            start_date=_require_micro_start_date(values["start_date"]),
+            separate_batch=_require_bool(values["separate_batch"], "separate_batch"),
+            parity_check_targets=_normalize_parity_check_targets(
+                values["parity_check_targets"],
+            ),
+        )
+
+    @property
+    def implies_pull_authorization(self) -> bool:
+        """Return false: this planning record never authorizes a pull."""
+
+        return False
+
+    @property
+    def secondary_path(self) -> bool:
+        """Return true: micros are a separate secondary path in V1."""
+
+        return True
+
+    @property
+    def micro_root_set(self) -> frozenset[str]:
+        """Return the immutable micro-root set."""
+
+        return frozenset(self.symbols)
+
+    @property
+    def instrument_economics_contract(self) -> str:
+        """Reference, without duplicating, the DATA-P05 economics record type."""
+
+        return INSTRUMENT_MASTER_RECORD_CONTRACT
+
+    @property
+    def instrument_economics_roots(self) -> tuple[str, ...]:
+        """Return roots whose economics are owned by DATA-P05 records."""
+
+        return self.symbols
+
+    @property
+    def separation_contract(self) -> Mapping[str, object]:
+        """Reference the DATA-P10 mini/micro separation contract."""
+
+        return MappingProxyType(
+            {
+                "contract_reference": DATA_P10_SEPARATION_CONTRACT_REFERENCE,
+                "symbol_batch_plan_id": MINI_MAIN_SYMBOL_BATCH_PLAN.plan_id,
+                "do_not_mix_mini_and_micro_batches": (
+                    MINI_MAIN_SYMBOL_BATCH_PLAN.do_not_mix_mini_and_micro_batches
+                ),
+                "max_concurrent_roots": MINI_MAIN_SYMBOL_BATCH_PLAN.max_concurrent_roots,
+            }
+        )
+
+    def validate_batch_roots(
+        self,
+        roots: Iterable[object],
+        *,
+        batch_name: str = "micro batch",
+    ) -> tuple[str, ...]:
+        """Validate a micro batch without permitting mini roots or partial sets."""
+
+        normalized_roots = _normalize_roots(roots, batch_name)
+        mini_roots = sorted(frozenset(normalized_roots) & _CANONICAL_MINI_MAIN_ROOT_SET)
+        if mini_roots:
+            msg = f"{batch_name} must not include mini roots: " + ", ".join(mini_roots)
+            raise DataFoundationValidationError(msg)
+        return _canonicalize_expected_roots(
+            normalized_roots,
+            expected_roots=CANONICAL_MICRO_SECONDARY_ROOTS,
+            field_name=batch_name,
+        )
+
+    def validate_manifest_roots(
+        self,
+        manifest: Mapping[str, object] | object,
+        *,
+        batch_name: str = "micro manifest request_specs",
+    ) -> tuple[str, ...]:
+        """Validate roots embedded in a HistoricalRequestManifest-like object."""
+
+        if isinstance(manifest, Mapping):
+            request_specs = manifest.get("request_specs")
+        else:
+            request_specs = getattr(manifest, "request_specs", None)
+
+        if isinstance(request_specs, str) or not isinstance(request_specs, Iterable):
+            msg = "micro manifest request_specs must be an iterable of request spec records"
+            raise DataFoundationValidationError(msg)
+
+        roots: list[object] = []
+        for request_spec in request_specs:
+            if isinstance(request_spec, Mapping):
+                if "symbol_root" not in request_spec:
+                    msg = "micro manifest request_specs entries must include symbol_root"
+                    raise DataFoundationValidationError(msg)
+                roots.append(request_spec["symbol_root"])
+            elif hasattr(request_spec, "symbol_root"):
+                roots.append(getattr(request_spec, "symbol_root"))
+            else:
+                msg = "micro manifest request_specs entries must expose symbol_root"
+                raise DataFoundationValidationError(msg)
+
+        unique_roots = tuple(dict.fromkeys(_normalize_root(root) for root in roots))
+        return self.validate_batch_roots(unique_roots, batch_name=batch_name)
+
+    def to_mapping(self) -> Mapping[str, object]:
+        """Return the JSON-stable required fields without authorization state."""
+
+        return MappingProxyType(
+            {
+                "batch_id": self.batch_id,
+                "symbols": self.symbols,
+                "start_date": self.start_date,
+                "separate_batch": self.separate_batch,
+                "parity_check_targets": self.parity_check_targets,
             }
         )
 
@@ -529,17 +803,51 @@ MINI_MAIN_BATCH_PULL_PLAN: Mapping[str, object] = MappingProxyType(
 )
 
 
-class MicroBatchPolicy:
-    """DATA-P19 placeholder for a micro-batch policy."""
+MICRO_BATCH_POLICY = MicroBatchPolicy(
+    batch_id=CANONICAL_MICRO_BATCH_POLICY_ID,
+    symbols=CANONICAL_MICRO_SECONDARY_ROOTS,
+    start_date=CANONICAL_MICRO_BATCH_START_DATE,
+    separate_batch=True,
+    parity_check_targets=CANONICAL_MINI_MICRO_PARITY_TARGETS,
+)
+
+MICRO_BATCH_PLAN: Mapping[str, object] = MappingProxyType(
+    {
+        "batch_id": MICRO_BATCH_POLICY.batch_id,
+        "policy": MICRO_BATCH_POLICY.to_mapping(),
+        "secondary_path": MICRO_BATCH_POLICY.secondary_path,
+        "v1_source_role": "secondary_path_not_primary_alpha_source",
+        "start_date_status": MICRO_BATCH_START_DATE_STATUS,
+        "instrument_economics_reference": DATA_P05_INSTRUMENT_ECONOMICS_REFERENCE,
+        "instrument_economics_contract": MICRO_BATCH_POLICY.instrument_economics_contract,
+        "instrument_economics_roots": MICRO_BATCH_POLICY.instrument_economics_roots,
+        "separation_contract": MICRO_BATCH_POLICY.separation_contract,
+        "parity_check_declaration_only": True,
+        "parity_check_targets": MICRO_BATCH_POLICY.parity_check_targets,
+        "external_provider_call": False,
+        "pull_authorization": False,
+        "data_exists_claim": False,
+    }
+)
 
 
 __all__ = [
     "CANONICAL_MAX_CONCURRENT_ROOTS",
+    "CANONICAL_MICRO_BATCH_POLICY_ID",
+    "CANONICAL_MICRO_BATCH_START_DATE",
     "CANONICAL_MICRO_SECONDARY_ROOTS",
+    "CANONICAL_MINI_MICRO_PARITY_TARGETS",
     "CANONICAL_MINI_MAIN_ROOTS",
     "CANONICAL_REQUEST_PACING_POLICY_ID",
     "CANONICAL_SYMBOL_BATCH_PLAN_ID",
+    "DATA_P05_INSTRUMENT_ECONOMICS_REFERENCE",
+    "DATA_P10_SEPARATION_CONTRACT_REFERENCE",
+    "EARLIEST_CLEAN_AVAILABLE_MARKER",
     "HISTORICAL_REQUEST_MANIFEST_CONTRACT",
+    "INSTRUMENT_MASTER_RECORD_CONTRACT",
+    "MICRO_BATCH_PLAN",
+    "MICRO_BATCH_POLICY",
+    "MICRO_BATCH_START_DATE_STATUS",
     "MINI_MAIN_BATCH_PULL_PLAN",
     "MINI_MAIN_SYMBOL_BATCH_PLAN",
     "MINI_OPTIONAL_SECONDARY_PANELS",
@@ -547,6 +855,7 @@ __all__ = [
     "MicroBatchPolicy",
     "MiniBatchPanelWindow",
     "REQUEST_PACING_POLICY_CONTRACT",
+    "REQUIRED_MICRO_BATCH_POLICY_FIELDS",
     "REQUIRED_SYMBOL_BATCH_PLAN_FIELDS",
     "SymbolBatchPlan",
 ]
