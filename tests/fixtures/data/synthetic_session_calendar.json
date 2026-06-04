@@ -1,0 +1,77 @@
+{
+  "schema": "alpha_system.session_calendar.v1",
+  "scope": "DATA-P12 tiny synthetic deterministic fixture",
+  "non_claims": [
+    "not_exchange_official",
+    "not_holiday_complete",
+    "not_market_data",
+    "not_production_certified"
+  ],
+  "session_templates": [
+    {
+      "template_id": "session_cme_index_futures_eth",
+      "timezone": "America/Chicago",
+      "rth_start": "08:30",
+      "rth_end": "15:00",
+      "eth_start": "17:00",
+      "eth_end": "16:00",
+      "maintenance_breaks": [
+        {
+          "start": "16:00",
+          "end": "17:00"
+        }
+      ],
+      "source": "synthetic_to_be_verified_unit_fixture"
+    }
+  ],
+  "calendar_records": [
+    {
+      "calendar_id": "synthetic_cme_index_eth",
+      "instrument_root": "ES",
+      "date": "2026-06-01",
+      "session_type": "ETH",
+      "open_ts": "2026-06-01T17:00:00-05:00",
+      "close_ts": "2026-06-02T16:00:00-05:00",
+      "breaks": [],
+      "is_holiday": false,
+      "is_early_close": false,
+      "source": "synthetic_to_be_verified_unit_fixture"
+    },
+    {
+      "calendar_id": "synthetic_cme_index_dst",
+      "instrument_root": "ES",
+      "date": "2026-03-08",
+      "session_type": "ETH",
+      "open_ts": "2026-03-08T00:30:00-06:00",
+      "close_ts": "2026-03-08T03:30:00-05:00",
+      "breaks": [],
+      "is_holiday": false,
+      "is_early_close": false,
+      "source": "synthetic_to_be_verified_unit_fixture"
+    },
+    {
+      "calendar_id": "synthetic_cme_index_early_close",
+      "instrument_root": "ES",
+      "date": "2026-11-27",
+      "session_type": "EARLY_CLOSE",
+      "open_ts": "2026-11-27T08:30:00-06:00",
+      "close_ts": "2026-11-27T12:15:00-06:00",
+      "breaks": [],
+      "is_holiday": false,
+      "is_early_close": true,
+      "source": "synthetic_to_be_verified_unit_fixture"
+    },
+    {
+      "calendar_id": "synthetic_cme_index_holiday",
+      "instrument_root": "ES",
+      "date": "2026-12-25",
+      "session_type": "HOLIDAY",
+      "open_ts": null,
+      "close_ts": null,
+      "breaks": [],
+      "is_holiday": true,
+      "is_early_close": false,
+      "source": "synthetic_to_be_verified_unit_fixture"
+    }
+  ]
+}

@@ -9,3 +9,8 @@ claims.
 fabricated instrument/session. The prices, volume, timestamps, versions, and
 quality flags were hand-authored for schema, validation, DuckDB, and Polars
 tests only.
+
+`synthetic_session_calendar.json` contains one synthetic session template and
+four synthetic dated calendar records covering a normal session, a DST offset
+transition, an early close, and a holiday. It is not an exchange-official
+calendar, not a holiday-complete source, and not market data.

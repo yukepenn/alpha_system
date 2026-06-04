@@ -1,0 +1,27 @@
+{
+  "schema": "alpha_system.session_calendar.v1",
+  "scope": "DATA-P12 synthetic session-template scaffold",
+  "non_claims": [
+    "not_exchange_official",
+    "not_holiday_complete",
+    "not_production_certified"
+  ],
+  "session_templates": [
+    {
+      "template_id": "session_cme_index_futures_eth",
+      "timezone": "America/Chicago",
+      "rth_start": "08:30",
+      "rth_end": "15:00",
+      "eth_start": "17:00",
+      "eth_end": "16:00",
+      "maintenance_breaks": [
+        {
+          "start": "16:00",
+          "end": "17:00"
+        }
+      ],
+      "source": "synthetic_to_be_verified_campaign_scaffold"
+    }
+  ],
+  "calendar_records": []
+}

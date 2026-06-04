@@ -36,6 +36,10 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
   the mandatory continuous diagnostic labels, discovered-not-assumed dated
   availability, adjusted-vs-unadjusted explicitness, and the no-roll-logic
   boundary.
+- `SESSIONS_AND_CALENDAR.md` documents the DATA-P12 `SessionTemplate` and
+  `TradingCalendarRecord` contracts, explicit timezone handling, DST and
+  early-close representation, holiday handling, and the no-official-calendar
+  non-claims.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator
