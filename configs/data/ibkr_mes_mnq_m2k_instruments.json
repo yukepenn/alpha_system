@@ -1,0 +1,31 @@
+{
+  "schema": "alpha_system.materialize_instrument_config.v1",
+  "source": "configs/data/futures_instrument_master.json",
+  "session_template_id": "session_cme_index_futures_eth",
+  "allow_non_fixture_input": true,
+  "roll_policy_id": "roll_cme_index_futures_quarterly",
+  "session_label": "ETH",
+  "instruments": [
+    {
+      "symbol": "MES",
+      "instrument_id": "inst_ibkr_mes",
+      "series_id": "series_ibkr_mes_front_unadjusted",
+      "roll_policy_id": "roll_cme_index_futures_quarterly",
+      "session_label": "ETH"
+    },
+    {
+      "symbol": "MNQ",
+      "instrument_id": "inst_ibkr_mnq",
+      "series_id": "series_ibkr_mnq_front_unadjusted",
+      "roll_policy_id": "roll_cme_index_futures_quarterly",
+      "session_label": "ETH"
+    },
+    {
+      "symbol": "M2K",
+      "instrument_id": "inst_ibkr_m2k",
+      "series_id": "series_ibkr_m2k_front_unadjusted",
+      "roll_policy_id": "roll_cme_index_futures_quarterly",
+      "session_label": "ETH"
+    }
+  ]
+}

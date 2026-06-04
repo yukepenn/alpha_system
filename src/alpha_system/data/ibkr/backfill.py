@@ -12,9 +12,11 @@ import hashlib
 import json
 import os
 import sys
+import time
+from collections import deque
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
@@ -54,6 +56,12 @@ DEFAULT_BACKFILL_BATCH_ID = "mini_main_resume_drill"
 DEFAULT_MAX_DRILL_CHUNKS = 2
 DEFAULT_SYNTHETIC_FIXTURE_RELATIVE_PATH = Path(
     "tests/fixtures/data/synthetic_backfill_resume_drill.json"
+)
+_IBKR_ONE_MIN_MAX_REQUEST_SPAN = timedelta(days=1)
+IBKR_MAX_REQUEST_SPAN_BY_BAR_SIZE: Mapping[str, timedelta] = MappingProxyType(
+    {
+        "1 min": _IBKR_ONE_MIN_MAX_REQUEST_SPAN,
+    }
 )
 _HISTORICAL_METHOD_NAME = "reqHistoricalData"
 _STOP_FILE_ENV_NAMES = ("ALPHA_FRONTIER_STOP_FILE", "FRONTIER_STOP_FILE")
@@ -290,6 +298,76 @@ class BackfillResumeDrillSummary:
 
 ReachabilityProbe = Callable[[IBKRConnectionProfile], SmokePullDoctorReport]
 Clock = Callable[[], datetime]
+PacingClock = Callable[[], float]
+Sleeper = Callable[[float], None]
+
+
+@dataclass(frozen=True, slots=True)
+class _ChunkRequestOutcome:
+    payload: bytes | None
+    external_call_attempted: bool
+    attempt_count: int
+    error: ProviderErrorRecord | None
+
+
+@dataclass(slots=True)
+class _ProviderRequestRateLimiter:
+    pacing_policy: RequestPacingPolicy
+    clock: PacingClock
+    sleep: Sleeper
+    recent_requests: deque[tuple[float, int]] = field(default_factory=deque)
+    last_request_at_by_key: dict[tuple[str, str, str, str, str], float] = field(
+        default_factory=dict
+    )
+
+    def wait(self, request_spec: HistoricalRequestSpec) -> None:
+        """Block until both duplicate-request and sliding-window limits allow a call."""
+
+        request_key = _request_key_for_spec(request_spec)
+        request_weight = self.pacing_policy.accounting_weight(request_spec.what_to_show)
+        if request_weight > self.pacing_policy.max_requests_per_window:
+            msg = "request accounting weight exceeds max_requests_per_window"
+            raise DataFoundationValidationError(msg)
+
+        now = self.clock()
+        last_request_at = self.last_request_at_by_key.get(request_key)
+        if last_request_at is not None:
+            identical_delay = (
+                self.pacing_policy.min_seconds_between_identical_requests
+                - (now - last_request_at)
+            )
+            if identical_delay > 0:
+                self.sleep(identical_delay)
+                now = self.clock()
+
+        self._sleep_until_window_allows(now=now, request_weight=request_weight)
+        request_timestamp = self.clock()
+        self._drop_expired_requests(request_timestamp)
+        self.recent_requests.append((request_timestamp, request_weight))
+        self.last_request_at_by_key[request_key] = request_timestamp
+
+    def _sleep_until_window_allows(self, *, now: float, request_weight: int) -> None:
+        current = now
+        self._drop_expired_requests(current)
+        while self._window_weight() + request_weight > self.pacing_policy.max_requests_per_window:
+            oldest_timestamp = self.recent_requests[0][0]
+            window_delay = self.pacing_policy.window_seconds - (current - oldest_timestamp)
+            if window_delay <= 0:
+                self._drop_expired_requests(current)
+                continue
+            self.sleep(window_delay)
+            current = self.clock()
+            self._drop_expired_requests(current)
+
+    def _drop_expired_requests(self, now: float) -> None:
+        while (
+            self.recent_requests
+            and now - self.recent_requests[0][0] >= self.pacing_policy.window_seconds
+        ):
+            self.recent_requests.popleft()
+
+    def _window_weight(self) -> int:
+        return sum(weight for _, weight in self.recent_requests)
 
 
 def _now_utc() -> datetime:
@@ -453,15 +531,204 @@ def _chunk_id_for_request(request_spec: HistoricalRequestSpec) -> str:
     return _normalize_id(derived, "derived chunk_id")
 
 
+def _request_key_for_spec(
+    request_spec: HistoricalRequestSpec,
+) -> tuple[str, str, str, str, str]:
+    return (
+        request_spec.request_spec_id,
+        request_spec.symbol_root,
+        request_spec.contract_ref,
+        request_spec.start_ts.isoformat(),
+        request_spec.end_ts.isoformat(),
+    )
+
+
+def _normalize_bar_size(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def _validated_max_request_spans(
+    value: Mapping[str, timedelta] | None,
+) -> Mapping[str, timedelta]:
+    source = IBKR_MAX_REQUEST_SPAN_BY_BAR_SIZE if value is None else value
+    normalized: dict[str, timedelta] = {}
+    for bar_size, span in source.items():
+        if not isinstance(span, timedelta) or span.total_seconds() <= 0:
+            msg = "max_request_span_by_bar_size values must be positive timedeltas"
+            raise DataFoundationValidationError(msg)
+        normalized_bar_size = _normalize_bar_size(str(bar_size))
+        if (
+            normalized_bar_size == "1 min"
+            and span > _IBKR_ONE_MIN_MAX_REQUEST_SPAN
+        ):
+            msg = (
+                "max_request_span_by_bar_size['1 min'] must be <= 1 day; "
+                "IBKR caps 1-minute historical requests at about one day per request"
+            )
+            raise DataFoundationValidationError(msg)
+        normalized[normalized_bar_size] = span
+    return MappingProxyType(normalized)
+
+
+def _duration_for_window(start_ts: datetime, end_ts: datetime) -> str:
+    seconds_float = (end_ts - start_ts).total_seconds()
+    if seconds_float <= 0 or not seconds_float.is_integer():
+        msg = "sub-window duration must be a positive whole number of seconds"
+        raise DataFoundationValidationError(msg)
+    seconds = int(seconds_float)
+    if seconds % 86_400 == 0:
+        return f"{seconds // 86_400} D"
+    return f"{seconds} S"
+
+
+def _subchunk_suffix(start_ts: datetime, end_ts: datetime) -> str:
+    start_utc = start_ts.astimezone(UTC)
+    end_utc = end_ts.astimezone(UTC)
+    if (
+        start_utc.hour == 0
+        and start_utc.minute == 0
+        and start_utc.second == 0
+        and start_utc.microsecond == 0
+        and end_utc - start_utc == timedelta(days=1)
+    ):
+        return start_utc.strftime("%Y%m%d")
+    return (
+        start_utc.strftime("%Y%m%dT%H%M%SZ")
+        + "_"
+        + end_utc.strftime("%Y%m%dT%H%M%SZ")
+    )
+
+
+def _subchunk_request_spec(
+    *,
+    plan: BackfillPlannedChunk,
+    start_ts: datetime,
+    end_ts: datetime,
+    subchunk_index: int,
+    suffix: str,
+) -> HistoricalRequestSpec:
+    request_spec = plan.request_spec
+    chunk_id = _normalize_id(f"{plan.chunk_id}_{suffix}", "subchunk chunk_id")
+    request_spec_id = _normalize_id(
+        f"{request_spec.request_spec_id}_{suffix}",
+        "subchunk request_spec_id",
+    )
+    chunk_policy = dict(request_spec.chunk_policy)
+    chunk_policy.update(
+        {
+            "chunk_id": chunk_id,
+            "parent_chunk_id": plan.chunk_id,
+            "parent_request_spec_id": request_spec.request_spec_id,
+            "subchunk_index": subchunk_index,
+            "subchunk_start_ts": start_ts.isoformat(),
+            "subchunk_end_ts": end_ts.isoformat(),
+            "policy": "ibkr_1_min_dated_fut_subchunk",
+        }
+    )
+    return replace(
+        request_spec,
+        request_spec_id=request_spec_id,
+        duration=_duration_for_window(start_ts, end_ts),
+        end_datetime_policy="explicit_dated_fut_sub_window_end_ts",
+        start_ts=start_ts,
+        end_ts=end_ts,
+        chunk_policy=chunk_policy,
+    )
+
+
+def _expand_planned_chunk(
+    plan: BackfillPlannedChunk,
+    *,
+    max_request_span_by_bar_size: Mapping[str, timedelta],
+) -> tuple[BackfillPlannedChunk, ...]:
+    request_spec = plan.request_spec
+    max_span = max_request_span_by_bar_size.get(_normalize_bar_size(request_spec.bar_size))
+    if max_span is None or request_spec.sec_type == "CONTFUT":
+        return (plan,)
+
+    subchunks: list[BackfillPlannedChunk] = []
+    window_start = request_spec.start_ts
+    index = 1
+    while window_start < request_spec.end_ts:
+        window_end = min(window_start + max_span, request_spec.end_ts)
+        suffix = _subchunk_suffix(window_start, window_end)
+        subchunk_spec = _subchunk_request_spec(
+            plan=plan,
+            start_ts=window_start,
+            end_ts=window_end,
+            subchunk_index=index,
+            suffix=suffix,
+        )
+        subchunks.append(
+            BackfillPlannedChunk(
+                chunk_id=_chunk_id_for_request(subchunk_spec),
+                request_spec=subchunk_spec,
+            )
+        )
+        window_start = window_end
+        index += 1
+
+    if not subchunks:
+        msg = "1 min dated FUT request must span at least one positive sub-window"
+        raise DataFoundationValidationError(msg)
+    return tuple(subchunks)
+
+
+def _expand_planned_chunks(
+    planned: Sequence[BackfillPlannedChunk],
+    *,
+    max_request_span_by_bar_size: Mapping[str, timedelta] | None,
+) -> tuple[BackfillPlannedChunk, ...]:
+    spans = _validated_max_request_spans(max_request_span_by_bar_size)
+    expanded = tuple(
+        subchunk
+        for plan in planned
+        for subchunk in _expand_planned_chunk(
+            plan,
+            max_request_span_by_bar_size=spans,
+        )
+    )
+    chunk_ids = tuple(chunk.chunk_id for chunk in expanded)
+    duplicate_chunk_ids = sorted(
+        {chunk_id for chunk_id in chunk_ids if chunk_ids.count(chunk_id) > 1}
+    )
+    if duplicate_chunk_ids:
+        msg = "expanded backfill plan contains duplicate chunk_id values: "
+        raise DataFoundationValidationError(msg + ", ".join(duplicate_chunk_ids))
+    request_spec_ids = tuple(chunk.request_spec.request_spec_id for chunk in expanded)
+    duplicate_request_spec_ids = sorted(
+        {
+            request_spec_id
+            for request_spec_id in request_spec_ids
+            if request_spec_ids.count(request_spec_id) > 1
+        }
+    )
+    if duplicate_request_spec_ids:
+        msg = "expanded backfill plan contains duplicate request_spec_id values: "
+        raise DataFoundationValidationError(msg + ", ".join(duplicate_request_spec_ids))
+    return expanded
+
+
+def _enforce_planned_chunk_limit(
+    *,
+    planned_count: int,
+    max_chunks: int | None,
+    enforce_expanded_max_chunks: bool,
+) -> None:
+    if max_chunks is None:
+        return
+    chunk_limit = _require_positive_int(max_chunks, "max_chunks")
+    if enforce_expanded_max_chunks and planned_count > chunk_limit:
+        msg = (
+            "expanded backfill planned chunk_count exceeds max_chunks; "
+            f"expanded={planned_count} max_chunks={chunk_limit}"
+        )
+        raise DataFoundationValidationError(msg)
+
+
 def _planned_chunks_from_manifest(
     manifest: HistoricalRequestManifest,
-    *,
-    max_chunks: int,
 ) -> tuple[BackfillPlannedChunk, ...]:
-    chunk_limit = _require_positive_int(max_chunks, "max_chunks")
-    if manifest.chunk_count > chunk_limit:
-        msg = "backfill drill manifest chunk_count exceeds max_chunks"
-        raise DataFoundationValidationError(msg)
     if manifest.chunk_count != len(manifest.request_specs):
         msg = "backfill drill requires one request_spec per planned chunk to avoid hidden gaps"
         raise DataFoundationValidationError(msg)
@@ -492,7 +759,9 @@ def _validated_execution_inputs(
     *,
     manifest: HistoricalRequestManifest | Mapping[str, object] | None,
     pacing_policy: RequestPacingPolicy | Mapping[str, object] | None,
-    max_chunks: int,
+    max_chunks: int | None,
+    max_request_span_by_bar_size: Mapping[str, timedelta] | None,
+    enforce_expanded_max_chunks: bool,
 ) -> tuple[HistoricalRequestManifest, RequestPacingPolicy, tuple[BackfillPlannedChunk, ...]]:
     manifest_record = require_validated_manifest_for_provider_pull(manifest)
     pacing_record = (
@@ -504,7 +773,22 @@ def _validated_execution_inputs(
     if manifest_record.pacing_policy_id != pacing_record.pacing_policy_id:
         msg = "manifest pacing_policy_id must match the armed RequestPacingPolicy"
         raise DataFoundationValidationError(msg)
-    planned = _planned_chunks_from_manifest(manifest_record, max_chunks=max_chunks)
+    if max_chunks is not None and manifest_record.chunk_count > _require_positive_int(
+        max_chunks,
+        "max_chunks",
+    ):
+        msg = "backfill manifest chunk_count exceeds max_chunks"
+        raise DataFoundationValidationError(msg)
+    manifest_planned = _planned_chunks_from_manifest(manifest_record)
+    planned = _expand_planned_chunks(
+        manifest_planned,
+        max_request_span_by_bar_size=max_request_span_by_bar_size,
+    )
+    _enforce_planned_chunk_limit(
+        planned_count=len(planned),
+        max_chunks=max_chunks,
+        enforce_expanded_max_chunks=enforce_expanded_max_chunks,
+    )
     return manifest_record, pacing_record, planned
 
 
@@ -539,6 +823,9 @@ def _provider_error_record(
     chunk_id: str,
     timestamp: datetime,
     stage: str,
+    attempt: int,
+    retryable: bool,
+    resolution: ProviderErrorResolution,
 ) -> ProviderErrorRecord:
     return ProviderErrorRecord(
         error_id=f"perr_backfill_{stage}_{chunk_id}",
@@ -547,10 +834,10 @@ def _provider_error_record(
         chunk_id=chunk_id,
         error_code=type(exc).__name__,
         error_message=_redacted_error_message(exc),
-        retryable=False,
-        attempt=1,
+        retryable=retryable,
+        attempt=attempt,
         timestamp=timestamp,
-        resolution=ProviderErrorResolution.QUARANTINED_NON_RETRYABLE,
+        resolution=resolution,
     )
 
 
@@ -704,6 +991,7 @@ def _request_chunk_payload(
     env: Mapping[str, str],
     ci: bool | None,
     synthetic_payloads: Mapping[str, bytes] | None,
+    rate_limiter: _ProviderRequestRateLimiter | None,
 ) -> tuple[bytes, bool]:
     if access_mode.mode == "synthetic":
         if synthetic_payloads is None:
@@ -720,8 +1008,85 @@ def _request_chunk_payload(
     if boundary is None or _HISTORICAL_METHOD_NAME not in boundary.read_only_methods:
         msg = "missing registered read-only historical data handler blocks resume drill"
         raise DataFoundationValidationError(msg)
+    if rate_limiter is not None:
+        rate_limiter.wait(plan.request_spec)
     response = boundary.request_historical_data(plan.request_spec, env=env, ci=ci)
     return _payload_to_bytes(response), True
+
+
+def _request_chunk_payload_with_retry(
+    *,
+    plan: BackfillPlannedChunk,
+    request_id: str,
+    access_mode: DataAccessMode,
+    boundary: IBKRReadOnlyApiBoundary | None,
+    env: Mapping[str, str],
+    ci: bool | None,
+    synthetic_payloads: Mapping[str, bytes] | None,
+    pacing_policy: RequestPacingPolicy,
+    rate_limiter: _ProviderRequestRateLimiter | None,
+    sleep: Sleeper,
+    timestamp: datetime,
+    stage: str,
+) -> _ChunkRequestOutcome:
+    attempt = 1
+    external_call_attempted = False
+    retry_provider_exceptions = access_mode.mode == "authorized_pull"
+    while True:
+        try:
+            if retry_provider_exceptions:
+                external_call_attempted = True
+            payload, external_called = _request_chunk_payload(
+                plan=plan,
+                access_mode=access_mode,
+                boundary=boundary,
+                env=env,
+                ci=ci,
+                synthetic_payloads=synthetic_payloads,
+                rate_limiter=rate_limiter,
+            )
+            return _ChunkRequestOutcome(
+                payload=payload,
+                external_call_attempted=external_call_attempted or external_called,
+                attempt_count=attempt,
+                error=None,
+            )
+        except DataFoundationValidationError as exc:
+            if retry_provider_exceptions:
+                # Guard/config failures are deterministic and should abort the run;
+                # provider/runtime failures can still retry and quarantine by chunk.
+                raise
+            caught_exc = exc
+        except Exception as exc:
+            caught_exc = exc
+
+        next_attempt = attempt + 1
+        if retry_provider_exceptions and pacing_policy.can_retry_attempt(next_attempt):
+            sleep(pacing_policy.backoff_delay_seconds(attempt))
+            attempt = next_attempt
+            continue
+
+        retryable = retry_provider_exceptions
+        resolution = (
+            ProviderErrorResolution.RETRY_EXHAUSTED
+            if retryable
+            else ProviderErrorResolution.QUARANTINED_NON_RETRYABLE
+        )
+        return _ChunkRequestOutcome(
+            payload=None,
+            external_call_attempted=external_call_attempted,
+            attempt_count=attempt,
+            error=_provider_error_record(
+                exc=caught_exc,
+                request_id=request_id,
+                chunk_id=plan.chunk_id,
+                timestamp=timestamp,
+                stage=stage,
+                attempt=attempt,
+                retryable=retryable,
+                resolution=resolution,
+            ),
+        )
 
 
 def _empty_summary(
@@ -764,6 +1129,18 @@ def _empty_summary(
     )
 
 
+def _summary_status_for_final_ledger(
+    *,
+    access_mode: DataAccessMode,
+    final_status: HistoricalPullLedgerStatus,
+) -> str:
+    if access_mode.mode == "synthetic" and final_status is HistoricalPullLedgerStatus.COMPLETE:
+        return "SYNTHETIC_COMPLETE"
+    if final_status is HistoricalPullLedgerStatus.COMPLETE:
+        return final_status.value
+    return HistoricalPullLedgerStatus.INCOMPLETE.value
+
+
 def run_local_backfill_resume_drill(
     *,
     manifest: HistoricalRequestManifest | Mapping[str, object] | None = None,
@@ -772,13 +1149,17 @@ def run_local_backfill_resume_drill(
     access_mode: DataAccessMode | str | None = None,
     env: Mapping[str, str] | None = None,
     ci: bool | None = None,
-    max_chunks: int = DEFAULT_MAX_DRILL_CHUNKS,
+    max_chunks: int | None = DEFAULT_MAX_DRILL_CHUNKS,
+    enforce_expanded_max_chunks: bool = True,
+    max_request_span_by_bar_size: Mapping[str, timedelta] | None = None,
     interrupt_after_chunks: int = 1,
     batch: str = DEFAULT_BACKFILL_BATCH_ID,
     artifact_store: BackfillArtifactStore | None = None,
     reachability_probe: ReachabilityProbe | None = None,
     synthetic_payloads_by_chunk_id: Mapping[str, bytes] | None = None,
     now: Clock = _now_utc,
+    clock: PacingClock = time.monotonic,
+    sleep: Sleeper = time.sleep,
     execute: bool = False,
 ) -> BackfillResumeDrillSummary:
     """Run dry-run preflight, synthetic drill, or authorized local resume drill."""
@@ -799,6 +1180,8 @@ def run_local_backfill_resume_drill(
                 manifest=manifest,
                 pacing_policy=pacing_policy,
                 max_chunks=max_chunks,
+                max_request_span_by_bar_size=max_request_span_by_bar_size,
+                enforce_expanded_max_chunks=enforce_expanded_max_chunks,
             )
             manifest_id = manifest_record.manifest_id
             pacing_policy_id = pacing_record.pacing_policy_id
@@ -822,6 +1205,8 @@ def run_local_backfill_resume_drill(
         manifest=manifest,
         pacing_policy=pacing_policy,
         max_chunks=max_chunks,
+        max_request_span_by_bar_size=max_request_span_by_bar_size,
+        enforce_expanded_max_chunks=enforce_expanded_max_chunks,
     )
     interrupt_after = _validate_interrupt_after(
         interrupt_after_chunks,
@@ -858,6 +1243,15 @@ def run_local_backfill_resume_drill(
         drill_boundary = None
         store = artifact_store or InMemoryBackfillArtifactStore()
 
+    rate_limiter = (
+        None
+        if access.mode == "synthetic"
+        else _ProviderRequestRateLimiter(
+            pacing_policy=pacing_record,
+            clock=clock,
+            sleep=sleep,
+        )
+    )
     expected_chunk_ids = tuple(chunk.chunk_id for chunk in planned)
     if access.mode == "synthetic":
         if synthetic_payloads_by_chunk_id is None:
@@ -906,71 +1300,44 @@ def run_local_backfill_resume_drill(
             continue
 
         initial_requested_chunk_ids.append(plan.chunk_id)
-        try:
-            payload, external_called = _request_chunk_payload(
-                plan=plan,
-                access_mode=access,
-                boundary=drill_boundary,
-                env=source,
-                ci=ci,
-                synthetic_payloads=synthetic_payloads_by_chunk_id,
-            )
-            external_call_attempted = external_call_attempted or external_called
-        except Exception as exc:
-            error = _provider_error_record(
-                exc=exc,
-                request_id=request_id,
-                chunk_id=plan.chunk_id,
-                timestamp=timestamp,
-                stage="initial",
-            )
-            store.write_provider_error(error)
+        outcome = _request_chunk_payload_with_retry(
+            plan=plan,
+            request_id=request_id,
+            access_mode=access,
+            boundary=drill_boundary,
+            env=source,
+            ci=ci,
+            synthetic_payloads=synthetic_payloads_by_chunk_id,
+            pacing_policy=pacing_record,
+            rate_limiter=rate_limiter,
+            sleep=sleep,
+            timestamp=timestamp,
+            stage="initial",
+        )
+        external_call_attempted = (
+            external_call_attempted or outcome.external_call_attempted
+        )
+        if outcome.error is not None:
+            store.write_provider_error(outcome.error)
             provider_errors_logged += 1
             interrupted_records.append(
                 _quarantined_chunk_record(
                     plan=plan,
                     request_id=request_id,
-                    error_ref=error.error_id,
+                    error_ref=outcome.error.error_id,
                     timestamp=timestamp,
-                    attempt_count=1,
+                    attempt_count=outcome.attempt_count,
                 )
             )
-            for remaining_plan in planned[index + 1 :]:
-                remaining_request_id = _provider_request_id(
-                    stage="initial",
-                    chunk_id=remaining_plan.chunk_id,
-                    timestamp=timestamp,
-                )
-                remaining_error = _interruption_error_record(
-                    chunk_id=remaining_plan.chunk_id,
-                    request_id=remaining_request_id,
-                    timestamp=timestamp,
-                )
-                store.write_provider_error(remaining_error)
-                provider_errors_logged += 1
-                interrupted_records.append(
-                    _interrupted_chunk_record(
-                        plan=remaining_plan,
-                        request_id=remaining_request_id,
-                        error_ref=remaining_error.error_id,
-                        timestamp=timestamp,
-                    )
-                )
-            ledger = _ledger_for_chunks(
-                pull_id=interrupted_pull_id,
-                manifest_id=manifest_record.manifest_id,
-                chunks=interrupted_records,
-                expected_chunk_ids=expected_chunk_ids,
-                started_at=timestamp,
-                finished_at=timestamp,
-            )
-            store.write_ledger(ledger)
-            msg = "provider error recorded locally; resume drill chunk quarantined"
-            raise DataFoundationValidationError(msg) from exc
+            continue
+
+        if outcome.payload is None:
+            msg = "chunk request completed without payload or provider error"
+            raise DataFoundationValidationError(msg)
         raw_write = store.write_raw_payload(
             request_spec=plan.request_spec,
             chunk_id=plan.chunk_id,
-            payload=payload,
+            payload=outcome.payload,
             retrieved_at=timestamp,
         )
         raw_objects_written += 1
@@ -980,7 +1347,7 @@ def run_local_backfill_resume_drill(
                 request_id=request_id,
                 raw_write=raw_write,
                 retrieved_at=timestamp,
-                attempt_count=1,
+                attempt_count=outcome.attempt_count,
             )
         )
 
@@ -994,7 +1361,7 @@ def run_local_backfill_resume_drill(
     )
     store.write_ledger(interrupted_ledger)
     resume_token = interrupted_ledger.resume_token
-    pending_chunk_ids = interrupted_ledger.pending_chunk_ids_for_resume(resume_token)
+    interrupted_ledger.pending_chunk_ids_for_resume(resume_token)
     completed_before_resume = interrupted_ledger.completed_chunk_ids()
 
     records_by_chunk_id = {record.chunk_id: record for record in interrupted_records}
@@ -1007,6 +1374,9 @@ def run_local_backfill_resume_drill(
         if prior.status is HistoricalChunkStatus.COMPLETE:
             resumed_records.append(prior)
             continue
+        if prior.status in {HistoricalChunkStatus.FAILED, HistoricalChunkStatus.QUARANTINED}:
+            resumed_records.append(prior)
+            continue
 
         plan = plan_by_chunk_id[chunk_id]
         request_id = _provider_request_id(
@@ -1015,52 +1385,43 @@ def run_local_backfill_resume_drill(
             timestamp=timestamp,
         )
         resumed_chunk_ids.append(chunk_id)
-        try:
-            payload, external_called = _request_chunk_payload(
-                plan=plan,
-                access_mode=access,
-                boundary=drill_boundary,
-                env=source,
-                ci=ci,
-                synthetic_payloads=synthetic_payloads_by_chunk_id,
-            )
-            external_call_attempted = external_call_attempted or external_called
-        except Exception as exc:
-            error = _provider_error_record(
-                exc=exc,
-                request_id=request_id,
-                chunk_id=plan.chunk_id,
-                timestamp=timestamp,
-                stage="resume",
-            )
-            store.write_provider_error(error)
+        outcome = _request_chunk_payload_with_retry(
+            plan=plan,
+            request_id=request_id,
+            access_mode=access,
+            boundary=drill_boundary,
+            env=source,
+            ci=ci,
+            synthetic_payloads=synthetic_payloads_by_chunk_id,
+            pacing_policy=pacing_record,
+            rate_limiter=rate_limiter,
+            sleep=sleep,
+            timestamp=timestamp,
+            stage="resume",
+        )
+        external_call_attempted = (
+            external_call_attempted or outcome.external_call_attempted
+        )
+        if outcome.error is not None:
+            store.write_provider_error(outcome.error)
             provider_errors_logged += 1
             resumed_records.append(
                 _quarantined_chunk_record(
                     plan=plan,
                     request_id=request_id,
-                    error_ref=error.error_id,
+                    error_ref=outcome.error.error_id,
                     timestamp=timestamp,
-                    attempt_count=prior.attempt_count + 1,
+                    attempt_count=prior.attempt_count + outcome.attempt_count,
                 )
             )
-            for remaining_chunk_id in expected_chunk_ids[len(resumed_records) :]:
-                resumed_records.append(records_by_chunk_id[remaining_chunk_id])
-            final_ledger = _ledger_for_chunks(
-                pull_id=resumed_pull_id,
-                manifest_id=manifest_record.manifest_id,
-                chunks=resumed_records,
-                expected_chunk_ids=expected_chunk_ids,
-                started_at=timestamp,
-                finished_at=timestamp,
-            )
-            store.write_ledger(final_ledger)
-            msg = "provider error recorded locally; resumed chunk quarantined"
-            raise DataFoundationValidationError(msg) from exc
+            continue
+        if outcome.payload is None:
+            msg = "resumed chunk request completed without payload or provider error"
+            raise DataFoundationValidationError(msg)
         raw_write = store.write_raw_payload(
             request_spec=plan.request_spec,
             chunk_id=plan.chunk_id,
-            payload=payload,
+            payload=outcome.payload,
             retrieved_at=timestamp,
         )
         raw_objects_written += 1
@@ -1070,7 +1431,7 @@ def run_local_backfill_resume_drill(
                 request_id=request_id,
                 raw_write=raw_write,
                 retrieved_at=timestamp,
-                attempt_count=prior.attempt_count + 1,
+                attempt_count=prior.attempt_count + outcome.attempt_count,
             )
         )
 
@@ -1084,10 +1445,9 @@ def run_local_backfill_resume_drill(
     )
     store.write_ledger(final_ledger)
     coverage = final_ledger.coverage_summary
-    status = (
-        "SYNTHETIC_COMPLETE"
-        if access.mode == "synthetic" and final_ledger.status is HistoricalPullLedgerStatus.COMPLETE
-        else final_ledger.status.value
+    status = _summary_status_for_final_ledger(
+        access_mode=access,
+        final_status=final_ledger.status,
     )
 
     return BackfillResumeDrillSummary(
@@ -1099,7 +1459,7 @@ def run_local_backfill_resume_drill(
         chunks_planned=len(planned),
         chunks_completed_before_resume=len(completed_before_resume),
         chunks_requested_initial=len(initial_requested_chunk_ids),
-        chunks_requested_on_resume=len(pending_chunk_ids),
+        chunks_requested_on_resume=len(resumed_chunk_ids),
         chunks_complete=int(coverage["complete_count"]),
         chunks_incomplete=int(coverage["incomplete_count"]),
         chunks_failed=int(coverage["failed_count"]),
@@ -1134,8 +1494,25 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--interrupt-after-chunks", type=int, default=1)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--pacing-policy", type=Path)
+    parser.add_argument("--max-request-span-days", type=float)
     parser.add_argument("--synthetic-fixture", type=Path)
     return parser.parse_args(argv)
+
+
+def _max_request_span_override(days: float | None) -> Mapping[str, timedelta] | None:
+    if days is None:
+        return None
+    if days <= 0:
+        msg = "--max-request-span-days must be positive"
+        raise DataFoundationValidationError(msg)
+    span = timedelta(days=days)
+    if span > _IBKR_ONE_MIN_MAX_REQUEST_SPAN:
+        msg = (
+            "--max-request-span-days for 1 min bars must be <= 1 day; "
+            "IBKR caps 1-minute historical requests at about one day per request"
+        )
+        raise DataFoundationValidationError(msg)
+    return MappingProxyType({"1 min": span})
 
 
 def _summary_stdout(summary: BackfillResumeDrillSummary) -> None:
@@ -1177,6 +1554,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             pacing_policy=pacing_policy,
             access_mode=DataAccessMode.for_mode(args.mode),
             max_chunks=args.max_chunks,
+            max_request_span_by_bar_size=_max_request_span_override(
+                args.max_request_span_days
+            ),
             interrupt_after_chunks=args.interrupt_after_chunks,
             batch=args.batch,
             synthetic_payloads_by_chunk_id=synthetic_payloads,

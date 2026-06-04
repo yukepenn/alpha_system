@@ -7,7 +7,9 @@ import json
 import os
 import sys
 from collections.abc import Mapping, Sequence
+from datetime import timedelta
 from pathlib import Path
+from types import MappingProxyType
 
 from alpha_system.data.foundation.ibkr import IBKRConnectionProfile
 from alpha_system.data.foundation.requests import HistoricalRequestManifest, RequestPacingPolicy
@@ -27,6 +29,7 @@ DEFAULT_BACKFILL_PACING_POLICY_PATH = (
     / "data"
     / "request_pacing_policy_to_be_verified.json"
 )
+_IBKR_ONE_MIN_MAX_REQUEST_SPAN = timedelta(days=1)
 
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -41,6 +44,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument("--batch", default="ibkr_resumable_backfill")
     parser.add_argument("--max-chunks", type=int)
+    parser.add_argument("--max-request-span-days", type=float)
     return parser.parse_args(argv)
 
 
@@ -68,6 +72,22 @@ def _load_pacing_policy(path: Path) -> RequestPacingPolicy:
     return RequestPacingPolicy.from_mapping(_load_json_mapping(path))
 
 
+def _max_request_span_override(days: float | None) -> Mapping[str, timedelta] | None:
+    if days is None:
+        return None
+    if days <= 0:
+        msg = "--max-request-span-days must be positive"
+        raise DataFoundationValidationError(msg)
+    span = timedelta(days=days)
+    if span > _IBKR_ONE_MIN_MAX_REQUEST_SPAN:
+        msg = (
+            "--max-request-span-days for 1 min bars must be <= 1 day; "
+            "IBKR caps 1-minute historical requests at about one day per request"
+        )
+        raise DataFoundationValidationError(msg)
+    return MappingProxyType({"1 min": span})
+
+
 def _print_summary(summary: object) -> None:
     payload = summary.to_mapping() if hasattr(summary, "to_mapping") else summary
     print(json.dumps(_json_ready(payload), indent=2, sort_keys=True))
@@ -92,6 +112,7 @@ def main(
         manifest = _load_manifest(args.manifest)
         pacing_policy = _load_pacing_policy(args.pacing_policy)
         max_chunks = args.max_chunks if args.max_chunks is not None else manifest.chunk_count
+        enforce_expanded_max_chunks = args.max_chunks is not None
 
         if not doctor.reachable:
             print(
@@ -118,7 +139,11 @@ def main(
                 ci=None,
                 execute=True,
                 max_chunks=max_chunks,
-                interrupt_after_chunks=manifest.chunk_count,
+                enforce_expanded_max_chunks=enforce_expanded_max_chunks,
+                max_request_span_by_bar_size=_max_request_span_override(
+                    args.max_request_span_days
+                ),
+                interrupt_after_chunks=sys.maxsize,
                 batch=args.batch,
                 reachability_probe=probe,
             )
