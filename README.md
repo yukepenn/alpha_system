@@ -77,9 +77,14 @@ secondary micro-batch plan, mini-to-micro parity-check target declarations, and
 `docs/data_foundation/MICRO_BATCH.md`; DATA-P20 adds the optional bounded
 `BidAskPilotPlan`, the pilot-only `SpreadProxyMetric` scaffold, the
 declarative BID_ASK pilot config, synthetic spread-proxy fixture tests, and
-`docs/data_foundation/BID_ASK_PILOT.md`. The next phase is `DATA-P21` -
-Synthetic IBKR Fixture Tests. Ralph still owns formal validation, independent
-review, verdict parsing, semantic done-check, PR, CI, and merge gates.
+`docs/data_foundation/BID_ASK_PILOT.md`. The
+`validation_and_authorized_smoke` gate has the DATA-P21 executor snapshot:
+synthetic IBKR-shaped fixture tests compose the read-only boundary, manifest,
+pacing/resume ledger, parser, canonical bars, quality/coverage, and
+dataset-version registry path with no external provider call. The next phase is
+`DATA-P22` - Small Authorized IBKR Smoke Pull. Ralph still owns formal
+validation, independent review, verdict parsing, semantic done-check, PR, CI,
+and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -282,6 +287,18 @@ claim. It also adds:
 - `configs/data/bid_ask_pilot_plan.json`
 - `docs/data_foundation/BID_ASK_PILOT.md`
 
+`DATA-P21` adds synthetic IBKR fixture tests under `tests/unit/data/` and
+`tests/integration/data/`, plus the tiny hand-authored
+`tests/fixtures/data/synthetic_ibkr_e2e_provider_fixture.json`. The tests drive
+the existing read-only boundary, manifest, pacing/resume ledger, parser,
+canonical bar, quality/coverage, and dataset-version registry contracts on
+synthetic inputs only. They assert no external call, clientId `101`/`102`
+fail-closed behavior, no-manifest/no-pacing blocking, missing `available_ts`
+blocking, silent-gap versioning blocks, and continuous-not-dated-truth
+provenance separation. It also adds:
+
+- `docs/data_foundation/SYNTHETIC_FIXTURE_TESTS.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -325,6 +342,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/COVERAGE_REPORT.md`
 - `docs/data_foundation/DATASET_VERSION.md`
 - `docs/data_foundation/BID_ASK_PILOT.md`
+- `docs/data_foundation/SYNTHETIC_FIXTURE_TESTS.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -354,9 +372,10 @@ parsed-not-canonical boundary, canonical 1-minute bar fields,
 fail-closed data quality and coverage reports, `DatasetVersion`,
 reproducibility hash binding, local SQLite registry integration, duplicate-ID
 rejection, the `QUALITY_CHECKED -> VERSIONED -> READY_FOR_RESEARCH`
-data-admissibility gate, and the `ALPHA_DATA_ROOT` local-only data-root
-pointer. Field-level acceptance rules, risks, and operator procedures remain
-in the campaign contract bundle.
+data-admissibility gate, synthetic IBKR fixture composition tests with a
+no-external-call proof, and the `ALPHA_DATA_ROOT` local-only data-root pointer.
+Field-level acceptance rules, risks, and operator procedures remain in the
+campaign contract bundle.
 
 ## Campaign Source Of Truth
 
