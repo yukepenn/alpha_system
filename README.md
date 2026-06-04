@@ -25,14 +25,16 @@ gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
 contract-economics anchors, and exact `tick_value = tick_size * point_value`
 validation; `DATA-P06` adds `ContractDetailsSnapshot`,
 `FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
-`request_and_storage` gate begins at `DATA-P07`: the active phase adds
+`request_and_storage` is in progress through `DATA-P08`: `DATA-P07` adds
 `HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
 `manifest_hash` validation, the no-manifest-no-pull guard, the synthetic sample
 manifest under `templates/data/`, and
-`docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`. The next phase is
-`DATA-P08` - Pacing, Chunking, Retry, and Resume Ledger. Ralph still owns
-formal validation, independent review, verdict parsing, semantic done-check,
-PR, CI, and merge gates.
+`docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`. `DATA-P08` is complete and
+adds `RequestPacingPolicy`, `HistoricalChunkRecord`, `HistoricalPullLedger`,
+`ProviderErrorRecord`, conservative to-be-verified pacing config, and
+`docs/data_foundation/PACING_AND_RESUME.md`. The next phase is `DATA-P09` - Raw
+Local Data Lake Layout. Ralph still owns formal validation, independent review,
+verdict parsing, semantic done-check, PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -98,6 +100,16 @@ template `templates/data/synthetic_historical_request_manifest.json` and:
 
 - `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`
 
+`DATA-P08` adds pacing, chunk lifecycle, retry/error, and resume-ledger records
+under `src/alpha_system/data/foundation/requests.py`. It defines
+`RequestPacingPolicy`, `HistoricalChunkRecord`, `HistoricalPullLedger`,
+`ProviderErrorRecord`, duplicate-request detection, `resume_token` resume
+state, no-silent-gaps reconciliation, and immutable content-addressed
+`raw_object_ref` validation. It also adds:
+
+- `configs/data/request_pacing_policy_to_be_verified.json`
+- `docs/data_foundation/PACING_AND_RESUME.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -105,7 +117,8 @@ historical futures data foundation.
 
 Safety boundaries are unchanged: IBKR remains read-only historical only;
 clientId `101` and `102` remain fail-closed, the data namespace remains
-`201-209`; no broker, order, account, paper, live, or real-time scope is
+`201-209`; no provider pull proceeds without manifest, pacing guard, and
+resume ledger; no broker, order, account, paper, live, or real-time scope is
 introduced; real data is local-only via `ALPHA_DATA_ROOT`; no raw or heavy
 artifact commits, no local DB commits, explicit staging only, and no alpha,
 profitability, tradability, or production-readiness claims.
@@ -125,6 +138,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/INSTRUMENT_MASTER.md`
 - `docs/data_foundation/CONTRACT_DISCOVERY.md`
 - `docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`
+- `docs/data_foundation/PACING_AND_RESUME.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -135,9 +149,12 @@ file-naming conventions, directory layout, `DataSourceProfile`,
 contract-economics anchors, `FuturesContractRecord`,
 `ContractDetailsSnapshot`, contract-discovery availability logging, and the
 `HistoricalRequestSpec` / `HistoricalRequestManifest` planning records,
-`manifest_hash`, the no-manifest-no-pull block, and the `ALPHA_DATA_ROOT`
-local-only data-root pointer. Field-level acceptance rules, risks, and operator
-procedures remain in the campaign contract bundle.
+`manifest_hash`, the no-manifest-no-pull block, `RequestPacingPolicy`,
+`HistoricalChunkRecord`, `HistoricalPullLedger`, `ProviderErrorRecord`,
+duplicate-request detection, retry/backoff classification, `resume_token`, the
+no-silent-gaps and no-raw-overwrite guards, and the `ALPHA_DATA_ROOT` local-only
+data-root pointer. Field-level acceptance rules, risks, and operator procedures
+remain in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 

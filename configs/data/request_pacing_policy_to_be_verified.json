@@ -1,0 +1,21 @@
+{
+  "pacing_policy_id": "rpp_ibkr_historical_conservative_tobeverified_v1",
+  "min_seconds_between_identical_requests": 15.0,
+  "max_requests_per_window": 45,
+  "window_seconds": 600.0,
+  "bid_ask_counts_double": true,
+  "backoff_policy": {
+    "base_seconds": 2.0,
+    "multiplier": 2.0,
+    "max_seconds": 120.0,
+    "max_attempts": 4,
+    "jitter": "none_for_deterministic_resume_ledger"
+  },
+  "source": {
+    "provider": "IBKR",
+    "verification_status": "to_be_verified",
+    "verification_method": "Verify against current IBKR historical data pacing docs before any authorized DATA-P22/DATA-P23 pull, or record an authorized local smoke-run pacing result.",
+    "last_verified_at": null,
+    "claim": "Conservative configurable local default; not current provider truth until verified."
+  }
+}
