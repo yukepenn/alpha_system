@@ -2,14 +2,13 @@
 
 ## Verdict
 
-`BLOCKED`
+`COMPLETE_WITH_WARNINGS`
 
-DATA-P24 completes the executor scope for all 25 campaign phases
-(`DATA-P00` through `DATA-P24`), but the closeout is blocked because the
-required broad validation command `python tools/verify.py --all` failed in
-pre-existing Workflow/GitHub driver tests outside the DATA-P24 data-foundation
-scope. This document is not a phase `PASS` marker and does not create
-`review.md` or `verdict.json`.
+DATA-P24 completes all 25 campaign phases (`DATA-P00` through `DATA-P24`).
+Ralph completed the Workflow 2 review, done-check, PR, CI, merge, and run
+summary gates with 25 of 25 phases passing. A post-run rerun of
+`python tools/verify.py --all` passed locally with `1711 passed` plus
+`compileall`.
 
 ## What Closed
 
@@ -25,16 +24,14 @@ scope. This document is not a phase `PASS` marker and does not create
 - Added the curated dry-run summary at
   `docs/data_foundation/END_TO_END_DRY_RUN.md`.
 
-## Blocker, Warnings, And Deferrals
+## Warnings And Deferrals
 
-- `python tools/verify.py --all` failed with `7 failed, 1704 passed`. The
-  failing tests were `tests/test_github_utils.py::test_dry_run_pr_does_not_call_network`
-  and six `tests/test_ralph_driver.py` provider-wired/mock-resume tests that
-  observed `PUSH_BLOCKED` where the tests expected `STOPPED`, `PASS`, or
-  `COMPLETED`.
-- No final semantic done-check was performed by Codex; Ralph owns that state.
-- No reviewer was called, and no review artifact or verdict JSON was created by
-  Codex.
+- The initial executor handoff recorded a broad verifier failure in
+  Workflow/GitHub driver tests. That failure no longer reproduces on the final
+  merged state: `python tools/verify.py --all` passed locally after the run
+  completed.
+- Several phases, including DATA-P24, completed with `PASS_WITH_WARNINGS`;
+  the run summary records the campaign as completed, not blocked.
 - No next campaign is selected in this closeout. Future campaigns should consume
   this data-foundation layer under their own campaign contracts.
 - The dry run uses synthetic fixtures only. It does not assert real data
@@ -67,8 +64,8 @@ DB, heavy artifact, cache, or log is intended for commit.
 
 ## Next-Campaign Readiness
 
-The in-scope data-foundation dry run is ready for review, but the campaign is
-not ready to close until the required broad verifier failure is resolved or
-accepted by the Ralph-owned gate. Future campaigns should not consume this
-closeout as complete until that blocker and the semantic review path are
-cleared.
+The in-scope data-foundation dry run and campaign closeout are complete with
+warnings. Future campaigns may consume this layer under their own campaign
+contracts, while preserving the stated limits: no real-data completeness claim,
+no alpha/profitability/tradability claim, no broker/order/account/paper/live
+scope, and no production-readiness claim.

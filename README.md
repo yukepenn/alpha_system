@@ -91,15 +91,13 @@ adds the synthetic end-to-end dry-run entry point
 `alpha_system.data.foundation.dry_run`,
 `docs/data_foundation/END_TO_END_DRY_RUN.md`, and
 `campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md`; the closeout verdict is
-`BLOCKED` because the required broad verifier currently fails in existing
-Workflow/GitHub driver tests outside the DATA-P24 data-foundation scope. The
-active phase is `DATA-P24` - End-to-End Data Foundation Dry Run and Closeout;
-there is no next phase in this campaign. The read-only IBKR boundary, clientId
-`101`/`102` hard-block, data-client namespace `201-209` with default `201`,
-never-in-CI external pulls, local-only data artifacts, and no
-broker/order/account/paper/live scope are unchanged. Ralph still owns formal
-validation, independent review, verdict parsing, semantic done-check, PR, CI,
-and merge gates.
+`COMPLETE_WITH_WARNINGS` after Ralph completed all Workflow 2 gates and a
+post-run `python tools/verify.py --all` rerun passed locally. The active phase
+is `none` because the campaign is complete; there is no next phase in this
+campaign. The read-only IBKR boundary, clientId `101`/`102` hard-block,
+data-client namespace `201-209` with default `201`, never-in-CI external
+pulls, local-only data artifacts, and no broker/order/account/paper/live scope
+are unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
