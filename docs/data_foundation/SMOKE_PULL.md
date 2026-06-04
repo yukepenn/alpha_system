@@ -12,6 +12,38 @@ does not run a real pull during validation. Use the repository's normal
 editable install from `docs/ONBOARDING.md`; without that install, prefix local
 module invocations with `PYTHONPATH=src`.
 
+## Live Read-Only Connector (Real Pull)
+
+The optional live connector is for a gated local operator run only. Install the
+optional dependency explicitly:
+
+```bash
+pip install -e ".[ibkr]"
+```
+
+Arm all four authorization gates with true values before running it:
+
+```bash
+export ALPHA_DATA_PULL_AUTHORIZED=1
+export ALPHA_ALLOW_EXTERNAL_IBKR=1
+export ALPHA_IBKR_READ_ONLY_MODE=1
+export ALPHA_ALLOW_RAW_LOCAL_WRITE=1
+export ALPHA_IBKR_HOST=127.0.0.1
+export ALPHA_IBKR_PORT=4002
+export ALPHA_IBKR_CLIENT_ID=201
+export ALPHA_DATA_ROOT=~/alpha_data/alpha_system
+```
+
+Then run exactly one bounded smoke chunk:
+
+```bash
+python -m alpha_system.data.ibkr.smoke_connect --batch mini_main --max-chunks 1
+```
+
+This connector is read-only historical data only. It requests one tiny ES
+historical chunk, writes raw bytes and smoke metadata only under
+`ALPHA_DATA_ROOT`, and must never run in CI.
+
 ## Authorization Gates
 
 A real smoke pull fails closed unless all runtime gates pass:
