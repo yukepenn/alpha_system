@@ -49,6 +49,9 @@ Do not create `campaigns/ALPHA_DATA_FOUNDATION_V1/ACTIVE_CAMPAIGN.md`.
 - `SMOKE_PULL.md` documents the DATA-P22 authorized read-only IBKR smoke-pull
   entry point, runtime gates, never-in-CI rule, bounded scope, local-only
   outputs, and artifact audit.
+- `BACKFILL_RUNBOOK.md` documents the DATA-P23 local backfill resume drill,
+  authorization gates, local-only output locations, resume-token behavior,
+  and artifact audit.
 
 The overview references the campaign contract bundle instead of duplicating
 field-level requirements, acceptance gates, risk controls, or operator

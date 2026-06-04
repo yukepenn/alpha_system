@@ -1,0 +1,75 @@
+{
+  "description": "Tiny synthetic DATA-P23 two-chunk resume-drill fixture; not real market data.",
+  "manifest_seed": {
+    "manifest_id": "hrm_synthetic_backfill_resume_drill_v1",
+    "batch_id": "batch_synthetic_backfill_resume_drill_v1",
+    "request_specs": [
+      {
+        "request_spec_id": "hrs_synthetic_backfill_es_a",
+        "source_id": "dsrc_ibkr_historical",
+        "symbol_root": "ES",
+        "contract_ref": "fcr_synthetic_es_h5",
+        "sec_type": "CONTFUT",
+        "exchange": "CME",
+        "currency": "USD",
+        "bar_size": "1 min",
+        "what_to_show": "TRADES",
+        "use_rth": false,
+        "duration": "1800 S",
+        "end_datetime_policy": "synthetic_resume_drill_chunk_end_ts",
+        "start_ts": "2025-01-02T14:30:00+00:00",
+        "end_ts": "2025-01-02T15:00:00+00:00",
+        "chunk_policy": {
+          "chunk_id": "hchunk_synthetic_backfill_es_a",
+          "planned_chunks": 1,
+          "policy": "DATA-P23 synthetic resume drill"
+        },
+        "client_id": 201
+      },
+      {
+        "request_spec_id": "hrs_synthetic_backfill_es_b",
+        "source_id": "dsrc_ibkr_historical",
+        "symbol_root": "ES",
+        "contract_ref": "fcr_synthetic_es_h5",
+        "sec_type": "CONTFUT",
+        "exchange": "CME",
+        "currency": "USD",
+        "bar_size": "1 min",
+        "what_to_show": "TRADES",
+        "use_rth": false,
+        "duration": "1800 S",
+        "end_datetime_policy": "synthetic_resume_drill_chunk_end_ts",
+        "start_ts": "2025-01-02T15:00:00+00:00",
+        "end_ts": "2025-01-02T15:30:00+00:00",
+        "chunk_policy": {
+          "chunk_id": "hchunk_synthetic_backfill_es_b",
+          "planned_chunks": 1,
+          "policy": "DATA-P23 synthetic resume drill"
+        },
+        "client_id": 201
+      }
+    ],
+    "chunk_count": 2,
+    "expected_coverage": {
+      "resume_drill": true,
+      "synthetic_only": true,
+      "roots": [
+        "ES"
+      ],
+      "bar_size": "1 min",
+      "what_to_show": "TRADES",
+      "coverage_status": "resume_drill_not_quality_checked",
+      "real_coverage_claim": false,
+      "quality_claim": false,
+      "production_readiness_claim": false
+    },
+    "pacing_policy_id": "rpp_ibkr_historical_conservative_tobeverified_v1",
+    "data_root": "~/alpha_data/alpha_system_backfill_fixture",
+    "created_by": "DATA-P23 synthetic backfill resume drill fixture",
+    "created_at": "2026-06-04T12:00:00+00:00"
+  },
+  "payloads_by_chunk_id": {
+    "hchunk_synthetic_backfill_es_a": "time,open,high,low,close,volume\nsynthetic-a-001,1,2,1,2,3\n",
+    "hchunk_synthetic_backfill_es_b": "time,open,high,low,close,volume\nsynthetic-b-001,2,3,2,3,4\n"
+  }
+}
