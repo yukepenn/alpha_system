@@ -14,3 +14,8 @@ tests only.
 four synthetic dated calendar records covering a normal session, a DST offset
 transition, an early close, and a holiday. It is not an exchange-official
 calendar, not a holiday-complete source, and not market data.
+
+`synthetic_ibkr_raw_bars.csv` contains two provider-shaped synthetic raw bar rows
+for parser correctness tests. The provider timestamp, contract reference, WAP,
+and bar-count fields are hand-authored fixture values only; the file is not a
+provider response and is not canonical market data.
