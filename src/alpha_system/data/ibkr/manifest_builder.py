@@ -177,6 +177,12 @@ def _quarter_window(year: int, contract_month: int) -> tuple[datetime, datetime]
     return start_ts, end_ts
 
 
+def _third_friday(year: int, month: int) -> date:
+    first_day = date(year, month, 1)
+    first_friday = first_day + timedelta(days=(4 - first_day.weekday()) % 7)
+    return first_friday + timedelta(days=14)
+
+
 def _full_request_spec(
     *,
     symbol: str,
@@ -210,6 +216,7 @@ def _full_request_spec(
             "planned_chunks": 1,
             "contract_year": year,
             "contract_month": contract_month,
+            "contract_expiry": _third_friday(year, contract_month).isoformat(),
             "contract_month_code": month_code,
             "duration_days": duration_days,
             "policy": "quarterly_dated_fut_contract",
@@ -226,6 +233,7 @@ def build_full_backfill_manifest(
     now: datetime,
     symbols: Sequence[str] = DEFAULT_SYMBOLS,
     start_date: date = date(2018, 1, 1),
+    min_contract_expiry: date | None = None,
     batch: str = "full_backfill",
     pacing_policy_id: str = DEFAULT_PACING_POLICY_ID,
 ) -> HistoricalRequestManifest:
@@ -241,6 +249,20 @@ def build_full_backfill_manifest(
         purpose="to build an IBKR backfill manifest",
     )
     created_at = _utc_minute(now)
+    # ADF1 Run 2 probing found this account's windowable IBKR 1-minute dated
+    # FUT history starts around the June 2024 contracts. Keep the manifest from
+    # requesting known-unavailable older expiries when operators pass the
+    # discovered availability floor.
+    contract_months = tuple(
+        (year, contract_month)
+        for year in range(start_date.year, end_date.year + 1)
+        for contract_month in QUARTER_MONTH_CODES
+        if start_date <= _third_friday(year, contract_month) <= end_date
+        and (
+            min_contract_expiry is None
+            or _third_friday(year, contract_month) >= min_contract_expiry
+        )
+    )
     request_specs = tuple(
         _full_request_spec(
             symbol=symbol,
@@ -250,9 +272,11 @@ def build_full_backfill_manifest(
             contract_month=contract_month,
         )
         for symbol in roots
-        for year in range(start_date.year, end_date.year + 1)
-        for contract_month in QUARTER_MONTH_CODES
+        for year, contract_month in contract_months
     )
+    if not request_specs:
+        msg = "full backfill manifest has no quarterly contracts after date filters"
+        raise DataFoundationValidationError(msg)
     return HistoricalRequestManifest.create(
         manifest_id=f"hrm_ibkr_{batch}_{start_date.year}_{end_date.year}_v1",
         batch_id=f"batch_ibkr_{batch}_{start_date.year}_{end_date.year}_v1",
@@ -263,6 +287,9 @@ def build_full_backfill_manifest(
             "roots": roots,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
+            "min_contract_expiry": (
+                None if min_contract_expiry is None else min_contract_expiry.isoformat()
+            ),
             "contract_month_codes": tuple(QUARTER_MONTH_CODES.values()),
             "bar_size": BAR_SIZE,
             "what_to_show": WHAT_TO_SHOW,
@@ -300,6 +327,7 @@ def emit_backfill_manifests(
     symbols: Sequence[str] = DEFAULT_SYMBOLS,
     recent_trading_days: int = 2,
     full_start_date: date = date(2018, 1, 1),
+    min_contract_expiry: date | None = None,
     pacing_policy_id: str = DEFAULT_PACING_POLICY_ID,
 ) -> Mapping[str, Path]:
     """Emit recent and full manifests under an operator-selected directory."""
@@ -320,6 +348,7 @@ def emit_backfill_manifests(
         symbols=symbols,
         start_date=full_start_date,
         end_date=full_end_date,
+        min_contract_expiry=min_contract_expiry,
         pacing_policy_id=pacing_policy_id,
     )
     return MappingProxyType(
@@ -361,6 +390,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--recent-trading-days", type=int, default=2)
     parser.add_argument("--full-start-date", type=_parse_date, default=date(2018, 1, 1))
     parser.add_argument("--full-end-date", type=_parse_date, required=True)
+    parser.add_argument("--min-contract-expiry", type=_parse_date)
     parser.add_argument("--now", type=_parse_datetime)
     parser.add_argument("--pacing-policy-id", default=DEFAULT_PACING_POLICY_ID)
     return parser.parse_args(argv)
@@ -382,6 +412,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             recent_trading_days=args.recent_trading_days,
             full_start_date=args.full_start_date,
             full_end_date=args.full_end_date,
+            min_contract_expiry=args.min_contract_expiry,
             pacing_policy_id=args.pacing_policy_id,
         )
     except DataFoundationValidationError as exc:

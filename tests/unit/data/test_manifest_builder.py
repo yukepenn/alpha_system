@@ -80,6 +80,35 @@ def test_full_backfill_manifest_enumerates_quarterly_dated_futures() -> None:
     assert manifest.expected_coverage["real_coverage_claim"] is False
 
 
+def test_full_backfill_manifest_filters_before_min_contract_expiry() -> None:
+    manifest = build_full_backfill_manifest(
+        env=ENV,
+        profile=_profile(),
+        now=NOW,
+        symbols=("ES",),
+        start_date=date(2024, 1, 1),
+        end_date=date(2026, 6, 30),
+        min_contract_expiry=date(2024, 6, 1),
+    )
+
+    refs = tuple(spec.contract_ref for spec in manifest.request_specs)
+
+    assert manifest.chunk_count == 9
+    assert refs == (
+        "fcr_ibkr_es_fut_202406",
+        "fcr_ibkr_es_fut_202409",
+        "fcr_ibkr_es_fut_202412",
+        "fcr_ibkr_es_fut_202503",
+        "fcr_ibkr_es_fut_202506",
+        "fcr_ibkr_es_fut_202509",
+        "fcr_ibkr_es_fut_202512",
+        "fcr_ibkr_es_fut_202603",
+        "fcr_ibkr_es_fut_202606",
+    )
+    assert "fcr_ibkr_es_fut_202403" not in refs
+    assert manifest.expected_coverage["min_contract_expiry"] == "2024-06-01"
+
+
 def test_manifest_json_round_trips(tmp_path: Path) -> None:
     manifest = build_full_backfill_manifest(
         env=ENV,

@@ -17,6 +17,15 @@ from alpha_system.data.ibkr.materialize import run_materialize
 START = datetime(2026, 6, 1, 14, 30, tzinfo=UTC)
 END = datetime(2026, 6, 1, 14, 33, tzinfo=UTC)
 NOW = datetime(2026, 6, 4, 12, 0, tzinfo=UTC)
+SESSION_AWARE_START = datetime(2026, 6, 1, 0, 0, tzinfo=UTC)
+SESSION_AWARE_END = datetime(2026, 6, 8, 0, 3, tzinfo=UTC)
+SESSION_AWARE_TRADING_DATES = (
+    "2026-06-01",
+    "2026-06-02",
+    "2026-06-04",
+    "2026-06-05",
+    "2026-06-08",
+)
 
 
 def _write_raw_payload(data_root: Path, rows: list[dict[str, str]]) -> Path:
@@ -70,6 +79,31 @@ def _row(minute: int) -> dict[str, str]:
     }
 
 
+def _session_aware_row(trading_date: str, minute: int) -> dict[str, str]:
+    return {
+        "symbol": "ES",
+        "contract_ref": "fcr_ibkr_es_fut_202606",
+        "provider_ts": f"{trading_date} 00:{minute:02d}:00 UTC",
+        "open": "5000.00",
+        "high": "5001.00",
+        "low": "4999.50",
+        "close": "5000.50",
+        "volume": "10",
+        "wap": "5000.25",
+        "barCount": "3",
+    }
+
+
+def _session_aware_rows(*, omit: tuple[str, int] | None = None) -> list[dict[str, str]]:
+    rows = []
+    for trading_date in SESSION_AWARE_TRADING_DATES:
+        for minute in range(3):
+            if omit == (trading_date, minute):
+                continue
+            rows.append(_session_aware_row(trading_date, minute))
+    return rows
+
+
 def _write_calendar(path: Path) -> None:
     path.write_text(
         json.dumps(
@@ -85,6 +119,52 @@ def _write_calendar(path: Path) -> None:
                     {"trading_date": "2026-06-01", "session_type": "regular"}
                 ],
                 "metadata": {"fixture_scope": "materialize_unit"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_template_calendar(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "alpha_system.session_calendar.v1",
+                "scope": "materialize session-aware unit fixture",
+                "non_claims": [
+                    "not_exchange_official",
+                    "not_holiday_complete",
+                    "not_production_certified",
+                ],
+                "session_templates": [
+                    {
+                        "template_id": "session_cme_index_futures_eth",
+                        "timezone": "UTC",
+                        "rth_start": "00:00",
+                        "rth_end": "00:01",
+                        "eth_start": "00:00",
+                        "eth_end": "00:03",
+                        "maintenance_breaks": [
+                            {"start": "23:58", "end": "23:59"}
+                        ],
+                        "source": "synthetic_to_be_verified_materialize_unit_fixture",
+                    }
+                ],
+                "calendar_records": [
+                    {
+                        "calendar_id": "synthetic_materialize_holiday_2026_06_03",
+                        "instrument_root": "ES",
+                        "date": "2026-06-03",
+                        "type": "full_holiday",
+                        "session_type": "HOLIDAY",
+                        "open_ts": None,
+                        "close_ts": None,
+                        "breaks": [],
+                        "is_holiday": True,
+                        "is_early_close": False,
+                        "source": "synthetic_to_be_verified_materialize_unit_fixture",
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -113,6 +193,29 @@ def _write_instrument_config(path: Path) -> None:
     )
 
 
+def _write_template_instrument_config(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "allow_non_fixture_input": True,
+                "session_template_id": "session_cme_index_futures_eth",
+                "session_label": "ETH",
+                "roll_policy_id": "roll_cme_index_futures_quarterly",
+                "instruments": [
+                    {
+                        "symbol": "ES",
+                        "instrument_id": "inst_ibkr_es",
+                        "series_id": "series_ibkr_es_front_unadjusted",
+                        "session_label": "ETH",
+                        "roll_policy_id": "roll_cme_index_futures_quarterly",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_validation_config(path: Path) -> None:
     path.write_text(
         json.dumps(
@@ -132,6 +235,16 @@ def _configs(tmp_path: Path) -> tuple[Path, Path, Path]:
     validation = tmp_path / "validation.json"
     _write_instrument_config(instrument)
     _write_calendar(calendar)
+    _write_validation_config(validation)
+    return instrument, calendar, validation
+
+
+def _template_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
+    instrument = tmp_path / "template_instrument.json"
+    calendar = tmp_path / "template_calendar.json"
+    validation = tmp_path / "template_validation.json"
+    _write_template_instrument_config(instrument)
+    _write_template_calendar(calendar)
     _write_validation_config(validation)
     return instrument, calendar, validation
 
@@ -175,6 +288,62 @@ def test_materialize_registers_passing_dataset_version(tmp_path: Path) -> None:
     metadata = json.loads(str(row["metadata_json"]))
     assert metadata["partition_id"] == "locked_test_candidate"
     assert metadata["contamination_metadata_rules"]["implies_research_approval"] is False
+
+
+def test_materialize_session_aware_coverage_skips_weekends_and_holidays(
+    tmp_path: Path,
+) -> None:
+    data_root = tmp_path / "alpha_data"
+    _write_raw_payload(data_root, _session_aware_rows())
+    instrument, calendar, validation = _template_configs(tmp_path)
+    registry = tmp_path / "registry.sqlite"
+
+    summary = run_materialize(
+        symbols=("ES",),
+        registry_path=registry,
+        data_version="dsv_materialize_session_aware_unit_v1",
+        partition="locked_test_candidate",
+        start_ts=SESSION_AWARE_START,
+        end_ts=SESSION_AWARE_END,
+        instrument_config_path=instrument,
+        calendar_config_path=calendar,
+        validation_config_path=validation,
+        env={"ALPHA_DATA_ROOT": data_root.as_posix()},
+        now=NOW,
+    )
+
+    assert summary.registered is True
+    assert summary.quality_status == "PASSING"
+    assert summary.coverage_status == "PASSING"
+    assert summary.canonical_row_count == 15
+
+
+def test_materialize_session_aware_coverage_blocks_missing_trading_session_bar(
+    tmp_path: Path,
+) -> None:
+    data_root = tmp_path / "alpha_data"
+    _write_raw_payload(data_root, _session_aware_rows(omit=("2026-06-04", 1)))
+    instrument, calendar, validation = _template_configs(tmp_path)
+    registry = tmp_path / "registry.sqlite"
+
+    summary = run_materialize(
+        symbols=("ES",),
+        registry_path=registry,
+        data_version="dsv_materialize_session_aware_gap_unit_v1",
+        partition="locked_test_candidate",
+        start_ts=SESSION_AWARE_START,
+        end_ts=SESSION_AWARE_END,
+        instrument_config_path=instrument,
+        calendar_config_path=calendar,
+        validation_config_path=validation,
+        env={"ALPHA_DATA_ROOT": data_root.as_posix()},
+        now=NOW,
+    )
+
+    assert summary.registered is False
+    assert summary.coverage_status == "BLOCKING"
+    assert summary.blocking_summary["coverage_blocks"] is True
+    assert not registry.exists()
 
 
 def test_materialize_gap_refuses_registry_write(

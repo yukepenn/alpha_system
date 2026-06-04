@@ -38,9 +38,12 @@ from alpha_system.data.foundation.datasets import (
     require_governance_metadata_for_locked_partition_use,
 )
 from alpha_system.data.foundation.sessions import (
+    SESSION_TYPE_EARLY_CLOSE,
     SESSION_TYPE_ETH,
+    SESSION_TYPE_HOLIDAY,
     SessionTemplate,
     load_session_templates_by_id,
+    load_trading_calendar_records,
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import persist_dataset_version
@@ -146,17 +149,22 @@ class MaterializeSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class _MaterializeCalendarOverride:
+    is_holiday: bool
+    is_half_day: bool
+    close_ts: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
 class _MaterializeTemplateCalendar:
-    """Strict ETH template shim that over-expects bars and fails closed."""
+    """Strict ETH template shim with bounded holiday/half-day awareness."""
 
     # This shim models the full roughly 23-hour CME index ETH overnight session.
-    # It hardcodes is_holiday=False and is_half_day=False, so it intentionally
-    # OVER-expects bars and fails closed. It must gain holiday/half-day
-    # awareness before any real holiday calendar is wired. The internal
-    # SessionType.OVERNIGHT id differs from the
-    # foundation ETH session label; that vocabulary split stays internal here.
+    # The internal SessionType.OVERNIGHT id differs from the foundation ETH
+    # session label; that vocabulary split stays internal here.
     calendar_id: str
     template: SessionTemplate
+    calendar_overrides: Mapping[date, _MaterializeCalendarOverride]
 
     @property
     def timezone(self) -> str:
@@ -174,7 +182,9 @@ class _MaterializeTemplateCalendar:
         local_start = bar_start_ts.astimezone(self.zone)
         candidates = (local_start.date(), local_start.date() + timedelta(days=1))
         for candidate in candidates:
-            session = self._eth_session_for_date(candidate)
+            session = self.trading_session_for_date(candidate)
+            if session is None:
+                continue
             if session_contains_bar(session, bar_start_ts, bar_end_ts):
                 return session
         return None
@@ -195,6 +205,12 @@ class _MaterializeTemplateCalendar:
             return None
         return self._eth_session_for_date(trading_date)
 
+    def trading_session_for_date(self, trading_date: date) -> TradingSession | None:
+        session = self._eth_session_for_date(trading_date)
+        if session.is_holiday:
+            return None
+        return session
+
     def _eth_session_for_date(self, trading_date: date) -> TradingSession:
         open_date = trading_date
         if self.template.eth_end <= self.template.eth_start:
@@ -203,6 +219,27 @@ class _MaterializeTemplateCalendar:
         close_ts = datetime.combine(trading_date, self.template.eth_end, self.zone)
         if close_ts <= open_ts:
             close_ts += timedelta(days=1)
+        is_holiday = trading_date.weekday() >= 5
+        is_half_day = False
+        quality_flags: tuple[str, ...] = ("weekend_closed",) if is_holiday else ()
+        override = self.calendar_overrides.get(trading_date)
+        if override is not None:
+            is_holiday = override.is_holiday
+            is_half_day = override.is_half_day
+            quality_flags = ()
+            if override.is_holiday:
+                open_ts = datetime.combine(trading_date, self.template.eth_end, self.zone)
+                close_ts = open_ts
+                quality_flags = ("holiday",)
+            elif override.close_ts is not None:
+                close_ts = override.close_ts.astimezone(self.zone)
+                if close_ts <= open_ts:
+                    msg = (
+                        "calendar early-close override must close after the ETH open "
+                        f"for {trading_date.isoformat()}"
+                    )
+                    raise DataFoundationValidationError(msg)
+                quality_flags = ("half_day",)
         return TradingSession(
             calendar_id=self.calendar_id,
             trading_date=trading_date,
@@ -213,11 +250,11 @@ class _MaterializeTemplateCalendar:
             ),
             open_ts=open_ts,
             close_ts=close_ts,
-            is_holiday=False,
-            is_half_day=False,
+            is_holiday=is_holiday,
+            is_half_day=is_half_day,
             session_type=SessionType.OVERNIGHT,
             timezone=self.template.timezone,
-            quality_flags=(),
+            quality_flags=quality_flags,
         )
 
 
@@ -434,6 +471,66 @@ def _parse_raw_csv(record: RawPathRecord) -> tuple[ParsedBarRecord, ...]:
     return parsed
 
 
+def _template_eth_open_ts(template: SessionTemplate, trading_date: date) -> datetime:
+    open_date = trading_date
+    if template.eth_end <= template.eth_start:
+        open_date = trading_date - timedelta(days=1)
+    return datetime.combine(open_date, template.eth_start, template.zone)
+
+
+def _calendar_overrides_from_records(
+    path: Path,
+    *,
+    template: SessionTemplate,
+) -> Mapping[date, _MaterializeCalendarOverride]:
+    overrides: dict[date, _MaterializeCalendarOverride] = {}
+    for record in load_trading_calendar_records(path):
+        if record.session_type == SESSION_TYPE_HOLIDAY:
+            override = _MaterializeCalendarOverride(
+                is_holiday=True,
+                is_half_day=False,
+                close_ts=None,
+            )
+        elif record.session_type == SESSION_TYPE_EARLY_CLOSE:
+            if record.open_ts is None or record.close_ts is None:
+                msg = (
+                    "early-close calendar_records require explicit open_ts and close_ts "
+                    f"for {record.date.isoformat()}"
+                )
+                raise DataFoundationValidationError(msg)
+            expected_open = _template_eth_open_ts(template, record.date)
+            if record.open_ts.astimezone(template.zone) != expected_open:
+                msg = (
+                    "early-close calendar_records must use the template ETH open "
+                    f"for {record.date.isoformat()}"
+                )
+                raise DataFoundationValidationError(msg)
+            close_ts = record.close_ts.astimezone(template.zone)
+            if close_ts <= expected_open:
+                msg = (
+                    "early-close calendar_records must close after the ETH open "
+                    f"for {record.date.isoformat()}"
+                )
+                raise DataFoundationValidationError(msg)
+            override = _MaterializeCalendarOverride(
+                is_holiday=False,
+                is_half_day=True,
+                close_ts=close_ts,
+            )
+        else:
+            continue
+
+        existing = overrides.get(record.date)
+        if existing is not None and existing != override:
+            msg = (
+                "calendar_records contain conflicting materialize overrides for "
+                f"{record.date.isoformat()}"
+            )
+            raise DataFoundationValidationError(msg)
+        overrides[record.date] = override
+    return MappingProxyType(overrides)
+
+
 def _load_calendar(path: Path, instrument_config: Mapping[str, object]) -> object:
     # The shipped session_templates_and_calendar.json uses the session_templates
     # schema, so load_calendar_config raises and the ETH template shim below is
@@ -451,7 +548,11 @@ def _load_calendar(path: Path, instrument_config: Mapping[str, object]) -> objec
     if template is None:
         msg = f"session_template_id does not resolve in calendar config: {template_id}"
         raise DataFoundationValidationError(msg)
-    return _MaterializeTemplateCalendar(calendar_id=template.template_id, template=template)
+    return _MaterializeTemplateCalendar(
+        calendar_id=template.template_id,
+        template=template,
+        calendar_overrides=_calendar_overrides_from_records(path, template=template),
+    )
 
 
 def _instrument_entries(config: Mapping[str, object]) -> Mapping[str, Mapping[str, object]]:
@@ -626,18 +727,62 @@ def _foundation_canonical_rows(
     return tuple(canonical)
 
 
+def _calendar_session_for_date(
+    calendar: object,
+    trading_date: date,
+) -> TradingSession | None:
+    trading_session_for_date = getattr(calendar, "trading_session_for_date", None)
+    if callable(trading_session_for_date):
+        session = trading_session_for_date(trading_date)
+    else:
+        session_for_date = getattr(calendar, "session_for_date", None)
+        if not callable(session_for_date):
+            msg = "calendar does not expose session lookup for materialize coverage"
+            raise DataFoundationValidationError(msg)
+        session = session_for_date(trading_date)
+    if session is None or session.is_holiday:
+        return None
+    return session
+
+
+def _trading_sessions_for_window(
+    calendar: object,
+    *,
+    start_ts: datetime,
+    end_ts: datetime,
+) -> tuple[TradingSession, ...]:
+    zone = getattr(calendar, "zone", None)
+    if zone is None:
+        msg = "calendar does not expose a timezone for materialize coverage"
+        raise DataFoundationValidationError(msg)
+    start_date = start_ts.astimezone(zone).date()
+    end_date = end_ts.astimezone(zone).date()
+    sessions = []
+    current = start_date
+    while current <= end_date:
+        session = _calendar_session_for_date(calendar, current)
+        if session is not None and session.close_ts > start_ts and session.open_ts < end_ts:
+            sessions.append(session)
+        current += timedelta(days=1)
+    if not sessions:
+        msg = "no tradable calendar sessions overlap the materialize coverage window"
+        raise DataFoundationValidationError(msg)
+    return tuple(sessions)
+
+
 def _expected_intervals(
     bars: Sequence[CanonicalBarRecord],
     *,
     symbols: Sequence[str],
     partition_id: str,
     settings_by_symbol: Mapping[str, InstrumentSettings],
+    calendar: object,
     start_ts: datetime,
     end_ts: datetime,
 ) -> tuple[Mapping[str, object], ...]:
-    # Coverage expects every minute in [start_ts, end_ts] for each observed
-    # symbol/contract group. Operators must pass a window that brackets exactly
-    # one contiguous full ETH session, or coverage will correctly block.
+    # Coverage expects every minute in each calendar-emitted session for each
+    # observed symbol/contract/session group. Weekend and configured holiday
+    # dates are not emitted, while any emitted session with missing bars blocks.
     symbol_by_instrument = {
         settings.instrument_id: symbol for symbol, settings in settings_by_symbol.items()
     }
@@ -655,6 +800,7 @@ def _expected_intervals(
     if missing_symbols:
         msg = "no canonical bars for requested symbols: " + ", ".join(missing_symbols)
         raise DataFoundationValidationError(msg)
+    sessions = _trading_sessions_for_window(calendar, start_ts=start_ts, end_ts=end_ts)
     return tuple(
         MappingProxyType(
             {
@@ -662,12 +808,13 @@ def _expected_intervals(
                 "instrument_id": instrument_id,
                 "contract_id": contract_id,
                 "session_label": session_label,
-                "start_ts": start_ts.isoformat(),
-                "end_ts": end_ts.isoformat(),
+                "start_ts": session.open_ts.isoformat(),
+                "end_ts": session.close_ts.isoformat(),
                 "partition_id": partition_id,
             }
         )
         for symbol, instrument_id, contract_id, session_label in sorted(groups)
+        for session in sessions
     )
 
 
@@ -865,6 +1012,15 @@ def run_materialize(
 
     if validation.valid:
         canonical_bars = _foundation_canonical_rows(session_quality.rows, ingested_at=ingested_at)
+        expected_intervals = _expected_intervals(
+            canonical_bars,
+            symbols=symbols,
+            partition_id=partition,
+            settings_by_symbol=settings_by_symbol,
+            calendar=calendar,
+            start_ts=start_ts,
+            end_ts=end_ts,
+        )
         quality_report = DataQualityReport.from_canonical_bars(
             quality_report_id=f"dqr_{data_version}",
             dataset_version_id=data_version,
@@ -872,19 +1028,13 @@ def run_materialize(
             expected_sessions=tuple(
                 sorted({settings.session_label for settings in settings_by_symbol.values()})
             ),
+            expected_gap_intervals=expected_intervals,
         )
         coverage_report = CoverageReport.from_canonical_bars(
             coverage_report_id=f"covr_{data_version}",
             dataset_version_id=data_version,
             bars=canonical_bars,
-            expected_intervals=_expected_intervals(
-                canonical_bars,
-                symbols=symbols,
-                partition_id=partition,
-                settings_by_symbol=settings_by_symbol,
-                start_ts=start_ts,
-                end_ts=end_ts,
-            ),
+            expected_intervals=expected_intervals,
         )
 
     plan = _partition_plan(partition)

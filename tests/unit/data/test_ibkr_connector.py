@@ -219,6 +219,7 @@ def test_historical_handler_maps_request_to_req_historical_data_csv() -> None:
     contract, kwargs = fake_ib.calls[0]
     assert getattr(contract, "secType") == "CONTFUT"
     assert getattr(contract, "symbol") == "ES"
+    assert not hasattr(contract, "includeExpired")
     assert kwargs["whatToShow"] == spec.what_to_show
     assert kwargs["endDateTime"] == ""
     assert kwargs["barSizeSetting"] == spec.bar_size
@@ -242,6 +243,7 @@ def test_historical_handler_keeps_end_datetime_for_dated_future_contract() -> No
     assert getattr(contract, "symbol") == "ES"
     assert getattr(contract, "lastTradeDateOrContractMonth") == "202609"
     assert getattr(contract, "localSymbol") == "fut_es_202609"
+    assert getattr(contract, "includeExpired") is True
     assert kwargs["endDateTime"] == spec.end_ts
 
 

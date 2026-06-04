@@ -823,6 +823,66 @@ def _bar_group_key(bar: _CanonicalBarView) -> tuple[str, str, str]:
     return (bar.instrument_id, bar.contract_id, bar.series_id)
 
 
+@dataclass(frozen=True, slots=True)
+class _QualityGapInterval:
+    instrument_id: str
+    contract_id: str
+    session_label: str
+    start_ts: datetime
+    end_ts: datetime
+
+
+def _normalize_quality_gap_intervals(
+    value: Iterable[Mapping[str, object]] | None,
+) -> tuple[_QualityGapInterval, ...] | None:
+    if value is None:
+        return None
+    intervals = []
+    for item in value:
+        if isinstance(item, str) or not isinstance(item, Mapping):
+            msg = "quality gap intervals must contain aggregate interval mappings"
+            raise DataFoundationValidationError(msg)
+        required = ("instrument_id", "contract_id", "session_label", "start_ts", "end_ts")
+        missing = tuple(field for field in required if field not in item)
+        if missing:
+            msg = "quality gap interval missing required fields: " + ", ".join(missing)
+            raise DataFoundationValidationError(msg)
+        start_ts = _parse_aware_datetime(item["start_ts"], "quality_gap_interval.start_ts")
+        end_ts = _parse_aware_datetime(item["end_ts"], "quality_gap_interval.end_ts")
+        if end_ts <= start_ts:
+            msg = "quality gap interval end_ts must be greater than start_ts"
+            raise DataFoundationValidationError(msg)
+        intervals.append(
+            _QualityGapInterval(
+                instrument_id=_normalize_id(item["instrument_id"], "instrument_id"),
+                contract_id=_normalize_id(item["contract_id"], "contract_id"),
+                session_label=_require_text(
+                    item["session_label"],
+                    "quality_gap_interval.session_label",
+                ).upper(),
+                start_ts=start_ts,
+                end_ts=end_ts,
+            )
+        )
+    return tuple(intervals)
+
+
+def _quality_gap_interval_index(
+    bar: _CanonicalBarView,
+    intervals: tuple[_QualityGapInterval, ...],
+) -> int | None:
+    for index, interval in enumerate(intervals):
+        if (
+            bar.instrument_id == interval.instrument_id
+            and bar.contract_id == interval.contract_id
+            and bar.session_label == interval.session_label
+            and interval.start_ts <= bar.bar_start_ts
+            and bar.bar_end_ts <= interval.end_ts
+        ):
+            return index
+    return None
+
+
 def _bar_roll_key(bar: _CanonicalBarView) -> tuple[str, str]:
     return (bar.instrument_id, bar.series_id)
 
@@ -993,6 +1053,7 @@ def _compute_quality_summaries(
     *,
     expected_interval_seconds: int,
     expected_sessions: Iterable[str] | None,
+    expected_gap_intervals: Iterable[Mapping[str, object]] | None,
     roll_transitions: Iterable[Mapping[str, object]] | None,
     provider_errors: Iterable[ProviderErrorRecord | Mapping[str, object]],
 ) -> Mapping[str, Mapping[str, object]]:
@@ -1038,10 +1099,20 @@ def _compute_quality_summaries(
             )
         original_previous[key] = bar
 
+    gap_intervals = _normalize_quality_gap_intervals(expected_gap_intervals)
     gaps: list[Mapping[str, object]] = []
     for key, group_bars in grouped.items():
         ordered = sorted(group_bars, key=lambda item: item.bar_start_ts)
         for previous, current in zip(ordered, ordered[1:], strict=False):
+            if gap_intervals is not None:
+                previous_interval = _quality_gap_interval_index(previous, gap_intervals)
+                current_interval = _quality_gap_interval_index(current, gap_intervals)
+                if (
+                    previous_interval is not None
+                    and current_interval is not None
+                    and previous_interval != current_interval
+                ):
+                    continue
             if current.bar_start_ts > previous.bar_end_ts:
                 gap_seconds = int(
                     (current.bar_start_ts - previous.bar_end_ts).total_seconds()
@@ -1335,6 +1406,7 @@ class DataQualityReport:
         provider_errors: Iterable[ProviderErrorRecord | Mapping[str, object]] = (),
         expected_interval_seconds: object = BAR_SIZE_SECONDS_1M,
         expected_sessions: Iterable[str] | None = None,
+        expected_gap_intervals: Iterable[Mapping[str, object]] | None = None,
         roll_transitions: Iterable[Mapping[str, object]] | None = None,
     ) -> DataQualityReport:
         """Compute aggregate quality findings from canonical 1-minute bar fields."""
@@ -1348,6 +1420,7 @@ class DataQualityReport:
             bar_views,
             expected_interval_seconds=interval_seconds,
             expected_sessions=expected_sessions,
+            expected_gap_intervals=expected_gap_intervals,
             roll_transitions=roll_transitions,
             provider_errors=provider_errors,
         )
