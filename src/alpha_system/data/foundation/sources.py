@@ -11,7 +11,7 @@ import os
 import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
 
@@ -28,6 +28,27 @@ READ_ONLY_HISTORICAL_MODES: frozenset[str] = frozenset(
 )
 
 IBKR_FORBIDDEN_MODES: frozenset[str] = frozenset(
+    {
+        "account",
+        "account_access",
+        "broker",
+        "broker_readiness",
+        "data_completeness_claim",
+        "execution",
+        "execution_permission",
+        "live",
+        "live_trading",
+        "order_routing",
+        "orders",
+        "paper",
+        "paper_trading",
+        "positions",
+        "real_time",
+        "real_time_market_data",
+    }
+)
+
+DATABENTO_FORBIDDEN_MODES: frozenset[str] = frozenset(
     {
         "account",
         "account_access",
@@ -112,6 +133,13 @@ _EXTERNAL_DATA_ACCESS_REQUIRED_ENV: tuple[str, ...] = (
 )
 
 _RAW_WRITE_REQUIRED_ENV = "ALPHA_ALLOW_RAW_LOCAL_WRITE"
+
+DATABENTO_DATA_PULL_AUTHORIZED_ENV = "ALPHA_DATA_PULL_AUTHORIZED"
+DATABENTO_EXTERNAL_ACCESS_ENV = "ALPHA_ALLOW_EXTERNAL_DATABENTO"
+DATABENTO_EXTERNAL_ACCESS_REQUIRED_ENV: tuple[str, ...] = (
+    DATABENTO_DATA_PULL_AUTHORIZED_ENV,
+    DATABENTO_EXTERNAL_ACCESS_ENV,
+)
 
 _DATA_ACCESS_MODE_CONTRACT: Mapping[str, Mapping[str, object]] = MappingProxyType(
     {
@@ -288,6 +316,74 @@ def _require_aware_datetime(value: object, field_name: str) -> datetime:
 
 
 @dataclass(frozen=True, slots=True)
+class DatabentoExternalAccessAuthorization:
+    """Validated Databento external-access gate separate from IBKR access modes."""
+
+    requires_env: tuple[str, ...]
+    allows_external_api: bool
+    allows_raw_write: bool
+    ci_allowed: bool
+
+    def __post_init__(self) -> None:
+        requires_env = _normalize_env_names(self.requires_env, "requires_env")
+        allows_external_api = _require_bool(
+            self.allows_external_api,
+            "allows_external_api",
+        )
+        allows_raw_write = _require_bool(self.allows_raw_write, "allows_raw_write")
+        ci_allowed = _require_bool(self.ci_allowed, "ci_allowed")
+
+        expected = DATABENTO_EXTERNAL_ACCESS_REQUIRED_ENV
+        if allows_raw_write:
+            expected = expected + (_RAW_WRITE_REQUIRED_ENV,)
+        if requires_env != expected:
+            msg = "Databento external access authorization requires Databento env gates"
+            raise DataFoundationValidationError(msg)
+        if not allows_external_api:
+            msg = "Databento external access authorization must allow external API access"
+            raise DataFoundationValidationError(msg)
+        if ci_allowed:
+            msg = "Databento external access authorization cannot be CI-allowed"
+            raise DataFoundationValidationError(msg)
+
+        object.__setattr__(self, "requires_env", requires_env)
+        object.__setattr__(self, "allows_external_api", allows_external_api)
+        object.__setattr__(self, "allows_raw_write", allows_raw_write)
+        object.__setattr__(self, "ci_allowed", ci_allowed)
+
+
+def require_databento_external_access(
+    env: Mapping[str, str] | None = None,
+    *,
+    ci: bool | None = None,
+    require_raw_write: bool = False,
+) -> DatabentoExternalAccessAuthorization:
+    """Fail closed unless Databento external access is explicitly authorized."""
+
+    source = os.environ if env is None else env
+    ci_enabled = _runtime_ci_enabled(source) if ci is None else _require_bool(ci, "ci")
+    if ci_enabled:
+        msg = "Databento external access is not allowed in CI"
+        raise DataFoundationValidationError(msg)
+
+    required_env = DATABENTO_EXTERNAL_ACCESS_REQUIRED_ENV
+    if require_raw_write:
+        required_env = required_env + (_RAW_WRITE_REQUIRED_ENV,)
+    for env_name in required_env:
+        if env_name not in source:
+            msg = f"Databento external access requires {env_name}"
+            raise DataFoundationValidationError(msg)
+        _env_flag_enabled(source[env_name], env_name)
+
+    return DatabentoExternalAccessAuthorization(
+        requires_env=required_env,
+        allows_external_api=True,
+        allows_raw_write=require_raw_write,
+        ci_allowed=False,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class DataSourceProfile:
     """Validated description of a provider's allowed and forbidden data usage modes."""
 
@@ -343,7 +439,7 @@ class DataSourceProfile:
         object.__setattr__(self, "created_at", created_at)
 
     @classmethod
-    def ibkr_historical(cls, *, created_at: datetime | None = None) -> "DataSourceProfile":
+    def ibkr_historical(cls, *, created_at: datetime | None = None) -> DataSourceProfile:
         """Build the campaign's read-only historical IBKR data-source profile."""
 
         return cls(
@@ -357,7 +453,30 @@ class DataSourceProfile:
                 "Market-data permissions and provider availability can limit historical "
                 "data; this profile is not a coverage assertion."
             ),
-            created_at=created_at or datetime.now(timezone.utc),
+            created_at=created_at or datetime.now(UTC),
+        )
+
+    @classmethod
+    def databento_historical(
+        cls,
+        *,
+        created_at: datetime | None = None,
+    ) -> DataSourceProfile:
+        """Build the read-only historical Databento data-source profile."""
+
+        return cls(
+            source_id="dsrc_databento_historical",
+            provider_name="Databento",
+            provider_type="historical_data_provider",
+            allowed_modes=READ_ONLY_HISTORICAL_MODES,
+            forbidden_modes=DATABENTO_FORBIDDEN_MODES,
+            requires_authorization=True,
+            market_data_permissions_note=(
+                "Databento market-data entitlements, dataset availability, and provider "
+                "coverage can limit historical data; this profile is not a coverage "
+                "assertion."
+            ),
+            created_at=created_at or datetime.now(UTC),
         )
 
     def allows_mode(self, mode: str) -> bool:
@@ -496,7 +615,7 @@ class LocalDataRootPolicy:
         env: Mapping[str, str] | None = None,
         *,
         default_root: str | Path = DEFAULT_ALPHA_DATA_ROOT,
-    ) -> "LocalDataRootPolicy":
+    ) -> LocalDataRootPolicy:
         """Read ``ALPHA_DATA_ROOT`` and build the default local data-root policy."""
 
         source = os.environ if env is None else env
@@ -582,7 +701,7 @@ class DataAccessMode:
         object.__setattr__(self, "ci_allowed", ci_allowed)
 
     @classmethod
-    def for_mode(cls, mode: object) -> "DataAccessMode":
+    def for_mode(cls, mode: object) -> DataAccessMode:
         """Build a canonical mode record by mode name."""
 
         token = _normalize_mode_token(mode, "mode")
@@ -601,25 +720,25 @@ class DataAccessMode:
         )
 
     @classmethod
-    def dry_run(cls) -> "DataAccessMode":
+    def dry_run(cls) -> DataAccessMode:
         """Build the local dry-run mode."""
 
         return cls.for_mode("dry_run")
 
     @classmethod
-    def synthetic(cls) -> "DataAccessMode":
+    def synthetic(cls) -> DataAccessMode:
         """Build the local synthetic mode."""
 
         return cls.for_mode("synthetic")
 
     @classmethod
-    def smoke(cls) -> "DataAccessMode":
+    def smoke(cls) -> DataAccessMode:
         """Build the external-read smoke mode; it is never CI-allowed."""
 
         return cls.for_mode("smoke")
 
     @classmethod
-    def authorized_pull(cls) -> "DataAccessMode":
+    def authorized_pull(cls) -> DataAccessMode:
         """Build the authorized external-pull mode; it is never CI-allowed."""
 
         return cls.for_mode("authorized_pull")
@@ -629,7 +748,7 @@ class DataAccessMode:
         env: Mapping[str, str] | None = None,
         *,
         ci: bool | None = None,
-    ) -> "DataAccessMode":
+    ) -> DataAccessMode:
         """Validate runtime env gates before an external data access attempt."""
 
         source = os.environ if env is None else env
@@ -651,11 +770,17 @@ __all__ = [
     "DEFAULT_ALPHA_DATA_ROOT",
     "DEFAULT_FORBIDDEN_REPO_PATHS",
     "DEFAULT_MAX_FILE_POLICY",
+    "DATABENTO_DATA_PULL_AUTHORIZED_ENV",
+    "DATABENTO_EXTERNAL_ACCESS_ENV",
+    "DATABENTO_EXTERNAL_ACCESS_REQUIRED_ENV",
+    "DATABENTO_FORBIDDEN_MODES",
     "DataAccessMode",
+    "DatabentoExternalAccessAuthorization",
     "DataFoundationValidationError",
     "DataSourceProfile",
     "IBKR_FORBIDDEN_MODES",
     "LocalDataRootPolicy",
     "READ_ONLY_HISTORICAL_MODES",
+    "require_databento_external_access",
     "require_local_data_root_policy",
 ]

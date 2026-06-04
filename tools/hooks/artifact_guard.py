@@ -10,6 +10,9 @@ from pathlib import PurePosixPath
 FORBIDDEN_SUFFIXES = {
     ".key",
     ".pem",
+    ".dbn",
+    ".zst",
+    ".zstd",
     ".parquet",
     ".feather",
     ".arrow",
@@ -36,6 +39,8 @@ FORBIDDEN_PARTS = {
 }
 FORBIDDEN_PREFIXES = (".frontier/upgrade_reports", "logs", "runs")
 LOCAL_ONLY_PREFIXES = {
+    "databento",
+    "data/databento",
     "data/raw",
     "raw",
     "data/cache",
