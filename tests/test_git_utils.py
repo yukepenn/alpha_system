@@ -373,6 +373,30 @@ def test_commit_phase_changes_rejects_upgrade_report_existing_head_diff(tmp_path
     assert ".frontier/upgrade_reports/report.json" in result.blocked_files
 
 
+def test_commit_phase_changes_rejects_local_agent_lock_existing_head_diff(tmp_path: Path) -> None:
+    base_sha = init_repo(tmp_path)
+    prepare_phase_branch(tmp_path, "auto/c1/p00", base_ref="main", dry_run=False)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "scheduled_tasks.lock").write_text("local lock\n", encoding="utf-8")
+    assert git(tmp_path, "add", "--", ".claude/scheduled_tasks.lock").returncode == 0
+    assert git(tmp_path, "commit", "-m", "C1/P00: bad local lock").returncode == 0
+
+    result = commit_phase_changes(
+        root=tmp_path,
+        campaign_id="C1",
+        phase_id="P00",
+        summary="summary",
+        branch="auto/c1/p00",
+        config=BOOTSTRAP_CONFIG,
+        dry_run=False,
+        push=False,
+        base_sha=base_sha,
+    )
+
+    assert result.commit_sha is None
+    assert ".claude/scheduled_tasks.lock" in result.blocked_files
+
+
 def test_push_phase_branch_uses_safe_head_refspec(tmp_path: Path, monkeypatch) -> None:
     commands: list[tuple[str, ...]] = []
 
@@ -475,6 +499,8 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
         "runs/run1/state.json",
         "runs/local.log",
         "logs/frontier.log",
+        ".claude/scheduled_tasks.lock",
+        ".codex/session.lock",
         "notes/README.md",
     ]
 
@@ -501,6 +527,10 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
             "logs/**",
             "metadata/**",
             "artifacts/**",
+            ".claude/*.lock",
+            ".claude/**/*.lock",
+            ".codex/*.lock",
+            ".codex/**/*.lock",
             "**/*.parquet",
             "**/*.sqlite",
             "**/*.pkl",
@@ -530,4 +560,6 @@ def test_artifact_policy_allows_only_configured_local_placeholders() -> None:
     assert "runs/run1/state.json" in blocked
     assert "runs/local.log" in blocked
     assert "logs/frontier.log" in blocked
+    assert ".claude/scheduled_tasks.lock" in blocked
+    assert ".codex/session.lock" in blocked
     assert "notes/README.md" in blocked

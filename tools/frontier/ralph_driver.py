@@ -4049,6 +4049,13 @@ def continue_provider_wired_run(
             print(f"Stopped after {executed} provider-wired phase(s) at {run_dir.relative_to(ROOT)}")
             return 0
 
+        if (run_dir / "STOP").exists():
+            return provider_stop_without_execution(
+                run_dir,
+                state,
+                f"STOP file exists before starting {phase.get('phase_id', 'next phase')}.",
+            )
+
         if not execute_provider_phase(run_dir, state, phase):
             print(f"Stopped provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
             return 0
