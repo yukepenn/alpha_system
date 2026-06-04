@@ -14,11 +14,22 @@ module invocations with `PYTHONPATH=src`.
 
 ## Live Read-Only Connector (Real Pull)
 
-The optional live connector is for a gated local operator run only. Install the
-optional dependency explicitly:
+The optional live connector is for a gated local operator run only. It registers
+only `reqHistoricalData`; no generic IB client escapes the adapter; broker,
+order, account, position, paper, and live surfaces remain forbidden. Real pulls
+are operator-only and never run in CI.
+
+Install the optional dependency in a local venv:
 
 ```bash
-pip install -e ".[ibkr]"
+python -m venv .venv && .venv/bin/pip install -e ".[ibkr]"
+```
+
+Fallback for an operator machine without a venv:
+
+```bash
+python -m pip install --target ~/.alpha_ibkr_libs ib_insync
+export PYTHONPATH=src:~/.alpha_ibkr_libs
 ```
 
 Arm all four authorization gates with true values before running it:
