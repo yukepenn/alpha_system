@@ -71,6 +71,80 @@ This connector is read-only historical data only. It requests one tiny ES
 historical chunk, keeps raw output under `ALPHA_DATA_ROOT`, does not register a
 dataset version, and must never run in CI.
 
+## Task 1B: Full Local Backfill (Operator-Supervised)
+
+This is the real-pull operator path for ADF1 Task 1B. It is read-only
+historical data only, writes raw/canonical/registry artifacts only under
+`ALPHA_DATA_ROOT`, and must never run in CI. No raw, canonical, registry,
+cache, log, DB, Parquet, Arrow, or Feather output is commit-eligible.
+
+Prerequisites:
+
+- Install the optional IBKR dependency with `pip install -e ".[ibkr]"`, or use
+  the isolated-libs approach from the gated smoke run.
+- Arm all eight authorization/connection values:
+  `ALPHA_DATA_PULL_AUTHORIZED=1`, `ALPHA_ALLOW_EXTERNAL_IBKR=1`,
+  `ALPHA_IBKR_READ_ONLY_MODE=1`, `ALPHA_ALLOW_RAW_LOCAL_WRITE=1`,
+  `ALPHA_IBKR_HOST`, `ALPHA_IBKR_PORT`, `ALPHA_IBKR_CLIENT_ID`, and
+  `ALPHA_DATA_ROOT`.
+- Confirm the configured gateway is reachable at the exact host/port and that
+  the client id is in the allowed data-client range.
+
+Generate the recent-slice and full dated-FUT manifests:
+
+```bash
+python -m alpha_system.data.ibkr.manifest_builder \
+  --output-dir "$ALPHA_DATA_ROOT/manifests" \
+  --full-end-date <YYYY-MM-DD>
+```
+
+This emits `recent_slice_manifest.json` and `full_backfill_manifest.json`. The
+full manifest uses dated quarterly `FUT` contracts because IBKR `CONTFUT`
+cannot backfill pre-roll history and rejects `endDateTime`.
+
+Run the proven recent slice:
+
+```bash
+python -m alpha_system.data.ibkr.backfill_connect \
+  --manifest "$ALPHA_DATA_ROOT/manifests/recent_slice_manifest.json" \
+  --pacing-policy configs/data/request_pacing_policy_to_be_verified.json
+```
+
+Register the first DatasetVersion from a complete ETH session:
+
+```bash
+python -m alpha_system.data.materialize \
+  --symbols ES,NQ,RTY \
+  --registry-path "$ALPHA_DATA_ROOT/registry/datasets.sqlite" \
+  --data-version <id> \
+  --partition latest_shadow_candidate \
+  --start-ts <session open Z> \
+  --end-ts <session close Z>
+```
+
+The materialize window must bracket exactly one contiguous full ETH session.
+For the recent complete CME index session during Central Daylight Time, that is
+the prior CME trading day's `22:00:00Z`→`21:00:00Z` window.
+
+Run the full 2018→present local backfill:
+
+```bash
+python -m alpha_system.data.ibkr.backfill_connect \
+  --manifest "$ALPHA_DATA_ROOT/manifests/full_backfill_manifest.json" \
+  --pacing-policy configs/data/request_pacing_policy_to_be_verified.json \
+  --max-chunks <N>
+```
+
+The full pull is resumable through the resume token and ledgers under
+`$ALPHA_DATA_ROOT/metadata`; re-run the connector to resume pending chunks. For
+the 2018→2026 ES/NQ/RTY scope, the generated full manifest contains 108
+chunks: three symbols times nine years times four quarterly contracts.
+
+This is a multi-day, pacing-limited, operator-supervised job. Before launching
+the full job, verify that `run_local_backfill_resume_drill` enforces real
+pacing sleeps for large chunk counts. The current runner is drill-oriented, so
+a production pacing loop may be a follow-up before sustained unattended use.
+
 ## Authorization Gates
 
 A real authorized resume drill fails closed unless all runtime gates pass:
