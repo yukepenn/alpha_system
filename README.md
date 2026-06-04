@@ -39,7 +39,7 @@ resolution, raw-slot immutability/no-overwrite validation, and
 `SymbolBatchPlan`, the ES/NQ/RTY mini main-batch pull plan, labeled optional
 secondary panels, the synthetic mini-batch manifest, and
 `docs/data_foundation/MINI_BATCH_PLAN.md`. The `provenance_sessions_rolls` gate
-is in progress through the `DATA-P12` executor snapshot: DATA-P11 adds
+is complete through the `DATA-P13` executor snapshot: DATA-P11 adds
 provenance-rich `ContinuousFuturesSeriesRecord` and
 `DatedFuturesSeriesRecord` validation in
 `src/alpha_system/data/foundation/series.py`, plus
@@ -47,8 +47,12 @@ provenance-rich `ContinuousFuturesSeriesRecord` and
 `SessionTemplate` and `TradingCalendarRecord` validation in
 `src/alpha_system/data/foundation/sessions.py`, the synthetic
 `session_cme_index_futures_eth` template config, and
-`docs/data_foundation/SESSIONS_AND_CALENDAR.md`. The next phase is `DATA-P13`
-- Roll Policy and Roll Calendar. Ralph still owns formal validation,
+`docs/data_foundation/SESSIONS_AND_CALENDAR.md`; DATA-P13 adds fail-closed
+`RollPolicy` and `RollCalendarRecord` validation in
+`src/alpha_system/data/foundation/rolls.py`, with explicit adjusted vs
+unadjusted state, required roll evidence and validation status, and
+`docs/data_foundation/ROLL_POLICY.md`. The next phase is `DATA-P14` - Parser
+and Parsed Bar Records. Ralph still owns formal validation,
 independent review, verdict parsing, semantic done-check, PR, CI, and merge
 gates.
 
@@ -166,6 +170,15 @@ synthetic `configs/data/session_templates_and_calendar.json` scaffold and:
 
 - `docs/data_foundation/SESSIONS_AND_CALENDAR.md`
 
+`DATA-P13` adds roll-policy and roll-calendar validation under
+`src/alpha_system/data/foundation/rolls.py`. It defines `RollPolicy` and
+`RollCalendarRecord` with closed roll methods/triggers, explicit
+`adjustment_method`, required evidence and validation status, distinct dated
+`FuturesContractRecord` transitions, and provider-continuous vs derived roll
+separation. It also adds:
+
+- `docs/data_foundation/ROLL_POLICY.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -178,7 +191,8 @@ without manifest, pacing guard, and resume ledger; continuous futures are never
 dated-contract truth; no broker, order, account, paper, live, or real-time
 scope is introduced; real data is local-only via `ALPHA_DATA_ROOT`; no raw or
 heavy artifact commits, no local DB commits, explicit staging only, and no
-alpha, profitability, tradability, or production-readiness claims.
+alpha, profitability, tradability, best-execution-roll, or
+production-readiness claims.
 
 ## Data Foundation Docs
 
@@ -200,6 +214,7 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/MINI_BATCH_PLAN.md`
 - `docs/data_foundation/PROVENANCE.md`
 - `docs/data_foundation/SESSIONS_AND_CALENDAR.md`
+- `docs/data_foundation/ROLL_POLICY.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -220,9 +235,11 @@ panel, labeled optional secondary panels, continuous-vs-dated futures
 provenance separation, mandatory continuous diagnostic labels,
 discovered-not-assumed dated availability, adjusted-vs-unadjusted explicitness,
 session templates, dated trading calendar records, explicit timezone/DST and
-early-close/holiday handling, and the `ALPHA_DATA_ROOT` local-only data-root
-pointer. Field-level acceptance rules, risks, and operator procedures remain in
-the campaign contract bundle.
+early-close/holiday handling, roll policy, roll calendar records, required
+roll evidence and validation status, provider-continuous vs derived roll
+separation, and the `ALPHA_DATA_ROOT` local-only data-root pointer. Field-level
+acceptance rules, risks, and operator procedures remain in the campaign
+contract bundle.
 
 ## Campaign Source Of Truth
 
