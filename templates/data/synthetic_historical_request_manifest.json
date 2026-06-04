@@ -1,0 +1,45 @@
+{
+  "manifest_id": "hrm_synthetic_es_h5_manifest_v1",
+  "batch_id": "batch_synthetic_es_h5_planning_only",
+  "request_specs": [
+    {
+      "request_spec_id": "hrs_synthetic_es_h5_20250102_20250103",
+      "source_id": "dsrc_ibkr_historical",
+      "symbol_root": "ES",
+      "contract_ref": "fcr_synthetic_es_h5",
+      "sec_type": "FUT",
+      "exchange": "CME",
+      "currency": "USD",
+      "bar_size": "1 min",
+      "what_to_show": "TRADES",
+      "use_rth": false,
+      "duration": "2 D",
+      "end_datetime_policy": "explicit_end_ts_required",
+      "start_ts": "2025-01-02T14:30:00+00:00",
+      "end_ts": "2025-01-03T22:00:00+00:00",
+      "chunk_policy": {
+        "planned_chunks": 2,
+        "max_duration": "1 D",
+        "policy": "synthetic_planning_only"
+      },
+      "client_id": 201
+    }
+  ],
+  "chunk_count": 2,
+  "expected_coverage": {
+    "synthetic": true,
+    "coverage_status": "planned_only_not_requested",
+    "symbols": [
+      "ES"
+    ],
+    "start_ts": "2025-01-02T14:30:00+00:00",
+    "end_ts": "2025-01-03T22:00:00+00:00",
+    "real_coverage_claim": false,
+    "authorization_claim": false
+  },
+  "pacing_policy_id": "rpp_synthetic_planning_only",
+  "data_root": "~/alpha_data/alpha_system",
+  "created_by": "DATA-P07 synthetic template",
+  "created_at": "2026-06-03T21:52:49+00:00",
+  "manifest_hash": "b88c0c324ec272866e5d3bfcc816fd5cadfcff3d8673cde44c82fc5e570450cb"
+}

@@ -4,5 +4,8 @@
 
 Later phases may add templates for documented data-source profiles, historical
 request manifests, coverage reports, quality reports, and dataset-version metadata.
-This phase adds no real manifests, real config values, market data, credentials, or
-provider responses.
+
+`DATA-P07` adds `synthetic_historical_request_manifest.json`, a tiny synthetic
+historical request manifest for schema and validation examples only. It is not a
+real manifest, provider response, market-data artifact, coverage assertion, or
+pull authorization.
