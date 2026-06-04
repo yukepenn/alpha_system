@@ -28,10 +28,13 @@ from alpha_system.data.foundation.bars import (
 )
 from alpha_system.data.foundation.batches import MicroBatchPolicy, SymbolBatchPlan
 from alpha_system.data.foundation.datasets import (
+    DATASET_VERSION_ADMISSIBLE_STATES,
+    DATASET_VERSION_FIELDS,
     CoverageReport,
     DataQualityReport,
     DatasetPartitionPlan,
     DatasetVersion,
+    compute_quality_report_hash,
 )
 from alpha_system.data.foundation.ibkr import (
     IBKRClientIdPolicy,
@@ -84,6 +87,11 @@ from alpha_system.data.foundation.sources import (
     DataSourceProfile,
     LocalDataRootPolicy,
 )
+from alpha_system.data.foundation.version_registry import (
+    DATASET_VERSION_REGISTRY_METADATA_SCHEMA,
+    persist_dataset_version,
+    resolve_dataset_version,
+)
 
 __all__ = [
     "CANONICAL_BAR_RECORD_FIELDS",
@@ -95,6 +103,9 @@ __all__ = [
     "ContractDiscoveryResult",
     "ContinuousFuturesSeriesRecord",
     "CoverageReport",
+    "DATASET_VERSION_ADMISSIBLE_STATES",
+    "DATASET_VERSION_FIELDS",
+    "DATASET_VERSION_REGISTRY_METADATA_SCHEMA",
     "DataAccessMode",
     "DataIngestionRunRecord",
     "DataQualityReport",
@@ -140,11 +151,13 @@ __all__ = [
     "ReadOnlyBoundaryViolation",
     "build_read_only_ibkr_boundary",
     "authorize_historical_request_transition",
+    "compute_quality_report_hash",
     "compute_historical_pull_resume_token",
     "compute_historical_request_manifest_hash",
     "forbid_naive_request_loop",
     "plan_historical_request_transition",
     "provider_pull_manifest_guard",
+    "persist_dataset_version",
     "provider_pull_pacing_guard",
     "parse_raw_bar_records",
     "assert_raw_slot_immutable",
@@ -153,6 +166,7 @@ __all__ = [
     "require_pacing_policy_for_provider_pull",
     "require_validated_manifest_for_provider_pull",
     "resolve_raw_object_storage_path",
+    "resolve_dataset_version",
     "run_connection_doctor",
     "record_contract_discovery",
 ]

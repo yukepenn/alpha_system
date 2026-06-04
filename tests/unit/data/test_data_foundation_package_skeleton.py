@@ -17,6 +17,7 @@ def test_data_package_and_foundation_namespace_import_cleanly() -> None:
         "alpha_system.data.foundation.series",
         "alpha_system.data.foundation.sessions",
         "alpha_system.data.foundation.sources",
+        "alpha_system.data.foundation.version_registry",
     ]
 
     for module_name in modules:
@@ -31,6 +32,7 @@ def test_foundation_namespace_exposes_canonical_placeholder_names() -> None:
         "ContractDetailsSnapshot",
         "ContinuousFuturesSeriesRecord",
         "CoverageReport",
+        "DATASET_VERSION_FIELDS",
         "DataAccessMode",
         "DataIngestionRunRecord",
         "DataQualityReport",
@@ -61,6 +63,9 @@ def test_foundation_namespace_exposes_canonical_placeholder_names() -> None:
         "TradingCalendarRecord",
         "ReadOnlyBoundaryViolation",
         "build_read_only_ibkr_boundary",
+        "compute_quality_report_hash",
+        "persist_dataset_version",
+        "resolve_dataset_version",
     }
 
     for name in expected_names:

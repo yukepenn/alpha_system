@@ -60,12 +60,17 @@ adds `CanonicalBarRecord`, `TimestampSemanticsPolicy`, explicit
 `docs/data_foundation/CANONICAL_BARS.md`; DATA-P16 adds fail-closed
 `DataQualityReport` and `CoverageReport` contracts, aggregate quality and
 coverage tests, and `docs/data_foundation/DATA_QUALITY.md` /
-`docs/data_foundation/COVERAGE_REPORT.md`. This advances the
-`canonicalization_quality_versioning` gate through DATA-P16. The active phase is
-`DATA-P16` - Data Quality Checks and Coverage Reports; the next phase is
-`DATA-P17` - Dataset Version Registry Integration. Ralph still owns formal validation,
-independent review, verdict parsing, semantic done-check, PR, CI, and merge
-gates.
+`docs/data_foundation/COVERAGE_REPORT.md`; DATA-P17 adds the fail-closed
+`DatasetVersion` contract, the data-foundation registry adapter for the
+existing local SQLite `dataset_versions` table, duplicate-ID rejection,
+reproducibility hash binding enforced before registry writes, temp-DB registry
+tests, and
+`docs/data_foundation/DATASET_VERSION.md`. This advances the
+`canonicalization_quality_versioning` gate through DATA-P17. The active phase is
+`DATA-P17` - Dataset Version Registry Integration; the next phase is
+`DATA-P18` - Dataset Partition Plan and Locked-Test Metadata. Ralph still owns
+formal validation, independent review, verdict parsing, semantic done-check,
+PR, CI, and merge gates.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
@@ -221,6 +226,18 @@ version. It also adds:
 - `docs/data_foundation/DATA_QUALITY.md`
 - `docs/data_foundation/COVERAGE_REPORT.md`
 
+`DATA-P17` adds the data-foundation `DatasetVersion` contract and registry
+adapter under `src/alpha_system/data/foundation/`. Dataset versions carry
+source, symbol/contract universes, bar settings, timestamps, roll policy, and
+the manifest/code/config/quality-report hashes required for reproducibility.
+The adapter reuses `core.registry.init_registry` and `connect_registry` against
+the existing local SQLite `dataset_versions` table, requires linked quality,
+coverage, and manifest prerequisites before writes, persists the full DATA-P17
+object in `metadata_json`, resolves by `dataset_version_id`, and rejects
+duplicate IDs without overwrite. It also adds:
+
+- `docs/data_foundation/DATASET_VERSION.md`
+
 The prior `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, and
 `ALPHA_RESEARCH_GOVERNANCE_MVP` baselines are treated as complete. This campaign
 builds on that local-first research harness by adding a read-only, provenance-rich
@@ -259,6 +276,9 @@ The data-foundation docs root currently includes:
 - `docs/data_foundation/ROLL_POLICY.md`
 - `docs/data_foundation/PARSED_BARS.md`
 - `docs/data_foundation/CANONICAL_BARS.md`
+- `docs/data_foundation/DATA_QUALITY.md`
+- `docs/data_foundation/COVERAGE_REPORT.md`
+- `docs/data_foundation/DATASET_VERSION.md`
 
 These docs describe the read-only data truth layer, campaign hard rules,
 data-foundation object list, lifecycle state model, prohibited MVP states, IBKR
@@ -284,10 +304,12 @@ roll evidence and validation status, provider-continuous vs derived roll
 separation, provider-shaped parsed bars, raw-to-parsed provenance links, the
 parsed-not-canonical boundary, canonical 1-minute bar fields,
 `TimestampSemanticsPolicy`, explicit `available_ts` no-lookahead semantics, and
-the `ALPHA_DATA_ROOT` local-only data-root
-pointer. Field-level
-acceptance rules, risks, and operator procedures remain in the campaign
-contract bundle.
+fail-closed data quality and coverage reports, `DatasetVersion`,
+reproducibility hash binding, local SQLite registry integration, duplicate-ID
+rejection, the `QUALITY_CHECKED -> VERSIONED -> READY_FOR_RESEARCH`
+data-admissibility gate, and the `ALPHA_DATA_ROOT` local-only data-root
+pointer. Field-level acceptance rules, risks, and operator procedures remain
+in the campaign contract bundle.
 
 ## Campaign Source Of Truth
 

@@ -86,6 +86,10 @@ The data-foundation objects are grouped by purpose:
 Field-level contracts and acceptance criteria remain in `campaign.yaml` and
 `ACCEPTANCE.md`.
 
+`DATASET_VERSION.md` documents the DATA-P17 `DatasetVersion` contract, registry
+adapter, reproducibility hash binding, lifecycle gate, and local-only registry
+policy.
+
 ## Lifecycle Summary
 
 Future data-foundation objects move through this controlled lifecycle:
