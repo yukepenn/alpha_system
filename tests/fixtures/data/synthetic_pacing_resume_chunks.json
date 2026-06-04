@@ -1,0 +1,42 @@
+{
+  "synthetic": true,
+  "real_provider_response": false,
+  "quality_status": "not_quality_checked",
+  "manifest_id": "hrm_synthetic_es_h5_manifest_v1",
+  "expected_chunk_ids": [
+    "hchunk_synth_es_20250102_a",
+    "hchunk_synth_es_20250103_b"
+  ],
+  "chunk_records": [
+    {
+      "chunk_id": "hchunk_synth_es_20250102_a",
+      "request_spec_id": "hrs_synthetic_es_h5_20250102_20250103",
+      "symbol_root": "ES",
+      "contract_ref": "fcr_synthetic_es_h5",
+      "start_ts": "2025-01-02T14:30:00+00:00",
+      "end_ts": "2025-01-03T00:00:00+00:00",
+      "status": "COMPLETE",
+      "attempt_count": 1,
+      "provider_request_id": "ibkr_req_synth_001",
+      "raw_object_ref": "raw://sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "row_count": 10,
+      "error_ref": null,
+      "retrieved_at": "2026-06-03T21:52:49+00:00"
+    },
+    {
+      "chunk_id": "hchunk_synth_es_20250103_b",
+      "request_spec_id": "hrs_synthetic_es_h5_20250103_20250104",
+      "symbol_root": "ES",
+      "contract_ref": "fcr_synthetic_es_h5",
+      "start_ts": "2025-01-03T00:00:00+00:00",
+      "end_ts": "2025-01-03T22:00:00+00:00",
+      "status": "NOT_STARTED",
+      "attempt_count": 0,
+      "provider_request_id": null,
+      "raw_object_ref": null,
+      "row_count": null,
+      "error_ref": null,
+      "retrieved_at": null
+    }
+  ]
+}
