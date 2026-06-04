@@ -496,11 +496,10 @@ def _planned_chunks_from_manifest(
 
 def _validate_interrupt_after(value: int, *, planned_count: int) -> int:
     interrupt_after = _require_non_negative_int(value, "interrupt_after_chunks")
-    if planned_count < 2:
-        msg = "resume drill requires at least two planned chunks"
-        raise DataFoundationValidationError(msg)
     if interrupt_after >= planned_count:
-        msg = "interrupt_after_chunks must be less than planned chunk count"
+        return interrupt_after
+    if planned_count < 2:
+        msg = "resume drill requires at least two planned chunks when interruption is simulated"
         raise DataFoundationValidationError(msg)
     return interrupt_after
 
@@ -1112,7 +1111,7 @@ def run_local_backfill_resume_drill(
         batch_id=batch,
         access_mode=access.mode,
         external_call_attempted=external_call_attempted,
-        interruption_simulated=True,
+        interruption_simulated=interrupt_after < len(planned),
         chunks_planned=len(planned),
         chunks_completed_before_resume=len(completed_before_resume),
         chunks_requested_initial=len(initial_requested_chunk_ids),

@@ -1,0 +1,7 @@
+{
+  "schema": "alpha_system.materialize_validation_config.v1",
+  "allow_non_fixture_input": true,
+  "available_latency_seconds": 5,
+  "spread_tolerance": "0.000001",
+  "require_event_within_bar": true
+}
