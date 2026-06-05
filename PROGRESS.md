@@ -53,7 +53,7 @@ registered 27 local-only DatasetVersions across development, validation, and
 locked-test partitions. All raw/canonical/registry data stays local-only under
 `ALPHA_DATA_ROOT`; nothing is committed. This is research-readiness only and
 implies no alpha, tradability, profitability, paper/live, broker, or production
-claim. See `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
+claim. See `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
 
 ## Next intended campaign
 

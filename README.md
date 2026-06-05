@@ -16,7 +16,7 @@ DatasetVersions. **IBKR** is the read-only broker-validation source (~2 years of
 available depth) with its own separate DatasetVersions. All raw/canonical data,
 registries, and reports stay local-only under `ALPHA_DATA_ROOT`; nothing is
 committed, and no alpha, tradability, profitability, paper/live, or broker claim
-is made. See `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md` and
+is made. See `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md` and
 the `docs/data_foundation/` docs (including the `databento/` subdirectory).
 
 This repository is not a broker, paper-trading, live-trading, order-routing, or

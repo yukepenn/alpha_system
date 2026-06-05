@@ -35,4 +35,4 @@ Primary evidence:
 - `tests/integration/test_end_to_end_v0_1.py`
 - `docs/V0_1_VALIDATION.md`
 - `campaigns/ALPHA_SYSTEM_V1/CLOSEOUT.md`
-- `handoffs/ASV1-P29.md`
+- `handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md`

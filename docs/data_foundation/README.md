@@ -14,7 +14,7 @@ claims.
 > providers with distinct roles. **Databento** is the primary deep-history
 > research source (GLBX.MDP3 ES/NQ/RTY OHLCV-1m + BBO-1m, 2018–2026, registered
 > as 27 local-only DatasetVersions) — see the `databento/` subdirectory and
-> `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`. **IBKR** is the
+> `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`. **IBKR** is the
 > read-only broker-validation source (~2 years of available depth). The original
 > campaign text below describes the IBKR bootstrap posture and remains as
 > historical campaign documentation. All real data stays local-only under

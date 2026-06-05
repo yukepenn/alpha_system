@@ -16,7 +16,7 @@ order routing, account access, deployment behavior, or market claims.
 > source (GLBX.MDP3 ES/NQ/RTY OHLCV-1m + BBO-1m, 2018–2026, registered as
 > local-only DatasetVersions), and **IBKR** is the read-only broker-validation
 > source. See `docs/data_foundation/databento/` and
-> `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`. The IBKR-centric
+> `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`. The IBKR-centric
 > description below remains as historical campaign documentation.
 
 ## Read-Only Truth Layer

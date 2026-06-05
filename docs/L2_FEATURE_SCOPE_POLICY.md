@@ -38,7 +38,7 @@ SQLite file, Parquet, Arrow, Feather, log, cache, or heavy artifact belongs in
 git for this phase.
 
 Run-local files under `runs/**` remain local-only and must never be staged. The
-commit-eligible handoff belongs under `handoffs/ASV1-P26.md`.
+commit-eligible handoff belongs under `handoffs/ALPHA_SYSTEM_V1/ASV1-P26.md`.
 
 ## Promotion Boundary
 
