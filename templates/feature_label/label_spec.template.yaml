@@ -1,0 +1,47 @@
+# LabelSpec template.
+# Field names are governed by docs/governance/LABEL_SPEC.md and adapted by
+# docs/feature_label_foundation/LABEL_CONTRACTS.md. This template is not label
+# materialization, evidence, or a trading claim.
+
+label_spec_id: "<deterministic lspec_... generated from complete content>"
+alpha_spec_id: "<optional well-formed aspec_... reference>"
+horizon:
+  type: "<fixed_time|fixed_bars|path_terminal|event_terminal>"
+  length: "<explicit horizon length>"
+  horizon_end_rule: "<how horizon_end_ts is determined>"
+path_rules:
+  observation_source: "<canonical OHLCV|BBO|dense-grid input view>"
+  terminal_rule: "<explicit terminal-row rule>"
+  mfe_mae: "<explicit path metric metadata, if applicable>"
+  barrier_policy: "<explicit barrier metadata, if applicable>"
+cost_model:
+  name: "<none|spread_adjusted|cost_adjusted>"
+  spread_source: "<canonical BBO field or explicit none>"
+  commission: "<planning metadata>"
+  slippage: "<planning metadata>"
+target_stop_rules:
+  target: "<explicit target rule or none>"
+  stop: "<explicit stop rule or none>"
+  tie_break: "<explicit tie handling>"
+availability_time: "<timezone-aware ISO-8601 timestamp or governed rule>"
+label_availability_policy:
+  label_available_ts_rule: "label.label_available_ts = max(horizon_end_ts, path terminal availability, LabelSpec.availability_time)"
+  legal_consumer: "labels_only"
+forbidden_feature_overlap:
+  label_reference: "<label reference that must not appear as a live feature>"
+  aliases:
+    - "<alias to block>"
+  transforms:
+    - "<transform or derived reference to block>"
+leakage_checks:
+  label_as_feature:
+    required: true
+    expected_result: "<blocking if matched by live feature reference>"
+  availability_time:
+    required: true
+    expected_result: "<blocking if feature information time violates label availability>"
+study_consumption_notes:
+  study_spec_reference: "<optional sspec_... planned consumer>"
+  feature_request_ids:
+    - "<freq_...>"
+  dataset_scope: "<explicit StudySpec dataset_scope metadata>"

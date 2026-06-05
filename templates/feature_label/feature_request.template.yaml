@@ -1,0 +1,45 @@
+# FeatureRequest template.
+# Field names are governed by docs/governance/FEATURE_REQUEST.md.
+# This template is not implementation permission, evidence, a store entry, or a
+# trading claim. Replace placeholders with explicit governance metadata.
+
+feature_request_id: "<deterministic freq_... generated from complete content>"
+alpha_spec_id: "<well-formed aspec_... reference>"
+requested_inputs:
+  canonical_views:
+    - "<ohlcv_input_view|bbo_input_view|dense_grid_input_view>"
+  fields:
+    - "<canonical field name>"
+  dataset_scope:
+    dataset_version_id: "<accepted DatasetVersion id; resolved later>"
+    source_line: "<Databento or IBKR provenance line; do not merge sources>"
+    partition: "<development|validation|locked_test_candidate|latest_shadow_candidate>"
+  instrument_scope:
+    symbols:
+      - "<symbol>"
+    sessions:
+      - "<session label>"
+formula_sketch:
+  description: "<substantive transform sketch using canonical inputs only>"
+  family: "<ohlcv|bbo|session|cross_market|structure>"
+  expected_primitives:
+    - "<causal primitive or offline-only primitive reference>"
+availability_assumptions:
+  input_availability: "<which input available_ts values control usability>"
+  output_available_ts_rule: "feature.available_ts = max(input.available_ts)"
+  timezone: "<IANA timezone or UTC alignment>"
+duplicate_or_equivalent_exposure_notes:
+  guard: "duplicate_exposure"
+  checked: <true|false>
+  registry_status: "<available|unavailable|not_checked>"
+  registry_entries_checked: <integer>
+  findings: []
+  summary: "<explicit duplicate/equivalent exposure summary>"
+data_requirements:
+  accepted_dataset_version_only: true
+  canonical_record_types:
+    - "<CanonicalBarRecord|CanonicalBBORecord|DenseGridBarRecord>"
+  bbo_missingness_policy: "preserve missing_bbo and bbo_quarantined flags"
+  dense_grid_no_trade_policy: "preserve has_trade=false synthetic no_trade rows"
+  locked_test_metadata: "<required if locked-test use is requested>"
+approval_status: "PENDING"

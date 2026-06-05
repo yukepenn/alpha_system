@@ -1,0 +1,44 @@
+# FeatureSpec draft template.
+# Contract semantics are governed by docs/feature_label_foundation/FEATURE_CONTRACTS.md.
+# Bind this draft to an approved freq_ FeatureRequest. This template does not
+# materialize values and does not assert that a feature is useful.
+
+feature_spec:
+  feature_id: "<feature-layer feature id>"
+  governance_feature_request_id: "<approved freq_... FeatureRequest id>"
+  alpha_spec_id: "<aspec_... reference from the governed request>"
+  family: "<ohlcv|bbo|session|cross_market|structure>"
+  name: "<short descriptive feature name>"
+  implementation_eligibility:
+    feature_request_gate_decision: "<reference to admitted gate decision>"
+    duplicate_exposure_report: "<reference or summary from governance guard>"
+feature_input_spec:
+  canonical_views:
+    - name: "<canonical input view>"
+      fields:
+        - "<canonical field>"
+      dataset_version_id: "<accepted DatasetVersion id reference>"
+      partition: "<development|validation|locked_test_candidate|latest_shadow_candidate>"
+transform_spec:
+  name: "<transform identity>"
+  parameters: {}
+window_spec:
+  kind: "<rolling|expanding|point_in_time|offline_only>"
+  length: <positive integer>
+  causal: <true|false>
+  offline_only: <true|false>
+  anchor: "<event_ts|bar_end_ts|available_ts>"
+normalization_spec:
+  name: "<none|zscore|rank|other governed normalization>"
+  parameters: {}
+  fit_partition_policy: "<development_only|development_validation>"
+  contamination_metadata: "<required for any locked-test fit contact>"
+availability:
+  assumptions:
+    - "<explicit availability assumption>"
+  output_available_ts_rule: "feature.available_ts = max(input.available_ts)"
+quality_and_store_notes:
+  expected_quality_flags:
+    - "<quality flag, if any>"
+  feature_set_membership: "<FeatureSetSpec reference, if planned>"
+  deprecation_or_equivalence_notes: "<optional substrate metadata>"
