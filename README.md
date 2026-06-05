@@ -8,12 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, campaign progress is 28 of 32 phases (`FLF-P00` through `FLF-P28`) in
+merge, campaign progress is 29 of 32 phases (`FLF-P00` through `FLF-P29`) in
 the `diagnostics_and_packaging` merge group and `workflow_and_closeout`
 acceptance gate. FLF-P28 adds the local-only `alpha feature` and `alpha label`
-CLI groups plus the updated `docs/CLI_REFERENCE.md` command reference. The next
-phase is FLF-P29 Docs, Templates, and Agent Guide, followed by the FLF-P30 /
-FLF-P31 closeout phases. Ralph owns serial merge ordering and next-phase
+CLI groups plus the updated `docs/CLI_REFERENCE.md` command reference. FLF-P29
+adds the durable Feature/Label Foundation researcher guide, agent guide, and
+request templates. The next phase is FLF-P30 End-to-End Feature/Label Dry Run,
+followed by FLF-P31 closeout. Ralph owns serial merge ordering and next-phase
 selection.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
@@ -184,6 +185,14 @@ It also updates:
 
 - `docs/CLI_REFERENCE.md`
 
+`FLF-P29` adds durable Feature/Label Foundation researcher and agent docs plus
+request templates for FeatureRequest, FeatureSpec, and LabelSpec workflows.
+
+- `docs/feature_label_foundation/guide/`
+- `docs/feature_label_foundation/AGENT_GUIDE.md`
+- `docs/feature_label_foundation/templates/`
+- `templates/feature_label/`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no label-as-feature path; no silent BBO forward-fill
@@ -211,8 +220,8 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 28 of
-32 phases after this phase merge (`FLF-P00` through `FLF-P28`). Durable modules
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 29 of
+32 phases after this phase merge (`FLF-P00` through `FLF-P29`). Durable modules
 now include feature request gating, feature contracts, feature families,
 feature materialization and registry integration, feature reports, label
 contracts, label families, label materialization, the local-only LabelRegistry
@@ -222,9 +231,12 @@ in `alpha_system.labels.registry`, label leakage and availability audits in
 fail-closed coverage, the small accepted-DatasetVersion dry-run helper in
 `alpha_system.features.engine`, the StudySpec input-pack helper in
 `alpha_system.governance.study_input_pack`, and the local-only `alpha feature`
-/ `alpha label` CLI groups. FLF-P28 updates `docs/CLI_REFERENCE.md`; the next
-phase is FLF-P29 Docs, Templates, and Agent Guide. The completed
-data-foundation baseline remains unchanged.
+/ `alpha label` CLI groups. Durable docs now include the Feature/Label
+Foundation researcher guide, agent guide, and request templates under
+`docs/feature_label_foundation/` and `templates/feature_label/`. FLF-P28
+updates `docs/CLI_REFERENCE.md`; the next phase is FLF-P30 End-to-End
+Feature/Label Dry Run. The completed data-foundation baseline remains
+unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
