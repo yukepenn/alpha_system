@@ -8,10 +8,9 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P16 LabelSpec and LabelVersion Contracts is complete (`FLF-P00`
-through `FLF-P16`, 17 of 32 phases), opening the `label_contracts` gate. The
-next phase is FLF-P17 Fixed-Horizon and Midprice Forward Labels, opening the
-parallel label-family wave.
+merge, FLF-P18 Cost-Adjusted / Spread-Adjusted Labels is complete within the
+32-phase set. Ralph owns serial merge ordering and next-phase selection for the
+surrounding label-family wave and downstream label integration.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -108,6 +107,12 @@ synthetic temp-DB tests, and:
 
 - `docs/feature_label_foundation/LABEL_CONTRACTS.md`
 
+`FLF-P18` adds the additive Cost-Adjusted / Spread-Adjusted label family
+package `alpha_system.labels.families.cost_adjusted`, scoped synthetic fixture
+tests, family config placeholders, and:
+
+- `docs/feature_label_foundation/labels/cost_adjusted.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no silent BBO forward-fill or interpolation; no
@@ -135,16 +140,17 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature-materialization progress includes
-FLF-P16 after this phase merge: FeatureStore / FeatureRegistry metadata
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` Feature/Label Foundation progress includes
+FLF-P18 after this phase merge: FeatureStore / FeatureRegistry metadata
 registration, versioned resolution, duplicate/equivalent exposure recording,
 deprecation, descriptive feature quality / coverage evidence, and immutable
 label contracts bound to governed `lspec_` LabelSpec records are available
 through `alpha_system.features.store`, `alpha_system.features.registry`,
-`alpha_system.features.reports`, `alpha_system.reports.feature_card`, and
-`alpha_system.labels.version`. The next work is FLF-P17 Fixed-Horizon and
-Midprice Forward Labels. The completed data-foundation baseline remains
-unchanged:
+`alpha_system.features.reports`, `alpha_system.reports.feature_card`,
+`alpha_system.labels.version`, and
+`alpha_system.labels.families.cost_adjusted`. Ralph owns the next work in the
+label-family wave and downstream label integration. The completed
+data-foundation baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
