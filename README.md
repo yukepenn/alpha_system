@@ -8,19 +8,9 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, Wave 1 feature-family work is underway: FLF-P08 Base OHLCV, FLF-P09 BBO
-tradability, FLF-P11 Cross-Market ES/NQ/RTY, and FLF-P12 Liquidity
-Sweep / Structure Primitive feature families are present alongside the governed
-FeatureRequest gate, FeatureSpec / FeatureVersion contracts, and shared causal
-primitives. Active phase snapshot: `FLF-P12` - Liquidity Sweep / Structure
-Primitive Features. The next dependency-ready work remains the remaining Wave 1
-family phase(s), then Wave 2 feature integration `FLF-P13`.
-tradability, FLF-P10 Session / Calendar / Roll, and FLF-P11 Cross-Market
-ES/NQ/RTY feature families are present alongside the governed FeatureRequest
-gate, FeatureSpec / FeatureVersion contracts, and shared causal primitives.
-Active phase snapshot: `FLF-P10` - Session / Calendar / Roll Feature Families.
-The next dependency-ready work remains the remaining Wave 1 family phase(s),
-then Wave 2 feature integration `FLF-P13`.
+merge, FLF-P13 Feature Materialization Engine is complete and the campaign is at
+the `feature_materialization` gate. The next phase is FLF-P14 FeatureStore /
+FeatureRegistry Integration.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -94,22 +84,15 @@ fixture tests, family config placeholders, and:
 
 - `docs/feature_label_foundation/features/structure.md`
 
-No new command surface is added by FLF-P12.
+`FLF-P13` adds the local-only feature materialization engine
+`alpha_system.features.engine`, scoped synthetic tests, and:
+
+- `docs/feature_label_foundation/FEATURE_MATERIALIZATION.md`
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
-only; ES/NQ/RTY cross-market inputs must stay within one accepted
-DatasetVersion family; no raw provider access; no external provider calls; no
-silent BBO forward-fill or interpolation; no synthetic no-trade row is treated
-as a trade bar; feature and label values remain local-only; governance is
-consumed, not duplicated; no broker, live, paper, order, or account scope; and
-no alpha, tradability, or profitability claims.
-No new command surface is added by FLF-P10.
-
-Safety boundaries are unchanged: local-only values; accepted DatasetVersions
-only; ES/NQ/RTY cross-market inputs must stay within one accepted
-DatasetVersion family; session/calendar/roll features never fabricate absent
-expiration or status metadata; no raw provider access; no external provider
-calls; no silent BBO forward-fill or interpolation; feature and label values
+only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
+no external provider calls; no silent BBO forward-fill or interpolation; no
+synthetic no-trade row is treated as a trade bar; feature and label values
 remain local-only; governance is consumed, not duplicated; no broker, live,
 paper, order, or account scope; and no alpha, tradability, or profitability
 claims.
@@ -132,21 +115,12 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress includes FLF-P08,
-FLF-P09, FLF-P11, and FLF-P12 after this phase merge; the active phase snapshot
-is `FLF-P12`, the feature-contract gate includes the FeatureRequest gate,
-FeatureSpec / FeatureVersion contracts, `alpha_system.features.primitives`, the
-additive Base OHLCV family, the additive BBO tradability family, the additive
-Cross-Market ES/NQ/RTY family, and the additive Liquidity Sweep / Structure
-Primitive family, and the next work is the remaining Wave 1 family phase(s)
-before FLF-P13 feature integration. The completed
-FLF-P09, FLF-P10, and FLF-P11 after this phase merge; the active phase snapshot
-is `FLF-P10`, the feature-contract gate includes the FeatureRequest gate,
-FeatureSpec / FeatureVersion contracts, `alpha_system.features.primitives`, the
-additive Base OHLCV family, the additive BBO tradability family, the additive
-Session / Calendar / Roll family, and the additive Cross-Market ES/NQ/RTY
-family, and the next work is the remaining Wave 1 family phase(s) before
-FLF-P13 feature integration. The completed
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature-materialization progress includes
+FLF-P13 after this phase merge. The feature-contract gate includes the
+FeatureRequest gate, FeatureSpec / FeatureVersion contracts,
+`alpha_system.features.primitives`, the five additive feature-family packages,
+and `alpha_system.features.engine`; the next work is FLF-P14 FeatureStore /
+FeatureRegistry Integration. The completed
 data-foundation baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
