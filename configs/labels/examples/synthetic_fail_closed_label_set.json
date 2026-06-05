@@ -1,0 +1,28 @@
+{
+  "schema": "alpha_system.labels.example.synthetic_fail_closed.v1",
+  "description": "Illustrative synthetic label fixture reference for FLF-P25 tests only.",
+  "materialization_request": false,
+  "dataset_version_id": "dsv_feature_label_synthetic_fixture_v1",
+  "fixture_path": "tests/fixtures/feature_label/canonical_rows.json",
+  "label_examples": [
+    {
+      "label_id": "fwd_ret_1m",
+      "family": "fixed_horizon",
+      "input_view": "canonical_ohlcv",
+      "fields": ["close"],
+      "availability_rule": "label.label_available_ts = max(horizon_end_ts, LabelSpec.availability_time)",
+      "guards_exercised": [
+        "governed lspec_ LabelSpec required",
+        "label_available_ts required",
+        "label_available_ts must not precede availability time",
+        "label_as_feature blocked"
+      ]
+    }
+  ],
+  "artifact_policy": {
+    "synthetic_only": true,
+    "commit_generated_values": false,
+    "external_provider_calls": false
+  }
+}
+

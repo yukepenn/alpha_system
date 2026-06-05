@@ -1,0 +1,39 @@
+{
+  "schema": "alpha_system.features.example.synthetic_fail_closed.v1",
+  "description": "Illustrative synthetic feature fixture reference for FLF-P25 tests only.",
+  "materialization_request": false,
+  "dataset_version_id": "dsv_feature_label_synthetic_fixture_v1",
+  "fixture_path": "tests/fixtures/feature_label/canonical_rows.json",
+  "feature_examples": [
+    {
+      "feature_id": "base_ohlcv_returns",
+      "family": "base_ohlcv",
+      "input_view": "canonical_ohlcv",
+      "fields": ["close", "available_ts"],
+      "availability_rule": "feature.available_ts = max(input.available_ts)",
+      "guards_exercised": [
+        "approved FeatureRequest required",
+        "validated FeatureSpec required",
+        "available_ts derivation required",
+        "causal live window required"
+      ]
+    },
+    {
+      "feature_id": "bbo_missingness_flag_example",
+      "family": "bbo_tradability",
+      "input_view": "canonical_bbo",
+      "fields": ["bid", "ask", "quality_flags", "available_ts"],
+      "guards_exercised": [
+        "missing_bbo is flagged",
+        "bbo_quarantined is surfaced",
+        "no silent forward-fill"
+      ]
+    }
+  ],
+  "artifact_policy": {
+    "synthetic_only": true,
+    "commit_generated_values": false,
+    "external_provider_calls": false
+  }
+}
+

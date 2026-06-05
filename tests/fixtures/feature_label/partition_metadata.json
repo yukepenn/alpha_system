@@ -1,0 +1,19 @@
+{
+  "schema": "alpha_system.tests.feature_label.partition_metadata.v1",
+  "description": "Minimal synthetic partition metadata for fail-closed locked-partition tests.",
+  "development_partition": {
+    "partition_id": "development_partition",
+    "role": "development"
+  },
+  "locked_test_candidate": {
+    "partition_id": "locked_test_candidate",
+    "role": "locked_test_candidate",
+    "governance_metadata": {
+      "study_id": "study_flf_p25_synthetic_fixture",
+      "contamination_record_id": "contam_flf_p25_locked_test_access",
+      "contamination_scope": "synthetic fixture locked-test access only",
+      "reason": "records that locked-test access is governed during fail-closed tests"
+    }
+  }
+}
+
