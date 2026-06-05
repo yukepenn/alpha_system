@@ -4,7 +4,7 @@
 
 Commit-eligible ASV1-P29 artifacts are limited to closeout docs, the integration
 test, curated small eval summaries, README snapshot, and
-`handoffs/ASV1-P29.md`.
+`handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md`.
 
 Never commit:
 
@@ -19,7 +19,7 @@ Never commit:
 ## Executor Audit Result
 
 The bounded repair audit and command outputs are recorded in
-`handoffs/ASV1-P29.md`. The closeout recommendation depends on `git ls-files
+`handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md`. The closeout recommendation depends on `git ls-files
 runs` returning empty and no forbidden data, DB, generated artifact, or heavy
 path appearing in tracked or staged commit-eligible files.
 

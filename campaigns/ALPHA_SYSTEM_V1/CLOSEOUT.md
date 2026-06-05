@@ -51,7 +51,7 @@ alpha/profitability/tradability claim is made by this closeout.
 - `evals/v0_1/VALIDATION_SUMMARY.md`
 - `evals/v0_1/ARTIFACT_AUDIT_SUMMARY.md`
 - `tests/integration/test_end_to_end_v0_1.py`
-- `handoffs/ASV1-P29.md`
+- `handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md`
 
 ## Final Boundary Statement
 

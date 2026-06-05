@@ -35,7 +35,7 @@ execution system.
   `docs/KNOWN_LIMITATIONS.md`, `docs/NEXT_CAMPAIGN_CANDIDATES.md`, and
   `campaigns/ALPHA_SYSTEM_V1/CLOSEOUT.md`.
 - Curated validation summaries under `evals/v0_1/`.
-- Commit-eligible executor handoff: `handoffs/ASV1-P29.md`.
+- Commit-eligible executor handoff: `handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md`.
 
 ## Interpretation
 

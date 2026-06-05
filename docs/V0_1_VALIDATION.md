@@ -69,4 +69,4 @@ claim.
 | Safety boundary | No broker/live/paper/order-routing/deployment scope |
 
 Command results and artifact-audit outputs are recorded in
-`handoffs/ASV1-P29.md`.
+`handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md`.

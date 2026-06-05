@@ -110,3 +110,62 @@ providers never import IBKR internals.
 No data pull was run. No raw/canonical/provider data or secrets were committed. No
 Feature/Label implementation was added. No alpha search was run. No broker/live/paper/
 order scope was added. No alpha/tradability/profitability/production claim is made.
+
+---
+
+# Round 2 — 2026-06-05 (deeper structural pass)
+
+Owner requested a more aggressive pass: fully fold the loose ASV1 handoffs, trim the
+test suite aggressively, and re-examine structure. Executed autonomously on branch
+`task/pre-feature-consolidation-v2`.
+
+## Commits
+| Patch | Commit | Summary |
+| --- | --- | --- |
+| R2-P1 | `c8c929a` | Fold all 34 loose top-level handoffs into per-campaign subdirs (git mv); rewrite ~107 external references; uniform `handoffs/README.md`. |
+| R2-P3 | `1b38d44` | Delete dead code: the round-1 `data/ibkr/_json_utils.py` shim (0 importers) + the dead `hash_content` alias. |
+| R2-P2 | `4008313` (+ `826c089` lint) | Consolidate 10 boilerplate test modules → 2 parameterized (cli-help 7→1, import-skeletons 3→1); coverage verified preserved. |
+| R2-P5 | `270e3a9` | Config + data-layer clarity: `configs/README.md`, refreshed `configs/data/README.md`, `docs/STRUCTURAL_BACKLOG.md`, legacy-vs-canonical pointer. |
+
+## Handoffs (R2-P1)
+All loose top-level handoffs relocated: 29 `ASV1-P*.md` + `ASV1-HYGIENE.md` →
+`handoffs/ALPHA_SYSTEM_V1/`; the 4 `ADF1_*.md` data handoffs → `handoffs/ALPHA_DATA_FOUNDATION_V1/`.
+Top-level `handoffs/` now holds only `000-template.md`, `README.md`, and this file. ~107
+path references rewritten across 18 files (incl. the frozen ASV1 contract
+`PHASE_PLAN.md`/`campaign.yaml`/`CLOSEOUT.md` — git history preserves the originals);
+intra-handoff self-references left verbatim as frozen evidence. Zero hard breaks.
+
+## Tests (R2-P2)
+Audited and found **overwhelmingly justified — no delete-for-count candidates** (every
+flagged "duplicate" is a distinct code path; all fail-closed guards are real and preserved).
+The correct move was coverage-preserving consolidation: cli-help 7→1 (all 37 expected
+`--args` retained; management's 2 non-help tests preserved) and import-skeletons 3→1 (union
+of all 34 modules incl. the `execution` / `governance.report` stubs + the foundation
+re-export set). Net **−8 test modules, 0 coverage lost**; full pytest **1856 passed**
+(count rose from 1812 only because parameterization collects each case individually).
+
+## Dead code (R2-P3)
+Removed `data/ibkr/_json_utils.py` (round-1 shim, now 0 importers) and the dead
+`hash_content` alias in `governance/serialization.py`.
+
+## Structure / docs (R2-P5)
+Added `configs/README.md`, refreshed `configs/data/README.md`, added
+`docs/STRUCTURAL_BACKLOG.md`, and a legacy(`data/*`)-vs-canonical(`data/foundation/*`)
+pointer in `AGENT_CONTEXT_MAP` + `docs/README`.
+
+## Deferred this round (documented in `docs/STRUCTURAL_BACKLOG.md`)
+- **Provider-boundary completion (R2-P4):** 7 Databento modules still import provider-neutral
+  helpers from `data/ibkr/materialize.py`. A clean fix needs moving a ~300-line closure AND
+  parameterizing IBKR-flavored defaults in `_settings_for_symbols` — a redesign of the live
+  canonicalization pipeline, deferred to its own phase (per "no broad rewrite").
+- Legacy/canonical `DatasetVersion` consolidation; `core`→`data` inverted import; long-file
+  splits; optional claims-test merge.
+
+## Validation (R2 final)
+`pytest` 1856 passed; `compileall src tests tools` OK; canaries pass; the 2 new test files
+ruff-clean (pre-existing `serialization.py` I001 backlog untouched); artifact audit clean
+(runs / heavy / data-meta / secrets = 0). Owner-excluded items untouched: no
+`ralph_driver.py` / `frontier.yaml` / state-machine edits; no `docs/` subdirectory reorg.
+
+No data pull; no raw data committed; no Feature/Label implementation; no alpha search;
+no broker/live/paper/order scope; no alpha/tradability/profitability/production claim.

@@ -15,7 +15,7 @@ Campaigns group related work into reviewable goals. Each is a directory
 | `000-template` | Template | Starter campaign bundle. |
 
 `ASV1_RELEASE_HYGIENE` was a post-closeout cleanup pass with no campaign
-directory (see `handoffs/ASV1-HYGIENE.md`). The **decided next campaign** is
+directory (see `handoffs/ALPHA_SYSTEM_V1/ASV1-HYGIENE.md`). The **decided next campaign** is
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` (not yet authored).
 
 Use `ACTIVE_CAMPAIGN.md` to point to the current campaign; do not put campaign

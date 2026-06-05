@@ -90,12 +90,6 @@ def content_hash(value: JsonValue) -> str:
     return hashlib.sha256(canonical_serialize(value).encode("utf-8")).hexdigest()
 
 
-def hash_content(value: JsonValue) -> str:
-    """Alias for deterministic governance content hashing."""
-
-    return content_hash(value)
-
-
 def _require_json_value(value: Any, *, path: str = "$") -> JsonValue:
     if value is None or isinstance(value, bool | str):
         return value
@@ -159,6 +153,5 @@ __all__ = [
     "canonical_serialize",
     "content_hash",
     "deserialize",
-    "hash_content",
     "serialize",
 ]

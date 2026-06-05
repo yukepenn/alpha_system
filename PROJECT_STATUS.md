@@ -35,7 +35,7 @@ Post-closeout status:
     a derived dense research grid), quality/coverage-gated, and registered as
     27 local-only DatasetVersions across development/validation/locked-test
     partitions, kept separate from the IBKR DatasetVersions. See
-    `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
+    `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
 - All raw/canonical data, registries, and reports remain local-only under
   `ALPHA_DATA_ROOT`; nothing is committed. Loading any DatasetVersion implies no
   alpha, tradability, profitability, paper/live, broker, or production readiness.

@@ -41,7 +41,7 @@ artifacts/**
 For ASV1-P01 specifically, the commit-eligible phase handoff is:
 
 ```text
-handoffs/ASV1-P01.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P01.md
 ```
 
 The run-local handoff remains local-only:

@@ -40,7 +40,7 @@ def test_forbidden_artifacts(path: str) -> None:
         "data/raw/README.md",
         "data/canonical/.gitkeep",
         "docs/V0_1_VALIDATION.md",
-        "handoffs/ASV1-P29.md",
+        "handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md",
         "evals/v0_1/ARTIFACT_AUDIT_SUMMARY.md",
         "tools/verify.py",
         "pyproject.toml",

@@ -465,7 +465,7 @@ phases:
   - test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
   - test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
   - test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
-  - test -f handoffs/ASV1-P00.md
+  - test -f handoffs/ALPHA_SYSTEM_V1/ASV1-P00.md
   - test -d campaigns/ALPHA_SYSTEM_V1
   - test -d specs
   - test -d handoffs
@@ -515,7 +515,7 @@ phases:
   - campaigns/ALPHA_SYSTEM_V1/campaign.yaml
   - campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
   - campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
-  - handoffs/ASV1-P00.md
+  - handoffs/ALPHA_SYSTEM_V1/ASV1-P00.md
   - specs/**
   - handoffs/**
   - reviews/**

@@ -28,7 +28,7 @@ and [`_historical/`](_historical/) (superseded docs, kept for audit).
 - [GIT_AND_ARTIFACT_DISCIPLINE.md](GIT_AND_ARTIFACT_DISCIPLINE.md) · [ARTIFACT_POLICY.md](ARTIFACT_POLICY.md) · [STOP_AND_RESUME.md](STOP_AND_RESUME.md)
 - [RESEARCH_WORKFLOW.md](RESEARCH_WORKFLOW.md) · [MANAGEMENT_GRID_WORKFLOW.md](MANAGEMENT_GRID_WORKFLOW.md)
 - [automation_lanes.md](automation_lanes.md) · [campaign_authoring.md](campaign_authoring.md) · [model_routing.md](model_routing.md) · [operations.md](operations.md) · [validation.md](validation.md) · [workflow.md](workflow.md)
-- See also [`harness/HARNESS_NOTES.md`](harness/HARNESS_NOTES.md) — harness maintainability backlog.
+- See also [`harness/HARNESS_NOTES.md`](harness/HARNESS_NOTES.md) — harness maintainability backlog, and [`STRUCTURAL_BACKLOG.md`](STRUCTURAL_BACKLOG.md) — deferred data-layer / provider-boundary refactors.
 
 ## Domain layers
 - [DATA_LAYER.md](DATA_LAYER.md)

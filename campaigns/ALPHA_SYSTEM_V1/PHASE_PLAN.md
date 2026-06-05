@@ -346,7 +346,7 @@ Create or update only:
 * `campaigns/ALPHA_SYSTEM_V1/campaign.yaml`
 * `campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md`
 * `campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md`
-* `handoffs/ASV1-P00.md`
+* `handoffs/ALPHA_SYSTEM_V1/ASV1-P00.md`
 
 Expected directories present in the working tree:
 
@@ -439,7 +439,7 @@ test -f campaigns/ALPHA_SYSTEM_V1/PHASE_PLAN.md
 test -f campaigns/ALPHA_SYSTEM_V1/campaign.yaml
 test -f campaigns/ALPHA_SYSTEM_V1/RISK_REGISTER.md
 test -f campaigns/ALPHA_SYSTEM_V1/RUNBOOK.md
-test -f handoffs/ASV1-P00.md
+test -f handoffs/ALPHA_SYSTEM_V1/ASV1-P00.md
 
 test -d specs
 test -d handoffs
@@ -481,7 +481,7 @@ git ls-files runs
 
 ### Artifact Policy
 
-Commit only policy files, campaign files, docs, the commit-eligible handoff `handoffs/ASV1-P00.md`, and permitted placeholder `.gitkeep` or `README.md` files.
+Commit only policy files, campaign files, docs, the commit-eligible handoff `handoffs/ALPHA_SYSTEM_V1/ASV1-P00.md`, and permitted placeholder `.gitkeep` or `README.md` files.
 
 Never commit:
 
@@ -516,7 +516,7 @@ Stage explicit files only. Never use `git add .`, never use `git add -A`, and ne
 Create the commit-eligible handoff:
 
 ```text
-handoffs/ASV1-P00.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P00.md
 ```
 
 The run-local handoff `runs/<run_id>/phases/ASV1-P00/handoff.md` may be written for local audit, but it is local-only and must never be staged or committed.
@@ -731,7 +731,7 @@ Stage explicit files only.
 Create:
 
 ```text
-handoffs/ASV1-P01.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P01.md
 runs/<run_id>/phases/ASV1-P01/handoff.md
 ```
 
@@ -936,7 +936,7 @@ Stage explicit files only.
 Create:
 
 ```text
-handoffs/ASV1-P02.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P02.md
 runs/<run_id>/phases/ASV1-P02/handoff.md
 ```
 
@@ -1147,7 +1147,7 @@ Stage explicit files only.
 Create:
 
 ```text
-handoffs/ASV1-P03.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P03.md
 runs/<run_id>/phases/ASV1-P03/handoff.md
 ```
 
@@ -1560,7 +1560,7 @@ Stage explicit files only.
 Create:
 
 ```text
-handoffs/ASV1-P04.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P04.md
 runs/<run_id>/phases/ASV1-P04/handoff.md
 ```
 
@@ -1870,7 +1870,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P05.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P05.md
 runs/<run_id>/phases/ASV1-P05/handoff.md
 ```
 
@@ -2147,7 +2147,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P06.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P06.md
 runs/<run_id>/phases/ASV1-P06/handoff.md
 ```
 
@@ -2390,7 +2390,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P07.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P07.md
 runs/<run_id>/phases/ASV1-P07/handoff.md
 ```
 
@@ -2686,7 +2686,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P08.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P08.md
 runs/<run_id>/phases/ASV1-P08/handoff.md
 ```
 
@@ -2983,7 +2983,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P09.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P09.md
 runs/<run_id>/phases/ASV1-P09/handoff.md
 ```
 
@@ -3255,7 +3255,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P10.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P10.md
 runs/<run_id>/phases/ASV1-P10/handoff.md
 ```
 
@@ -3596,7 +3596,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P11.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P11.md
 runs/<run_id>/phases/ASV1-P11/handoff.md
 ```
 
@@ -3987,7 +3987,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P12.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P12.md
 runs/<run_id>/phases/ASV1-P12/handoff.md
 ```
 
@@ -4258,7 +4258,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P13.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P13.md
 runs/<run_id>/phases/ASV1-P13/handoff.md
 ```
 
@@ -4540,7 +4540,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P14.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P14.md
 runs/<run_id>/phases/ASV1-P14/handoff.md
 ```
 
@@ -4851,7 +4851,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P15.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P15.md
 runs/<run_id>/phases/ASV1-P15/handoff.md
 ```
 
@@ -5125,7 +5125,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P16.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P16.md
 runs/<run_id>/phases/ASV1-P16/handoff.md
 ```
 
@@ -5458,7 +5458,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P17.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P17.md
 runs/<run_id>/phases/ASV1-P17/handoff.md
 ```
 
@@ -5728,7 +5728,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P18.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P18.md
 runs/<run_id>/phases/ASV1-P18/handoff.md
 ```
 
@@ -5993,7 +5993,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P19.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P19.md
 runs/<run_id>/phases/ASV1-P19/handoff.md
 ```
 
@@ -6323,7 +6323,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P20.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P20.md
 runs/<run_id>/phases/ASV1-P20/handoff.md
 ```
 
@@ -6620,7 +6620,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P21.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P21.md
 runs/<run_id>/phases/ASV1-P21/handoff.md
 ```
 
@@ -6928,7 +6928,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P22.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P22.md
 runs/<run_id>/phases/ASV1-P22/handoff.md
 ```
 
@@ -7270,7 +7270,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P23.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P23.md
 runs/<run_id>/phases/ASV1-P23/handoff.md
 ```
 
@@ -7553,7 +7553,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P24.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P24.md
 runs/<run_id>/phases/ASV1-P24/handoff.md
 ```
 
@@ -7833,7 +7833,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P25.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P25.md
 runs/<run_id>/phases/ASV1-P25/handoff.md
 ```
 
@@ -8091,7 +8091,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P26.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P26.md
 runs/<run_id>/phases/ASV1-P26/handoff.md
 ```
 
@@ -8420,7 +8420,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P27.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P27.md
 runs/<run_id>/phases/ASV1-P27/handoff.md
 ```
 
@@ -8674,7 +8674,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P28.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P28.md
 runs/<run_id>/phases/ASV1-P28/handoff.md
 ```
 
@@ -9040,7 +9040,7 @@ Stage explicit files only. Never use `git add .` or `git add -A`.
 Create:
 
 ```text
-handoffs/ASV1-P29.md
+handoffs/ALPHA_SYSTEM_V1/ASV1-P29.md
 runs/<run_id>/phases/ASV1-P29/handoff.md
 ```
 

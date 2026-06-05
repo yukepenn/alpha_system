@@ -16,7 +16,7 @@ provider files. Resolve them through the registry:
   (`version_registry.py:153`) returns a `DatasetVersion` from the local registry
   (`$ALPHA_DATA_ROOT/registry/datasets.sqlite`, local-only, uncommitted).
 
-Available corpora (see `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`
+Available corpora (see `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`
 and `handoffs/...IBKR...`):
 
 - **Databento (primary deep-history):** 27 DatasetVersions = 9 years (2018–2026) ×
