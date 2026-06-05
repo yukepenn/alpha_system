@@ -7,12 +7,12 @@ The repository-level campaign pointer targets
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`.
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. The foundation wave
-is underway: `FLF-P00` (bootstrap), `FLF-P01` (Entry Contract and
-DatasetVersion Consumption), and `FLF-P02` (Feature/Label Package Skeleton and
-Naming) are merged, and `FLF-P03` (Canonical Input Views for OHLCV and BBO) is
-complete after this phase merge. The next phase is `FLF-P04` - Dense Grid /
-No-Trade / BBO Missingness Semantics.
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
+merge, the foundation wave is complete through `FLF-P04` of 32 and the
+`canonical_inputs` gate has advanced through dense-grid / no-trade / BBO
+missingness semantics. Active phase snapshot: `FLF-P04` - Dense Grid /
+No-Trade / BBO Missingness Semantics. The next phase is `FLF-P05` -
+FeatureRequest Gate and Duplicate Exposure Guard.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -35,11 +35,18 @@ subpackage, feature/label config roots, import-smoke test roots, and:
 
 - `docs/feature_label_foundation/INPUT_VIEWS.md`
 
+`FLF-P04` adds the dense-grid / no-trade / BBO missingness semantics module
+`alpha_system.features.semantics`, scoped synthetic-fixture tests, and:
+
+- `docs/feature_label_foundation/DENSE_GRID_AND_BBO_SEMANTICS.md`
+
+No new command surface is added by FLF-P04.
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
-only; no raw provider access; no external provider calls; feature and label
-values remain local-only; governance is consumed, not duplicated; no broker,
-live, paper, order, or account scope; and no alpha, tradability, or
-profitability claims.
+only; no raw provider access; no external provider calls; no silent BBO
+forward-fill or interpolation; feature and label values remain local-only;
+governance is consumed, not duplicated; no broker, live, paper, order, or
+account scope; and no alpha, tradability, or profitability claims.
 
 Post-closeout, the data foundation was exercised with real local-only data from
 two providers with distinct roles. **Databento** is the primary deep-history
@@ -59,10 +66,12 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress includes `FLF-P00`,
-`FLF-P01`, and `FLF-P02` merged and `FLF-P03` complete after this phase merge;
-the next phase is `FLF-P04`. The completed data-foundation baseline
-remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is complete. Within the
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
+`FLF-P04` of 32 after this phase merge; the active phase snapshot is `FLF-P04`,
+the `canonical_inputs` gate has advanced, and the next phase is `FLF-P05` -
+FeatureRequest Gate and Duplicate Exposure Guard. The completed
+data-foundation baseline remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is
+complete. Within the
 `campaign_bootstrap` gate,
 `DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
 validated `DataSourceProfile` and `LocalDataRootPolicy` records; and the
