@@ -17,6 +17,8 @@ import contextlib
 import json
 import os
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -88,6 +90,8 @@ from tools.frontier.resume import (
 )
 from tools.frontier.verdict import ReviewVerdict, parse_done_check_text, parse_review_text
 from tools.frontier.worktree_manager import WorktreeManager, phase_branch_name, worktree_mode_enabled
+from tools.frontier import dag_scheduler
+from tools.frontier.merge_queue import MERGE_READY, serial_merge_order
 
 TOY_CAMPAIGN_ID = "G005_WORKFLOW2_TOY"
 LEDGER_ONLY_DRIVER = "ralph_frontier_strict_ledger_only_v1"
@@ -119,9 +123,10 @@ GATE_BLOCKED_STATUSES = {
     MERGE_GATE_BLOCKED,
     MERGE_EXECUTION_BLOCKED,
 }
-MERGE_PENDING_STATUSES = {AUTO_MERGE_ARMED, MERGE_PENDING}
+MERGE_PENDING_STATUSES = {AUTO_MERGE_ARMED, MERGE_PENDING, MERGE_READY}
 PROVIDER_WAITING_STATUSES = {WAITING_PROVIDER_LIMIT, WAITING_CLAUDE_LIMIT, WAITING_CODEX_LIMIT}
 ACTIVE_CAMPAIGN_FILE = "ACTIVE_CAMPAIGN.md"
+SCHEDULER_MODES = {"sequential", "dag_wave"}
 PROVIDER_RESUME_STATUS_BY_STAGE = {
     "spec": "PENDING",
     "execute": "SPEC_READY",
@@ -132,6 +137,19 @@ PROVIDER_RESUME_STATUS_BY_STAGE = {
 }
 FORBIDDEN_GIT_ADD_DOT = "git add" + " ."
 FORBIDDEN_GIT_ADD_ALL = "git add" + " -A"
+
+# Serializes run-level file writes (state.json, events.jsonl, costs.jsonl,
+# RUN_SUMMARY.md, progress/heartbeat) so concurrent phase builds in a parallel
+# wave never interleave a half-written JSON document or drop an event id. The
+# lock is reentrant: a thread holding it may call nested guarded writers. In
+# sequential runs it is always uncontended, so behaviour is unchanged.
+_RUN_WRITE_LOCK = threading.RLock()
+
+# Set True only while the parallel wave coordinator is driving a wave. When set,
+# a single phase block records the phase outcome but does NOT stop the whole run
+# or write the run STOP file; the coordinator collects per-phase outcomes and
+# decides run-level status after the wave joins.
+_PARALLEL_MODE_ACTIVE = False
 
 
 @dataclass(frozen=True)
@@ -147,6 +165,15 @@ class LedgerPhase:
     name: str | None
     lane: str | None
     dependencies: tuple[str, ...]
+    # Optional DAG-wave scheduler metadata. All default to the conservative
+    # (sequential, run-alone) choice so campaigns that omit them are unchanged.
+    parallel_safe: bool = False
+    allowed_paths: tuple[str, ...] = ()
+    forbidden_paths: tuple[str, ...] = ()
+    conflicts_with: tuple[str, ...] = ()
+    resource_class: tuple[str, ...] = ()
+    must_run_alone: bool = False
+    merge_group: str | None = None
 
 
 @dataclass(frozen=True)
@@ -299,6 +326,120 @@ def resolve_max_phases(
     return campaign_phase_limit(campaign), "campaign"
 
 
+@dataclass(frozen=True)
+class SchedulerSettings:
+    """Resolved Workflow 2 scheduling policy for one run.
+
+    ``sequential`` (default) preserves the historical list-order, one-phase loop.
+    ``dag_wave`` selects phases by dependency-satisfied ready-set and, when
+    parallel execution is armed, runs a conflict-free wave concurrently in
+    isolated worktrees while merging serially.
+    """
+
+    mode: str = "sequential"
+    max_parallel_phases: int = 1
+    merge_queue: str = "serial"
+    update_active_campaign: str = "phase_commit"
+    parallel_execution: bool = False
+    red_authorized: bool = False
+
+    @property
+    def is_dag_wave(self) -> bool:
+        return self.mode == "dag_wave"
+
+    @property
+    def runs_parallel(self) -> bool:
+        return self.is_dag_wave and self.parallel_execution and self.max_parallel_phases > 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "max_parallel_phases": self.max_parallel_phases,
+            "merge_queue": self.merge_queue,
+            "update_active_campaign": self.update_active_campaign,
+            "parallel_execution": self.parallel_execution,
+            "red_authorized": self.red_authorized,
+        }
+
+
+def resolve_scheduler_config(
+    campaign_yaml: dict[str, Any] | None,
+    *,
+    env: dict[str, str] | None = None,
+) -> SchedulerSettings:
+    """Resolve scheduler policy: frontier.yaml < campaign.yaml < environment.
+
+    The block lives under ``workflow2.scheduler`` in both frontier.yaml and the
+    campaign.yaml. Environment overrides (set by the ``--parallel`` CLI flag and
+    friends) win last so a run can opt into parallelism without editing files.
+    """
+
+    env = env if env is not None else dict(os.environ)
+    merged: dict[str, Any] = {}
+
+    raw = runtime_config().raw
+    wf2 = raw.get("workflow2") if isinstance(raw.get("workflow2"), dict) else {}
+    if isinstance(wf2.get("scheduler"), dict):
+        merged.update(wf2["scheduler"])
+    if isinstance(campaign_yaml, dict):
+        cwf2 = campaign_yaml.get("workflow2") if isinstance(campaign_yaml.get("workflow2"), dict) else {}
+        if isinstance(cwf2.get("scheduler"), dict):
+            merged.update(cwf2["scheduler"])
+
+    mode = str(env.get("FRONTIER_SCHEDULER_MODE") or merged.get("mode") or "sequential").strip().lower()
+    if mode not in SCHEDULER_MODES:
+        mode = "sequential"
+
+    raw_parallel = env.get("FRONTIER_MAX_PARALLEL_PHASES") or merged.get("max_parallel_phases") or 1
+    try:
+        max_parallel = max(1, int(raw_parallel))
+    except (TypeError, ValueError):
+        max_parallel = 1
+
+    merge_queue = str(merged.get("merge_queue") or "serial").strip().lower() or "serial"
+    parallel_exec = parse_phase_bool(merged.get("parallel_execution"))
+    if env.get("FRONTIER_PARALLEL_EXECUTION") is not None and env.get("FRONTIER_PARALLEL_EXECUTION") != "":
+        parallel_exec = parse_phase_bool(env.get("FRONTIER_PARALLEL_EXECUTION"))
+
+    # The --parallel CLI flag arms dag_wave + concurrent execution in one switch.
+    if parse_phase_bool(env.get("FRONTIER_PARALLEL")):
+        mode = "dag_wave"
+        parallel_exec = True
+        if max_parallel < 2:
+            max_parallel = max(2, int(merged.get("max_parallel_phases") or 0) or 3)
+
+    red_authorized = parse_phase_bool(env.get("FRONTIER_RED_AUTHORIZED"))
+
+    update_active = str(merged.get("update_active_campaign") or "").strip().lower()
+    if update_active not in {"phase_commit", "coordinator_only"}:
+        runs_parallel = mode == "dag_wave" and parallel_exec and max_parallel > 1
+        update_active = "coordinator_only" if runs_parallel else "phase_commit"
+
+    return SchedulerSettings(
+        mode=mode,
+        max_parallel_phases=max_parallel,
+        merge_queue=merge_queue,
+        update_active_campaign=update_active,
+        parallel_execution=parallel_exec,
+        red_authorized=red_authorized,
+    )
+
+
+def scheduler_settings_for_state(state: dict[str, Any]) -> SchedulerSettings:
+    """Resolve scheduler settings for an in-flight run (campaign + env)."""
+
+    campaign_id = state.get("campaign_id")
+    campaign_yaml: dict[str, Any] = {}
+    if campaign_id:
+        try:
+            campaign_yaml = load_ledger_campaign(str(campaign_id)).campaign_yaml
+        except (ValueError, RuntimeError, OSError):
+            campaign_yaml = {}
+    settings = resolve_scheduler_config(campaign_yaml)
+    state["scheduler"] = settings.to_dict()
+    return settings
+
+
 def run_local_command(command: list[str], *, root: Path = ROOT) -> CommandResult:
     result = CommandRunner(root).run(command)
     return CommandResult(tuple(result.command), result.return_code, result.stdout, result.stderr)
@@ -321,16 +462,17 @@ def command_block(result: CommandResult) -> str:
 
 
 def append_event(run_dir: Path, state: dict[str, Any], event: str, **details: Any) -> None:
-    event_id = int(state.get("last_event_id", 0)) + 1
-    state["last_event_id"] = event_id
-    record = {
-        "event_id": event_id,
-        "timestamp": utc_now(),
-        "event": event,
-        **details,
-    }
-    with (run_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    with _RUN_WRITE_LOCK:
+        event_id = int(state.get("last_event_id", 0)) + 1
+        state["last_event_id"] = event_id
+        record = {
+            "event_id": event_id,
+            "timestamp": utc_now(),
+            "event": event,
+            **details,
+        }
+        with (run_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def unique_executor_notes_path(phase_dir: Path, source: Path) -> Path:
@@ -367,26 +509,29 @@ def quarantine_executor_review_artifacts(
 
 
 def write_state(run_dir: Path, state: dict[str, Any]) -> None:
-    state["updated_at"] = utc_now()
-    write_json(run_dir / "state.json", state)
-    write_heartbeat(run_dir, state)
+    with _RUN_WRITE_LOCK:
+        state["updated_at"] = utc_now()
+        write_json(run_dir / "state.json", state)
+        write_heartbeat(run_dir, state)
 
 
 def progress(run_dir: Path, message: str) -> None:
-    with (run_dir / "progress.txt").open("a", encoding="utf-8") as handle:
-        handle.write(f"{utc_now()} {message}\n")
+    with _RUN_WRITE_LOCK:
+        with (run_dir / "progress.txt").open("a", encoding="utf-8") as handle:
+            handle.write(f"{utc_now()} {message}\n")
 
 
 def write_heartbeat(run_dir: Path, state: dict[str, Any]) -> None:
-    heartbeat = {
-        "run_id": state.get("run_id"),
-        "campaign_id": state.get("campaign_id"),
-        "status": state.get("status"),
-        "current_phase_id": state.get("current_phase_id"),
-        "updated_at": utc_now(),
-        "pid": os.getpid(),
-    }
-    write_json(run_dir / "heartbeat.json", heartbeat)
+    with _RUN_WRITE_LOCK:
+        heartbeat = {
+            "run_id": state.get("run_id"),
+            "campaign_id": state.get("campaign_id"),
+            "status": state.get("status"),
+            "current_phase_id": state.get("current_phase_id"),
+            "updated_at": utc_now(),
+            "pid": os.getpid(),
+        }
+        write_json(run_dir / "heartbeat.json", heartbeat)
 
 
 @contextlib.contextmanager
@@ -544,6 +689,31 @@ def parse_phase_dependencies(raw: Any, *, campaign_id: str, phase_id: str) -> tu
     return tuple(dependencies)
 
 
+def parse_phase_str_list(raw: Any, *, campaign_id: str, phase_id: str, field: str) -> tuple[str, ...]:
+    """Parse an optional list-of-strings phase field (allowed_paths, etc.)."""
+    if raw is None:
+        return ()
+    if isinstance(raw, str):
+        cleaned = clean_text(raw)
+        return (cleaned,) if cleaned else ()
+    if not isinstance(raw, list):
+        raise ValueError(f"Campaign {campaign_id} {field} for {phase_id} must be a list.")
+    items: list[str] = []
+    for item in raw:
+        cleaned = clean_text(item)
+        if cleaned:
+            items.append(cleaned)
+    return tuple(items)
+
+
+def parse_phase_bool(raw: Any) -> bool:
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def parse_campaign_phases(campaign_yaml: dict[str, Any], campaign_id: str) -> tuple[LedgerPhase, ...]:
     raw_phases = campaign_yaml.get("phases")
     if not isinstance(raw_phases, list):
@@ -573,6 +743,33 @@ def parse_campaign_phases(campaign_yaml: dict[str, Any], campaign_id: str) -> tu
                 name=clean_text(raw_phase.get("name") or raw_phase.get("title")),
                 lane=clean_text(raw_phase.get("lane")) or default_lane,
                 dependencies=dependencies,
+                parallel_safe=parse_phase_bool(raw_phase.get("parallel_safe")),
+                allowed_paths=parse_phase_str_list(
+                    raw_phase.get("allowed_paths"),
+                    campaign_id=campaign_id,
+                    phase_id=phase_id,
+                    field="allowed_paths",
+                ),
+                forbidden_paths=parse_phase_str_list(
+                    raw_phase.get("forbidden_paths"),
+                    campaign_id=campaign_id,
+                    phase_id=phase_id,
+                    field="forbidden_paths",
+                ),
+                conflicts_with=parse_phase_str_list(
+                    raw_phase.get("conflicts_with"),
+                    campaign_id=campaign_id,
+                    phase_id=phase_id,
+                    field="conflicts_with",
+                ),
+                resource_class=parse_phase_str_list(
+                    raw_phase.get("resource_class"),
+                    campaign_id=campaign_id,
+                    phase_id=phase_id,
+                    field="resource_class",
+                ),
+                must_run_alone=parse_phase_bool(raw_phase.get("must_run_alone")),
+                merge_group=clean_text(raw_phase.get("merge_group")),
             )
         )
 
@@ -586,6 +783,14 @@ def parse_campaign_phases(campaign_yaml: dict[str, Any], campaign_id: str) -> tu
             )
         if phase.phase_id in phase.dependencies:
             raise ValueError(f"Campaign {campaign_id} phase {phase.phase_id} depends on itself.")
+        unknown_conflicts = [c for c in phase.conflicts_with if c not in phase_ids]
+        if unknown_conflicts:
+            raise ValueError(
+                f"Campaign {campaign_id} phase {phase.phase_id} declares unknown conflicts_with: "
+                f"{', '.join(unknown_conflicts)}."
+            )
+        if phase.phase_id in phase.conflicts_with:
+            raise ValueError(f"Campaign {campaign_id} phase {phase.phase_id} conflicts with itself.")
     return tuple(phases)
 
 
@@ -613,6 +818,19 @@ def phase_state(phase: ToyPhase) -> dict[str, Any]:
     }
 
 
+def scheduler_phase_fields(phase: LedgerPhase) -> dict[str, Any]:
+    """Scheduler metadata persisted into per-phase run state (backward compatible)."""
+    return {
+        "parallel_safe": bool(getattr(phase, "parallel_safe", False)),
+        "allowed_paths": list(getattr(phase, "allowed_paths", ()) or ()),
+        "forbidden_paths": list(getattr(phase, "forbidden_paths", ()) or ()),
+        "conflicts_with": list(getattr(phase, "conflicts_with", ()) or ()),
+        "resource_class": list(getattr(phase, "resource_class", ()) or ()),
+        "must_run_alone": bool(getattr(phase, "must_run_alone", False)),
+        "merge_group": getattr(phase, "merge_group", None),
+    }
+
+
 def ledger_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
     phase_artifact_root = f"runs/{run_id}/phases/{phase.phase_id}"
     return {
@@ -620,6 +838,7 @@ def ledger_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
         "name": phase.name,
         "lane": phase.lane,
         "dependencies": list(phase.dependencies),
+        **scheduler_phase_fields(phase),
         "status": "PENDING",
         "execution_mode": "ledger_only",
         "artifact_paths": {
@@ -638,6 +857,7 @@ def provider_phase_state(phase: LedgerPhase, run_id: str) -> dict[str, Any]:
         "name": phase.name,
         "lane": phase.lane,
         "dependencies": list(phase.dependencies),
+        **scheduler_phase_fields(phase),
         "status": "PENDING",
         "execution_mode": "provider_wired",
         "artifact_paths": {
@@ -788,7 +1008,8 @@ def write_ledger_summary(run_dir: Path, state: dict[str, Any], note: str | None 
     )
     if note:
         lines.extend(["", "## Note", "", note])
-    run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with _RUN_WRITE_LOCK:
+        run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def initialize_ledger_only_run(campaign_id: str) -> Path:
@@ -862,21 +1083,22 @@ def append_cost_record(
     phase_id: str | None,
     note: str,
 ) -> None:
-    state["estimated_cost_usd"] = float(state.get("estimated_cost_usd", 0.0))
-    record = {
-        "timestamp": utc_now(),
-        "run_id": state["run_id"],
-        "campaign_id": state["campaign_id"],
-        "phase_id": phase_id,
-        "driver": PROVIDER_WIRED_DRIVER,
-        "provider": provider,
-        "model": model,
-        "cost_usd": 0.0,
-        "estimated_usd": 0.0,
-        "note": note,
-    }
-    with (run_dir / "costs.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    with _RUN_WRITE_LOCK:
+        state["estimated_cost_usd"] = float(state.get("estimated_cost_usd", 0.0))
+        record = {
+            "timestamp": utc_now(),
+            "run_id": state["run_id"],
+            "campaign_id": state["campaign_id"],
+            "phase_id": phase_id,
+            "driver": PROVIDER_WIRED_DRIVER,
+            "provider": provider,
+            "model": model,
+            "cost_usd": 0.0,
+            "estimated_usd": 0.0,
+            "note": note,
+        }
+        with (run_dir / "costs.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def initialize_provider_wired_run(
@@ -1009,13 +1231,17 @@ def record_stage_checkpoint(
     )
 
 
-def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
-    resumable = (
+def _resumable_statuses() -> set[str]:
+    return (
         {"SPEC_READY", "EXECUTED", "VALIDATED", "REVIEWED", "REWORK", "REPAIRED", GIT_PHASE_BLOCKED}
         | GATE_BLOCKED_STATUSES
         | MERGE_PENDING_STATUSES
         | PROVIDER_WAITING_STATUSES
     )
+
+
+def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
+    resumable = _resumable_statuses()
     current = state.get("current_phase_id")
     if current:
         for phase in state["phases"]:
@@ -1027,6 +1253,67 @@ def next_pending_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
         if phase["status"] == "PENDING":
             return phase
     return None
+
+
+def next_scheduled_provider_phase(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Dependency-aware single-phase selector for ``dag_wave`` mode.
+
+    Resumable in-flight phases are continued first (identical to the sequential
+    selector); a fresh phase is only chosen when its dependencies have all
+    passed, in declaration order. Returns None when nothing is ready (the caller
+    distinguishes "campaign complete" from "dependency deadlock").
+    """
+
+    resumable = _resumable_statuses()
+    current = state.get("current_phase_id")
+    if current:
+        for phase in state["phases"]:
+            if phase["phase_id"] == current and phase.get("status") in resumable:
+                return phase
+    for phase in state["phases"]:
+        if phase["status"] in resumable:
+            return phase
+    ready = dag_scheduler.next_ready_phase(state["phases"])
+    if ready is None:
+        return None
+    for phase in state["phases"]:
+        if phase["phase_id"] == ready.phase_id:
+            return phase
+    return None
+
+
+def select_next_phase(
+    state: dict[str, Any], scheduler: SchedulerSettings
+) -> dict[str, Any] | None:
+    if scheduler.is_dag_wave:
+        return next_scheduled_provider_phase(state)
+    return next_pending_provider_phase(state)
+
+
+def pending_phase_ids(state: dict[str, Any]) -> list[str]:
+    return [p["phase_id"] for p in state.get("phases", []) if p.get("status") == "PENDING"]
+
+
+def ready_wave_phases(
+    state: dict[str, Any], scheduler: SchedulerSettings
+) -> list[dict[str, Any]]:
+    """Pick the next conflict-free, parallel-safe wave of PENDING phases.
+
+    Returns the run-state phase dicts (preserving identity) for the first wave of
+    a freshly-computed plan over the current state. Empty when no PENDING phase
+    is dependency-ready.
+    """
+
+    plan = dag_scheduler.compute_waves(
+        state.get("phases", []),
+        max_parallel=scheduler.max_parallel_phases,
+        red_authorized=scheduler.red_authorized,
+    )
+    if not plan.waves:
+        return []
+    wave_ids = list(plan.waves[0].phase_ids)
+    by_id = {p["phase_id"]: p for p in state.get("phases", [])}
+    return [by_id[pid] for pid in wave_ids if pid in by_id]
 
 
 def active_campaign_phase_label(phase: dict[str, Any] | None) -> str:
@@ -1114,6 +1401,27 @@ def render_active_campaign_pointer(
     return "\n".join(lines) + "\n"
 
 
+def resolve_active_campaign_id() -> str | None:
+    """Read the active campaign id from the tracked ACTIVE_CAMPAIGN.md pointer.
+
+    Powers ``frontier-resume`` / ``frontier-run`` with no campaign id so the
+    operator can resume "the campaign I was working on" without retyping ids.
+    """
+
+    path = ROOT / ACTIVE_CAMPAIGN_FILE
+    if not path.exists():
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("campaign:"):
+            value = stripped.split(":", 1)[1].strip().strip("`").strip()
+            if value.startswith("campaigns/"):
+                value = value[len("campaigns/"):]
+            value = value.strip("/").strip()
+            return value or None
+    return None
+
+
 def active_campaign_allowed_by_policy(config: dict[str, Any]) -> bool:
     artifacts = config.get("artifacts") if isinstance(config.get("artifacts"), dict) else {}
     allow_patterns = list(artifacts.get("allow_commit", [])) if isinstance(artifacts, dict) else []
@@ -1164,6 +1472,10 @@ def write_active_campaign_for_phase_commit(
     execution_root: Path,
 ) -> None:
     if verdict not in PASSING_VERDICTS:
+        return
+    # Coordinator-only mode: in a parallel wave the scheduler (not the phase
+    # branch) owns ACTIVE_CAMPAIGN.md so concurrent branches never race on it.
+    if phase.get("suppress_active_pointer"):
         return
     if not active_campaign_allowed_by_policy(config):
         return
@@ -1260,7 +1572,8 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
     )
     if note:
         lines.extend(["", "## Note", "", note])
-    run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with _RUN_WRITE_LOCK:
+        run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_provider_stop(run_dir: Path, state: dict[str, Any], reason: str) -> None:
@@ -1335,6 +1648,10 @@ def block_provider_run(
     reason: str,
 ) -> None:
     finish_provider_phase(run_dir, state, phase, status, event="PHASE_STOPPED", reason=reason)
+    if _PARALLEL_MODE_ACTIVE:
+        # A single phase block must not stop the whole parallel run; the
+        # coordinator inspects per-phase status after the wave joins.
+        return
     state["status"] = "STOPPED"
     state["stop_requested"] = True
     write_provider_stop(run_dir, state, reason)
@@ -1566,16 +1883,29 @@ def mark_auto_merge_pending(
 ) -> None:
     set_provider_phase_status(phase, AUTO_MERGE_ARMED)
     phase["status_reason"] = reason
-    state["status"] = AUTO_MERGE_ARMED
-    state["stop_requested"] = True
-    state["current_phase_id"] = phase["phase_id"]
-    state["current_stage"] = "merge"
     resume_command = (
         "python tools/frontier/ralph_driver.py resume "
         f"--run-dir {run_dir} --phase-id {phase['phase_id']} --from-stage merge "
         "--provider-wired --no-provider-replay"
     )
     phase["resume_command"] = resume_command
+    if _PARALLEL_MODE_ACTIVE:
+        append_event(
+            run_dir,
+            state,
+            event,
+            phase_id=phase["phase_id"],
+            status=AUTO_MERGE_ARMED,
+            pr_number=pr_number,
+            reason=reason,
+            resume_command=resume_command,
+        )
+        write_state(run_dir, state)
+        return
+    state["status"] = AUTO_MERGE_ARMED
+    state["stop_requested"] = True
+    state["current_phase_id"] = phase["phase_id"]
+    state["current_stage"] = "merge"
     append_event(
         run_dir,
         state,
@@ -1604,6 +1934,14 @@ def block_provider_gate(
 ) -> None:
     set_provider_phase_status(phase, status)
     phase["status_reason"] = reason
+    if _PARALLEL_MODE_ACTIVE:
+        append_event(
+            run_dir, state, event, phase_id=phase["phase_id"], status=status, source=source, reason=reason
+        )
+        write_state(run_dir, state)
+        write_provider_summary(run_dir, state, reason)
+        progress(run_dir, f"{phase['phase_id']} stopped at {status}: {reason}")
+        return
     state["status"] = status
     state["stop_requested"] = True
     state["current_phase_id"] = phase["phase_id"]
@@ -2484,6 +2822,7 @@ def post_phase_git_github(
     verdict: str,
     *,
     execution_root: Path = ROOT,
+    defer_merge: bool = False,
 ) -> bool:
     phase_dir = provider_phase_dir(run_dir, phase)
     config = load_config(ROOT / "frontier.yaml")
@@ -2823,6 +3162,78 @@ def post_phase_git_github(
             source="ci_blocked",
         )
         return False
+
+    if defer_merge:
+        # Parallel build pass: stop after CI; the serial merge queue (coordinator)
+        # re-evaluates branch protection + merge gate against current main and
+        # performs the merge one phase at a time.
+        set_provider_phase_status(phase, MERGE_READY)
+        phase["merge_ready"] = True
+        write_json(
+            phase_dir / "merge_ready.json",
+            {
+                "phase_id": phase["phase_id"],
+                "verdict": verdict,
+                "pr_number": pr_number,
+                "ci_status": ci_status,
+                "branch": branch,
+                "changed_files": list(changed),
+                "blocked_files": list(blocked),
+                "dry_git": dry_git,
+                "recorded_at": utc_now(),
+            },
+        )
+        append_event(run_dir, state, "MERGE_DEFERRED", phase_id=phase["phase_id"], pr_number=pr_number)
+        write_state(run_dir, state)
+        return True
+
+    return finalize_phase_merge(
+        run_dir,
+        state,
+        phase,
+        verdict,
+        phase_dir=phase_dir,
+        config=config,
+        lane=lane,
+        mock_enabled=mock_enabled,
+        dry_git=dry_git,
+        pr_number=pr_number,
+        ci_status=ci_status,
+        changed=changed,
+        blocked=blocked,
+        required_checks=required_checks,
+        github_config=github_config,
+        project_config=project_config,
+        execution_root=execution_root,
+    )
+
+
+def finalize_phase_merge(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    verdict: str,
+    *,
+    phase_dir: Path,
+    config: dict[str, Any],
+    lane: str,
+    mock_enabled: bool,
+    dry_git: bool,
+    pr_number: str | int | None,
+    ci_status: str,
+    changed: list[str],
+    blocked: list[str],
+    required_checks: list[str],
+    github_config: dict[str, Any],
+    project_config: dict[str, Any],
+    execution_root: Path,
+) -> bool:
+    """Branch-protection -> merge gate -> merge -> cleanup for one phase.
+
+    Shared by the inline sequential path (``post_phase_git_github``) and the
+    serial merge queue in the parallel wave coordinator. The merge is the one
+    serialization point; everything before it can run per-worktree in parallel.
+    """
 
     base_branch = str(project_config.get("default_branch") or "main") if mock_enabled else detect_default_branch(root=execution_root)
     merge_dry_run = mock_enabled or os.environ.get("FRONTIER_MERGE_DRY_RUN") == "1"
@@ -3460,7 +3871,13 @@ def _read_phase_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
-def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str, Any]) -> bool:
+def execute_provider_phase(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    defer_merge: bool = False,
+) -> bool:
     mock_enabled = bool(state.get("mock_providers"))
     phase_id = phase["phase_id"]
     phase_dir = provider_phase_dir(run_dir, phase)
@@ -3790,8 +4207,14 @@ def execute_provider_phase(run_dir: Path, state: dict[str, Any], phase: dict[str
             verdict = "PASS_WITH_WARNINGS"
             write_provider_verdict(phase_dir, state, phase, verdict, source="done_check_warning")
 
-    if not post_phase_git_github(run_dir, state, phase, verdict, execution_root=execution_root):
+    if not post_phase_git_github(
+        run_dir, state, phase, verdict, execution_root=execution_root, defer_merge=defer_merge
+    ):
         return False
+    if defer_merge:
+        # Build + PR + CI complete; phase is MERGE_READY. The serial merge queue
+        # in the wave coordinator finalizes the merge and marks the phase PASS.
+        return True
     finish_provider_phase(run_dir, state, phase, verdict, event="PHASE_PASS")
     return True
 
@@ -3979,6 +4402,377 @@ def run_campaign_done_check(run_dir: Path, state: dict[str, Any]) -> str:
     return parsed.verdict
 
 
+@contextlib.contextmanager
+def _parallel_mode():
+    """Make per-phase block helpers local for the duration of a wave coordinator."""
+    global _PARALLEL_MODE_ACTIVE
+    previous = _PARALLEL_MODE_ACTIVE
+    _PARALLEL_MODE_ACTIVE = True
+    try:
+        yield
+    finally:
+        _PARALLEL_MODE_ACTIVE = previous
+
+
+def prepare_wave_worktrees(run_dir: Path, state: dict[str, Any], wave: list[dict[str, Any]]) -> None:
+    """Serially create one Frontier worktree per wave phase before parallel build.
+
+    Worktree creation mutates the shared main-repo worktree registry, so it is
+    done here (serially) rather than racing inside concurrent build threads. The
+    build path then re-binds the pre-created worktree instead of creating one.
+    """
+
+    if not state.get("worktree_mode") or bool(state.get("mock_providers")):
+        return
+    manager = WorktreeManager(ROOT, runtime_config().worktree_root)
+    for phase in wave:
+        if phase.get("branch") and phase.get("worktree_path"):
+            continue
+        try:
+            plan = manager.create(state["campaign_id"], phase["phase_id"], phase.get("name"), dry_run=False)
+        except FileExistsError:
+            plan = manager.plan(state["campaign_id"], phase["phase_id"], phase.get("name"))
+        phase["branch"] = plan.branch
+        phase["worktree_path"] = plan.path
+        phase_dir = provider_phase_dir(run_dir, phase)
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        (phase_dir / "worktree_plan.json").write_text(
+            json.dumps(plan.__dict__, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        append_event(run_dir, state, "WORKTREE_PLAN", phase_id=phase["phase_id"], branch=plan.branch, path=plan.path)
+    write_state(run_dir, state)
+
+
+def _build_wave_phase(run_dir: Path, state: dict[str, Any], phase: dict[str, Any]) -> bool:
+    try:
+        return execute_provider_phase(run_dir, state, phase, defer_merge=True)
+    except Exception as error:  # defensive: keep one phase's crash from killing the wave
+        finish_provider_phase(
+            run_dir,
+            state,
+            phase,
+            "BLOCKED",
+            event="PHASE_STOPPED",
+            reason=f"unexpected error during parallel build: {error}",
+        )
+        return False
+
+
+def run_wave_build(
+    run_dir: Path,
+    state: dict[str, Any],
+    wave: list[dict[str, Any]],
+    scheduler: SchedulerSettings,
+) -> None:
+    """Build every phase in the wave concurrently (merge deferred)."""
+
+    for phase in wave:
+        # Coordinator-only means phase branches NEVER write ACTIVE_CAMPAIGN.md,
+        # regardless of wave width (a width-1 bootstrap wave in a parallel run is
+        # still coordinator-owned). Gate on policy, not width.
+        if scheduler.update_active_campaign == "coordinator_only":
+            phase["suppress_active_pointer"] = True
+        phase["wave_id"] = state.get("wave_counter", 0)
+    workers = max(1, min(scheduler.max_parallel_phases, len(wave)))
+    if workers == 1 or len(wave) == 1:
+        for phase in wave:
+            _build_wave_phase(run_dir, state, phase)
+        return
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="wave") as pool:
+        futures = {pool.submit(_build_wave_phase, run_dir, state, phase): phase for phase in wave}
+        for future in futures:
+            future.result()
+
+
+def finalize_merge_for_phase(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+) -> bool:
+    """Serial merge of one MERGE_READY phase, reconstructing context from artifacts."""
+
+    phase_dir = provider_phase_dir(run_dir, phase)
+    config = load_config(ROOT / "frontier.yaml")
+    github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
+    project_config = config.get("project") if isinstance(config.get("project"), dict) else {}
+    lane = str(phase.get("lane") or "green").lower()
+    mock_enabled = bool(state.get("mock_providers"))
+    dry_git = mock_enabled and os.environ.get("FRONTIER_MOCK_COMMIT") != "1"
+    merge_ready = read_json_if_exists(phase_dir / "merge_ready.json")
+    verdict = str(
+        merge_ready.get("verdict")
+        or read_json_if_exists(phase_dir / "verdict.json").get("verdict")
+        or "PASS"
+    )
+    pr_number = merge_ready.get("pr_number") or recover_pr_number(phase_dir, phase, state)
+    ci_status = str(merge_ready.get("ci_status") or phase.get("ci_status") or (CI_SUCCESS if mock_enabled else "NOT_FOUND"))
+    changed = list(merge_ready.get("changed_files") or changed_files_from_artifacts(phase_dir))
+    blocked = list(merge_ready.get("blocked_files") or [])
+    required_checks = phase_required_checks(phase, config)
+    execution_root = ROOT
+    worktree_path = str(phase.get("worktree_path") or "").strip()
+    if state.get("worktree_mode") and not mock_enabled and worktree_path and Path(worktree_path).exists():
+        execution_root = Path(worktree_path)
+    ok = finalize_phase_merge(
+        run_dir,
+        state,
+        phase,
+        verdict,
+        phase_dir=phase_dir,
+        config=config,
+        lane=lane,
+        mock_enabled=mock_enabled,
+        dry_git=dry_git,
+        pr_number=pr_number,
+        ci_status=ci_status,
+        changed=changed,
+        blocked=blocked,
+        required_checks=required_checks,
+        github_config=github_config,
+        project_config=project_config,
+        execution_root=execution_root,
+    )
+    if not ok:
+        return False
+    finish_provider_phase(run_dir, state, phase, verdict, event="PHASE_PASS")
+    return True
+
+
+def run_wave_merge(
+    run_dir: Path,
+    state: dict[str, Any],
+    wave: list[dict[str, Any]],
+    scheduler: SchedulerSettings,
+) -> None:
+    """Merge build-complete (MERGE_READY) phases one at a time, in queue order."""
+
+    merge_ready = [p for p in wave if p.get("status") == MERGE_READY]
+    if not merge_ready:
+        return
+    order = serial_merge_order(merge_ready)
+    by_id = {p["phase_id"]: p for p in merge_ready}
+    append_event(run_dir, state, "MERGE_QUEUE_START", order=order)
+    for phase_id in order:
+        if (run_dir / "STOP").exists():
+            append_event(run_dir, state, "MERGE_QUEUE_STOP", reason="STOP file present", remaining=phase_id)
+            break
+        phase = by_id[phase_id]
+        merged_ok = finalize_merge_for_phase(run_dir, state, phase)
+        if merged_ok and scheduler.update_active_campaign == "coordinator_only":
+            coordinator_update_active_campaign(run_dir, state, completed_phase=phase)
+
+
+def coordinator_update_active_campaign(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    completed_phase: dict[str, Any] | None = None,
+) -> None:
+    """Coordinator-owned ACTIVE_CAMPAIGN pointer write (local-only, never racy).
+
+    In parallel waves the phase branches do not touch ACTIVE_CAMPAIGN.md (see
+    ``suppress_active_pointer``); the coordinator instead records the projected
+    pointer to a run-local artifact for visibility. The tracked ACTIVE_CAMPAIGN.md
+    is refreshed by the next sequential phase / closeout, exactly as the harness
+    already reconstructs the pointer from run state.
+    """
+
+    text = render_active_campaign_pointer(
+        state,
+        completed_phase_id=(completed_phase or {}).get("phase_id"),
+        completed_status=(completed_phase or {}).get("status"),
+        note="Projected by the parallel wave coordinator.",
+    )
+    (run_dir / "ACTIVE_CAMPAIGN.projected.md").write_text(text, encoding="utf-8")
+    append_event(
+        run_dir,
+        state,
+        "ACTIVE_CAMPAIGN_POINTER_COORDINATOR",
+        phase_id=(completed_phase or {}).get("phase_id"),
+    )
+
+
+def wave_integration_verify(run_dir: Path, state: dict[str, Any], wave_index: int) -> bool:
+    if bool(state.get("mock_providers")):
+        append_event(run_dir, state, "WAVE_INTEGRATION_VERIFY", wave=wave_index, mode="mock_skip", ok=True)
+        return True
+    ok, text = run_validation_commands(root=ROOT)
+    (run_dir / f"wave_{wave_index}_verify.md").write_text(text, encoding="utf-8")
+    append_event(run_dir, state, "WAVE_INTEGRATION_VERIFY", wave=wave_index, ok=ok)
+    return ok
+
+
+def finalize_completed_campaign(run_dir: Path, state: dict[str, Any]) -> int:
+    # Structural guard: never declare COMPLETE while any phase is built-but-unmerged
+    # (MERGE_READY) or otherwise not passing. run_campaign_done_check is an LLM/mock
+    # judge that does not structurally detect an unmerged built phase, so a silent
+    # incorrect completion would otherwise be possible after a mid-merge STOP/crash.
+    not_passing = [
+        p["phase_id"] for p in state.get("phases", []) if p.get("status") not in PASSING_VERDICTS
+    ]
+    if not_passing:
+        reason = (
+            "Cannot complete: phases are not passing (e.g. built-but-unmerged): "
+            f"{', '.join(not_passing)}. Resume to merge or resolve them."
+        )
+        state["status"] = "BLOCKED"
+        state["stop_requested"] = True
+        append_event(run_dir, state, "RUN_COMPLETE_BLOCKED", not_passing=not_passing)
+        write_provider_stop(run_dir, state, reason)
+        write_state(run_dir, state)
+        write_provider_summary(run_dir, state, reason)
+        print(f"Campaign completion blocked by non-passing phases at {run_dir.relative_to(ROOT)}")
+        return 0
+    done_verdict = run_campaign_done_check(run_dir, state)
+    if done_verdict in PROVIDER_WAITING_STATUSES:
+        print(f"Stopped provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
+        return 0
+    if done_verdict not in PASSING_VERDICTS:
+        state["status"] = "BLOCKED"
+        state["stop_requested"] = True
+        write_provider_stop(run_dir, state, f"Campaign done-check returned {done_verdict}.")
+        write_state(run_dir, state)
+        write_provider_summary(run_dir, state, f"Campaign done-check returned {done_verdict}.")
+        print(f"Campaign done-check blocked run at {run_dir.relative_to(ROOT)}")
+        return 0
+    state["status"] = "COMPLETED"
+    state["stop_requested"] = False
+    state["current_phase_id"] = None
+    state["current_micro_attempt"] = 0
+    state["completed_at"] = utc_now()
+    append_event(run_dir, state, "RUN_COMPLETE")
+    write_provider_stop(run_dir, state, "All parsed phases completed.")
+    coordinator_update_active_campaign(run_dir, state)
+    write_state(run_dir, state)
+    write_provider_summary(run_dir, state, "All parsed phases completed.")
+    progress(run_dir, "Run completed.")
+    print(f"Completed provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
+    return 0
+
+
+def run_dag_wave_parallel(
+    run_dir: Path,
+    state: dict[str, Any],
+    scheduler: SchedulerSettings,
+    max_phases: int,
+) -> int:
+    """Coordinator: build conflict-free waves concurrently, merge serially.
+
+    Per wave: pick the next dependency-satisfied, conflict-free, parallel-safe
+    set of PENDING phases; build them concurrently in isolated worktrees (merge
+    deferred); merge the build-complete phases one at a time through the serial
+    merge queue; run a wave integration verify; then recompute the next wave.
+    """
+
+    if not bool(state.get("mock_providers")) and not state.get("worktree_mode"):
+        state["worktree_mode"] = True
+        append_event(
+            run_dir, state, "WORKTREE_MODE_FORCED", reason="parallel execution requires per-phase worktrees"
+        )
+    state.setdefault("wave_counter", 0)
+    executed = 0
+    append_event(
+        run_dir,
+        state,
+        "DAG_WAVE_RUN_START",
+        max_parallel=scheduler.max_parallel_phases,
+        update_active_campaign=scheduler.update_active_campaign,
+    )
+
+    with _parallel_mode():
+        while True:
+            if (run_dir / "STOP").exists():
+                return provider_stop_without_execution(run_dir, state, "STOP file exists before next wave.")
+            budget_reason = check_run_budget(run_dir, state)
+            if budget_reason:
+                state["status"] = "STOPPED"
+                state["stop_requested"] = True
+                append_event(run_dir, state, "RUN_BUDGET_STOP", reason=budget_reason)
+                write_provider_stop(run_dir, state, budget_reason)
+                write_state(run_dir, state)
+                write_provider_summary(run_dir, state, budget_reason)
+                print(f"Stopped provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
+                return 0
+
+            # Drain any phase left built-but-unmerged by a prior interrupted run
+            # (STOP/crash during the serial merge queue) before scheduling new work.
+            # Without this, resume's PENDING-only selection would orphan the phase
+            # and the run could finalize with an unmerged built phase.
+            leftover = [p for p in state["phases"] if p.get("status") == MERGE_READY]
+            if leftover:
+                append_event(run_dir, state, "MERGE_READY_DRAIN", phase_ids=[p["phase_id"] for p in leftover])
+                run_wave_merge(run_dir, state, leftover, scheduler)
+                write_state(run_dir, state)
+                still_ready = [p["phase_id"] for p in state["phases"] if p.get("status") == MERGE_READY]
+                if still_ready:
+                    # The drain was interrupted (e.g. STOP reappeared); stop cleanly
+                    # so a later resume retries rather than looping forever.
+                    return provider_stop_without_execution(
+                        run_dir, state, f"Merge-queue drain interrupted; {', '.join(still_ready)} remain MERGE_READY."
+                    )
+                continue
+
+            wave = ready_wave_phases(state, scheduler)
+            if not wave:
+                if pending_phase_ids(state):
+                    blocked_ids = pending_phase_ids(state)
+                    reason = (
+                        "SCHEDULE_DEADLOCK: no dependency-ready phase remains while "
+                        f"{len(blocked_ids)} phase(s) are still pending: {', '.join(blocked_ids)}."
+                    )
+                    state["status"] = "BLOCKED"
+                    state["stop_requested"] = True
+                    append_event(run_dir, state, "SCHEDULE_DEADLOCK", pending=blocked_ids)
+                    write_provider_stop(run_dir, state, reason)
+                    write_state(run_dir, state)
+                    write_provider_summary(run_dir, state, reason)
+                    print(f"Schedule deadlock stopped run at {run_dir.relative_to(ROOT)}")
+                    return 0
+                return finalize_completed_campaign(run_dir, state)
+
+            if executed >= max_phases:
+                state["status"] = "STOPPED"
+                state["stop_requested"] = True
+                write_provider_stop(run_dir, state, f"Requested max phases reached: {max_phases}.")
+                write_state(run_dir, state)
+                write_provider_summary(run_dir, state, f"Requested max phases reached: {max_phases}.")
+                print(f"Stopped after {executed} provider-wired phase(s) at {run_dir.relative_to(ROOT)}")
+                return 0
+            wave = wave[: max_phases - executed]
+
+            wave_index = state["wave_counter"]
+            wave_ids = [p["phase_id"] for p in wave]
+            append_event(run_dir, state, "WAVE_START", wave=wave_index, phase_ids=wave_ids, width=len(wave))
+            progress(run_dir, f"Wave {wave_index}: building {len(wave)} phase(s): {', '.join(wave_ids)}.")
+
+            prepare_wave_worktrees(run_dir, state, wave)
+            run_wave_build(run_dir, state, wave, scheduler)
+            run_wave_merge(run_dir, state, wave, scheduler)
+            wave_integration_verify(run_dir, state, wave_index)
+
+            merged = [p["phase_id"] for p in wave if p.get("status") in PASSING_VERDICTS]
+            stalled = [p["phase_id"] for p in wave if p.get("status") not in PASSING_VERDICTS]
+            append_event(
+                run_dir, state, "WAVE_COMPLETE", wave=wave_index, merged=merged, stalled=stalled
+            )
+            executed += len(wave)
+            state["wave_counter"] = wave_index + 1
+            write_state(run_dir, state)
+
+            if stalled:
+                reason = (
+                    f"Wave {wave_index} left {len(stalled)} phase(s) not passing: {', '.join(stalled)}. "
+                    "Resume after the blocking conditions are resolved."
+                )
+                state["status"] = "STOPPED"
+                state["stop_requested"] = True
+                write_provider_stop(run_dir, state, reason)
+                write_state(run_dir, state)
+                write_provider_summary(run_dir, state, reason)
+                print(f"Stopped wave run with stalled phases at {run_dir.relative_to(ROOT)}")
+                return 0
+
+
 def continue_provider_wired_run(
     run_dir: Path,
     state: dict[str, Any],
@@ -3994,6 +4788,10 @@ def continue_provider_wired_run(
     state.setdefault("repair_attempts", {phase.get("phase_id"): 0 for phase in state.get("phases", [])})
     state.setdefault("lane_policy_snapshot", runtime_config().lane_policies)
     state.setdefault("estimated_cost_usd", 0.0)
+    scheduler = scheduler_settings_for_state(state)
+    write_state(run_dir, state)
+    if scheduler.runs_parallel:
+        return run_dag_wave_parallel(run_dir, state, scheduler, max_phases)
     executed = 0
 
     while True:
@@ -4010,7 +4808,24 @@ def continue_provider_wired_run(
             print(f"Stopped provider-wired Workflow 2 run at {run_dir.relative_to(ROOT)}")
             return 0
 
-        phase = next_pending_provider_phase(state)
+        phase = select_next_phase(state, scheduler)
+        if phase is None and scheduler.is_dag_wave and pending_phase_ids(state):
+            blocked_ids = pending_phase_ids(state)
+            reason = (
+                "SCHEDULE_DEADLOCK: dag_wave mode found no dependency-ready phase while "
+                f"{len(blocked_ids)} phase(s) remain pending: {', '.join(blocked_ids)}. "
+                "A dependency is blocked or unsatisfiable."
+            )
+            state["status"] = "BLOCKED"
+            state["stop_requested"] = True
+            state["current_phase_id"] = None
+            state["current_micro_attempt"] = 0
+            append_event(run_dir, state, "SCHEDULE_DEADLOCK", pending=blocked_ids)
+            write_provider_stop(run_dir, state, reason)
+            write_state(run_dir, state)
+            write_provider_summary(run_dir, state, reason)
+            print(f"Schedule deadlock stopped run at {run_dir.relative_to(ROOT)}")
+            return 0
         if phase is None:
             done_verdict = run_campaign_done_check(run_dir, state)
             if done_verdict in PROVIDER_WAITING_STATUSES:
@@ -4258,7 +5073,8 @@ def write_summary(run_dir: Path, state: dict[str, Any], note: str | None = None)
             lines.append(f"- {phase['phase_id']}")
     if note:
         lines.extend(["", "## Note", "", note])
-    run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with _RUN_WRITE_LOCK:
+        run_dir.joinpath("RUN_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def stop_run(run_dir: Path, state: dict[str, Any], reason: str) -> None:
@@ -4390,7 +5206,9 @@ def run_campaign(
         return run_ledger_only_campaign(campaign_id)
     if provider_wired:
         if not campaign_id:
-            print("Provider-wired mode requires --campaign-id.")
+            campaign_id = resolve_active_campaign_id()
+        if not campaign_id:
+            print("Provider-wired mode requires --campaign-id or an ACTIVE_CAMPAIGN.md pointer.")
             return 2
         return run_provider_wired_campaign(campaign_id, max_phases, worktree_mode=worktree_mode)
     if campaign_id == TOY_CAMPAIGN_ID:
@@ -4643,14 +5461,22 @@ def resume(
     if run_ref is None:
         if run_id:
             run_ref = ROOT / "runs" / run_id
-        elif campaign_id:
-            run_ref = latest_campaign_run_dir(campaign_id, provider_wired_only=provider_wired)
-            if run_ref is None:
-                print(f"No active local run found for campaign {campaign_id}. Start one with `run --campaign-id`.")
-                return 2
         else:
-            print("Missing --run-id, --run-dir, FRONTIER_RESUME_RUN, or --campaign-id.")
-            return 2
+            target_campaign = campaign_id or resolve_active_campaign_id()
+            if not target_campaign:
+                print(
+                    "Missing --run-id, --run-dir, FRONTIER_RESUME_RUN, or --campaign-id, "
+                    "and no ACTIVE_CAMPAIGN.md pointer to resume."
+                )
+                return 2
+            campaign_id = target_campaign
+            run_ref = latest_campaign_run_dir(target_campaign, provider_wired_only=provider_wired)
+            if run_ref is None:
+                print(
+                    f"No active local run found for campaign {target_campaign}. "
+                    "Start one with `run --campaign-id`."
+                )
+                return 2
     elif not run_ref.is_absolute():
         run_ref = ROOT / run_ref
     run_dir = run_ref
@@ -4699,6 +5525,67 @@ def resume(
     return continue_toy_run(run_dir, state)
 
 
+def plan_dag(campaign_id: str | None, *, max_parallel: int | None = None, as_json: bool = False) -> int:
+    """Read-only DAG wave plan for a campaign (no run, no provider/git calls)."""
+
+    if not campaign_id:
+        campaign_id = resolve_active_campaign_id()
+    if not campaign_id:
+        print("plan-dag requires --campaign-id or an ACTIVE_CAMPAIGN.md pointer.")
+        return 2
+    try:
+        campaign = load_ledger_campaign(campaign_id)
+    except (ValueError, RuntimeError, OSError) as error:
+        print(error)
+        return 2
+    scheduler = resolve_scheduler_config(campaign.campaign_yaml)
+    effective_max = max_parallel if max_parallel is not None else scheduler.max_parallel_phases
+    phases = [dag_scheduler.phase_from_ledger(p) for p in campaign.phases]
+    try:
+        plan = dag_scheduler.plan_campaign(
+            phases, max_parallel=effective_max, red_authorized=scheduler.red_authorized
+        )
+    except dag_scheduler.SchedulerError as error:
+        print(f"DAG validation failed: {error}")
+        return 1
+
+    if as_json:
+        print(json.dumps({"campaign_id": campaign_id, "plan": plan.to_dict()}, indent=2, sort_keys=True))
+        return 0
+
+    print(f"Campaign: {campaign_id}")
+    print(f"Scheduler mode: {scheduler.mode}   max_parallel_phases: {effective_max}")
+    print(
+        f"Waves: {len(plan.waves)}   max width: {plan.max_width}   "
+        f"parallelizable: {str(plan.has_parallel).lower()}"
+    )
+    for wave in plan.waves:
+        tag = "parallel" if wave.parallel else "single "
+        print(f"  Wave {wave.index} [{tag}]: {', '.join(wave.phase_ids)}")
+    if plan.unsafe:
+        print("Run-alone / not parallel-safe:")
+        for pid, reason in plan.unsafe:
+            print(f"  - {pid}: {reason}")
+    if plan.conflicts:
+        print("Conflicts (kept in separate waves):")
+        for left, right, why in plan.conflicts:
+            print(f"  - {left} vs {right}: {why}")
+    if plan.blocked:
+        print("Blocked (unsatisfiable dependencies):")
+        for pid, reason in plan.blocked:
+            print(f"  - {pid}: {reason}")
+    return 0
+
+
+def _apply_scheduler_cli_env(args: argparse.Namespace) -> None:
+    """Translate --parallel / --max-parallel flags into scheduler env overrides."""
+
+    if getattr(args, "parallel", False):
+        os.environ["FRONTIER_PARALLEL"] = "1"
+    if getattr(args, "max_parallel", None):
+        os.environ["FRONTIER_MAX_PARALLEL_PHASES"] = str(args.max_parallel)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run or resume the local Frontier Ralph Workflow 2 driver.")
     subparsers = parser.add_subparsers(dest="command")
@@ -4710,6 +5597,8 @@ def main(argv: list[str] | None = None) -> int:
     run_mode.add_argument("--ledger-only", action="store_true")
     run_mode.add_argument("--provider-wired", action="store_true")
     run_parser.add_argument("--max-phases", type=int)
+    run_parser.add_argument("--parallel", action="store_true", help="Arm dag_wave parallel execution.")
+    run_parser.add_argument("--max-parallel", type=int, help="Max concurrent phases per wave.")
     worktree_group = run_parser.add_mutually_exclusive_group()
     worktree_group.add_argument("--worktree-mode", action="store_true")
     worktree_group.add_argument("--no-worktree", action="store_true")
@@ -4722,12 +5611,19 @@ def main(argv: list[str] | None = None) -> int:
     resume_parser.add_argument("--provider-wired", action="store_true")
     resume_parser.add_argument("--no-provider-replay", action="store_true")
     resume_parser.add_argument("--max-phases", type=int)
+    resume_parser.add_argument("--parallel", action="store_true", help="Arm dag_wave parallel execution.")
+    resume_parser.add_argument("--max-parallel", type=int, help="Max concurrent phases per wave.")
     resume_worktree_group = resume_parser.add_mutually_exclusive_group()
     resume_worktree_group.add_argument("--worktree-mode", action="store_true")
     resume_worktree_group.add_argument("--no-worktree", action="store_true")
+    plan_parser = subparsers.add_parser("plan-dag", help="Print the DAG wave plan for a campaign (read-only).")
+    plan_parser.add_argument("--campaign-id")
+    plan_parser.add_argument("--max-parallel", type=int)
+    plan_parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        _apply_scheduler_cli_env(args)
         return run_campaign(
             args.campaign_id,
             args.goal,
@@ -4738,6 +5634,7 @@ def main(argv: list[str] | None = None) -> int:
             worktree_mode=True if args.worktree_mode else False if args.no_worktree else None,
         )
     if args.command == "resume":
+        _apply_scheduler_cli_env(args)
         return resume(
             args.run_id,
             run_dir=args.run_dir,
@@ -4749,6 +5646,8 @@ def main(argv: list[str] | None = None) -> int:
             max_phases=args.max_phases,
             worktree_mode=True if args.worktree_mode else False if args.no_worktree else None,
         )
+    if args.command == "plan-dag":
+        return plan_dag(args.campaign_id, max_parallel=args.max_parallel, as_json=args.json)
     parser.print_help()
     return 0
 

@@ -59,11 +59,13 @@ Post-closeout status:
 
 ```bash
 # Only after an approved campaign contract exists.
-just frontier-run-next ALPHA_FEATURE_LABEL_FOUNDATION_V1
-just frontier-run-next-x ALPHA_FEATURE_LABEL_FOUNDATION_V1 <phase_count>
+just frontier-plan ALPHA_FEATURE_LABEL_FOUNDATION_V1                 # preview DAG waves (read-only)
+just frontier-run ALPHA_FEATURE_LABEL_FOUNDATION_V1                  # start/continue
+just frontier-next ALPHA_FEATURE_LABEL_FOUNDATION_V1 <phase_count>   # step N phases
+just frontier-run-parallel ALPHA_FEATURE_LABEL_FOUNDATION_V1 <n>     # dag_wave parallel build, serial merge
 ```
 
-These commands create the phase PR, wait for required checks, run merge gate, and use the normal protected-branch merge path with auto-merge fallback when needed. They do not use `--admin`.
+These commands create the phase PR, wait for required checks, run the merge gate, and use the normal protected-branch merge path with auto-merge fallback when needed. They do not use `--admin`. `frontier-run-parallel` builds a conflict-free, parallel-safe wave concurrently and still merges one PR at a time.
 
 ## Documentation Pointers
 

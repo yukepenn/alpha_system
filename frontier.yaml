@@ -254,6 +254,20 @@ workflow2:
   worktree_mode: false
   worktree_mode_recommended: true
   default_worktree_mode: false
+  scheduler:
+    # DAG wave scheduler. mode=sequential preserves the historical list-order,
+    # one-phase-at-a-time loop. mode=dag_wave selects phases by dependency-ready
+    # set and, when parallel_execution is armed and max_parallel_phases>1, runs a
+    # conflict-free wave concurrently in isolated worktrees while MERGING SERIALLY
+    # through a merge queue. Defaults keep current behaviour unless opted in.
+    mode: sequential
+    max_parallel_phases: 1
+    merge_queue: serial
+    parallel_execution: false
+    # auto => coordinator_only whenever a parallel wave actually runs (phase
+    # branches never race on ACTIVE_CAMPAIGN.md), else the historical phase-commit
+    # ride-along. Set explicitly to phase_commit or coordinator_only to override.
+    update_active_campaign: auto
   max_phases: 30
   max_micro_loops_default: 3
   semantic_done_check_required: true

@@ -17,7 +17,7 @@ python -m compileall tools tests
 python -m pytest
 just frontier-doctor
 just verify-canaries
-FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 just frontier-run-campaign G005_WORKFLOW2_TOY
+FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 just frontier-run-mock G005_WORKFLOW2_TOY
 python tools/verify.py --artifacts
 just frontier-acceptance
 ```
@@ -37,7 +37,7 @@ The upgrade tool preserves project files by default, including campaigns, `ACTIV
 ## Overnight Run
 
 ```bash
-just frontier-run-overnight <campaign>
+just frontier-overnight <campaign>
 just frontier-heartbeat <run_id>
 just frontier-tail <run_id>
 just frontier-summary <run_id>
@@ -45,17 +45,49 @@ just frontier-summary <run_id>
 
 In the morning, inspect `runs/<run_id>/RUN_SUMMARY.md`, `events.jsonl`, `heartbeat.json`, every phase `verdict.json`, `done_check.json`, `ci_status.json`, and `merge_gate.json`.
 
+## Scheduling Modes (Sequential vs DAG Wave)
+
+`frontier.yaml` `workflow2.scheduler` (overridable per campaign under
+`workflow2.scheduler`) selects how Ralph chooses work:
+
+- `mode: sequential` (default): historical list-order, one phase at a time.
+- `mode: dag_wave`: phases are selected by their dependency-ready set. Preview a
+  campaign's waves with `just frontier-plan <campaign>` (read-only; no run, no
+  provider/git calls).
+
+```bash
+just frontier-plan <campaign>            # dependency graph, ready waves, conflicts
+just frontier-run-parallel <campaign> 3  # build a conflict-free wave concurrently
+```
+
+`frontier-run-parallel` (or `--parallel` / `parallel_execution: true` with
+`max_parallel_phases > 1`) builds a parallel-safe, conflict-free wave concurrently
+in isolated Frontier worktrees, then **merges serially through a merge queue** —
+`main` advances one PR at a time, each re-checked against the current base. Only
+phases that declare `parallel_safe: true` with disjoint `allowed_paths` (and are
+not `must_run_alone`/RED, and touch no global file like `ACTIVE_CAMPAIGN.md`)
+share a wave; everything else runs alone. In a parallel wave the coordinator owns
+`ACTIVE_CAMPAIGN.md`, so phase branches never race on it; the projected pointer is
+written to `runs/<run_id>/ACTIVE_CAMPAIGN.projected.md` and the tracked pointer is
+refreshed by the next sequential phase / closeout. A `dag_wave` run that finds no
+dependency-ready phase while phases remain pending stops with `SCHEDULE_DEADLOCK`.
+
 ## Crash Recovery
 
 ```bash
-just frontier-resume <run_id>
-just frontier-run-next <campaign>
-just frontier-run-next-x <campaign> <phase_count>
+just frontier-resume [<campaign>]   # auto-resume the active campaign's latest run
+just frontier-next <campaign> <n>   # resume N phases
+just frontier-resume-run <run_id>   # resume a specific run directory
 ```
 
 Resume reuses durable phase artifacts. A run interrupted after spec generation resumes from `SPEC_READY`; after execution it resumes from validation/review; after review it resumes from done-check and downstream gates. Runs stopped at `PUSH_BLOCKED`, `REMOTE_BRANCH_BLOCKED`, `PR_CREATE_BLOCKED`, `CI_BLOCKED`, or `MERGE_GATE_BLOCKED` retry from the failed GitHub gate without rerunning Claude spec generation, Codex execution, or creating a new commit when `commit_sha.txt` is present.
 
-`frontier-run-next` and `frontier-run-next-x` resolve the latest non-completed local run for the campaign and resume it. They do not start a new run; use `frontier-run-campaign` when a fresh campaign run is intended. The run-next commands default to real PR creation, automerge enabled, merge dry-run disabled, and `FRONTIER_DISABLE_AUTOMERGE` unset.
+`frontier-resume` with no campaign id reads `ACTIVE_CAMPAIGN.md` and resumes the
+latest non-completed run for that campaign. `frontier-resume`/`frontier-next`
+resolve the latest non-completed local run; they do not start a new run, so use
+`frontier-run` for a fresh campaign run. These commands default to real PR
+creation, automerge enabled, merge dry-run disabled, and `FRONTIER_DISABLE_AUTOMERGE`
+unset.
 
 ## Auth For Real Operations
 

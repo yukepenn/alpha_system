@@ -1893,52 +1893,77 @@ def recipe_body(justfile_text: str, recipe_name: str) -> str:
     return match.group(1)
 
 
+LIVE_MERGE_ARMING = (
+    "env -u FRONTIER_DISABLE_AUTOMERGE",
+    "FRONTIER_CREATE_PR=1",
+    "FRONTIER_ALLOW_AUTOMERGE=1",
+    "FRONTIER_MERGE_DRY_RUN=0",
+)
+
+
 def test_just_command_semantics_are_provider_wired() -> None:
     text = (REPO_ROOT / "justfile").read_text(encoding="utf-8")
 
-    run_campaign = recipe_body(text, "frontier-run-campaign")
-    run_next = recipe_body(text, "frontier-run-next")
-    run_next_x = recipe_body(text, "frontier-run-next-x")
-    run_mock = recipe_body(text, "frontier-run-campaign-mock")
-    next_mock = recipe_body(text, "frontier-run-next-mock")
-    next_x_mock = recipe_body(text, "frontier-run-next-x-mock")
-    resume_campaign = recipe_body(text, "frontier-resume-campaign")
-    ledger = recipe_body(text, "frontier-run-campaign-ledger")
-    overnight = recipe_body(text, "frontier-run-overnight")
+    run = recipe_body(text, "frontier-run")
+    resume = recipe_body(text, "frontier-resume")
+    nxt = recipe_body(text, "frontier-next")
+    run_parallel = recipe_body(text, "frontier-run-parallel")
+    plan = recipe_body(text, "frontier-plan")
+    run_mock = recipe_body(text, "frontier-run-mock")
+    next_mock = recipe_body(text, "frontier-next-mock")
+    run_parallel_mock = recipe_body(text, "frontier-run-parallel-mock")
+    resume_stage = recipe_body(text, "frontier-resume-stage")
+    ledger = recipe_body(text, "frontier-ledger")
+    overnight = recipe_body(text, "frontier-overnight")
     heartbeat = recipe_body(text, "frontier-heartbeat")
     acceptance = recipe_body(text, "frontier-acceptance")
+    toy = recipe_body(text, "frontier-run-workflow2-toy")
 
-    assert "--provider-wired" in run_campaign
-    assert "FRONTIER_MAX_PHASES=1" not in run_campaign
-    assert "--provider-wired" in run_next
-    assert " resume " in run_next
-    assert "--campaign-id" in run_next
-    assert "--max-phases 1" in run_next
-    assert "env -u FRONTIER_DISABLE_AUTOMERGE" in run_next
-    assert "FRONTIER_CREATE_PR=1" in run_next
-    assert "FRONTIER_ALLOW_AUTOMERGE=1" in run_next
-    assert "FRONTIER_MERGE_DRY_RUN=0" in run_next
-    assert " run --campaign-id" not in run_next
-    assert "--provider-wired" in run_next_x
-    assert " resume " in run_next_x
-    assert "--max-phases \"$max_phases\"" in run_next_x
-    assert "env -u FRONTIER_DISABLE_AUTOMERGE" in run_next_x
-    assert "FRONTIER_CREATE_PR=1" in run_next_x
-    assert "FRONTIER_ALLOW_AUTOMERGE=1" in run_next_x
-    assert "FRONTIER_MERGE_DRY_RUN=0" in run_next_x
-    assert "FRONTIER_MOCK_PROVIDERS=1" in run_mock
-    assert "--provider-wired" in run_mock
-    assert "FRONTIER_MOCK_PROVIDERS=1" in next_mock
-    assert " resume " in next_mock
-    assert "--max-phases 1" in next_mock
-    assert "FRONTIER_MOCK_PROVIDERS=1" in next_x_mock
-    assert " resume " in next_x_mock
-    assert "--max-phases \"$max_phases\"" in next_x_mock
-    assert "--from-stage" in resume_campaign
-    assert "--no-provider-replay" in resume_campaign
-    assert "FRONTIER_NO_PROVIDER_REPLAY=1" in resume_campaign
+    # frontier-run: live, provider-wired START with real PR + auto-merge armed.
+    assert "--provider-wired" in run
+    assert " run --campaign-id" in run
+    assert "FRONTIER_MAX_PHASES=1" not in run
+    for token in LIVE_MERGE_ARMING:
+        assert token in run
+
+    # frontier-resume: live, provider-wired RESUME (auto-resolves active campaign).
+    assert "--provider-wired" in resume
+    assert " resume " in resume
+    assert "--campaign-id" in resume
+    for token in LIVE_MERGE_ARMING:
+        assert token in resume
+
+    # frontier-next: live RESUME of N phases.
+    assert " resume " in nxt
+    assert '--max-phases "$max_phases"' in nxt
+    for token in LIVE_MERGE_ARMING:
+        assert token in nxt
+
+    # frontier-run-parallel: live START with DAG-wave parallelism.
+    assert " run --campaign-id" in run_parallel
+    assert "--parallel" in run_parallel
+    assert '--max-parallel "$max_parallel"' in run_parallel
+    for token in LIVE_MERGE_ARMING:
+        assert token in run_parallel
+
+    # frontier-plan: read-only DAG plan, never live.
+    assert "plan-dag" in plan
+    assert "FRONTIER_ALLOW_AUTOMERGE=1" not in plan
+
+    # mock variants: never arm real merge.
+    for mock_body in (run_mock, next_mock, run_parallel_mock, toy):
+        assert "FRONTIER_MOCK_PROVIDERS=1" in mock_body
+        assert "FRONTIER_ALLOW_AUTOMERGE=1" not in mock_body
+    assert "--parallel" in run_parallel_mock
+
+    # power-user / scaffold recipes.
+    assert "--from-stage" in resume_stage
+    assert "--no-provider-replay" in resume_stage
+    assert "FRONTIER_NO_PROVIDER_REPLAY=1" in resume_stage
     assert "--ledger-only" in ledger
     assert "FRONTIER_RUN_MODE=overnight" in overnight
+    for token in LIVE_MERGE_ARMING:
+        assert token in overnight
     assert "heartbeat.json" in heartbeat
     assert "tools/frontier/acceptance.py" in acceptance
 
@@ -1976,3 +2001,292 @@ def test_ralph_driver_has_no_provider_or_network_imports() -> None:
             imported_roots.add(node.module.split(".")[0])
 
     assert forbidden_roots.isdisjoint(imported_roots)
+
+
+# ── DAG wave scheduler integration ───────────────────────────────────
+
+PARALLEL_CAMPAIGN_ID = "PARALLEL_WF2_CAMPAIGN"
+
+
+def write_parallel_campaign(
+    tmp_root: Path,
+    campaign_id: str = PARALLEL_CAMPAIGN_ID,
+    *,
+    mode: str = "dag_wave",
+    parallel_execution: bool = True,
+    max_parallel_phases: int = 3,
+) -> None:
+    """Frontier.yaml from the sample fixture + a campaign with parallel-safe phases.
+
+    P00 bootstraps (run-alone); P01/P02/P03 are path-disjoint parallel-safe phases
+    that all depend on P00 and may share one wave.
+    """
+
+    write_sample_campaign(tmp_root)  # reuse the sample frontier.yaml
+    campaign_dir = tmp_root / "campaigns" / campaign_id
+    campaign_dir.mkdir(parents=True, exist_ok=True)
+    (campaign_dir / "GOAL.md").write_text(f"# {campaign_id}\n\nParallel wave exercise.\n", encoding="utf-8")
+    (campaign_dir / "PHASE_PLAN.md").write_text("# Phase Plan\n\nbootstrap then parallel families.\n", encoding="utf-8")
+    (campaign_dir / "campaign.yaml").write_text(
+        f"""campaign_id: "{campaign_id}"
+workflow: "workflow2"
+default_lane: "yellow"
+limits:
+  max_phases: 8
+workflow2:
+  scheduler:
+    mode: "{mode}"
+    max_parallel_phases: {max_parallel_phases}
+    parallel_execution: {str(parallel_execution).lower()}
+phases:
+  - id: "P00"
+    name: "Bootstrap"
+    lane: "YELLOW"
+    dependencies: []
+  - id: "P01"
+    name: "Base family"
+    lane: "GREEN"
+    dependencies: ["P00"]
+    parallel_safe: true
+    allowed_paths: ["src/features/base/**"]
+  - id: "P02"
+    name: "BBO family"
+    lane: "GREEN"
+    dependencies: ["P00"]
+    parallel_safe: true
+    allowed_paths: ["src/features/bbo/**"]
+  - id: "P03"
+    name: "Session family"
+    lane: "GREEN"
+    dependencies: ["P00"]
+    parallel_safe: true
+    allowed_paths: ["src/features/session/**"]
+""",
+        encoding="utf-8",
+    )
+    for name in ("ACCEPTANCE.md", "RISK_REGISTER.md", "RUNBOOK.md"):
+        (campaign_dir / name).write_text(f"# {name}\n\nLocal test fixture.\n", encoding="utf-8")
+
+
+def test_parse_campaign_phases_reads_scheduler_fields(tmp_path, monkeypatch) -> None:
+    write_parallel_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    campaign = ralph_driver.load_ledger_campaign(PARALLEL_CAMPAIGN_ID)
+    by_id = {p.phase_id: p for p in campaign.phases}
+    assert by_id["P01"].parallel_safe is True
+    assert by_id["P01"].allowed_paths == ("src/features/base/**",)
+    assert by_id["P00"].parallel_safe is False  # default conservative
+
+
+def test_parse_campaign_phases_backward_compatible_defaults(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    campaign = ralph_driver.load_ledger_campaign(SAMPLE_CAMPAIGN_ID)
+    p00 = campaign.phases[0]
+    assert p00.parallel_safe is False
+    assert p00.allowed_paths == ()
+    assert p00.must_run_alone is False
+    assert p00.merge_group is None
+
+
+def test_unknown_conflicts_with_rejected(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    raw = {
+        "campaign_id": "X",
+        "phases": [{"id": "A", "conflicts_with": ["NOPE"]}],
+    }
+    with pytest.raises(ValueError, match="unknown conflicts_with"):
+        ralph_driver.parse_campaign_phases(raw, "X")
+
+
+def test_provider_phase_state_carries_scheduler_metadata(tmp_path, monkeypatch) -> None:
+    write_parallel_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    campaign = ralph_driver.load_ledger_campaign(PARALLEL_CAMPAIGN_ID)
+    p01 = next(p for p in campaign.phases if p.phase_id == "P01")
+    state = ralph_driver.provider_phase_state(p01, "run-x")
+    assert state["parallel_safe"] is True
+    assert state["allowed_paths"] == ["src/features/base/**"]
+
+
+def test_resolve_scheduler_config_defaults_sequential(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    write_sample_campaign(tmp_path)
+    settings = ralph_driver.resolve_scheduler_config({}, env={})
+    assert settings.mode == "sequential"
+    assert settings.runs_parallel is False
+    assert settings.update_active_campaign == "phase_commit"
+
+
+def test_next_scheduled_phase_respects_dependencies() -> None:
+    state = {
+        "phases": [
+            {"phase_id": "P00", "status": "PASS", "dependencies": []},
+            {"phase_id": "P01", "status": "PENDING", "dependencies": ["P00"]},
+            {"phase_id": "P02", "status": "PENDING", "dependencies": ["P01"]},
+        ]
+    }
+    selected = ralph_driver.next_scheduled_provider_phase(state)
+    assert selected["phase_id"] == "P01"  # P02 blocked on P01
+
+
+def test_next_scheduled_phase_none_on_deadlock() -> None:
+    state = {
+        "phases": [
+            {"phase_id": "P00", "status": "BLOCKED", "dependencies": []},
+            {"phase_id": "P01", "status": "PENDING", "dependencies": ["P00"]},
+        ]
+    }
+    assert ralph_driver.next_scheduled_provider_phase(state) is None
+    assert ralph_driver.pending_phase_ids(state) == ["P01"]
+
+
+def test_coordinator_only_suppresses_active_pointer(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    run_dir = tmp_path / "runs" / "r1"
+    (run_dir / "phases" / "P00").mkdir(parents=True)
+    (tmp_path / "ACTIVE_CAMPAIGN.md").write_text("# Active Campaign\n", encoding="utf-8")
+    state = {"run_id": "r1", "campaign_id": SAMPLE_CAMPAIGN_ID, "workflow": "workflow2", "phases": []}
+    phase = {"phase_id": "P00", "name": "X", "suppress_active_pointer": True}
+    config = ralph_driver.load_config(tmp_path / "frontier.yaml")
+    ralph_driver.write_active_campaign_for_phase_commit(
+        run_dir, state, phase, "PASS", config=config, execution_root=tmp_path
+    )
+    # Pointer must be untouched in coordinator-only (suppressed) mode.
+    assert (tmp_path / "ACTIVE_CAMPAIGN.md").read_text(encoding="utf-8") == "# Active Campaign\n"
+
+
+def test_dag_wave_sequential_completes_with_dependencies(tmp_path, monkeypatch) -> None:
+    write_parallel_campaign(tmp_path, mode="dag_wave", parallel_execution=False, max_parallel_phases=1)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.delenv("FRONTIER_MAX_PHASES", raising=False)
+    monkeypatch.delenv("FRONTIER_PARALLEL", raising=False)
+    stub_validation(monkeypatch)
+
+    status = ralph_driver.run_campaign(PARALLEL_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, PARALLEL_CAMPAIGN_ID)
+    state = state_json(run_dir)
+    assert state["status"] == "COMPLETED"
+    assert state["scheduler"]["mode"] == "dag_wave"
+    assert pass_count(run_dir) == 4
+
+
+def test_dag_wave_parallel_runs_wave_in_mock(tmp_path, monkeypatch) -> None:
+    write_parallel_campaign(tmp_path, mode="dag_wave", parallel_execution=True, max_parallel_phases=3)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.delenv("FRONTIER_MAX_PHASES", raising=False)
+    monkeypatch.delenv("FRONTIER_PARALLEL", raising=False)
+    stub_validation(monkeypatch)
+
+    status = ralph_driver.run_campaign(PARALLEL_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, PARALLEL_CAMPAIGN_ID)
+    state = state_json(run_dir)
+    assert state["status"] == "COMPLETED"
+    assert pass_count(run_dir) == 4
+    assert state["scheduler"]["update_active_campaign"] == "coordinator_only"
+    # Coordinator-only: EVERY phase (incl. the width-1 bootstrap wave) must suppress
+    # the phase-branch ACTIVE_CAMPAIGN.md write, gated on policy not wave width.
+    assert all(p.get("suppress_active_pointer") for p in state["phases"])
+    events = [json.loads(line) for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    wave_starts = [e for e in events if e.get("event") == "WAVE_START"]
+    # One wave for the run-alone bootstrap, one wave for the 3 parallel families.
+    widths = sorted(e["width"] for e in wave_starts)
+    assert widths == [1, 3]
+    assert any(e.get("event") == "MERGE_QUEUE_START" for e in events)
+
+
+def test_finalize_completed_campaign_blocks_on_unmerged_phase(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    run_dir = tmp_path / "runs" / "r1"
+    (run_dir / "phases").mkdir(parents=True)
+    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+    state = {
+        "run_id": "r1",
+        "campaign_id": SAMPLE_CAMPAIGN_ID,
+        "workflow": "workflow2",
+        "driver": ralph_driver.PROVIDER_WIRED_DRIVER,
+        "status": "RUNNING",
+        "phases": [
+            {"phase_id": "P00", "status": "PASS"},
+            {"phase_id": "P01", "status": ralph_driver.MERGE_READY},
+        ],
+    }
+    # A built-but-unmerged phase must BLOCK completion, never silently COMPLETE.
+    rc = ralph_driver.finalize_completed_campaign(run_dir, state)
+    assert rc == 0
+    assert state["status"] == "BLOCKED"
+    assert (run_dir / "STOP").is_file()
+
+
+def test_parallel_cli_flag_arms_dag_wave(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_PARALLEL", raising=False)
+    monkeypatch.delenv("FRONTIER_MAX_PARALLEL_PHASES", raising=False)
+    import argparse
+
+    args = argparse.Namespace(parallel=True, max_parallel=4)
+    ralph_driver._apply_scheduler_cli_env(args)
+    assert os.environ["FRONTIER_PARALLEL"] == "1"
+    assert os.environ["FRONTIER_MAX_PARALLEL_PHASES"] == "4"
+
+
+def test_plan_dag_cli_prints_waves(tmp_path, monkeypatch, capsys) -> None:
+    write_parallel_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    rc = ralph_driver.plan_dag(PARALLEL_CAMPAIGN_ID, max_parallel=3)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Wave 0" in out
+    assert "P00" in out and "P01" in out
+
+
+def test_resume_auto_resolves_active_campaign(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    write_sample_campaign(tmp_path)
+    (tmp_path / "ACTIVE_CAMPAIGN.md").write_text(
+        f"# Active Campaign\n\nCampaign: `campaigns/{SAMPLE_CAMPAIGN_ID}`\n", encoding="utf-8"
+    )
+    write_minimal_run_state(
+        tmp_path, "2026-02-02T000000Z_SAMPLE_WORKFLOW2_CAMPAIGN", status="STOPPED", mtime=20
+    )
+    # No run-id, no campaign-id: must fall back to the ACTIVE_CAMPAIGN pointer.
+    assert ralph_driver.resolve_active_campaign_id() == SAMPLE_CAMPAIGN_ID
+
+
+def test_resolve_active_campaign_id_none_when_absent(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    assert ralph_driver.resolve_active_campaign_id() is None
+
+
+def test_scheduler_modules_have_no_provider_or_network_imports() -> None:
+    forbidden_roots = {
+        "anthropic",
+        "github",
+        "ghapi",
+        "httpx",
+        "ibapi",
+        "openai",
+        "requests",
+        "socket",
+        "urllib",
+        "urllib3",
+        "webbrowser",
+    }
+    for module in ("dag_scheduler.py", "merge_queue.py"):
+        source = (REPO_ROOT / "tools/frontier" / module).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        imported_roots: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported_roots.add(node.module.split(".")[0])
+        assert forbidden_roots.isdisjoint(imported_roots), module
