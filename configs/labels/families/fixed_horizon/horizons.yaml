@@ -1,0 +1,47 @@
+family: fixed_horizon
+phase: FLF-P17
+labels:
+  - name: fwd_ret_1m
+    horizon: 1m
+    input_view: canonical_ohlcv
+    price_basis: close
+  - name: fwd_ret_3m
+    horizon: 3m
+    input_view: canonical_ohlcv
+    price_basis: close
+  - name: fwd_ret_5m
+    horizon: 5m
+    input_view: canonical_ohlcv
+    price_basis: close
+  - name: fwd_ret_10m
+    horizon: 10m
+    input_view: canonical_ohlcv
+    price_basis: close
+  - name: fwd_ret_30m
+    horizon: 30m
+    input_view: canonical_ohlcv
+    price_basis: close
+  - name: mid_fwd_ret_1m
+    horizon: 1m
+    input_view: canonical_bbo
+    price_basis: mid
+  - name: mid_fwd_ret_3m
+    horizon: 3m
+    input_view: canonical_bbo
+    price_basis: mid
+  - name: mid_fwd_ret_5m
+    horizon: 5m
+    input_view: canonical_bbo
+    price_basis: mid
+  - name: mid_fwd_ret_10m
+    horizon: 10m
+    input_view: canonical_bbo
+    price_basis: mid
+  - name: mid_fwd_ret_30m
+    horizon: 30m
+    input_view: canonical_bbo
+    price_basis: mid
+notes:
+  - governed_lspec_required
+  - label_available_ts_from_horizon_terminal_available_ts
+  - no_materialized_values
