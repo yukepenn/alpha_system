@@ -7,6 +7,7 @@ DATA-P18 own dataset versioning and partition planning behavior.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from alpha_system.data.foundation.bars import (
     CanonicalBarRecord,
 )
 from alpha_system.data.foundation.quotes import (
+    BBO_QUARANTINE_QUALITY_FLAG,
     CANONICAL_BBO_RECORD_FIELDS,
     CANONICAL_BBO_REQUIRED_FIELDS,
     MISSING_BBO_QUALITY_FLAG,
@@ -44,7 +46,18 @@ DATA_QUALITY_REPORT_FIELDS: tuple[str, ...] = (
     "session_coverage",
     "roll_discontinuities",
     "provider_error_summary",
+    "bbo_missing_metric",
+    "abnormal_spread_summary",
     "status",
+)
+
+DATA_QUALITY_REPORT_OPTIONAL_FIELDS: frozenset[str] = frozenset(
+    {"bbo_missing_metric", "abnormal_spread_summary"}
+)
+DATA_QUALITY_REPORT_REQUIRED_FIELDS: tuple[str, ...] = tuple(
+    field
+    for field in DATA_QUALITY_REPORT_FIELDS
+    if field not in DATA_QUALITY_REPORT_OPTIONAL_FIELDS
 )
 
 COVERAGE_REPORT_FIELDS: tuple[str, ...] = (
@@ -158,7 +171,10 @@ QUALITY_BLOCKING_SUMMARY_FIELDS: frozenset[str] = frozenset(
         "provider_error_summary",
     }
 )
-QUALITY_WARNING_SUMMARY_FIELDS: frozenset[str] = frozenset({"zero_volume_anomalies"})
+QUALITY_WARNING_SUMMARY_FIELDS: frozenset[str] = frozenset(
+    {"zero_volume_anomalies", "abnormal_spread_summary"}
+)
+QUALITY_METRIC_SUMMARY_FIELDS: frozenset[str] = frozenset({"bbo_missing_metric"})
 
 MAX_SUMMARY_ITEMS = 25
 BAR_SIZE_SECONDS_1M = 60
@@ -716,6 +732,13 @@ def _normalize_quality_summary(value: object, field_name: str) -> Mapping[str, o
         if status is ReportStatus.PASSING:
             msg = f"{field_name} with findings must not be PASSING"
             raise DataFoundationValidationError(msg)
+    if field_name in QUALITY_METRIC_SUMMARY_FIELDS:
+        if status is ReportStatus.BLOCKING or blocking:
+            msg = f"{field_name} must be a non-blocking metric summary"
+            raise DataFoundationValidationError(msg)
+        if count > 0 and status is ReportStatus.PASSING:
+            msg = f"{field_name} with findings must not be PASSING"
+            raise DataFoundationValidationError(msg)
     if status is ReportStatus.BLOCKING and not blocking:
         msg = f"{field_name}.blocking must be true for BLOCKING summaries"
         raise DataFoundationValidationError(msg)
@@ -791,6 +814,41 @@ def _passing_summary(
         status=ReportStatus.PASSING,
         sample_key=sample_key,
         extra=extra,
+    )
+
+
+def _empty_bbo_missing_metric() -> Mapping[str, object]:
+    return _passing_summary("sample_missing_bbo")
+
+
+def _empty_abnormal_spread_summary() -> Mapping[str, object]:
+    return _passing_summary("sample_spreads")
+
+
+def _bbo_missing_metric_summary(
+    findings: tuple[Mapping[str, object], ...],
+) -> Mapping[str, object]:
+    return _finding_summary(
+        count=len(findings),
+        status=_status_for_warning_count(len(findings)),
+        sample_key="sample_missing_bbo",
+        samples=findings,
+        extra={
+            "by_finding": dict(
+                sorted(Counter(str(finding["finding"]) for finding in findings).items())
+            )
+        },
+    )
+
+
+def _abnormal_spread_summary(
+    findings: tuple[Mapping[str, object], ...],
+) -> Mapping[str, object]:
+    return _finding_summary(
+        count=len(findings),
+        status=_status_for_warning_count(len(findings)),
+        sample_key="sample_spreads",
+        samples=findings,
     )
 
 
@@ -1343,6 +1401,8 @@ def _compute_quality_summaries(
             "session_coverage": _quality_session_summary(bars, expected_sessions),
             "roll_discontinuities": _roll_discontinuity_summary(bars, roll_transitions),
             "provider_error_summary": _provider_error_summary(provider_errors),
+            "bbo_missing_metric": _empty_bbo_missing_metric(),
+            "abnormal_spread_summary": _empty_abnormal_spread_summary(),
         }
     )
 
@@ -1532,6 +1592,7 @@ def _compute_bbo_quality_summaries(
         expected_interval_seconds=expected_interval_seconds,
     )
     quote_errors: list[Mapping[str, object]] = []
+    abnormal_spread_findings: list[Mapping[str, object]] = []
     zero_size_anomalies: list[Mapping[str, object]] = []
     missing_flag = MISSING_BBO_QUALITY_FLAG.lower()
     for bbo in bbos:
@@ -1555,6 +1616,16 @@ def _compute_bbo_quality_summaries(
                         "finding": "negative_bbo_value",
                     }
                 )
+        if is_missing and BBO_QUARANTINE_QUALITY_FLAG in flags:
+            quote_errors.append(
+                {
+                    "instrument_id": bbo.instrument_id,
+                    "contract_id": bbo.contract_id,
+                    "bar_start_ts": bbo.bar_start_ts.isoformat(),
+                    "finding": "bbo_quarantine_flagged",
+                    "quality_flags": tuple(sorted(bbo.quality_flags)),
+                }
+            )
         if bbo.ask < bbo.bid:
             quote_errors.append(
                 {
@@ -1587,7 +1658,7 @@ def _compute_bbo_quality_summaries(
             and not is_missing
             and bbo.spread > abnormal_spread_threshold
         ):
-            quote_errors.append(
+            abnormal_spread_findings.append(
                 {
                     "instrument_id": bbo.instrument_id,
                     "contract_id": bbo.contract_id,
@@ -1634,10 +1705,9 @@ def _compute_bbo_quality_summaries(
     return MappingProxyType(
         {
             "gap_summary": _finding_summary(
-                count=len(missing_findings),
-                status=_status_for_blocking_count(len(missing_findings)),
+                count=0,
+                status=ReportStatus.PASSING,
                 sample_key="sample_intervals",
-                samples=missing_findings,
             ),
             "duplicate_summary": _finding_summary(
                 count=len(duplicates),
@@ -1679,6 +1749,10 @@ def _compute_bbo_quality_summaries(
                 None,
             ),
             "provider_error_summary": _provider_error_summary(provider_errors),
+            "bbo_missing_metric": _bbo_missing_metric_summary(missing_findings),
+            "abnormal_spread_summary": _abnormal_spread_summary(
+                tuple(abnormal_spread_findings)
+            ),
         }
     )
 
@@ -1703,6 +1777,8 @@ class DataQualityReport:
     session_coverage: Mapping[str, object]
     roll_discontinuities: Mapping[str, object]
     provider_error_summary: Mapping[str, object]
+    bbo_missing_metric: Mapping[str, object]
+    abnormal_spread_summary: Mapping[str, object]
     status: ReportStatus
 
     def __post_init__(self) -> None:
@@ -1746,6 +1822,14 @@ class DataQualityReport:
                 self.provider_error_summary,
                 "provider_error_summary",
             ),
+            "bbo_missing_metric": _normalize_quality_summary(
+                self.bbo_missing_metric,
+                "bbo_missing_metric",
+            ),
+            "abnormal_spread_summary": _normalize_quality_summary(
+                self.abnormal_spread_summary,
+                "abnormal_spread_summary",
+            ),
         }
         status = _normalize_status(self.status, "status")
         derived_status = _derive_quality_status(summaries.values())
@@ -1763,7 +1847,9 @@ class DataQualityReport:
     def from_mapping(cls, values: Mapping[str, object]) -> DataQualityReport:
         """Build a report from aggregate persisted data and reject loose fields."""
 
-        missing = tuple(field for field in DATA_QUALITY_REPORT_FIELDS if field not in values)
+        missing = tuple(
+            field for field in DATA_QUALITY_REPORT_REQUIRED_FIELDS if field not in values
+        )
         if missing:
             msg = "DataQualityReport missing required fields: " + ", ".join(missing)
             raise DataFoundationValidationError(msg)
@@ -1804,6 +1890,14 @@ class DataQualityReport:
             provider_error_summary=_require_summary_mapping(
                 values["provider_error_summary"],
                 "provider_error_summary",
+            ),
+            bbo_missing_metric=_require_summary_mapping(
+                values.get("bbo_missing_metric", _empty_bbo_missing_metric()),
+                "bbo_missing_metric",
+            ),
+            abnormal_spread_summary=_require_summary_mapping(
+                values.get("abnormal_spread_summary", _empty_abnormal_spread_summary()),
+                "abnormal_spread_summary",
             ),
             status=_normalize_status(values["status"], "status"),
         )
@@ -1850,6 +1944,8 @@ class DataQualityReport:
             session_coverage=summaries["session_coverage"],
             roll_discontinuities=summaries["roll_discontinuities"],
             provider_error_summary=summaries["provider_error_summary"],
+            bbo_missing_metric=summaries["bbo_missing_metric"],
+            abnormal_spread_summary=summaries["abnormal_spread_summary"],
             status=status,
         )
 
@@ -1899,6 +1995,8 @@ class DataQualityReport:
             session_coverage=summaries["session_coverage"],
             roll_discontinuities=summaries["roll_discontinuities"],
             provider_error_summary=summaries["provider_error_summary"],
+            bbo_missing_metric=summaries["bbo_missing_metric"],
+            abnormal_spread_summary=summaries["abnormal_spread_summary"],
             status=status,
         )
 
@@ -1925,6 +2023,8 @@ class DataQualityReport:
                 "session_coverage": self.session_coverage,
                 "roll_discontinuities": self.roll_discontinuities,
                 "provider_error_summary": self.provider_error_summary,
+                "bbo_missing_metric": self.bbo_missing_metric,
+                "abnormal_spread_summary": self.abnormal_spread_summary,
                 "status": self.status.value,
             }
         )
@@ -2023,6 +2123,58 @@ def _observed_bbo_count_for_interval(
         and start <= bbo.bar_start_ts
         and bbo.bar_end_ts <= end
     )
+
+
+def _build_bbo_count_index(
+    bbos: tuple[_CanonicalBBOView, ...],
+) -> Mapping[tuple[str, str, str], tuple[list[datetime], list[datetime]]]:
+    """Group BBO views by (instrument, contract, session) with start-sorted arrays.
+
+    Returns key -> (sorted bar_start_ts list, parallel bar_end_ts list) so an
+    interval's observed count is a bisect + short forward scan rather than a full
+    rescan of every BBO view.
+    """
+
+    grouped: dict[tuple[str, str, str], list[tuple[datetime, datetime]]] = defaultdict(list)
+    for bbo in bbos:
+        grouped[(bbo.instrument_id, bbo.contract_id, bbo.session_label)].append(
+            (bbo.bar_start_ts, bbo.bar_end_ts)
+        )
+    index: dict[tuple[str, str, str], tuple[list[datetime], list[datetime]]] = {}
+    for key, pairs in grouped.items():
+        pairs.sort(key=lambda pair: pair[0])
+        index[key] = ([pair[0] for pair in pairs], [pair[1] for pair in pairs])
+    return index
+
+
+def _observed_bbo_count_indexed(
+    index: Mapping[tuple[str, str, str], tuple[list[datetime], list[datetime]]],
+    interval: Mapping[str, object],
+) -> int:
+    start = interval["start_ts"]
+    end = interval["end_ts"]
+    if not isinstance(start, datetime) or not isinstance(end, datetime):
+        msg = "normalized coverage interval carries invalid timestamps"
+        raise DataFoundationValidationError(msg)
+    entry = index.get(
+        (
+            str(interval["instrument_id"]),
+            str(interval["contract_id"]),
+            str(interval["session_label"]),
+        )
+    )
+    if entry is None:
+        return 0
+    starts, ends = entry
+    count = 0
+    position = bisect_left(starts, start)
+    total = len(starts)
+    # Equivalent to: count views with start <= bar_start_ts and bar_end_ts <= end.
+    while position < total and starts[position] <= end:
+        if ends[position] <= end:
+            count += 1
+        position += 1
+    return count
 
 
 def _coverage_bucket_summary(
@@ -2485,6 +2637,11 @@ class CoverageReport:
         )
         missing_interval_summaries = []
 
+        # Index BBO views by (instrument, contract, session) with sorted starts so
+        # each interval is counted via bisect instead of rescanning every view
+        # (avoids O(intervals * bbos) on large dense panels).
+        bbo_count_index = _build_bbo_count_index(bbo_views)
+
         for interval in intervals:
             start = interval["start_ts"]
             end = interval["end_ts"]
@@ -2492,7 +2649,7 @@ class CoverageReport:
                 msg = "normalized coverage interval carries invalid timestamps"
                 raise DataFoundationValidationError(msg)
             expected_count = _expected_bar_count(start, end, interval_seconds)
-            observed_count = _observed_bbo_count_for_interval(bbo_views, interval)
+            observed_count = _observed_bbo_count_indexed(bbo_count_index, interval)
             missing_count = max(0, expected_count - observed_count)
             keys = {
                 "symbol": str(interval["symbol"]),

@@ -327,23 +327,21 @@ def test_databento_real_dbn_loader_requests_raw_fixed_point_prices(
     assert rows["ohlcv-1m"][0]["job_id"] == "job-a"
 
 
-def test_databento_gap_crossed_quote_and_missing_bbo_block_registration(
+def test_databento_missing_bbo_metric_does_not_block_registration(
     tmp_path: Path,
 ) -> None:
     data_root = tmp_path / "alpha_data"
-    registry_path = tmp_path / "blocked.sqlite"
+    registry_path = tmp_path / "missing_bbo.sqlite"
     summary = _canonicalize(
         tmp_path,
         data_root,
         record_source=_record_source(
-            drop_ohlcv={("ES", 10)},
             drop_bbo={("RTY", 20)},
-            crossed_bbo={("NQ", 30)},
         ),
     )
 
-    assert summary.quarantined_row_count >= 1
-    assert summary.missing_bbo_row_count >= 2
+    assert summary.quarantined_row_count == 0
+    assert summary.missing_bbo_row_count == 1
 
     registered = run_register_dataset(
         canonical_root=summary.canonical_root,
@@ -359,12 +357,14 @@ def test_databento_gap_crossed_quote_and_missing_bbo_block_registration(
         now=NOW,
     )
 
-    assert registered.registered is False
-    assert registered.registry_path is None
-    assert registered.ohlcv_quality_status == "BLOCKING"
-    assert registered.ohlcv_coverage_status == "BLOCKING"
-    assert registered.bbo_quality_status == "BLOCKING"
-    assert not registry_path.exists()
+    assert registered.registered is True
+    assert registered.registry_path == registry_path.as_posix()
+    assert registered.ohlcv_quality_status == "PASSING"
+    assert registered.ohlcv_coverage_status == "PASSING"
+    assert registered.bbo_quality_status == "WARNING"
+    assert registered.blocking_summary["bbo_quality_blocks"] is False
+    assert registered.blocking_summary["bbo_missing_metric"]["count"] == 1
+    assert registry_path.exists()
 
 
 def test_databento_out_of_interval_and_undefined_bbo_quarantine_blocks_registration(

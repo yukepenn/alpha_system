@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import fields
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from alpha_system.data.foundation.datasets import (
     DataQualityReport,
     ReportStatus,
 )
+from alpha_system.data.foundation.quotes import MISSING_BBO_QUALITY_FLAG
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 
 FIXTURE_PATH = (
@@ -44,6 +46,45 @@ def _clean_report(**overrides: object) -> DataQualityReport:
     return DataQualityReport.from_canonical_bars(**values)
 
 
+def _bbo_from_bar(bar: Mapping[str, object], **overrides: object) -> dict[str, object]:
+    values = {
+        "instrument_id": bar["instrument_id"],
+        "contract_id": bar["contract_id"],
+        "series_id": bar["series_id"],
+        "bar_start_ts": bar["bar_start_ts"],
+        "bar_end_ts": bar["bar_end_ts"],
+        "event_ts": bar["bar_end_ts"],
+        "available_ts": bar["available_ts"],
+        "ingested_at": bar["ingested_at"],
+        "bid": "5000.25",
+        "ask": "5000.75",
+        "bid_size": "10",
+        "ask_size": "11",
+        "mid": "5000.50",
+        "spread": "0.50",
+        "source": "dsrc_databento",
+        "source_request_id": "dbnmanifest_synthetic",
+        "data_version": "canonical-bbo-v1",
+        "quality_flags": [],
+        "session_label": bar["session_label"],
+    }
+    values.update(overrides)
+    return values
+
+
+def _missing_bbo_from_bar(bar: Mapping[str, object]) -> dict[str, object]:
+    return _bbo_from_bar(
+        bar,
+        bid="0",
+        ask="0",
+        bid_size="0",
+        ask_size="0",
+        mid="0",
+        spread="0",
+        quality_flags=[MISSING_BBO_QUALITY_FLAG],
+    )
+
+
 def test_data_quality_report_exposes_exact_required_fields() -> None:
     report = _clean_report()
 
@@ -73,6 +114,33 @@ def test_data_quality_report_construction_fails_closed_on_missing_extra_or_raw_d
         DataQualityReport.from_mapping(raw_dump)
 
 
+def test_data_quality_report_round_trips_with_and_without_optional_bbo_fields() -> None:
+    report_mapping = dict(_clean_report().to_mapping())
+
+    assert DataQualityReport.from_mapping(report_mapping).to_mapping() == report_mapping
+
+    without_spread_mapping = dict(report_mapping)
+    del without_spread_mapping["abnormal_spread_summary"]
+    without_spread_report = DataQualityReport.from_mapping(without_spread_mapping)
+
+    assert without_spread_report.status is ReportStatus.PASSING
+    assert without_spread_report.abnormal_spread_summary["count"] == 0
+    assert without_spread_report.abnormal_spread_summary["status"] == (
+        ReportStatus.PASSING.value
+    )
+
+    legacy_mapping = dict(report_mapping)
+    del legacy_mapping["bbo_missing_metric"]
+    del legacy_mapping["abnormal_spread_summary"]
+    legacy_report = DataQualityReport.from_mapping(legacy_mapping)
+
+    assert legacy_report.status is ReportStatus.PASSING
+    assert legacy_report.bbo_missing_metric["count"] == 0
+    assert legacy_report.bbo_missing_metric["status"] == ReportStatus.PASSING.value
+    assert legacy_report.abnormal_spread_summary["count"] == 0
+    assert set(legacy_report.to_mapping()) == set(DATA_QUALITY_REPORT_FIELDS)
+
+
 def test_data_quality_report_rejects_status_that_hides_blockers() -> None:
     report_mapping = dict(_clean_report().to_mapping())
     report_mapping["gap_summary"] = {
@@ -99,6 +167,106 @@ def test_silent_gaps_duplicate_and_non_monotonic_timestamps_block() -> None:
     assert duplicate_report.duplicate_summary["count"] == 1
     assert non_monotonic_report.status is ReportStatus.BLOCKING
     assert non_monotonic_report.non_monotonic_summary["count"] == 1
+
+
+def test_ohlcv_real_gap_still_blocks_versioning() -> None:
+    report = _clean_report(bars=(_bars()[0], _bars()[2]))
+
+    assert report.status is ReportStatus.BLOCKING
+    assert report.blocks_versioning
+    assert report.gap_summary["count"] == 1
+
+
+def test_bbo_missing_metric_warns_without_blocking_versioning() -> None:
+    bars = _bars()
+    report = DataQualityReport.from_canonical_bbos(
+        quality_report_id="dqr_bbo_missing_metric",
+        dataset_version_id="dsv_bbo_missing_metric",
+        bbos=(
+            _bbo_from_bar(bars[0]),
+            _missing_bbo_from_bar(bars[1]),
+        ),
+        expected_ohlcv_bars=bars,
+    )
+
+    assert report.status is ReportStatus.WARNING
+    assert not report.blocks_versioning
+    assert report.gap_summary["count"] == 0
+    assert report.ohlc_errors["count"] == 0
+    assert report.bbo_missing_metric["count"] == 2
+    assert report.bbo_missing_metric["status"] == ReportStatus.WARNING.value
+    assert report.bbo_missing_metric["blocking"] is False
+    assert report.bbo_missing_metric["by_finding"] == {
+        "missing_bbo_flagged": 1,
+        "missing_bbo_record_for_ohlcv_minute": 1,
+    }
+
+
+def test_bbo_abnormal_spread_warns_without_blocking_versioning() -> None:
+    wide_bbo = _bbo_from_bar(
+        _bars()[0],
+        bid="5000.00",
+        ask="5011.00",
+        mid="5005.50",
+        spread="11.00",
+    )
+    report = DataQualityReport.from_canonical_bbos(
+        quality_report_id="dqr_bbo_wide_spread",
+        dataset_version_id="dsv_bbo_wide_spread",
+        bbos=(wide_bbo,),
+        abnormal_spread_threshold="10",
+    )
+
+    assert report.status is ReportStatus.WARNING
+    assert not report.blocks_versioning
+    assert report.zero_negative_price_errors["count"] == 0
+    assert report.abnormal_spread_summary["count"] == 1
+    assert report.abnormal_spread_summary["status"] == ReportStatus.WARNING.value
+    assert report.abnormal_spread_summary["blocking"] is False
+    assert report.abnormal_spread_summary["sample_spreads"][0]["finding"] == (
+        "abnormal_spread_outlier"
+    )
+
+
+def test_bbo_genuine_quote_corruption_still_blocks_versioning() -> None:
+    crossed_bbo = _bbo_from_bar(
+        _bars()[0],
+        bid="5001.00",
+        ask="5000.75",
+    )
+    report = DataQualityReport.from_canonical_bbos(
+        quality_report_id="dqr_bbo_corrupt",
+        dataset_version_id="dsv_bbo_corrupt",
+        bbos=(crossed_bbo,),
+    )
+
+    assert report.status is ReportStatus.BLOCKING
+    assert report.blocks_versioning
+    assert report.zero_negative_price_errors["count"] >= 1
+    assert any(
+        sample["finding"] == "bid_above_ask"
+        for sample in report.zero_negative_price_errors["sample_errors"]
+    )
+
+    negative_bbo = _bbo_from_bar(
+        _bars()[0],
+        bid="-1.00",
+        ask="0.00",
+        mid="-0.50",
+        spread="1.00",
+    )
+    negative_report = DataQualityReport.from_canonical_bbos(
+        quality_report_id="dqr_bbo_negative",
+        dataset_version_id="dsv_bbo_negative",
+        bbos=(negative_bbo,),
+    )
+
+    assert negative_report.status is ReportStatus.BLOCKING
+    assert negative_report.blocks_versioning
+    assert any(
+        sample["finding"] == "negative_bbo_value"
+        for sample in negative_report.zero_negative_price_errors["sample_errors"]
+    )
 
 
 def test_ohlc_and_zero_negative_price_defects_block() -> None:
