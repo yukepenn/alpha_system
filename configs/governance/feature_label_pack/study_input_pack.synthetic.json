@@ -1,0 +1,14 @@
+{
+  "alpha_spec_id": "aspec_000000000000000000000003",
+  "dataset_scope": {
+    "instrument_universe": "SYNTHETIC_FIXTURE_UNIVERSE_ONLY",
+    "source": "synthetic template metadata, not market data",
+    "time_range": "2026-01-01 through 2026-01-31 synthetic timestamps"
+  },
+  "feature_request_ids": [
+    "freq_000000000000000000000001"
+  ],
+  "label_spec_ids": [
+    "lspec_000000000000000000000002"
+  ]
+}
