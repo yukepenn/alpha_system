@@ -3,21 +3,29 @@
 `alpha_system` is a local-first, research-only trading harness for developing
 an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
-The repository-level campaign pointer now targets
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1`, with current phase `FLF-P00`. Campaign
-state is tracked in `ACTIVE_CAMPAIGN.md`.
+The repository-level campaign pointer targets
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1`. Campaign state is tracked in
+`ACTIVE_CAMPAIGN.md`.
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this bootstrap
-phase, campaign progress is `1/32` phases, with next phase `FLF-P01` - Entry
-Contract and DatasetVersion Consumption. `FLF-P00` adds the durable
-`docs/feature_label_foundation/` documentation root:
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. The foundation wave
+is underway: `FLF-P00` (bootstrap) is merged, and `FLF-P01` (Entry Contract and
+DatasetVersion Consumption) is complete after this phase merge. The next phase
+is `FLF-P02` - Feature/Label Package Skeleton and Naming.
+
+`FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
 - `docs/feature_label_foundation/README.md`
 - `docs/feature_label_foundation/OVERVIEW.md`
 
+`FLF-P01` adds the `alpha_system.features` package root, the read-only
+DatasetVersion consumption adapter `alpha_system.features.consumption`, and:
+
+- `docs/feature_label_foundation/ENTRY_CONTRACT_CONSUMPTION.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
-only; no external provider calls; no broker, live, paper, order, or account
-scope; and no alpha, tradability, or profitability claims.
+only; no raw provider access; no external provider calls; feature and label
+values remain local-only; no broker, live, paper, order, or account scope; and
+no alpha, tradability, or profitability claims.
 
 Post-closeout, the data foundation was exercised with real local-only data from
 two providers with distinct roles. **Databento** is the primary deep-history
@@ -37,8 +45,9 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` bootstrap is complete after this phase
-merge; the next phase is `FLF-P01`. The completed data-foundation baseline
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress includes `FLF-P00`
+merged and `FLF-P01` complete after this phase merge; the next phase is
+`FLF-P02`. The completed data-foundation baseline
 remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is complete. Within the
 `campaign_bootstrap` gate,
 `DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
