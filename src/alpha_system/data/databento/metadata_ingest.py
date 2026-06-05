@@ -23,8 +23,8 @@ from alpha_system.core.hashing import hash_config
 from alpha_system.core.registry import is_local_only_registry_path
 from alpha_system.data.databento.manifest_files import DatabentoFileManifest
 from alpha_system.data.databento.request_spec import DATABENTO_DATASET, load_json_mapping
+from alpha_system.data.foundation.serialization import json_ready as _json_ready
 from alpha_system.data.foundation.sources import DataFoundationValidationError
-from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 from alpha_system.data.ibkr.materialize import _repo_root, _validate_data_root
 
 METADATA_SCHEMAS: tuple[str, ...] = ("definition", "statistics", "status")

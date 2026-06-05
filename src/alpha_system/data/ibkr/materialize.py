@@ -37,6 +37,7 @@ from alpha_system.data.foundation.datasets import (
     compute_quality_report_hash,
     require_governance_metadata_for_locked_partition_use,
 )
+from alpha_system.data.foundation.serialization import json_ready as _json_ready
 from alpha_system.data.foundation.sessions import (
     SESSION_TYPE_EARLY_CLOSE,
     SESSION_TYPE_ETH,
@@ -47,7 +48,6 @@ from alpha_system.data.foundation.sessions import (
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import persist_dataset_version
-from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 from alpha_system.data.quality import evaluate_data_quality, normalize_quality_flags
 from alpha_system.data.sessionize import sessionize_bars
 from alpha_system.data.sessions import build_session_id, session_contains_bar

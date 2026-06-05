@@ -9,12 +9,12 @@ import sys
 from collections.abc import Sequence
 
 from alpha_system.data.foundation.ibkr import IBKRConnectionProfile
+from alpha_system.data.foundation.serialization import json_ready_base as _json_ready
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.ibkr._connection import (
     connection_doctor_blocked_message,
     gate_read_only_ibkr_access,
 )
-from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 from alpha_system.data.ibkr.connector import open_ibkr_historical_boundary
 from alpha_system.data.ibkr.pull import (
     DEFAULT_SMOKE_BATCH_ID,
