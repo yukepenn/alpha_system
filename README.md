@@ -8,10 +8,9 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P16 LabelSpec and LabelVersion Contracts is complete (`FLF-P00`
-through `FLF-P16`, 17 of 32 phases), opening the `label_contracts` gate. The
-next phase is FLF-P17 Fixed-Horizon and Midprice Forward Labels, opening the
-parallel label-family wave.
+merge, FLF-P19 Path Labels: MFE / MAE / Triple Barrier is complete as part of
+the parallel label-family wave. The next dependency-gated label integration
+phase is FLF-P21 after FLF-P17, FLF-P18, FLF-P19, and FLF-P20 are merged.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -108,6 +107,13 @@ synthetic temp-DB tests, and:
 
 - `docs/feature_label_foundation/LABEL_CONTRACTS.md`
 
+`FLF-P19` adds the additive path label family package
+`alpha_system.labels.families.path` for MFE, MAE, target-before-stop, and
+triple-barrier labels, scoped synthetic fixture tests, family config
+placeholders, and:
+
+- `docs/feature_label_foundation/labels/path.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no silent BBO forward-fill or interpolation; no
@@ -135,16 +141,18 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature-materialization progress includes
-FLF-P16 after this phase merge: FeatureStore / FeatureRegistry metadata
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress includes
+FLF-P19 after this phase merge: FeatureStore / FeatureRegistry metadata
 registration, versioned resolution, duplicate/equivalent exposure recording,
-deprecation, descriptive feature quality / coverage evidence, and immutable
-label contracts bound to governed `lspec_` LabelSpec records are available
-through `alpha_system.features.store`, `alpha_system.features.registry`,
-`alpha_system.features.reports`, `alpha_system.reports.feature_card`, and
-`alpha_system.labels.version`. The next work is FLF-P17 Fixed-Horizon and
-Midprice Forward Labels. The completed data-foundation baseline remains
-unchanged:
+deprecation, descriptive feature quality / coverage evidence, immutable label
+contracts bound to governed `lspec_` LabelSpec records, and the additive path
+label family for MFE, MAE, target-before-stop, and triple-barrier labels are
+available through `alpha_system.features.store`,
+`alpha_system.features.registry`, `alpha_system.features.reports`,
+`alpha_system.reports.feature_card`, `alpha_system.labels.version`, and
+`alpha_system.labels.families.path`. The next dependency-gated label
+integration work is FLF-P21 after the parallel label-family wave merges. The
+completed data-foundation baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
