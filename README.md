@@ -8,13 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, campaign progress is 22 of 32 phases (`FLF-P00` through `FLF-P22`).
-FLF-P22 adds the local-only LabelStore / LabelRegistry integration in
-`alpha_system.labels.registry` and
-`docs/feature_label_foundation/LABEL_STORE.md`. The next dependency-gated label
-integration phase is FLF-P23 Label Leakage and Availability Audits. Ralph owns
-serial merge ordering and next-phase selection for downstream label
-integration.
+merge, campaign progress is 23 of 32 phases (`FLF-P00` through `FLF-P23`).
+FLF-P23 adds the label leakage and availability audit layer in
+`alpha_system.labels.leakage_audit` and
+`docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`. The next
+dependency-gated phase is FLF-P24 Feature/Label Diagnostics Reports. Ralph owns
+serial merge ordering and next-phase selection for downstream diagnostics work.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -147,6 +146,11 @@ family config placeholders, and:
 
 - `docs/feature_label_foundation/LABEL_STORE.md`
 
+`FLF-P23` adds the label leakage and availability audit layer
+`alpha_system.labels.leakage_audit`, scoped no-lookahead/fail-closed tests, and:
+
+- `docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no label-as-feature path; no silent BBO forward-fill
@@ -174,15 +178,16 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 22 of
-32 phases after this phase merge (`FLF-P00` through `FLF-P22`). Durable modules
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 23 of
+32 phases after this phase merge (`FLF-P00` through `FLF-P23`). Durable modules
 now include feature request gating, feature contracts, feature families,
 feature materialization and registry integration, feature reports, label
 contracts, label families, label materialization, and the local-only
-LabelRegistry in `alpha_system.labels.registry`. FLF-P22 adds
-`docs/feature_label_foundation/LABEL_STORE.md`; the next phase is FLF-P23
-Label Leakage and Availability Audits. The completed data-foundation baseline
-remains unchanged.
+LabelRegistry in `alpha_system.labels.registry`, plus label leakage and
+availability audits in `alpha_system.labels.leakage_audit`. FLF-P23 adds
+`docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`; the next phase is
+FLF-P24 Feature/Label Diagnostics Reports. The completed data-foundation
+baseline remains unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
