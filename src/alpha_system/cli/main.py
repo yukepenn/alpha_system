@@ -8,8 +8,10 @@ from collections.abc import Sequence
 from alpha_system.cli.backtest import register_subparser as register_backtest_subparser
 from alpha_system.cli.data import register_subparser as register_data_subparser
 from alpha_system.cli.factor import register_subparser as register_factor_subparser
+from alpha_system.cli.feature import register_subparser as register_feature_subparser
 from alpha_system.cli.governance import register_subparser as register_governance_subparser
 from alpha_system.cli.grid import register_subparser as register_grid_subparser
+from alpha_system.cli.label import register_subparser as register_label_subparser
 from alpha_system.cli.management import register_subparser as register_management_subparser
 from alpha_system.cli.ml import register_subparser as register_ml_subparser
 from alpha_system.cli.registry import register_subparser as register_registry_subparser
@@ -31,8 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
     register_backtest_subparser(subparsers)
     register_data_subparser(subparsers)
     register_factor_subparser(subparsers)
+    register_feature_subparser(subparsers)
     register_governance_subparser(subparsers)
     register_grid_subparser(subparsers)
+    register_label_subparser(subparsers)
     register_management_subparser(subparsers)
     register_ml_subparser(subparsers)
     register_report_subparser(subparsers)
@@ -49,3 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if handler is None:
         return 0
     return int(handler(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
