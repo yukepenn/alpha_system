@@ -8,10 +8,11 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. The foundation wave
-is underway: `FLF-P00` (bootstrap) and `FLF-P01` (Entry Contract and
-DatasetVersion Consumption) are merged, and `FLF-P02` (Feature/Label Package
-Skeleton and Naming) is complete after this phase merge. The next phase is
-`FLF-P03` - Canonical Input Views for OHLCV and BBO.
+is underway: `FLF-P00` (bootstrap), `FLF-P01` (Entry Contract and
+DatasetVersion Consumption), and `FLF-P02` (Feature/Label Package Skeleton and
+Naming) are merged, and `FLF-P03` (Canonical Input Views for OHLCV and BBO) is
+complete after this phase merge. The next phase is `FLF-P04` - Dense Grid /
+No-Trade / BBO Missingness Semantics.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -28,6 +29,11 @@ DatasetVersion consumption adapter `alpha_system.features.consumption`, and:
 subpackage, feature/label config roots, import-smoke test roots, and:
 
 - `docs/feature_label_foundation/NAMING.md`
+
+`FLF-P03` adds the durable canonical input-view layer
+`alpha_system.features.input_views`, scoped available-time tests, and:
+
+- `docs/feature_label_foundation/INPUT_VIEWS.md`
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; no raw provider access; no external provider calls; feature and label
@@ -53,9 +59,9 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress includes `FLF-P00`
-and `FLF-P01` merged and `FLF-P02` complete after this phase merge; the next
-phase is `FLF-P03`. The completed data-foundation baseline
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress includes `FLF-P00`,
+`FLF-P01`, and `FLF-P02` merged and `FLF-P03` complete after this phase merge;
+the next phase is `FLF-P04`. The completed data-foundation baseline
 remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is complete. Within the
 `campaign_bootstrap` gate,
 `DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
