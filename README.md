@@ -8,6 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
+merge, campaign progress is 25 of 32 phases (`FLF-P00` through `FLF-P25`).
+FLF-P25 adds tiny synthetic Feature/Label fixtures, a cross-cutting fail-closed
+no-lookahead suite, illustrative example configs, and
+`docs/feature_label_foundation/fixtures.md`. Ralph owns serial merge ordering
+and next-phase selection for the remaining diagnostics and packaging / Wave 5-6
+closeout work.
 merge, campaign progress is 24 of 32 phases (`FLF-P00` through `FLF-P24`).
 FLF-P24 adds descriptive Feature/Label diagnostics in
 `alpha_system.research.feature_label_diagnostics` and
@@ -151,6 +157,12 @@ family config placeholders, and:
 
 - `docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`
 
+`FLF-P25` adds tiny deterministic synthetic fixtures under
+`tests/fixtures/feature_label/`, the cross-cutting fail-closed suite under
+`tests/no_lookahead/feature_label/`, illustrative example configs under
+`configs/features/examples/` and `configs/labels/examples/`, and:
+
+- `docs/feature_label_foundation/fixtures.md`
 `FLF-P24` adds the descriptive Feature/Label diagnostics module
 `alpha_system.research.feature_label_diagnostics`, scoped synthetic report tests,
 and:
@@ -184,6 +196,19 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 25 of
+32 phases after this phase merge (`FLF-P00` through `FLF-P25`). Durable modules
+now include feature request gating, feature contracts, feature families,
+feature materialization and registry integration, feature reports, label
+contracts, label families, label materialization, the local-only LabelRegistry
+in `alpha_system.labels.registry`, label leakage and availability audits in
+`alpha_system.labels.leakage_audit`, and synthetic fixture/fail-closed coverage
+under `tests/fixtures/feature_label/` and
+`tests/no_lookahead/feature_label/`. FLF-P25 adds
+`docs/feature_label_foundation/fixtures.md` and illustrative example configs
+under `configs/features/examples/` and `configs/labels/examples/`. Ralph owns
+the next phase selection for remaining diagnostics and packaging / Wave 5-6
+closeout work. The completed data-foundation baseline remains unchanged.
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 24 of
 32 phases after this phase merge (`FLF-P00` through `FLF-P24`). Durable modules
 now include feature request gating, feature contracts, feature families,
