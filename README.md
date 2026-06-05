@@ -8,12 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P19 Path Labels: MFE / MAE / Triple Barrier is complete as part of
-the parallel label-family wave. The next dependency-gated label integration
+merge, FLF-P20 Strategy-Agnostic Event Labels is complete as part of the
+parallel `label_families` wave. The next dependency-gated label integration
 phase is FLF-P21 after FLF-P17, FLF-P18, FLF-P19, and FLF-P20 are merged.
-merge, FLF-P18 Cost-Adjusted / Spread-Adjusted Labels is complete within the
-32-phase set. Ralph owns serial merge ordering and next-phase selection for the
-surrounding label-family wave and downstream label integration.
+FLF-P20 adds `alpha_system.labels.families.event` and
+`docs/feature_label_foundation/labels/event.md`. Ralph owns serial merge
+ordering and next-phase selection for the surrounding label-family wave and
+downstream label integration.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -121,6 +122,13 @@ package `alpha_system.labels.families.cost_adjusted`, scoped synthetic fixture
 tests, family config placeholders, and:
 
 - `docs/feature_label_foundation/labels/cost_adjusted.md`
+
+`FLF-P20` adds the additive strategy-agnostic event label family package
+`alpha_system.labels.families.event` for breakout, VWAP-return, sweep-outcome,
+and future-liquidity-quality event labels, scoped synthetic fixture tests,
+family config placeholders, and:
+
+- `docs/feature_label_foundation/labels/event.md`
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
