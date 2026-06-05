@@ -8,10 +8,10 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P14 FeatureStore / FeatureRegistry Integration is complete
-(`FLF-P00` through `FLF-P14`, 15 of 32 phases). The next phase is FLF-P15
-Feature Quality and Coverage Reports, which closes the
-`feature_materialization` gate.
+merge, FLF-P15 Feature Quality and Coverage Reports is complete (`FLF-P00`
+through `FLF-P15`, 16 of 32 phases), closing the `feature_materialization`
+gate. The next phase is FLF-P16 LabelSpec and LabelVersion Contracts, opening
+the label track.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -96,11 +96,18 @@ synthetic temp-DB tests, and:
 
 - `docs/feature_label_foundation/FEATURE_STORE.md`
 
+`FLF-P15` adds descriptive feature quality and coverage reports in
+`alpha_system.features.reports`, the plain-text `FeatureCard` renderer in
+`alpha_system.reports.feature_card`, scoped fail-closed synthetic tests, and:
+
+- `docs/feature_label_foundation/FEATURE_REPORTS.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no silent BBO forward-fill or interpolation; no
 synthetic no-trade row is treated as a trade bar; feature and label values
-remain local-only; the feature registry DB remains local-only and uncommitted;
+remain local-only; feature report bundles and the feature registry DB remain
+local-only and uncommitted;
 governance is consumed, not duplicated; no broker, live, paper, order, or
 account scope; and no alpha, tradability, or profitability claims.
 
@@ -123,11 +130,12 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature-materialization progress includes
-FLF-P14 after this phase merge: FeatureStore / FeatureRegistry metadata
+FLF-P15 after this phase merge: FeatureStore / FeatureRegistry metadata
 registration, versioned resolution, duplicate/equivalent exposure recording,
-and deprecation are available through `alpha_system.features.store` and
-`alpha_system.features.registry`. The next work is FLF-P15 Feature Quality and
-Coverage Reports. The completed
+deprecation, and descriptive feature quality / coverage evidence are available
+through `alpha_system.features.store`, `alpha_system.features.registry`,
+`alpha_system.features.reports`, and `alpha_system.reports.feature_card`. The
+next work is FLF-P16 LabelSpec and LabelVersion Contracts. The completed
 data-foundation baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
