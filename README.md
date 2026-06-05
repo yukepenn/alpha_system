@@ -8,11 +8,11 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, the foundation merge group is complete through `FLF-P05` of 32 and the
-feature-contract gate has started with the governed FeatureRequest
-implementation gate. Active phase snapshot: `FLF-P05` - FeatureRequest Gate and
-Duplicate Exposure Guard. The next phase is `FLF-P06` - FeatureSpec and
-FeatureVersion Contracts.
+merge, the foundation merge group is complete through `FLF-P06` of 32 and the
+feature-contract gate now includes the governed FeatureRequest gate plus the
+FeatureSpec / FeatureVersion contract family. Active phase snapshot: `FLF-P06`
+- FeatureSpec and FeatureVersion Contracts. The next phase is `FLF-P07` -
+Transform / Window / Normalization Primitives.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -45,7 +45,12 @@ subpackage, feature/label config roots, import-smoke test roots, and:
 
 - `docs/feature_label_foundation/FEATURE_REQUEST_GATE.md`
 
-No new command surface is added by FLF-P05.
+`FLF-P06` adds immutable feature contract objects in
+`alpha_system.features.contracts`, scoped contract tests, and:
+
+- `docs/feature_label_foundation/FEATURE_CONTRACTS.md`
+
+No new command surface is added by FLF-P06.
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; no raw provider access; no external provider calls; no silent BBO
@@ -72,9 +77,10 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
-`FLF-P05` of 32 after this phase merge; the active phase snapshot is `FLF-P05`,
-the feature-contract gate has started with the FeatureRequest gate, and the next
-phase is `FLF-P06` - FeatureSpec and FeatureVersion Contracts. The completed
+`FLF-P06` of 32 after this phase merge; the active phase snapshot is `FLF-P06`,
+the feature-contract gate includes the FeatureRequest gate and FeatureSpec /
+FeatureVersion contracts, and the next phase is `FLF-P07` - Transform / Window /
+Normalization Primitives. The completed
 data-foundation baseline remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
