@@ -1,11 +1,14 @@
-# Data Config Placeholders
+# Data Configs
 
-`DATA-P01` reserves this root for future data-foundation configuration files.
+Configuration for the data foundation: provider instrument masters, validation
+configs, and small reference examples. (Originally reserved by `DATA-P01`; it now
+holds active configs used by the IBKR and Databento adapters.)
 
-Later phases may add documented data source profiles, local data-root policies,
-request planning examples, and tiny synthetic fixtures when explicitly authorized.
-This root must not contain credentials, account details, provider secrets, real
+Contents include IBKR and Databento instrument / validation configs (e.g.
+`ibkr_*`, `databento_*`) and `*_example` reference files. The
+`request_pacing_policy_to_be_verified.json` filename is intentional — its
+`to_be_verified` status is a governance-honesty marker (see `configs/README.md`).
+
+This root must never contain credentials, account details, provider secrets, real
 market data, committed local paths, raw provider responses, or production settings.
-
-Existing sample config files in this directory are prior baseline fixtures. This
-phase does not change their behavior.
+Real data stays local-only under `ALPHA_DATA_ROOT`.

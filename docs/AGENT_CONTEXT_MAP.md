@@ -79,6 +79,10 @@ Do **not** try to read all ~70 docs. Use [`README.md`](README.md) to jump to the
   Databento specifics under [`data_foundation/databento/`](data_foundation/databento/).
 - Partitions + locked-test contamination metadata: `DatasetPartitionPlan` /
   `require_governance_metadata_for_locked_partition_use` in `data/foundation/datasets.py`.
+- **Use the canonical `data/foundation/*` layer**, not the older flat `data/*` layer
+  (`data/contracts.py::OneMinuteBar`, `data/versions.py::DatasetVersion`, `data/sessions.py`)
+  that predates it. Known deferred refactors (incl. the Databento→IBKR helper boundary)
+  are tracked in [`STRUCTURAL_BACKLOG.md`](STRUCTURAL_BACKLOG.md).
 
 ## Governance entry points
 
