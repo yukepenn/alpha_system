@@ -8,11 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, the foundation merge group is complete through `FLF-P06` of 32 and the
-feature-contract gate now includes the governed FeatureRequest gate plus the
-FeatureSpec / FeatureVersion contract family. Active phase snapshot: `FLF-P06`
-- FeatureSpec and FeatureVersion Contracts. The next phase is `FLF-P07` -
-Transform / Window / Normalization Primitives.
+merge, the foundation merge group is complete through `FLF-P07` of 32 and the
+feature-contract gate now includes the governed FeatureRequest gate, the
+FeatureSpec / FeatureVersion contract family, and the shared transform / window
+/ normalization primitive layer. Active phase snapshot: `FLF-P07` - Transform /
+Window / Normalization Primitives. The next work is the FLF-P08...FLF-P12
+parallel feature-family wave, dependent on FLF-P06 and FLF-P07.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -50,7 +51,13 @@ subpackage, feature/label config roots, import-smoke test roots, and:
 
 - `docs/feature_label_foundation/FEATURE_CONTRACTS.md`
 
-No new command surface is added by FLF-P06.
+`FLF-P07` adds the shared causal primitive package
+`alpha_system.features.primitives`, scoped primitive and no-lookahead tests,
+and:
+
+- `docs/feature_label_foundation/PRIMITIVES.md`
+
+No new command surface is added by FLF-P07.
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; no raw provider access; no external provider calls; no silent BBO
@@ -77,10 +84,10 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
-`FLF-P06` of 32 after this phase merge; the active phase snapshot is `FLF-P06`,
-the feature-contract gate includes the FeatureRequest gate and FeatureSpec /
-FeatureVersion contracts, and the next phase is `FLF-P07` - Transform / Window /
-Normalization Primitives. The completed
+`FLF-P07` of 32 after this phase merge; the active phase snapshot is `FLF-P07`,
+the feature-contract gate includes the FeatureRequest gate, FeatureSpec /
+FeatureVersion contracts, and `alpha_system.features.primitives`, and the next
+work is the FLF-P08...FLF-P12 parallel feature-family wave. The completed
 data-foundation baseline remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
