@@ -8,6 +8,9 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
+merge, FLF-P19 Path Labels: MFE / MAE / Triple Barrier is complete as part of
+the parallel label-family wave. The next dependency-gated label integration
+phase is FLF-P21 after FLF-P17, FLF-P18, FLF-P19, and FLF-P20 are merged.
 merge, FLF-P18 Cost-Adjusted / Spread-Adjusted Labels is complete within the
 32-phase set. Ralph owns serial merge ordering and next-phase selection for the
 surrounding label-family wave and downstream label integration.
@@ -107,6 +110,12 @@ synthetic temp-DB tests, and:
 
 - `docs/feature_label_foundation/LABEL_CONTRACTS.md`
 
+`FLF-P19` adds the additive path label family package
+`alpha_system.labels.families.path` for MFE, MAE, target-before-stop, and
+triple-barrier labels, scoped synthetic fixture tests, family config
+placeholders, and:
+
+- `docs/feature_label_foundation/labels/path.md`
 `FLF-P18` adds the additive Cost-Adjusted / Spread-Adjusted label family
 package `alpha_system.labels.families.cost_adjusted`, scoped synthetic fixture
 tests, family config placeholders, and:
@@ -140,6 +149,18 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress includes
+FLF-P19 after this phase merge: FeatureStore / FeatureRegistry metadata
+registration, versioned resolution, duplicate/equivalent exposure recording,
+deprecation, descriptive feature quality / coverage evidence, immutable label
+contracts bound to governed `lspec_` LabelSpec records, and the additive path
+label family for MFE, MAE, target-before-stop, and triple-barrier labels are
+available through `alpha_system.features.store`,
+`alpha_system.features.registry`, `alpha_system.features.reports`,
+`alpha_system.reports.feature_card`, `alpha_system.labels.version`, and
+`alpha_system.labels.families.path`. The next dependency-gated label
+integration work is FLF-P21 after the parallel label-family wave merges. The
+completed data-foundation baseline remains unchanged:
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` Feature/Label Foundation progress includes
 FLF-P18 after this phase merge: FeatureStore / FeatureRegistry metadata
 registration, versioned resolution, duplicate/equivalent exposure recording,
