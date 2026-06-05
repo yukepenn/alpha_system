@@ -8,12 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, the foundation merge group is complete through `FLF-P07` of 32 and the
-feature-contract gate now includes the governed FeatureRequest gate, the
-FeatureSpec / FeatureVersion contract family, and the shared transform / window
-/ normalization primitive layer. Active phase snapshot: `FLF-P07` - Transform /
-Window / Normalization Primitives. The next work is the FLF-P08...FLF-P12
-parallel feature-family wave, dependent on FLF-P06 and FLF-P07.
+merge, Wave 1 feature-family work is underway and complete through `FLF-P08` of
+32: the governed FeatureRequest gate, FeatureSpec / FeatureVersion contracts,
+shared causal primitives, and additive Base OHLCV family are present. Active
+phase snapshot: `FLF-P08` - Base OHLCV Feature Families. The next work remains
+the FLF-P09...FLF-P12 parallel feature-family wave, dependent on FLF-P06 and
+FLF-P07.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -57,7 +57,13 @@ and:
 
 - `docs/feature_label_foundation/PRIMITIVES.md`
 
-No new command surface is added by FLF-P07.
+`FLF-P08` adds the additive Base OHLCV feature family package
+`alpha_system.features.families.ohlcv`, scoped synthetic fixture tests, family
+config placeholders, and:
+
+- `docs/feature_label_foundation/features/ohlcv.md`
+
+No new command surface is added by FLF-P08.
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; no raw provider access; no external provider calls; no silent BBO
@@ -84,11 +90,12 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
-`FLF-P07` of 32 after this phase merge; the active phase snapshot is `FLF-P07`,
+`FLF-P08` of 32 after this phase merge; the active phase snapshot is `FLF-P08`,
 the feature-contract gate includes the FeatureRequest gate, FeatureSpec /
-FeatureVersion contracts, and `alpha_system.features.primitives`, and the next
-work is the FLF-P08...FLF-P12 parallel feature-family wave. The completed
-data-foundation baseline remains unchanged: `ALPHA_DATA_FOUNDATION_V1` is
+FeatureVersion contracts, `alpha_system.features.primitives`, and the additive
+Base OHLCV family, and the next work is the FLF-P09...FLF-P12 parallel
+feature-family wave. The completed data-foundation baseline remains unchanged:
+`ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
 `DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
