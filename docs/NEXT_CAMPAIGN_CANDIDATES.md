@@ -1,5 +1,11 @@
 # Next Campaign Candidates
 
+> **Decided next macro-campaign:** `ALPHA_FEATURE_LABEL_FOUNDATION_V1` (see
+> `PROJECT_STATUS.md` and, once authored, the
+> `campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/` contract). The table below is a
+> historical menu of candidate ideas captured during ALPHA_SYSTEM_V1, not the
+> committed roadmap.
+
 These candidates require separate specs, review, and artifact policies. They
 are not implied v0.1 capabilities.
 

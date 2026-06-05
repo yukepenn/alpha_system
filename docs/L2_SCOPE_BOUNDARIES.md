@@ -1,5 +1,9 @@
 # L2 Scope Boundaries
 
+> **Design-only — not implemented.** Future, non-MVP L2/replay concepts for a
+> later campaign. No L2 replay, passive-fill, queue, or live/order behavior is
+> implemented or authorized in the current system.
+
 The ALPHA_SYSTEM_V1 L2 surface is schema and design readiness only.
 
 ## Allowed In This Campaign

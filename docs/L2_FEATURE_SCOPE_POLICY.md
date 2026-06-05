@@ -1,5 +1,9 @@
 # L2 Feature Scope Policy
 
+> **Design-only — not implemented.** Future, non-MVP L2/replay concepts for a
+> later campaign. No L2 replay, passive-fill, queue, or live/order behavior is
+> implemented or authorized in the current system.
+
 The ASV1-P26 L2 feature surface is limited to declarative specs, tiny synthetic
 fixtures, deterministic in-memory transforms, and tests for timing and artifact
 discipline.

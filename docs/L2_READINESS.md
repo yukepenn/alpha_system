@@ -1,5 +1,9 @@
 # L2 Readiness
 
+> **Design-only — not implemented.** Future, non-MVP L2/replay concepts for a
+> later campaign. No L2 replay, passive-fill, queue, or live/order behavior is
+> implemented or authorized in the current system.
+
 ASV1-P25 adds design-only Level-2 readiness schemas for future snapshot and event/delta research. The scope is schema metadata, timestamp semantics, synthetic in-memory validation, and documentation. It is not a replay engine and it is not execution infrastructure.
 
 ## Snapshot Schema

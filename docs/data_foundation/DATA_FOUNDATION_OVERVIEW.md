@@ -11,6 +11,14 @@ objects, lifecycle transitions, schemas, validation, data pulls, tests,
 connector behavior, IBKR code, broker behavior, paper trading, live trading,
 order routing, account access, deployment behavior, or market claims.
 
+> **Post-closeout update.** This overview was authored for the IBKR bootstrap
+> posture. Since closeout, **Databento** is the primary deep-history research
+> source (GLBX.MDP3 ES/NQ/RTY OHLCV-1m + BBO-1m, 2018–2026, registered as
+> local-only DatasetVersions), and **IBKR** is the read-only broker-validation
+> source. See `docs/data_foundation/databento/` and
+> `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`. The IBKR-centric
+> description below remains as historical campaign documentation.
+
 ## Read-Only Truth Layer
 
 The campaign admits real historical market data only after the data can be

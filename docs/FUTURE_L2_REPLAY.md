@@ -1,5 +1,9 @@
 # Future L2 Replay
 
+> **Design-only — not implemented.** Future, non-MVP L2/replay concepts for a
+> later campaign. No L2 replay, passive-fill, queue, or live/order behavior is
+> implemented or authorized in the current system.
+
 This document records future replay design needs without implementing replay in ALPHA_SYSTEM_V1.
 
 ## Future Book Reconstruction Needs
