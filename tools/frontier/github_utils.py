@@ -982,7 +982,12 @@ def merge_pr(
     dry_run: bool = True,
     runner: CommandRunner | None = None,
 ) -> GitHubResult:
-    command = ["gh", "pr", "merge", str(pr), f"--{method}", "--delete-branch"]
+    # NOTE: no `--delete-branch`. In a worktree the merged branch is checked out,
+    # and gh's branch-deletion path can flip the shared repo to core.bare=true,
+    # which breaks sibling phases committing concurrently in a parallel wave.
+    # The driver's cleanup_after_merge removes the worktree and deletes the local
+    # and remote branch safely after the merge instead.
+    command = ["gh", "pr", "merge", str(pr), f"--{method}"]
     if os.environ.get("FRONTIER_DISABLE_AUTOMERGE") == "1":
         return GitHubResult(
             "merge_pr",
@@ -1126,7 +1131,7 @@ def merge_pr(
 
     retryable_by_policy = classification in {"branch_policy_timing", "not_mergeable"} or status == MERGE_RETRYABLE
     if retryable_by_policy and _env_flag("FRONTIER_ALLOW_AUTOMERGE"):
-        retry_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}", "--delete-branch"]
+        retry_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}"]
         retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=300)
         retry_view = view_pr(pr, root=root, runner=runner)
         retry_merged = _pr_is_merged(_pr_data_from_result(retry_view)) if not retry_view.blocked else False

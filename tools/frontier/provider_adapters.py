@@ -158,6 +158,8 @@ class CodexProviderAdapter(ProviderAdapter):
         return [
             *self.config.codex_cmd,
             "exec",
+            "-c",
+            f"service_tier={self.config.codex_service_tier}",
             "--sandbox",
             self.config.codex_sandbox,
             "-",

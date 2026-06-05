@@ -2030,6 +2030,8 @@ Safety rules:
 - Do not create a PR.
 - Do not merge.
 - Do not mark the phase PASS.
+- Do not run `git add`, `git commit`, `git push`, `git status`, or `git diff`, and do not stage or commit anything yourself. Leave all your changes UNSTAGED in the working tree.
+- OVERRIDE: the spec's "Allowed Paths" / "Commit only" lists exist to tell the Ralph driver which files to stage and commit on your behalf — they are NOT an instruction for you to run git. Just create or edit those files in the working tree and list them by path in your handoff. (In worktree mode the shared `.git` metadata is read-only to you by design; the unsandboxed driver performs the authoritative staging and commit after you finish, so a git failure on your side is expected and must not be treated as a blocker.)
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
 - Keep generated local-only artifacts out of git.
@@ -2037,7 +2039,7 @@ Safety rules:
 {executor_run_artifact_policy(phase["phase_id"])}
 - Run only validation that is safe and requested by the spec.
 - Write execution output and handoff only.
-- The Ralph driver owns validation, review, done-check, verdict, repair, PR, CI, and merge gate.
+- The Ralph driver owns staging, commit, validation, review, done-check, verdict, repair, PR, CI, and merge gate.
 
 Run artifact directory available to you:
 {phase_dir.relative_to(ROOT)}
@@ -2607,33 +2609,45 @@ def cleanup_phase_worktree_after_merge(
     *,
     dry_run: bool | None = None,
 ) -> None:
-    if not state.get("worktree_mode") or not phase.get("merged"):
-        return
-    path_text = str(phase.get("worktree_path") or "").strip()
-    branch = str(phase.get("branch") or "").strip()
-    if not path_text or not branch:
+    if not phase.get("merged"):
         return
     phase_dir = provider_phase_dir(run_dir, phase)
     config = load_config(ROOT / "frontier.yaml")
     github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
     remote = str(github_config.get("remote") or "origin")
-    manager = WorktreeManager(ROOT, runtime_config().worktree_root)
-    cleanup = manager.cleanup_after_merge(
-        Path(path_text),
-        branch,
-        remote=remote,
-        dry_run=bool(state.get("mock_providers")) if dry_run is None else dry_run,
-    )
-    write_json(phase_dir / "worktree_cleanup.json", cleanup)
-    append_event(
-        run_dir,
-        state,
-        "WORKTREE_CLEANUP" if cleanup.get("ok") else "WORKTREE_CLEANUP_BLOCKED",
-        phase_id=phase["phase_id"],
-        branch=branch,
-        path=path_text,
-        ok=bool(cleanup.get("ok")),
-    )
+    # Worktree removal + branch delete only apply in worktree mode.
+    if state.get("worktree_mode"):
+        path_text = str(phase.get("worktree_path") or "").strip()
+        branch = str(phase.get("branch") or "").strip()
+        if path_text and branch:
+            manager = WorktreeManager(ROOT, runtime_config().worktree_root)
+            cleanup = manager.cleanup_after_merge(
+                Path(path_text),
+                branch,
+                remote=remote,
+                dry_run=bool(state.get("mock_providers")) if dry_run is None else dry_run,
+            )
+            write_json(phase_dir / "worktree_cleanup.json", cleanup)
+            append_event(
+                run_dir,
+                state,
+                "WORKTREE_CLEANUP" if cleanup.get("ok") else "WORKTREE_CLEANUP_BLOCKED",
+                phase_id=phase["phase_id"],
+                branch=branch,
+                path=path_text,
+                ok=bool(cleanup.get("ok")),
+            )
+    # Post-merge repo hygiene runs in ALL modes (worktree and in-tree).
+    repo_hygiene = restore_local_repo_after_merge(state, remote=remote)
+    if repo_hygiene.get("core_bare_restored") or repo_hygiene.get("base_synced"):
+        append_event(
+            run_dir,
+            state,
+            "POST_MERGE_REPO_HYGIENE",
+            phase_id=phase["phase_id"],
+            core_bare_restored=bool(repo_hygiene.get("core_bare_restored")),
+            base_synced=bool(repo_hygiene.get("base_synced")),
+        )
 
 
 def read_json_if_exists(path: Path) -> dict[str, Any]:
@@ -3206,6 +3220,55 @@ def post_phase_git_github(
         project_config=project_config,
         execution_root=execution_root,
     )
+
+
+def restore_local_repo_after_merge(
+    state: dict[str, Any],
+    *,
+    remote: str = "origin",
+) -> dict[str, Any]:
+    """Post-merge repo hygiene for worktree/parallel mode.
+
+    ``gh pr merge --delete-branch`` is executed with the working directory set
+    to the phase worktree, where the merged branch is the checked-out branch.
+    On some gh/git versions that branch-deletion path leaves the *shared* repo
+    with ``core.bare = true``. The remote merge still succeeds, but every
+    subsequent phase then fails its local git (``fatal: this operation must be
+    run in a work tree``) and the wave coordinator blocks. This guard repairs
+    the local repository after each successful merge:
+
+    1. Restore ``core.bare = false`` if a merge flipped it.
+    2. Fast-forward the local base branch to the freshly merged remote so the
+       next wave's worktrees branch off the correct, up-to-date base.
+
+    It is a no-op outside worktree mode and under mock providers, and every
+    step is best-effort: failures are recorded but never raise, so they cannot
+    block an otherwise-successful merge.
+    """
+
+    report: dict[str, Any] = {"checked": False, "core_bare_restored": False, "base_synced": False}
+    if bool(state.get("mock_providers")):
+        return report
+    report["checked"] = True
+    is_bare = git(ROOT, "rev-parse", "--is-bare-repository")
+    if is_bare.returncode == 0 and is_bare.stdout.strip() == "true":
+        git(ROOT, "config", "core.bare", "false")
+        report["core_bare_restored"] = True
+    # Sync the local base branch to the freshly merged remote so the next phase
+    # builds off the correct base. When the shared repo is on the base branch
+    # (worktree mode), fast-forward it; when it is on a phase branch (in-tree
+    # mode), update the base ref directly without checking it out.
+    base_branch = detect_default_branch(root=ROOT)
+    current = git(ROOT, "rev-parse", "--abbrev-ref", "HEAD")
+    cur = current.stdout.strip() if current.returncode == 0 else ""
+    if cur == base_branch:
+        git(ROOT, "fetch", remote, base_branch)
+        ff = git(ROOT, "merge", "--ff-only", f"{remote}/{base_branch}")
+        report["base_synced"] = ff.returncode == 0
+    elif cur:
+        fetched = git(ROOT, "fetch", remote, f"{base_branch}:{base_branch}")
+        report["base_synced"] = fetched.returncode == 0
+    return report
 
 
 def finalize_phase_merge(
@@ -4141,7 +4204,19 @@ def execute_provider_phase(
     workflow2 = runtime_config().raw.get("workflow2", {})
     if not isinstance(workflow2, dict) or bool(workflow2.get("semantic_done_check_required", True)):
         existing_done = read_json_if_exists(phase_dir / "done_check.json")
-        if existing_done.get("verdict"):
+        # Only reuse a prior done-check when it is at least as new as this
+        # execution's executor output. A re-executed phase rewrites
+        # executor_output.md, which makes any stale done_check.json (e.g. a
+        # BLOCKED verdict from an earlier attempt under a since-fixed
+        # environment fault) older — so it is re-run fresh instead of cached.
+        _done_path = phase_dir / "done_check.json"
+        _exec_path = phase_dir / "executor_output.md"
+        _done_is_fresh = (
+            bool(existing_done.get("verdict"))
+            and _done_path.exists()
+            and (not _exec_path.exists() or _done_path.stat().st_mtime >= _exec_path.stat().st_mtime)
+        )
+        if _done_is_fresh:
             done_text = _read_phase_text(phase_dir / "done_check.md")
             done_verdict = str(existing_done.get("verdict"))
             record_stage_checkpoint(

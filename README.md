@@ -8,11 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, Wave 1 feature-family work is underway and complete through `FLF-P09` of
+merge, Wave 1 feature-family work is underway and complete through `FLF-P10` of
 32: the governed FeatureRequest gate, FeatureSpec / FeatureVersion contracts,
 shared causal primitives, additive Base OHLCV family, and additive BBO
-tradability family are present. Active phase snapshot: `FLF-P09` - BBO
-Tradability Feature Families. The next work remains the FLF-P10...FLF-P12
+tradability family, plus the additive Session / Calendar / Roll family are
+present.
+Active phase snapshot: `FLF-P10` - Session / Calendar / Roll Feature Families.
+The next work remains the FLF-P11...FLF-P12
 parallel feature-family wave, dependent on FLF-P06 and FLF-P07.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
@@ -69,13 +71,20 @@ config placeholders, and:
 
 - `docs/feature_label_foundation/features/bbo.md`
 
-No new command surface is added by FLF-P09.
+`FLF-P10` adds the additive Session / Calendar / Roll feature family package
+`alpha_system.features.families.session`, scoped synthetic fixture tests,
+family config placeholders, and:
+
+- `docs/feature_label_foundation/features/session.md`
+
+No new command surface is added by FLF-P10.
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; no raw provider access; no external provider calls; no silent BBO
-forward-fill or interpolation; feature and label values remain local-only;
-governance is consumed, not duplicated; no broker, live, paper, order, or
-account scope; and no alpha, tradability, or profitability claims.
+forward-fill or interpolation; no synthetic no-trade rows treated as trade
+bars; feature and label values remain local-only; governance is consumed, not
+duplicated; no broker, live, paper, order, or account scope; and no alpha,
+tradability, or profitability claims.
 
 Post-closeout, the data foundation was exercised with real local-only data from
 two providers with distinct roles. **Databento** is the primary deep-history
@@ -96,12 +105,12 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
-`FLF-P09` of 32 after this phase merge; the active phase snapshot is `FLF-P09`,
+`FLF-P10` of 32 after this phase merge; the active phase snapshot is `FLF-P10`,
 the feature-contract gate includes the FeatureRequest gate, FeatureSpec /
 FeatureVersion contracts, `alpha_system.features.primitives`, the additive Base
-OHLCV family, and the additive BBO tradability family, and the next work is the
-FLF-P10...FLF-P12 parallel feature-family wave. The completed data-foundation
-baseline remains unchanged:
+OHLCV family, the additive BBO tradability family, and the additive Session /
+Calendar / Roll family, and the next work is the FLF-P11...FLF-P12 parallel
+feature-family wave. The completed data-foundation baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
