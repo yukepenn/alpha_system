@@ -8,10 +8,10 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P15 Feature Quality and Coverage Reports is complete (`FLF-P00`
-through `FLF-P15`, 16 of 32 phases), closing the `feature_materialization`
-gate. The next phase is FLF-P16 LabelSpec and LabelVersion Contracts, opening
-the label track.
+merge, FLF-P16 LabelSpec and LabelVersion Contracts is complete (`FLF-P00`
+through `FLF-P16`, 17 of 32 phases), opening the `label_contracts` gate. The
+next phase is FLF-P17 Fixed-Horizon and Midprice Forward Labels, opening the
+parallel label-family wave.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -102,6 +102,12 @@ synthetic temp-DB tests, and:
 
 - `docs/feature_label_foundation/FEATURE_REPORTS.md`
 
+`FLF-P16` adds immutable label-layer contract objects in
+`alpha_system.labels.version`, additive label-family contract wiring in
+`alpha_system.labels.families`, scoped fail-closed label contract tests, and:
+
+- `docs/feature_label_foundation/LABEL_CONTRACTS.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no silent BBO forward-fill or interpolation; no
@@ -130,13 +136,15 @@ tradability, or production-readiness claims.
 ## Current Repo Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature-materialization progress includes
-FLF-P15 after this phase merge: FeatureStore / FeatureRegistry metadata
+FLF-P16 after this phase merge: FeatureStore / FeatureRegistry metadata
 registration, versioned resolution, duplicate/equivalent exposure recording,
-deprecation, and descriptive feature quality / coverage evidence are available
+deprecation, descriptive feature quality / coverage evidence, and immutable
+label contracts bound to governed `lspec_` LabelSpec records are available
 through `alpha_system.features.store`, `alpha_system.features.registry`,
-`alpha_system.features.reports`, and `alpha_system.reports.feature_card`. The
-next work is FLF-P16 LabelSpec and LabelVersion Contracts. The completed
-data-foundation baseline remains unchanged:
+`alpha_system.features.reports`, `alpha_system.reports.feature_card`, and
+`alpha_system.labels.version`. The next work is FLF-P17 Fixed-Horizon and
+Midprice Forward Labels. The completed data-foundation baseline remains
+unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
