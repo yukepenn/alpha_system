@@ -1,0 +1,3515 @@
+campaign_id: ALPHA_FEATURE_LABEL_FOUNDATION_V1
+campaign_name: 'Feature/Label Foundation: Versioned, No-Lookahead-Safe Research Substrate'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  primary: trading_research
+  secondary: research
+  project_type: feature_label_foundation
+  profiles:
+  - trading_research
+  - research
+  - feature_label_foundation
+  builds_on:
+  - ALPHA_SYSTEM_V1
+  - ASV1_RELEASE_HYGIENE
+  - ALPHA_RESEARCH_GOVERNANCE_MVP
+  - ALPHA_DATA_FOUNDATION_V1
+  - PRE_FEATURE_REPO_CONSOLIDATION_V1
+  - WF2_PARALLEL_DAG_SCHEDULER_MVP
+  local_first: true
+  research_substrate_layer_not_alpha_search: true
+  databento_primary_deep_history_source: true
+  ibkr_broker_source_recent_validation_only: true
+  consumes_accepted_dataset_versions_only: true
+  future_multi_asset_ready: true
+  future_l2_ready: true
+  broker_live_trading_in_scope: false
+  paper_trading_in_scope: false
+  order_placement_in_scope: false
+  account_trading_in_scope: false
+  alpha_search_in_scope: false
+  strategy_backtest_portfolio_in_scope: false
+  production_trading_claims_allowed: false
+  alpha_tradability_claims_allowed_without_evidence: false
+workflow:
+  harness: Frontier Harness Generic
+  harness_version: '3.0'
+  workflow_id: Workflow 2
+  driver: Ralph
+  executor: Codex
+  reviewer: Claude
+  mode: Ralph-driven strict autonomous loop
+  loose_loop: false
+  fresh_context_per_phase: true
+  git_memory: true
+  campaign_contract_based: true
+  automatic_pr_merge_by_lane: true
+  stop_file_supported: true
+  semantic_done_check_required: true
+  handoff_required_per_phase: true
+  review_required_for_yellow: true
+  fake_completion_forbidden: true
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  requirements:
+  - run_frontier_plan_before_execution
+  - run_parallel_mock_before_first_live_parallel_run
+  - serial_merge_queue_required
+  - phase_branches_do_not_write_active_campaign
+  - red_phases_not_parallel_by_default
+  - parallel_safe_phases_require_disjoint_allowed_paths
+  - omitting_parallel_safe_or_allowed_paths_means_run_alone
+runtime:
+  host: Windows
+  primary_environment: WSL2 Ubuntu
+  primary_runtime: WSL2 Ubuntu
+  repo_must_live_under: ~/projects/alpha_system
+  required_filesystem: WSL2 Linux filesystem
+  forbidden_active_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  forbidden_active_worktree_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  local_first: true
+  cloud_db_required: false
+  paid_db_required: false
+  broker_credentials_required: false
+  live_market_data_required: false
+  external_provider_calls_require_red_authorization: true
+models:
+  strategy:
+    name: ChatGPT Pro GPT-5.5 Thinking
+    model: ChatGPT Pro / GPT-5.5 Thinking
+    responsibilities:
+    - strategy
+    - roadmap
+    - campaign reasoning
+    - post-run reasoning
+  spec_review_donecheck:
+    name: Claude Opus 4.8 xhigh
+    model: Claude Opus
+    responsibilities:
+    - phase specs
+    - architecture specs
+    - semantic review
+    - done-check
+    - campaign decomposition
+  verifier:
+    name: Claude Sonnet 4.6
+    model: Claude Sonnet
+    responsibilities:
+    - source maps
+    - verifier support
+    - audits
+    - mechanical inspection
+  executor:
+    name: Codex GPT-5.5 high
+    model: Codex GPT-5.5 high
+    responsibilities:
+    - implementation
+    - tests
+    - repair
+    - handoff writing
+  orchestrator:
+    name: Ralph
+    model: Ralph
+    responsibilities:
+    - Workflow 2 state machine
+    - DAG wave scheduler
+    - serial merge queue
+    - run control
+    - phase transitions
+    - STOP/resume
+    - validation ledger
+    - review routing
+    - verdict parsing
+    - PR/CI/merge gates
+    - bounded repair enforcement
+lane_policy:
+  GREEN:
+    description: Low-risk docs, campaign-contract, and mechanical work for the Feature/Label substrate.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: false
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    description: Material Feature/Label engineering and research-substrate work. Every YELLOW phase is local-only and consumes ACCEPTED DatasetVersions; no phase calls an external provider API, materializes committed values, or introduces order/account/paper/live scope.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    most_phases: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  RED:
+    description: 'External, destructive, live, production, or broker-adjacent operations. This campaign has NO RED-lane phases: the data is already pulled, so the Feature/Label layer only consumes local accepted DatasetVersions. The RED lane definition is retained for harness completeness only.'
+    automatic_execute_when_scoped: true
+    automatic_repair: false
+    automatic_merge: false
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    required_scope_env:
+    - PROJECT_OP_AUTHORIZED
+    - PROJECT_OP_SCOPE
+    - PROJECT_OP_EXPIRES
+    expected_in_this_campaign: false
+    expected_red_phases: []
+    note_no_red_phases: This campaign has no RED-lane phases and makes no external provider calls. All data consumption is local-only against accepted DatasetVersions.
+    red_requires:
+    - explicit_external_authorization
+    - human_authorization
+    - no_ci_execution
+    - local_only_outputs
+    - no_data_artifacts_committed
+    - no_order_api_surface
+    - no_stop_file
+state_machine:
+  strict: true
+  states:
+  - RUN_INIT
+  - CAMPAIGN_LOAD
+  - PHASE_SELECT
+  - SPEC_GENERATE
+  - SPEC_VALIDATE
+  - WORKTREE_CREATE
+  - CODEX_EXECUTE
+  - CHECKS_RUN
+  - HANDOFF_VALIDATE
+  - CLAUDE_REVIEW
+  - VERDICT_PARSE
+  - PR_CREATE
+  - CI_WAIT
+  - MERGE_GATE
+  - MERGE
+  - DONE_CHECK
+  - NEXT_PHASE
+  - CAMPAIGN_DONE_CHECK
+  - RUN_SUMMARY
+  scheduler_mode: dag_wave
+  parallel_execution: true
+  merge_queue: serial
+  failure_routes:
+    REWORK:
+      route: bounded_repair_loop
+      repair_attempts_tracked: true
+      max_repair_attempts_default: 2
+      repair_attempts_path: runs/<run_id>/phases/<phase_id>/repair_attempts/
+      requires_repair_attempt_record: true
+      fake_completion_forbidden: true
+    BLOCKED:
+      route: blocked_handoff_and_stop_or_escalation
+      blocked_handoff_required: true
+      dependent_phases_blocked: true
+      fake_completion_allowed: false
+    FAIL:
+      route: checks_failure_repair_loop_or_blocked_handoff
+      repair_attempts_tracked: true
+      fake_completion_forbidden: true
+feature_label_lifecycle:
+  description: Lifecycle that the Feature/Label objects must enforce. Listed here as the contract Workflow 2 phases implement; not executed by Ralph itself.
+  feature_states:
+  - REQUESTED
+  - SPEC_DRAFTED
+  - SPEC_VALIDATED
+  - IMPLEMENTATION_ALLOWED
+  - IMPLEMENTED
+  - MATERIALIZATION_PLANNED
+  - MATERIALIZED_DRAFT
+  - QUALITY_CHECKED
+  - REGISTERED
+  - READY_FOR_STUDY
+  - REJECTED
+  - QUARANTINED
+  - DEPRECATED
+  label_states:
+  - LABEL_REQUESTED
+  - LABEL_SPEC_DRAFTED
+  - LABEL_SPEC_VALIDATED
+  - MATERIALIZATION_ALLOWED
+  - MATERIALIZED_DRAFT
+  - LEAKAGE_AUDITED
+  - QUALITY_CHECKED
+  - REGISTERED
+  - READY_FOR_STUDY
+  - REJECTED
+  - QUARANTINED
+  - DEPRECATED
+  prohibited_mvp_states:
+  - ALPHA_VALIDATED
+  - STRATEGY_READY
+  - LIVE_READY
+  - PROFITABLE
+  - TRADABLE
+  - PRODUCTION_READY
+  prohibited_state_note: Listed only as future non-MVP concepts. They must not be reachable by any transition implemented in this campaign.
+path_policy:
+  exceptions_apply_before_forbidden_globs: true
+  placeholder_exceptions:
+  - '**/.gitkeep'
+  - '**/README.md'
+  tiny_fixture_exceptions:
+  - tests/fixtures/** when tiny synthetic deterministic documented fixture below repository size threshold
+  global_forbidden_paths:
+  - src/alpha_system/execution/broker*
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live*
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper*
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+artifact_policy:
+  never_commit:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - artifacts/**/full_trade_logs/**
+  - '**/*credential*'
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - source code
+  - configs
+  - schemas
+  - docs
+  - tests
+  - tiny synthetic fixtures
+  - templates
+  - handoffs
+  - reviews
+  - curated summaries
+  - sample configs with synthetic data only
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_provider_response_commits: true
+    no_account_info_commits: true
+    no_heavy_artifact_commits: true
+    no_local_db_commits: true
+data_artifact_policy:
+  raw_real_data_local_only: true
+  canonical_real_data_local_only: true
+  feature_values_local_only: true
+  label_values_local_only: true
+  commit_real_market_data_forbidden: true
+  commit_provider_responses_forbidden: true
+  commit_feature_or_label_values_forbidden: true
+  no_external_provider_calls_in_this_campaign: true
+  suggested_data_root: ~/alpha_data/alpha_system
+  data_root_env: ALPHA_DATA_ROOT
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_provider_responses_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  yellow_requires_fresh_claude_review: true
+  green_review_optional_unless_phase_requires: true
+  red_requires_scoped_authorization_and_claude_review: true
+  verdict_json_required: true
+  review_artifact_required_for_yellow: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+  allowed_verdicts_for_merge:
+  - PASS
+  - PASS_WITH_WARNINGS
+  blocked_verdicts:
+  - FAIL
+  - BLOCKED
+  - REWORK_REQUIRED
+  reviewer_independence_required: true
+  implementer_cannot_self_approve: true
+  review_must_check:
+  - phase scope compliance
+  - feature/label object completeness for the phase
+  - no raw provider data access from feature/label code
+  - only accepted DatasetVersions consumed via resolve_dataset_version
+  - FeatureRequest gate and duplicate-exposure guard wired to governance, not re-implemented
+  - FeatureSpec/LabelSpec required before values; available_ts and label_available_ts present
+  - no label-as-feature; no future/centered live-window features
+  - BBO missingness flagged with no silent forward-fill; synthetic no-trade rows never treated as trades
+  - locked-test partition use carries governance contamination metadata
+  - no FeatureStore/LabelStore dumping ground; duplicate/equivalent exposure recorded
+  - governance objects consumed (FeatureRequest/LabelSpec/StudySpec), not duplicated
+  - 'DAG metadata correctness: parallel_safe phases have disjoint allowed_paths and no global files'
+  - serial merge queue respected; phase branch does not write ACTIVE_CAMPAIGN.md in parallel mode
+  - artifact policy compliance; no raw/canonical/feature/label values or DB committed
+  - no broker/live/paper/order-routing or account-trading scope
+  - no alpha/profitability/tradability claims; no strategy/backtest/portfolio scope
+  - no test weakening or gaming
+  - handoff completeness and semantic done criteria
+merge_policy:
+  GREEN:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+    - ci_pass_if_configured
+  RED:
+    auto_pr_if_authorized: true
+    auto_merge: false
+    requires:
+    - scoped_authorization_present
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_data_artifacts_committed
+    - no_forbidden_paths
+    - no_stop_file
+    - ci_pass_if_configured
+  green_auto_pr: true
+  green_auto_merge: true
+  yellow_auto_pr: true
+  yellow_auto_merge: true
+  red_auto_pr: true
+  red_auto_merge: false
+  require_ci_pass: true
+  require_artifact_policy_pass: true
+  require_no_stop_file: true
+  require_verdict_json: true
+  require_no_data_artifacts_committed: true
+  merge_queue: serial
+  parallel_build_serial_merge: true
+  global_blockers:
+  - STOP file present
+  - forbidden path staged
+  - raw or canonical data staged
+  - feature or label values staged
+  - provider response staged
+  - heavy artifact staged
+  - local DB staged
+  - external provider call attempted
+  - raw provider data read by feature/label code
+  - accepted DatasetVersion bypassed
+  - feature without available_ts
+  - label without label_available_ts
+  - label values exposed as live features
+  - future/centered rolling window used as live feature
+  - FeatureRequest/FeatureSpec/LabelSpec bypassed
+  - duplicate exposure allowed without record
+  - missing BBO silently forward-filled
+  - synthetic no-trade row treated as actual trade bar
+  - locked-test partition used without contamination metadata
+  - broker/live/paper/order-routing scope introduced
+  - strategy/backtest/portfolio scope introduced
+  - unsupported alpha/tradability claim introduced
+  - parallel phase lacks disjoint allowed_paths
+  - parallel wave has path/resource conflict
+  - phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  - merge occurs outside serial merge queue
+  - test weakening detected
+  - semantic done-check failed
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - account trading
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access from feature/label code
+  - real alpha search
+  - strategy/backtest/portfolio research
+  - ML training beyond authorized scope
+  - L2/event-stream ingestion
+  - raw data commit
+  - canonical data commit
+  - feature value commit
+  - label value commit
+  - provider response commit
+  - heavy artifact commit
+  - local DB commit
+  - label-as-feature
+  - future/centered live-window feature
+  - alpha/profitability/tradability claim
+  - duplicate governance object
+  - test weakening or gaming
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+dataset_consumption_policy:
+  accepted_dataset_versions_required: true
+  raw_provider_access_forbidden: true
+  databento_primary_source: true
+  ibkr_validation_source_only: true
+  no_external_provider_calls_in_this_campaign: true
+  sanctioned_consumption_api: alpha_system.data.foundation.version_registry.resolve_dataset_version
+  canonical_records_only:
+  - CanonicalBarRecord
+  - CanonicalBBORecord
+  - DenseGridBarRecord
+  admissible_dataset_version_states:
+  - VERSIONED
+  - READY_FOR_RESEARCH
+  no_merge_of_databento_and_ibkr_versions: true
+  locked_partition_use_requires_governance_metadata: true
+  preferred_input:
+    source: databento
+    dataset: GLBX.MDP3
+    universe:
+    - ES
+    - NQ
+    - RTY
+    schemas:
+    - OHLCV-1m
+    - BBO-1m
+    - Definition
+    - Statistics
+    - Status
+    role: primary_deep_history_research_corpus
+  ibkr_role: broker_source_recent_validation
+feature_policy:
+  feature_request_required: true
+  feature_spec_required: true
+  available_ts_required: true
+  duplicate_exposure_check_required: true
+  feature_store_dumping_ground_forbidden: true
+  feature_values_local_only: true
+  no_future_window_features: true
+  no_centered_live_windows: true
+  consumes_governance_feature_request: true
+label_policy:
+  label_spec_required: true
+  label_available_ts_required: true
+  label_as_feature_forbidden: true
+  future_data_allowed_only_for_labels: true
+  cost_adjusted_labels_required: true
+  label_values_local_only: true
+  consumes_governance_label_spec: true
+bbo_policy:
+  bbo_features_allowed: true
+  missing_bbo_flag_required: true
+  no_silent_forward_fill: true
+  spread_cost_fields_required: true
+  microprice_requires_valid_bid_ask_sizes: true
+  missing_bbo_quality_flag_token: missing_bbo
+  abnormal_quote_quality_flag_token: bbo_quarantined
+partition_policy:
+  locked_test_metadata_required: true
+  locked_test_use_requires_governance_metadata: true
+  partition_contamination_must_be_recorded: true
+  development_partition: 2018-01-01 through 2022-12-31
+  validation_partition: 2023-01-01 through 2024-12-31
+  locked_test_candidate: 2025-01-01 through as_of_run
+  latest_shadow_candidate: optional rolling recent period
+phases:
+- id: FLF-P00
+  name: Feature/Label Campaign Bootstrap
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/GOAL.md
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/campaign.yaml
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/RUNBOOK.md
+  - test '!' -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/ACTIVE_CAMPAIGN.md
+  - test -f handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P00.md
+  - grep -q "ALPHA_FEATURE_LABEL_FOUNDATION_V1" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/**
+  - docs/feature_label_foundation/README.md
+  - docs/feature_label_foundation/OVERVIEW.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P00.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P00/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/families/**
+  - tests/**
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - campaign overview docs
+    - commit-eligible handoff
+    never_commit: &id001
+    - runs/**
+    - raw or canonical market data
+    - provider responses (Databento DBN/Zstd, IBKR)
+    - materialized feature values
+    - materialized label values
+    - heavy artifacts (parquet/arrow/feather)
+    - local DB/registry files (sqlite/db/wal)
+    - logs and caches
+    explicit_staging_only: true
+- id: FLF-P01
+  name: Entry Contract and DatasetVersion Consumption
+  lane: YELLOW
+  dependencies:
+  - FLF-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.consumption"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features -q
+  - test -f docs/feature_label_foundation/ENTRY_CONTRACT_CONSUMPTION.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/__init__.py
+  - src/alpha_system/features/consumption.py
+  - tests/unit/features/test_consumption.py
+  - docs/feature_label_foundation/ENTRY_CONTRACT_CONSUMPTION.md
+  - configs/features/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P01.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P01/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - DatasetVersion consumption adapter
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P02
+  name: Feature/Label Package Skeleton and Naming
+  lane: YELLOW
+  dependencies:
+  - FLF-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features -q
+  - test -f docs/feature_label_foundation/NAMING.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/families/**
+  - tests/unit/features/**
+  - tests/unit/labels/families/**
+  - tests/no_lookahead/feature_label/**
+  - configs/features/**
+  - configs/labels/**
+  - docs/feature_label_foundation/NAMING.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P02.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P02/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/labels/spec.py
+  - src/alpha_system/labels/contracts.py
+  - src/alpha_system/labels/generation.py
+  - src/alpha_system/labels/path_metrics.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/alignment.py
+  - src/alpha_system/labels/validation.py
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/registry.py
+  - src/alpha_system/labels/leakage_audit.py
+  - src/alpha_system/labels/reports.py
+  - src/alpha_system/labels/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - package skeletons
+    - tests
+    - configs placeholders
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P03
+  name: Canonical Input Views for OHLCV and BBO
+  lane: YELLOW
+  dependencies:
+  - FLF-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.input_views"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features tests/no_lookahead/feature_label -q
+  - test -f docs/feature_label_foundation/INPUT_VIEWS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/input_views.py
+  - tests/unit/features/test_input_views.py
+  - tests/no_lookahead/feature_label/test_input_views_available_ts.py
+  - docs/feature_label_foundation/INPUT_VIEWS.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P03.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P03/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - input view layer
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P04
+  name: Dense Grid / No-Trade / BBO Missingness Semantics
+  lane: YELLOW
+  dependencies:
+  - FLF-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.semantics"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features -q
+  - test -f docs/feature_label_foundation/DENSE_GRID_AND_BBO_SEMANTICS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/semantics.py
+  - tests/unit/features/test_semantics.py
+  - docs/feature_label_foundation/DENSE_GRID_AND_BBO_SEMANTICS.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P04.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P04/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - dense-grid / no-trade / BBO-missingness semantics
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P05
+  name: FeatureRequest Gate and Duplicate Exposure Guard
+  lane: YELLOW
+  dependencies:
+  - FLF-P04
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.request_gate"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features -q
+  - test -f docs/feature_label_foundation/FEATURE_REQUEST_GATE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/request_gate.py
+  - tests/unit/features/test_request_gate.py
+  - docs/feature_label_foundation/FEATURE_REQUEST_GATE.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P05.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P05/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - FeatureRequest gate adapter
+    - duplicate-exposure views
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P06
+  name: FeatureSpec and FeatureVersion Contracts
+  lane: YELLOW
+  dependencies:
+  - FLF-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.contracts"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features -q
+  - test -f docs/feature_label_foundation/FEATURE_CONTRACTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/contracts.py
+  - tests/unit/features/test_contracts.py
+  - docs/feature_label_foundation/FEATURE_CONTRACTS.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P06.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P06/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - feature contract objects
+    - FeatureVersion
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P07
+  name: Transform / Window / Normalization Primitives
+  lane: YELLOW
+  dependencies:
+  - FLF-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.primitives"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features tests/no_lookahead/feature_label -q
+  - test -f docs/feature_label_foundation/PRIMITIVES.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/features/primitives/**
+  - tests/unit/features/test_primitives.py
+  - tests/no_lookahead/feature_label/test_primitives_causal.py
+  - docs/feature_label_foundation/PRIMITIVES.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P07.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P07/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - transform/window/normalization primitives
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P08
+  name: Base OHLCV Feature Families
+  lane: YELLOW
+  dependencies:
+  - FLF-P06
+  - FLF-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.families.ohlcv"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features/families/ohlcv -q
+  - test -f docs/feature_label_foundation/features/ohlcv.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_families
+  allowed_paths:
+  - src/alpha_system/features/families/ohlcv/**
+  - tests/unit/features/families/ohlcv/**
+  - docs/feature_label_foundation/features/ohlcv.md
+  - configs/features/families/ohlcv/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P08.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P08/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/features/contracts.py
+  - src/alpha_system/features/consumption.py
+  - src/alpha_system/features/input_views.py
+  - src/alpha_system/features/semantics.py
+  - src/alpha_system/features/request_gate.py
+  - src/alpha_system/features/primitives/**
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - src/alpha_system/features/reports.py
+  - src/alpha_system/features/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/labels/**
+  - src/alpha_system/features/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Base OHLCV Feature Families (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P09
+  name: BBO Tradability Feature Families
+  lane: YELLOW
+  dependencies:
+  - FLF-P06
+  - FLF-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.families.bbo"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features/families/bbo -q
+  - test -f docs/feature_label_foundation/features/bbo.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_families
+  allowed_paths:
+  - src/alpha_system/features/families/bbo/**
+  - tests/unit/features/families/bbo/**
+  - docs/feature_label_foundation/features/bbo.md
+  - configs/features/families/bbo/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P09.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P09/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/features/contracts.py
+  - src/alpha_system/features/consumption.py
+  - src/alpha_system/features/input_views.py
+  - src/alpha_system/features/semantics.py
+  - src/alpha_system/features/request_gate.py
+  - src/alpha_system/features/primitives/**
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - src/alpha_system/features/reports.py
+  - src/alpha_system/features/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/labels/**
+  - src/alpha_system/features/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - BBO Tradability Feature Families (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P10
+  name: Session / Calendar / Roll Feature Families
+  lane: YELLOW
+  dependencies:
+  - FLF-P06
+  - FLF-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.families.session"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features/families/session -q
+  - test -f docs/feature_label_foundation/features/session.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_families
+  allowed_paths:
+  - src/alpha_system/features/families/session/**
+  - tests/unit/features/families/session/**
+  - docs/feature_label_foundation/features/session.md
+  - configs/features/families/session/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P10.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P10/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/features/contracts.py
+  - src/alpha_system/features/consumption.py
+  - src/alpha_system/features/input_views.py
+  - src/alpha_system/features/semantics.py
+  - src/alpha_system/features/request_gate.py
+  - src/alpha_system/features/primitives/**
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - src/alpha_system/features/reports.py
+  - src/alpha_system/features/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/labels/**
+  - src/alpha_system/features/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Session / Calendar / Roll Feature Families (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P11
+  name: Cross-Market ES/NQ/RTY Feature Families
+  lane: YELLOW
+  dependencies:
+  - FLF-P06
+  - FLF-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.families.cross_market"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features/families/cross_market -q
+  - test -f docs/feature_label_foundation/features/cross_market.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_families
+  allowed_paths:
+  - src/alpha_system/features/families/cross_market/**
+  - tests/unit/features/families/cross_market/**
+  - docs/feature_label_foundation/features/cross_market.md
+  - configs/features/families/cross_market/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P11.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P11/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/features/contracts.py
+  - src/alpha_system/features/consumption.py
+  - src/alpha_system/features/input_views.py
+  - src/alpha_system/features/semantics.py
+  - src/alpha_system/features/request_gate.py
+  - src/alpha_system/features/primitives/**
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - src/alpha_system/features/reports.py
+  - src/alpha_system/features/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/labels/**
+  - src/alpha_system/features/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Cross-Market ES/NQ/RTY Feature Families (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P12
+  name: Liquidity Sweep / Structure Primitive Features
+  lane: YELLOW
+  dependencies:
+  - FLF-P06
+  - FLF-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.families.structure"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features/families/structure -q
+  - test -f docs/feature_label_foundation/features/structure.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_families
+  allowed_paths:
+  - src/alpha_system/features/families/structure/**
+  - tests/unit/features/families/structure/**
+  - docs/feature_label_foundation/features/structure.md
+  - configs/features/families/structure/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P12.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P12/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/features/contracts.py
+  - src/alpha_system/features/consumption.py
+  - src/alpha_system/features/input_views.py
+  - src/alpha_system/features/semantics.py
+  - src/alpha_system/features/request_gate.py
+  - src/alpha_system/features/primitives/**
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - src/alpha_system/features/reports.py
+  - src/alpha_system/features/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/labels/**
+  - src/alpha_system/features/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Liquidity Sweep / Structure Primitive Features (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P13
+  name: Feature Materialization Engine
+  lane: YELLOW
+  dependencies:
+  - FLF-P08
+  - FLF-P09
+  - FLF-P10
+  - FLF-P11
+  - FLF-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.engine"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features tests/integration/features -q
+  - test -f docs/feature_label_foundation/FEATURE_MATERIALIZATION.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_engine
+  merge_group: feature_integration
+  allowed_paths:
+  - src/alpha_system/features/engine/**
+  - tests/unit/features/test_feature_engine.py
+  - tests/integration/features/**
+  - docs/feature_label_foundation/FEATURE_MATERIALIZATION.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P13.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P13/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - feature materialization engine
+    - tests on synthetic fixtures
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P14
+  name: FeatureStore / FeatureRegistry Integration
+  lane: YELLOW
+  dependencies:
+  - FLF-P13
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.registry"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features tests/integration/features -q
+  - test -f docs/feature_label_foundation/FEATURE_STORE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - feature_registry
+  merge_group: feature_integration
+  allowed_paths:
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - tests/unit/features/test_feature_store.py
+  - tests/integration/features/**
+  - docs/feature_label_foundation/FEATURE_STORE.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P14.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P14/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - FeatureStore/registry code
+    - tests against temp DB
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P15
+  name: Feature Quality and Coverage Reports
+  lane: YELLOW
+  dependencies:
+  - FLF-P14
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.features.reports"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/features tests/unit/reports -q
+  - test -f docs/feature_label_foundation/FEATURE_REPORTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_integration
+  allowed_paths:
+  - src/alpha_system/features/reports.py
+  - src/alpha_system/reports/feature_card.py
+  - tests/unit/features/test_feature_reports.py
+  - tests/unit/reports/test_feature_card.py
+  - docs/feature_label_foundation/FEATURE_REPORTS.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P15.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P15/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - feature quality/coverage reports
+    - feature card
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P16
+  name: LabelSpec and LabelVersion Contracts
+  lane: YELLOW
+  dependencies:
+  - FLF-P07
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.version"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels -q
+  - test -f docs/feature_label_foundation/LABEL_CONTRACTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_families
+  allowed_paths:
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/labels/families/__init__.py
+  - tests/unit/labels/test_label_contracts.py
+  - docs/feature_label_foundation/LABEL_CONTRACTS.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P16.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P16/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/labels/spec.py
+  - src/alpha_system/labels/contracts.py
+  - src/alpha_system/labels/generation.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/path_metrics.py
+  artifact_policy:
+    commit_only:
+    - label contract objects
+    - LabelVersion
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P17
+  name: Fixed-Horizon and Midprice Forward Labels
+  lane: YELLOW
+  dependencies:
+  - FLF-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.families.fixed_horizon"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels/families/fixed_horizon -q
+  - test -f docs/feature_label_foundation/labels/fixed_horizon.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_families
+  allowed_paths:
+  - src/alpha_system/labels/families/fixed_horizon/**
+  - tests/unit/labels/families/fixed_horizon/**
+  - docs/feature_label_foundation/labels/fixed_horizon.md
+  - configs/labels/families/fixed_horizon/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P17.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P17/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/labels/spec.py
+  - src/alpha_system/labels/contracts.py
+  - src/alpha_system/labels/generation.py
+  - src/alpha_system/labels/path_metrics.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/alignment.py
+  - src/alpha_system/labels/validation.py
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/registry.py
+  - src/alpha_system/labels/leakage_audit.py
+  - src/alpha_system/labels/reports.py
+  - src/alpha_system/labels/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Fixed-Horizon and Midprice Forward Labels (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P18
+  name: Cost-Adjusted / Spread-Adjusted Labels
+  lane: YELLOW
+  dependencies:
+  - FLF-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.families.cost_adjusted"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels/families/cost_adjusted -q
+  - test -f docs/feature_label_foundation/labels/cost_adjusted.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_families
+  allowed_paths:
+  - src/alpha_system/labels/families/cost_adjusted/**
+  - tests/unit/labels/families/cost_adjusted/**
+  - docs/feature_label_foundation/labels/cost_adjusted.md
+  - configs/labels/families/cost_adjusted/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P18.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P18/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/labels/spec.py
+  - src/alpha_system/labels/contracts.py
+  - src/alpha_system/labels/generation.py
+  - src/alpha_system/labels/path_metrics.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/alignment.py
+  - src/alpha_system/labels/validation.py
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/registry.py
+  - src/alpha_system/labels/leakage_audit.py
+  - src/alpha_system/labels/reports.py
+  - src/alpha_system/labels/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Cost-Adjusted / Spread-Adjusted Labels (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P19
+  name: 'Path Labels: MFE / MAE / Triple Barrier'
+  lane: YELLOW
+  dependencies:
+  - FLF-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.families.path"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels/families/path -q
+  - test -f docs/feature_label_foundation/labels/path.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_families
+  allowed_paths:
+  - src/alpha_system/labels/families/path/**
+  - tests/unit/labels/families/path/**
+  - docs/feature_label_foundation/labels/path.md
+  - configs/labels/families/path/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P19.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P19/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/labels/spec.py
+  - src/alpha_system/labels/contracts.py
+  - src/alpha_system/labels/generation.py
+  - src/alpha_system/labels/path_metrics.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/alignment.py
+  - src/alpha_system/labels/validation.py
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/registry.py
+  - src/alpha_system/labels/leakage_audit.py
+  - src/alpha_system/labels/reports.py
+  - src/alpha_system/labels/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - 'Path Labels: MFE / MAE / Triple Barrier (additive)'
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P20
+  name: Strategy-Agnostic Event Labels
+  lane: YELLOW
+  dependencies:
+  - FLF-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.families.event"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels/families/event -q
+  - test -f docs/feature_label_foundation/labels/event.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_families
+  allowed_paths:
+  - src/alpha_system/labels/families/event/**
+  - tests/unit/labels/families/event/**
+  - docs/feature_label_foundation/labels/event.md
+  - configs/labels/families/event/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P20.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P20/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/labels/spec.py
+  - src/alpha_system/labels/contracts.py
+  - src/alpha_system/labels/generation.py
+  - src/alpha_system/labels/path_metrics.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/alignment.py
+  - src/alpha_system/labels/validation.py
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/registry.py
+  - src/alpha_system/labels/leakage_audit.py
+  - src/alpha_system/labels/reports.py
+  - src/alpha_system/labels/__init__.py
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/families/__init__.py
+  artifact_policy:
+    commit_only:
+    - Strategy-Agnostic Event Labels (additive)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P21
+  name: Label Materialization Engine
+  lane: YELLOW
+  dependencies:
+  - FLF-P17
+  - FLF-P18
+  - FLF-P19
+  - FLF-P20
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.engine"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels tests/integration/labels -q
+  - test -f docs/feature_label_foundation/LABEL_MATERIALIZATION.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_engine
+  merge_group: label_integration
+  allowed_paths:
+  - src/alpha_system/labels/engine.py
+  - tests/unit/labels/test_label_engine.py
+  - tests/integration/labels/**
+  - docs/feature_label_foundation/LABEL_MATERIALIZATION.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P21.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P21/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - label materialization engine
+    - tests on synthetic fixtures
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P22
+  name: LabelStore / LabelRegistry Integration
+  lane: YELLOW
+  dependencies:
+  - FLF-P21
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.registry"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/labels tests/integration/labels -q
+  - test -f docs/feature_label_foundation/LABEL_STORE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - label_registry
+  merge_group: label_integration
+  allowed_paths:
+  - src/alpha_system/labels/registry.py
+  - tests/unit/labels/test_label_store.py
+  - tests/integration/labels/**
+  - docs/feature_label_foundation/LABEL_STORE.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P22.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P22/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - LabelStore/registry code
+    - tests against temp DB
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P23
+  name: Label Leakage and Availability Audits
+  lane: YELLOW
+  dependencies:
+  - FLF-P22
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.labels.leakage_audit"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/no_lookahead/feature_label -q
+  - test -f docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_integration
+  allowed_paths:
+  - src/alpha_system/labels/leakage_audit.py
+  - tests/no_lookahead/feature_label/test_label_leakage_guard.py
+  - tests/no_lookahead/feature_label/test_label_available_ts.py
+  - docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P23.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P23/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - label leakage/availability audit
+    - no-lookahead tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P24
+  name: Feature/Label Diagnostics Reports
+  lane: YELLOW
+  dependencies:
+  - FLF-P15
+  - FLF-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.research.feature_label_diagnostics"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/research/test_feature_label_diagnostics.py -q
+  - test -f docs/feature_label_foundation/diagnostics.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics_and_packaging
+  allowed_paths:
+  - src/alpha_system/research/feature_label_diagnostics.py
+  - tests/unit/research/test_feature_label_diagnostics.py
+  - docs/feature_label_foundation/diagnostics.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P24.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P24/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/research/diagnostics.py
+  artifact_policy:
+    commit_only:
+    - feature/label diagnostics module
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P25
+  name: Synthetic Fixtures and Fail-Closed Tests
+  lane: YELLOW
+  dependencies:
+  - FLF-P15
+  - FLF-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/no_lookahead/feature_label -q
+  - test -f docs/feature_label_foundation/fixtures.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics_and_packaging
+  allowed_paths:
+  - tests/fixtures/feature_label/**
+  - tests/no_lookahead/feature_label/**
+  - configs/features/examples/**
+  - configs/labels/examples/**
+  - docs/feature_label_foundation/fixtures.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P25.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P25/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - tiny synthetic fixtures
+    - fail-closed tests
+    - example configs
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P26
+  name: Small Real Databento DatasetVersion Dry Run
+  lane: YELLOW
+  dependencies:
+  - FLF-P25
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/integration/feature_label -q
+  - test -f docs/feature_label_foundation/DRY_RUN_DATABENTO.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - local_dataset_registry
+  merge_group: diagnostics_and_packaging
+  allowed_paths:
+  - docs/feature_label_foundation/DRY_RUN_DATABENTO.md
+  - tests/integration/feature_label/**
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/labels/engine.py
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P26.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P26/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - curated row-free dry-run summary
+    - integration test (CI-safe, no real data)
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P27
+  name: 'Governance Integration: StudySpec Input Packs'
+  lane: YELLOW
+  dependencies:
+  - FLF-P15
+  - FLF-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance.study_input_pack"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/governance/test_study_input_pack.py -q
+  - test -f docs/feature_label_foundation/governance_integration.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics_and_packaging
+  allowed_paths:
+  - src/alpha_system/governance/study_input_pack.py
+  - tests/unit/governance/test_study_input_pack.py
+  - configs/governance/feature_label_pack/**
+  - docs/feature_label_foundation/governance_integration.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P27.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P27/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/alpha_system/governance/alpha_spec.py
+  - src/alpha_system/governance/promotion*.py
+  - src/alpha_system/governance/registry.py
+  artifact_policy:
+    commit_only:
+    - StudySpec input-pack helper (new, additive)
+    - tests
+    - configs
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P28
+  name: CLI / Tooling Surface
+  lane: YELLOW
+  dependencies:
+  - FLF-P15
+  - FLF-P23
+  - FLF-P27
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.cli.main"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/cli/test_feature_cli.py tests/unit/cli/test_label_cli.py -q
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics_and_packaging
+  allowed_paths:
+  - src/alpha_system/cli/feature.py
+  - src/alpha_system/cli/label.py
+  - src/alpha_system/cli/main.py
+  - tests/unit/cli/test_feature_cli.py
+  - tests/unit/cli/test_label_cli.py
+  - docs/CLI_REFERENCE.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P28.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P28/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  artifact_policy:
+    commit_only:
+    - feature/label CLI
+    - cli/main.py wiring
+    - tests
+    - CLI_REFERENCE update
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P29
+  name: Docs, Templates, and Agent Guide
+  lane: GREEN
+  dependencies:
+  - FLF-P15
+  - FLF-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - test -f docs/feature_label_foundation/AGENT_GUIDE.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics_and_packaging
+  allowed_paths:
+  - docs/feature_label_foundation/guide/**
+  - docs/feature_label_foundation/AGENT_GUIDE.md
+  - docs/feature_label_foundation/templates/**
+  - templates/feature_label/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P29.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P29/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/**
+  - tests/**
+  - ACTIVE_CAMPAIGN.md
+  - docs/AI_AGENT_GUIDE.md
+  - docs/CLI_REFERENCE.md
+  artifact_policy:
+    commit_only:
+    - researcher/agent guide
+    - templates
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P30
+  name: End-to-End Feature/Label Dry Run
+  lane: YELLOW
+  dependencies:
+  - FLF-P26
+  - FLF-P28
+  - FLF-P29
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/integration/feature_label -q
+  - test -f docs/feature_label_foundation/E2E_DRY_RUN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - local_dataset_registry
+  merge_group: closeout
+  allowed_paths:
+  - docs/feature_label_foundation/E2E_DRY_RUN.md
+  - tests/integration/feature_label/**
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P30.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P30/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/**
+  artifact_policy:
+    commit_only:
+    - curated row-free end-to-end summary
+    - CI-safe integration test
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: FLF-P31
+  name: Workflow 2 Acceptance Audit and Closeout
+  lane: YELLOW
+  dependencies:
+  - FLF-P30
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - test -f campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/CLOSEOUT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/CLOSEOUT.md
+  - docs/feature_label_foundation/CLOSEOUT_NOTES.md
+  - handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P31.md
+  - reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P31/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/feature_request.py
+  - src/alpha_system/governance/label_spec.py
+  - src/alpha_system/governance/duplicate_exposure.py
+  - src/alpha_system/governance/label_leakage_guard.py
+  - src/**
+  - tests/**
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - closeout doc with final verdict
+    - closeout notes
+    never_commit: *id001
+    explicit_staging_only: true
+acceptance_gates:
+  campaign_bootstrap:
+    phases:
+    - FLF-P00
+    - FLF-P01
+    - FLF-P02
+    exit_requirement: Campaign control files present; no campaign-local ACTIVE_CAMPAIGN.md; features package imports; DatasetVersion consumption adapter present and accepted-only; package skeleton + naming present; handoffs/reviews present; artifact audit clean; no forbidden scope or claims.
+    requires:
+    - campaign_control_files_present
+    - no_campaign_local_active_campaign_file
+    - features_package_imports
+    - dataset_version_consumption_adapter_present
+    - accepted_dataset_version_admissibility_enforced
+    - package_skeleton_and_naming_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  canonical_inputs:
+    phases:
+    - FLF-P03
+    - FLF-P04
+    exit_requirement: Canonical OHLCV/BBO input views key off available_ts; dense-grid/no-trade and BBO-missingness semantics present with synthetic rows flagged and no silent forward-fill.
+    requires:
+    - canonical_ohlcv_bbo_input_views_present
+    - input_views_key_off_available_ts
+    - dense_grid_no_trade_semantics_present
+    - synthetic_no_trade_rows_flagged_not_trades
+    - bbo_missingness_flagged_no_silent_forward_fill
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  feature_contracts:
+    phases:
+    - FLF-P05
+    - FLF-P06
+    - FLF-P07
+    exit_requirement: FeatureRequest gate + duplicate-exposure guard wired to governance; FeatureSpec/FeatureVersion contracts present with available_ts required; transform/window/normalization primitives causal and no-lookahead.
+    requires:
+    - feature_request_gate_present
+    - duplicate_exposure_guard_wired_to_governance
+    - feature_spec_and_feature_version_contracts_present
+    - available_ts_required_on_feature_values
+    - causal_primitives_present_centered_future_windows_offline_only
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  feature_families:
+    phases:
+    - FLF-P08
+    - FLF-P09
+    - FLF-P10
+    - FLF-P11
+    - FLF-P12
+    exit_requirement: Five feature families implemented additively in disjoint family dirs with available_ts on every value; unit-tested on synthetic fixtures; no shared-core or cross-family edits.
+    requires:
+    - five_feature_families_present
+    - families_additive_in_disjoint_dirs
+    - every_feature_has_available_ts
+    - no_shared_core_or_cross_family_edits
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  feature_materialization:
+    phases:
+    - FLF-P13
+    - FLF-P14
+    - FLF-P15
+    exit_requirement: Feature materialization engine + FeatureStore/registry (local-only) + quality/coverage reports present; values never committed; no dumping ground.
+    requires:
+    - feature_materialization_engine_present
+    - feature_store_and_registry_local_only
+    - feature_quality_and_coverage_reports_present
+    - no_feature_values_committed
+    - no_feature_store_dumping_ground
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  label_contracts:
+    phases:
+    - FLF-P16
+    - FLF-P17
+    - FLF-P18
+    - FLF-P19
+    - FLF-P20
+    exit_requirement: LabelVersion contracts bind to governance LabelSpec; four label families implemented additively with label_available_ts; future data legal only for labels; no label-as-feature.
+    requires:
+    - label_version_contracts_bind_to_governance_label_spec
+    - four_label_families_present_additive
+    - every_label_has_label_available_ts
+    - future_data_only_for_labels
+    - no_label_as_feature
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  label_materialization:
+    phases:
+    - FLF-P21
+    - FLF-P22
+    - FLF-P23
+    exit_requirement: Label materialization engine + LabelStore/registry (local-only) + leakage/availability audits present; values never committed; leakage audits pass.
+    requires:
+    - label_materialization_engine_present
+    - label_store_and_registry_local_only
+    - label_leakage_and_availability_audits_present
+    - no_label_values_committed
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  diagnostics_and_tests:
+    phases:
+    - FLF-P24
+    - FLF-P25
+    - FLF-P26
+    exit_requirement: Feature/Label diagnostics (descriptive, non-promotional) + synthetic fixtures + fail-closed test suite present; small local-only Databento dry run passes or truthful PASS_WITH_WARNINGS.
+    requires:
+    - feature_label_diagnostics_present_non_promotional
+    - synthetic_fixtures_tiny_and_documented
+    - fail_closed_test_suite_covers_prohibited_shortcuts
+    - small_databento_dry_run_local_only_pass_or_truthful_warnings
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  workflow_and_closeout:
+    phases:
+    - FLF-P27
+    - FLF-P28
+    - FLF-P29
+    - FLF-P30
+    - FLF-P31
+    exit_requirement: StudySpec Input Pack integrates with existing governance; CLI surface local-only and CI-safe; durable guide/templates present; end-to-end dry run passes; acceptance audit + semantic done-check pass with a recorded final verdict and next-campaign readiness.
+    requires:
+    - study_spec_input_pack_integrates_with_existing_governance
+    - no_duplicate_governance_objects
+    - cli_surface_local_only_and_ci_safe
+    - durable_guide_and_templates_present
+    - end_to_end_dry_run_pass_or_truthful_blocked
+    - acceptance_audit_pass
+    - semantic_done_check_pass_or_truthful_blocked
+    - closeout_doc_with_final_verdict_and_next_campaign_readiness
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - no_raw_provider_access_from_feature_label_code
+    - accepted_dataset_version_required
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - no_future_or_centered_live_window_features
+    - no_external_provider_calls
+    - no_feature_or_label_values_committed
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_broker_live_paper_order_or_account_scope
+    - no_strategy_backtest_or_alpha_search_scope
+    - no_alpha_tradability_profitability_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  no_raw_provider_access:
+    required: true
+    rules:
+      raw_provider_files_not_read_by_feature_label_code: true
+      canonical_records_only: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  accepted_dataset_version_required:
+    required: true
+    rules:
+      resolve_dataset_version_only: true
+      admissible_states_versioned_or_ready_for_research: true
+    detection:
+    - consumption adapter tests
+    - Claude review
+  available_ts_required:
+    required: true
+    rules:
+      every_feature_value_carries_available_ts: true
+    detection:
+    - feature contract tests
+    - no_lookahead test suite
+    - Claude review
+  label_available_ts_required:
+    required: true
+    rules:
+      every_label_value_carries_label_available_ts: true
+    detection:
+    - label contract tests
+    - leakage audit
+    - Claude review
+  no_label_as_feature:
+    required: true
+    rules:
+      label_values_never_exposed_as_features: true
+      forbidden_feature_overlap_enforced: true
+    detection:
+    - label leakage guard
+    - no_lookahead test suite
+    - Claude review
+  no_future_window_features:
+    required: true
+    rules:
+      future_rolling_windows_forbidden_in_live_features: true
+    detection:
+    - primitive tests
+    - feature contract tests
+    - Claude review
+  no_centered_live_windows:
+    required: true
+    rules:
+      centered_windows_offline_only_blocked_from_live_features: true
+    detection:
+    - primitive tests
+    - Claude review
+  duplicate_exposure_check_required:
+    required: true
+    rules:
+      feature_request_duplicate_exposure_guard_required: true
+      equivalent_exposure_recorded: true
+    detection:
+    - request gate tests
+    - duplicate exposure report
+    - Claude review
+  missing_bbo_flag_required:
+    required: true
+    rules:
+      missing_bbo_flag_token_required: missing_bbo
+      abnormal_quote_flag_token: bbo_quarantined
+    detection:
+    - BBO semantics tests
+    - Claude review
+  no_silent_bbo_forward_fill:
+    required: true
+    rules:
+      no_silent_forward_fill_of_missing_bbo: true
+    detection:
+    - BBO semantics tests
+    - Claude review
+  no_trade_rows_must_be_flagged:
+    required: true
+    rules:
+      synthetic_no_trade_rows_flagged_has_trade_false_synthetic_true_no_trade: true
+      synthetic_rows_never_treated_as_trade_bars: true
+    detection:
+    - dense-grid semantics tests
+    - Claude review
+  locked_test_metadata_required:
+    required: true
+    rules:
+      locked_test_use_requires_governance_contamination_metadata: true
+    detection:
+    - partition gate tests
+    - require_governance_metadata_for_locked_partition_use
+    - Claude review
+  no_alpha_claims:
+    required: true
+    blocked_claims:
+    - alpha without evidence
+    - tradability
+    - profitability
+    - market-beating
+    - production-ready
+    - live-ready
+    - broker-ready
+    - strategy-ready
+    detection:
+    - prohibited claim tests
+    - doc grep
+    - Claude review
+  no_strategy_scope:
+    required: true
+    blocked_scope:
+    - alpha search
+    - strategy optimization
+    - backtest
+    - portfolio allocation
+    - promotion of a candidate
+    - L2 replay
+    - ML training beyond authorized scope
+    detection:
+    - source path audit
+    - dependency audit
+    - Claude review
+  no_raw_heavy_artifacts:
+    required: true
+    rules:
+      no_raw_canonical_feature_label_values_or_db_committed: true
+    detection:
+    - git status audit
+    - git ls-files audit
+    - artifact policy checks
+    - find artifacts -type f -size +1M -print
+  no_external_provider_calls:
+    required: true
+    rules:
+      no_databento_or_ibkr_api_calls_in_this_campaign: true
+    detection:
+    - data access mode audit
+    - import audit
+    - CI configuration audit
+  dag_parallel_requires_allowed_paths:
+    required: true
+    rules:
+      parallel_safe_phase_requires_disjoint_allowed_paths: true
+      no_global_coordinator_file_in_parallel_phase_allowed_paths: true
+    detection:
+    - plan-dag preview
+    - dag_scheduler validation
+    - campaign.yaml validation script
+  serial_merge_queue_required:
+    required: true
+    rules:
+      merge_one_pr_at_a_time: true
+      phase_branches_do_not_write_active_campaign_in_parallel_mode: true
+    detection:
+    - merge_queue validation
+    - Ralph driver
+    - Claude review
+  governance_objects_not_duplicated:
+    required: true
+    rules:
+      feature_request_label_spec_study_spec_consumed_not_reimplemented: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  acceptance_gate_coverage_required:
+    required: true
+    rules:
+      every_phase_in_exactly_one_gate: true
+      no_phase_missing_from_gates: true
+    detection:
+    - campaign.yaml validation script
+    - PHASE_PLAN cross-check
+  no_test_weakening:
+    required: true
+    rules:
+      test_removals_require_explicit_phase_scope: true
+      review_required_for_test_changes: true
+      fake_completion_forbidden: true
+    detection:
+    - diff review
+    - Claude review
+    - semantic done-check
+  local_wsl2_path:
+    required: true
+    allowed_repo_root: ~/projects/alpha_system
+    forbidden_paths:
+    - /mnt/c
+    - OneDrive
+    - Dropbox
+    - Google Drive
+    - Windows-synced folders
+    detection:
+    - RUN_INIT preflight
+    - worktree path audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: raw provider data read by feature/label code
+  condition: feature or label code reads raw Databento/IBKR files (.dbn/.zst/parquet/arrow/feather) directly
+  action: block_merge_and_repair
+- name: accepted DatasetVersion bypassed
+  condition: feature or label values produced without resolving an admissible DatasetVersion
+  action: block_merge_and_repair
+- name: external Databento or IBKR API call attempted
+  condition: any external provider API call is attempted in this campaign
+  action: stop_and_escalate
+- name: feature without available_ts
+  condition: a feature value omits available_ts
+  action: block_merge_and_repair
+- name: label without label_available_ts
+  condition: a label value omits label_available_ts
+  action: block_merge_and_repair
+- name: label values exposed as live features
+  condition: label values are reachable as live features or strategy inputs
+  action: block_merge_and_escalate
+- name: future or centered rolling window used as live feature
+  condition: a live feature uses a future or centered rolling window
+  action: block_merge_and_repair
+- name: FeatureRequest bypassed
+  condition: a feature is implemented without an approved governance FeatureRequest
+  action: block_merge_and_repair
+- name: FeatureSpec bypassed
+  condition: feature values are materialized without a FeatureSpec
+  action: block_merge_and_repair
+- name: LabelSpec bypassed
+  condition: labels are materialized without a governance LabelSpec
+  action: block_merge_and_repair
+- name: duplicate exposure allowed without record
+  condition: a duplicate or equivalent exposure is added without a duplicate-exposure record
+  action: block_merge_and_repair
+- name: missing BBO silently forward-filled
+  condition: missing or abnormal BBO is silently forward-filled instead of flagged
+  action: block_merge_and_repair
+- name: no-trade synthetic row treated as actual trade bar
+  condition: a synthetic dense-grid no-trade row is treated as an actual trade bar or executable quote
+  action: block_merge_and_repair
+- name: locked test partition used without contamination metadata
+  condition: locked_test_candidate or latest_shadow_candidate is consumed without governance contamination metadata
+  action: block_merge_and_repair
+- name: alpha/profitability/tradability claim detected
+  condition: unqualified alpha, tradability, profitability, market-beating, production-ready, live-ready, or broker-ready claim appears
+  action: block_merge_and_rework
+- name: strategy/backtest/portfolio scope introduced
+  condition: alpha search, strategy optimization, backtest, portfolio allocation, or promotion scope appears
+  action: block_merge_and_escalate
+- name: raw or heavy data artifact staged
+  condition: raw/canonical/feature/label values, parquet/arrow/feather, provider responses, or local DB files staged
+  action: block_merge_and_repair
+- name: parallel phase lacks allowed_paths
+  condition: a phase marked parallel_safe declares no allowed_paths or declares a global/coordinator path
+  action: block_campaign_execution_until_fixed
+- name: parallel wave has path/resource conflict
+  condition: two phases scheduled in the same wave have overlapping allowed_paths or a shared resource_class
+  action: stop_phase_selection
+- name: phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  condition: a phase branch writes ACTIVE_CAMPAIGN.md while update_active_campaign is coordinator_only
+  action: block_merge_and_repair
+- name: merge outside serial merge queue
+  condition: a merge is attempted outside the serial merge queue (more than one PR merging at once)
+  action: stop_and_escalate
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, dependencies, or DAG metadata disagree between files
+  action: block_campaign_execution_until_fixed
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced folder
+  action: stop_run_init_or_worktree_create
