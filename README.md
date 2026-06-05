@@ -8,12 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P21 Label Materialization Engine is complete in the serial
-`label_integration` track. FLF-P21 adds `alpha_system.labels.engine` and
-`docs/feature_label_foundation/LABEL_MATERIALIZATION.md`. The next
-dependency-gated label integration phase is FLF-P22 LabelStore / LabelRegistry
-integration. Ralph owns serial merge ordering and next-phase selection for
-downstream label integration.
+merge, campaign progress is 22 of 32 phases (`FLF-P00` through `FLF-P22`).
+FLF-P22 adds the local-only LabelStore / LabelRegistry integration in
+`alpha_system.labels.registry` and
+`docs/feature_label_foundation/LABEL_STORE.md`. The next dependency-gated label
+integration phase is FLF-P23 Label Leakage and Availability Audits. Ralph owns
+serial merge ordering and next-phase selection for downstream label
+integration.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -110,17 +111,24 @@ synthetic temp-DB tests, and:
 
 - `docs/feature_label_foundation/LABEL_CONTRACTS.md`
 
+`FLF-P17` adds the additive Fixed-Horizon / Forward-Return label family package
+`alpha_system.labels.families.fixed_horizon`, scoped synthetic fixture tests,
+family config placeholders, and:
+
+- `docs/feature_label_foundation/labels/fixed_horizon.md`
+
+`FLF-P18` adds the additive Cost-Adjusted / Spread-Adjusted label family
+package `alpha_system.labels.families.cost_adjusted`, scoped synthetic fixture
+tests, family config placeholders, and:
+
+- `docs/feature_label_foundation/labels/cost_adjusted.md`
+
 `FLF-P19` adds the additive path label family package
 `alpha_system.labels.families.path` for MFE, MAE, target-before-stop, and
 triple-barrier labels, scoped synthetic fixture tests, family config
 placeholders, and:
 
 - `docs/feature_label_foundation/labels/path.md`
-`FLF-P18` adds the additive Cost-Adjusted / Spread-Adjusted label family
-package `alpha_system.labels.families.cost_adjusted`, scoped synthetic fixture
-tests, family config placeholders, and:
-
-- `docs/feature_label_foundation/labels/cost_adjusted.md`
 
 `FLF-P20` adds the additive strategy-agnostic event label family package
 `alpha_system.labels.families.event` for breakout, VWAP-return, sweep-outcome,
@@ -134,14 +142,19 @@ family config placeholders, and:
 
 - `docs/feature_label_foundation/LABEL_MATERIALIZATION.md`
 
+`FLF-P22` adds the local-only LabelStore / LabelRegistry integration in
+`alpha_system.labels.registry`, scoped synthetic temp-DB tests, and:
+
+- `docs/feature_label_foundation/LABEL_STORE.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no label-as-feature path; no silent BBO forward-fill
 or interpolation; no synthetic no-trade row is treated as a trade bar; feature
 and label values remain local-only; feature report bundles and the feature
-registry DB remain local-only and uncommitted;
-governance is consumed, not duplicated; no broker, live, paper, order, or
-account scope; and no alpha, tradability, or profitability claims.
+and label registry DBs remain local-only and uncommitted; governance is
+consumed, not duplicated; no broker, live, paper, order, or account scope; and
+no alpha, tradability, or profitability claims.
 
 Post-closeout, the data foundation was exercised with real local-only data from
 two providers with distinct roles. **Databento** is the primary deep-history
@@ -161,116 +174,15 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress includes
-FLF-P19 after this phase merge: FeatureStore / FeatureRegistry metadata
-registration, versioned resolution, duplicate/equivalent exposure recording,
-deprecation, descriptive feature quality / coverage evidence, immutable label
-contracts bound to governed `lspec_` LabelSpec records, and the additive path
-label family for MFE, MAE, target-before-stop, and triple-barrier labels are
-available through `alpha_system.features.store`,
-`alpha_system.features.registry`, `alpha_system.features.reports`,
-`alpha_system.reports.feature_card`, `alpha_system.labels.version`, and
-`alpha_system.labels.families.path`. The next dependency-gated label
-integration work is FLF-P21 after the parallel label-family wave merges. The
-completed data-foundation baseline remains unchanged:
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` Feature/Label Foundation progress includes
-FLF-P18 after this phase merge: FeatureStore / FeatureRegistry metadata
-registration, versioned resolution, duplicate/equivalent exposure recording,
-deprecation, descriptive feature quality / coverage evidence, and immutable
-label contracts bound to governed `lspec_` LabelSpec records are available
-through `alpha_system.features.store`, `alpha_system.features.registry`,
-`alpha_system.features.reports`, `alpha_system.reports.feature_card`,
-`alpha_system.labels.version`, and
-`alpha_system.labels.families.cost_adjusted`. Ralph owns the next work in the
-label-family wave and downstream label integration. The completed
-data-foundation baseline remains unchanged:
-`ALPHA_DATA_FOUNDATION_V1` is
-complete. Within the
-`campaign_bootstrap` gate,
-`DATA-P00` and `DATA-P01` are complete; the `DATA-P02` executor snapshot adds
-validated `DataSourceProfile` and `LocalDataRootPolicy` records; and the
-`DATA-P03` executor snapshot adds `IBKRConnectionProfile`,
-`IBKRClientIdPolicy`, and a diagnostic-only connection-doctor scaffold. The
-`ibkr_read_only_boundary` gate has the `DATA-P04` executor scope complete:
-read-only IBKR API boundary, order-method kill switch, and `DataAccessMode`
-gate. The `futures_contract_master` gate has progressed through `DATA-P06`:
-`DATA-P05` adds `InstrumentMasterRecord`, six to-be-verified futures
-contract-economics anchors, and exact `tick_value = tick_size * point_value`
-validation; `DATA-P06` adds `ContractDetailsSnapshot`,
-`FuturesContractRecord`, and the no-live-call contract-discovery scaffold. The
-`request_and_storage` is complete through `DATA-P10`: `DATA-P07` adds
-`HistoricalRequestSpec`, `HistoricalRequestManifest`, deterministic
-`manifest_hash` validation, the no-manifest-no-pull guard, the synthetic sample
-manifest under `templates/data/`, and
-`docs/data_foundation/REQUEST_SPEC_AND_MANIFEST.md`. `DATA-P08` is complete and
-adds `RequestPacingPolicy`, `HistoricalChunkRecord`, `HistoricalPullLedger`,
-`ProviderErrorRecord`, conservative to-be-verified pacing config, and
-`docs/data_foundation/PACING_AND_RESUME.md`. The `DATA-P09` executor scope adds
-`RawDataObject`, `RawDataLakeLayoutPolicy`, content-addressed raw path
-resolution, raw-slot immutability/no-overwrite validation, and
-`docs/data_foundation/RAW_DATA_LAKE.md`. The `DATA-P10` executor scope adds
-`SymbolBatchPlan`, the ES/NQ/RTY mini main-batch pull plan, labeled optional
-secondary panels, the synthetic mini-batch manifest, and
-`docs/data_foundation/MINI_BATCH_PLAN.md`. The `provenance_sessions_rolls` gate
-is complete through the `DATA-P13` executor snapshot: DATA-P11 adds
-provenance-rich `ContinuousFuturesSeriesRecord` and
-`DatedFuturesSeriesRecord` validation in
-`src/alpha_system/data/foundation/series.py`, plus
-`docs/data_foundation/PROVENANCE.md`; DATA-P12 adds fail-closed
-`SessionTemplate` and `TradingCalendarRecord` validation in
-`src/alpha_system/data/foundation/sessions.py`, the synthetic
-`session_cme_index_futures_eth` template config, and
-`docs/data_foundation/SESSIONS_AND_CALENDAR.md`; DATA-P13 adds fail-closed
-`RollPolicy` and `RollCalendarRecord` validation in
-`src/alpha_system/data/foundation/rolls.py`, with explicit adjusted vs
-unadjusted state, required roll evidence and validation status, and
-`docs/data_foundation/ROLL_POLICY.md`. The `canonicalization_quality_versioning`
-gate has the `DATA-P14` executor scope complete: provider-shaped
-`ParsedBarRecord` validation, deterministic raw-object bar parsing with
-raw-to-parsed provenance, and `docs/data_foundation/PARSED_BARS.md`; DATA-P15
-adds `CanonicalBarRecord`, `TimestampSemanticsPolicy`, explicit
-`available_ts` no-lookahead validation, canonical timestamp tests, and
-`docs/data_foundation/CANONICAL_BARS.md`; DATA-P16 adds fail-closed
-`DataQualityReport` and `CoverageReport` contracts, aggregate quality and
-coverage tests, and `docs/data_foundation/DATA_QUALITY.md` /
-`docs/data_foundation/COVERAGE_REPORT.md`; DATA-P17 adds the fail-closed
-`DatasetVersion` contract, the data-foundation registry adapter for the
-existing local SQLite `dataset_versions` table, duplicate-ID rejection,
-reproducibility hash binding enforced before registry writes, temp-DB registry
-tests, and
-`docs/data_foundation/DATASET_VERSION.md`; DATA-P18 adds the
-`DatasetPartitionPlan` contract, canonical development / validation /
-locked-test candidate windows, the optional latest-shadow candidate, the
-locked-test contamination-metadata rules, and
-`docs/data_foundation/PARTITION_PLAN.md`. This advances the
-`canonicalization_quality_versioning` gate through the DATA-P18 executor
-snapshot. The `secondary_data_tracks` gate has progressed through the DATA-P20
-executor snapshot: DATA-P19 adds `MicroBatchPolicy`, the separate MES/MNQ/M2K
-secondary micro-batch plan, mini-to-micro parity-check target declarations, and
-`docs/data_foundation/MICRO_BATCH.md`; DATA-P20 adds the optional bounded
-`BidAskPilotPlan`, the pilot-only `SpreadProxyMetric` scaffold, the
-declarative BID_ASK pilot config, synthetic spread-proxy fixture tests, and
-`docs/data_foundation/BID_ASK_PILOT.md`. The
-`validation_and_authorized_smoke` gate is complete through the DATA-P23
-executor snapshot: DATA-P21 synthetic IBKR-shaped fixture tests compose the
-read-only boundary, manifest, pacing/resume ledger, parser, canonical bars,
-quality/coverage, and dataset-version registry path with no external provider
-call; DATA-P22 adds the guarded read-only IBKR smoke-pull entry point and
-`docs/data_foundation/SMOKE_PULL.md`; DATA-P23 adds the local backfill
-resume-drill entry point under `src/alpha_system/data/ibkr/backfill.py` and
-`docs/data_foundation/BACKFILL_RUNBOOK.md`. DATA-P24 is the final closeout
-phase, bringing `DATA-P00` through `DATA-P24` to 25 of 25 executor scopes. It
-adds the synthetic end-to-end dry-run entry point
-`alpha_system.data.foundation.dry_run`,
-`docs/data_foundation/END_TO_END_DRY_RUN.md`, and
-`campaigns/ALPHA_DATA_FOUNDATION_V1/CLOSEOUT.md`; the closeout verdict is
-`COMPLETE_WITH_WARNINGS` after Ralph completed all Workflow 2 gates and a
-post-run `python tools/verify.py --all` rerun passed locally. The active phase
-is `none` because the campaign is complete; there is no next phase in this
-campaign. The read-only IBKR boundary, clientId `101`/`102` hard-block,
-data-client namespace `201-209` with default `201`, never-in-CI external
-pulls, local-only data artifacts, and no broker/order/account/paper/live scope
-are unchanged.
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 22 of
+32 phases after this phase merge (`FLF-P00` through `FLF-P22`). Durable modules
+now include feature request gating, feature contracts, feature families,
+feature materialization and registry integration, feature reports, label
+contracts, label families, label materialization, and the local-only
+LabelRegistry in `alpha_system.labels.registry`. FLF-P22 adds
+`docs/feature_label_foundation/LABEL_STORE.md`; the next phase is FLF-P23
+Label Leakage and Availability Audits. The completed data-foundation baseline
+remains unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
