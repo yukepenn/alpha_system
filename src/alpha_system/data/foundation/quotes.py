@@ -51,6 +51,7 @@ CANONICAL_BBO_RECORD_FIELDS: tuple[str, ...] = (
 )
 
 MISSING_BBO_QUALITY_FLAG = "missing_bbo"
+BBO_QUARANTINE_QUALITY_FLAG = "bbo_quarantined"
 
 _SAFE_PATH_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -437,6 +438,7 @@ class CanonicalBBORecord:
 
 
 __all__ = [
+    "BBO_QUARANTINE_QUALITY_FLAG",
     "CANONICAL_BBO_OPTIONAL_FIELDS",
     "CANONICAL_BBO_RECORD_FIELDS",
     "CANONICAL_BBO_REQUIRED_FIELDS",

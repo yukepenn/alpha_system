@@ -33,7 +33,11 @@ from alpha_system.data.databento.request_spec import (
     write_json_mapping,
 )
 from alpha_system.data.foundation.bars import CanonicalBarRecord
-from alpha_system.data.foundation.quotes import MISSING_BBO_QUALITY_FLAG, CanonicalBBORecord
+from alpha_system.data.foundation.quotes import (
+    BBO_QUARANTINE_QUALITY_FLAG,
+    MISSING_BBO_QUALITY_FLAG,
+    CanonicalBBORecord,
+)
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 from alpha_system.data.ibkr.materialize import (
@@ -53,7 +57,7 @@ OHLCV_PARTITION_SCHEMA = "ohlcv_1m"
 BBO_PARTITION_SCHEMA = "bbo_1m"
 SUPPORTED_ROOTS: frozenset[str] = frozenset({"ES", "NQ", "RTY"})
 _PRICE_SCALE = Decimal("1000000000")
-# Real DBN loads use pretty_px=False, so price fields are raw fixed-point
+# Real DBN loads use price_type="fixed", so price fields are raw fixed-point
 # integers scaled by 1e9. Databento undefined prices use INT64_MAX; quarantine
 # that sentinel instead of scaling it into a bogus canonical price.
 _DATABENTO_UNDEF_PRICE = 2**63 - 1
@@ -354,7 +358,7 @@ def _load_real_dbn_rows(
             msg = "Databento manifest file path escaped raw_root"
             raise DataFoundationValidationError(msg)
         store = dbn_store.from_file(path)
-        frame = store.to_df(pretty_px=False, pretty_ts=True, map_symbols=True)
+        frame = store.to_df(price_type="fixed", pretty_ts=True, map_symbols=True)
         reset_index = getattr(frame, "reset_index", None)
         if callable(reset_index):
             frame = reset_index()
@@ -519,6 +523,7 @@ def _canonicalize_bbo(
         deduped[key] = row
 
     canonical_by_key: dict[tuple[str, datetime], CanonicalBBORecord] = {}
+    quarantined_by_key: set[tuple[str, datetime]] = set()
     for (root, bar_start), row in sorted(deduped.items(), key=lambda item: item[0]):
         ohlcv_bar = ohlcv_by_key.get((root, bar_start))
         if ohlcv_bar is None:
@@ -537,6 +542,7 @@ def _canonicalize_bbo(
             )
         except DataFoundationValidationError:
             quarantine_count += 1
+            quarantined_by_key.add((root, bar_start))
             continue
         canonical_by_key[(root, bar_start)] = record
 
@@ -553,6 +559,7 @@ def _canonicalize_bbo(
                 source_request_id=source_request_id,
                 latency=latency,
                 ingested_at=ingested_at,
+                quarantined_raw_bbo=(root, bar_start) in quarantined_by_key,
             )
         output.append(record)
 
@@ -658,8 +665,14 @@ def _missing_bbo_record(
     source_request_id: str,
     latency: timedelta,
     ingested_at: datetime,
+    quarantined_raw_bbo: bool = False,
 ) -> CanonicalBBORecord:
     del root
+    quality_flags = (
+        (MISSING_BBO_QUALITY_FLAG, BBO_QUARANTINE_QUALITY_FLAG)
+        if quarantined_raw_bbo
+        else (MISSING_BBO_QUALITY_FLAG,)
+    )
     return CanonicalBBORecord.from_mapping(
         {
             "instrument_id": ohlcv_bar.instrument_id,
@@ -679,7 +692,7 @@ def _missing_bbo_record(
             "source": SOURCE_ID,
             "source_request_id": source_request_id,
             "data_version": data_version,
-            "quality_flags": (MISSING_BBO_QUALITY_FLAG,),
+            "quality_flags": quality_flags,
             "session_label": ohlcv_bar.session_label,
             "spread_ticks": None,
             "microprice": None,

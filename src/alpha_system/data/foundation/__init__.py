@@ -49,6 +49,12 @@ from alpha_system.data.foundation.datasets import (
     compute_quality_report_hash,
     require_governance_metadata_for_locked_partition_use,
 )
+from alpha_system.data.foundation.grid import (
+    DENSE_GRID_BAR_RECORD_FIELDS,
+    NO_TRADE_QUALITY_FLAG,
+    PREVIOUS_CLOSE_FILL_METHOD,
+    DenseGridBarRecord,
+)
 from alpha_system.data.foundation.ibkr import (
     IBKRClientIdPolicy,
     IBKRConnectionProfile,
@@ -68,6 +74,7 @@ from alpha_system.data.foundation.instruments import (
     record_contract_discovery,
 )
 from alpha_system.data.foundation.quotes import (
+    BBO_QUARANTINE_QUALITY_FLAG,
     CANONICAL_BBO_OPTIONAL_FIELDS,
     CANONICAL_BBO_RECORD_FIELDS,
     CANONICAL_BBO_REQUIRED_FIELDS,
@@ -135,12 +142,14 @@ __all__ = [
     "DATASET_VERSION_ADMISSIBLE_STATES",
     "DATASET_VERSION_FIELDS",
     "DATASET_VERSION_REGISTRY_METADATA_SCHEMA",
+    "DENSE_GRID_BAR_RECORD_FIELDS",
     "DataAccessMode",
     "DataIngestionRunRecord",
     "DataQualityReport",
     "DataSourceProfile",
     "DatasetPartitionPlan",
     "DatasetVersion",
+    "DenseGridBarRecord",
     "DatedFuturesSeriesRecord",
     "FuturesContractRecord",
     "IncludeExpiredSupportStatus",
@@ -157,8 +166,11 @@ __all__ = [
     "InstrumentMasterRecord",
     "LocalDataRootPolicy",
     "MicroBatchPolicy",
+    "BBO_QUARANTINE_QUALITY_FLAG",
     "MISSING_BBO_QUALITY_FLAG",
+    "NO_TRADE_QUALITY_FLAG",
     "PARSED_BAR_RECORD_FIELDS",
+    "PREVIOUS_CLOSE_FILL_METHOD",
     "ParsedBarRecord",
     "ParsedBarParser",
     "ProviderErrorResolution",

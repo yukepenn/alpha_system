@@ -263,7 +263,7 @@ def _load_real_dbn_rows(
             msg = "Databento manifest file path escaped raw_root"
             raise DataFoundationValidationError(msg)
         store = dbn_store.from_file(path)
-        frame = store.to_df(pretty_px=False, pretty_ts=True, map_symbols=True)
+        frame = store.to_df(price_type="fixed", pretty_ts=True, map_symbols=True)
         reset_index = getattr(frame, "reset_index", None)
         if callable(reset_index):
             frame = reset_index()
