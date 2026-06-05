@@ -8,14 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, campaign progress is 26 of 32 phases (`FLF-P00` through `FLF-P26`) in
-the `diagnostics_and_packaging` merge group and `diagnostics_and_tests`
-acceptance gate. FLF-P26 adds
-`docs/feature_label_foundation/DRY_RUN_DATABENTO.md` and a small local-only
-accepted-DatasetVersion dry-run helper on the feature/label engine surface. The
-next phase is FLF-P27 Governance Integration: StudySpec Input Packs, followed
-by FLF-P28 CLI / Tooling Surface and the FLF-P30/FLF-P31 closeout phases.
-Ralph owns serial merge ordering and next-phase selection.
+merge, campaign progress is 28 of 32 phases (`FLF-P00` through `FLF-P28`) in
+the `diagnostics_and_packaging` merge group and `workflow_and_closeout`
+acceptance gate. FLF-P28 adds the local-only `alpha feature` and `alpha label`
+CLI groups plus the updated `docs/CLI_REFERENCE.md` command reference. The next
+phase is FLF-P29 Docs, Templates, and Agent Guide, followed by the FLF-P30 /
+FLF-P31 closeout phases. Ralph owns serial merge ordering and next-phase
+selection.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -172,6 +171,19 @@ CI-safe synthetic integration test under `tests/integration/feature_label/`.
 
 - `docs/feature_label_foundation/DRY_RUN_DATABENTO.md`
 
+`FLF-P27` adds the additive StudySpec input-pack helper
+`alpha_system.governance.study_input_pack`, a synthetic input-pack template, and
+governance integration docs.
+
+- `docs/feature_label_foundation/governance_integration.md`
+
+`FLF-P28` adds the local-only Feature/Label CLI surface:
+`alpha feature list|plan|materialize --dry-run|report|duplicate-audit` and
+`alpha label list|plan|materialize --dry-run|report|leakage-audit|input-pack`.
+It also updates:
+
+- `docs/CLI_REFERENCE.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no label-as-feature path; no silent BBO forward-fill
@@ -199,19 +211,20 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 26 of
-32 phases after this phase merge (`FLF-P00` through `FLF-P26`). Durable modules
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 28 of
+32 phases after this phase merge (`FLF-P00` through `FLF-P28`). Durable modules
 now include feature request gating, feature contracts, feature families,
 feature materialization and registry integration, feature reports, label
 contracts, label families, label materialization, the local-only LabelRegistry
 in `alpha_system.labels.registry`, label leakage and availability audits in
 `alpha_system.labels.leakage_audit`, descriptive Feature/Label diagnostics in
 `alpha_system.research.feature_label_diagnostics`, synthetic fixture and
-fail-closed coverage, and the small accepted-DatasetVersion dry-run helper in
-`alpha_system.features.engine`. FLF-P26 adds
-`docs/feature_label_foundation/DRY_RUN_DATABENTO.md`; the next phase is FLF-P27
-Governance Integration: StudySpec Input Packs. The completed data-foundation
-baseline remains unchanged.
+fail-closed coverage, the small accepted-DatasetVersion dry-run helper in
+`alpha_system.features.engine`, the StudySpec input-pack helper in
+`alpha_system.governance.study_input_pack`, and the local-only `alpha feature`
+/ `alpha label` CLI groups. FLF-P28 updates `docs/CLI_REFERENCE.md`; the next
+phase is FLF-P29 Docs, Templates, and Agent Guide. The completed
+data-foundation baseline remains unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
