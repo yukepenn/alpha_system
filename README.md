@@ -8,12 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, Wave 1 feature-family work is underway and complete through `FLF-P09` of
-32: the governed FeatureRequest gate, FeatureSpec / FeatureVersion contracts,
-shared causal primitives, additive Base OHLCV family, and additive BBO
-tradability family are present. Active phase snapshot: `FLF-P09` - BBO
-Tradability Feature Families. The next work remains the FLF-P10...FLF-P12
-parallel feature-family wave, dependent on FLF-P06 and FLF-P07.
+merge, the Wave 1 feature-family snapshots include `FLF-P12` - Liquidity Sweep /
+Structure Primitive Features: the governed FeatureRequest gate, FeatureSpec /
+FeatureVersion contracts, shared causal primitives, additive Base OHLCV family,
+additive BBO tradability family, and additive Liquidity/Structure family are
+present. The next work is the remaining Wave 1 family merge queue, if any, then
+Wave 2 feature integration beginning with `FLF-P13`.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -69,7 +69,13 @@ config placeholders, and:
 
 - `docs/feature_label_foundation/features/bbo.md`
 
-No new command surface is added by FLF-P09.
+`FLF-P12` adds the additive Liquidity/Structure feature family package
+`alpha_system.features.families.structure`, scoped synthetic fixture tests,
+family config placeholders, and:
+
+- `docs/feature_label_foundation/features/structure.md`
+
+No new command surface is added by FLF-P12.
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; no raw provider access; no external provider calls; no silent BBO
@@ -95,12 +101,14 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
-`FLF-P09` of 32 after this phase merge; the active phase snapshot is `FLF-P09`,
-the feature-contract gate includes the FeatureRequest gate, FeatureSpec /
-FeatureVersion contracts, `alpha_system.features.primitives`, the additive Base
-OHLCV family, and the additive BBO tradability family, and the next work is the
-FLF-P10...FLF-P12 parallel feature-family wave. The completed data-foundation
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave snapshots include
+`FLF-P12` after this phase merge; the active phase snapshot is Liquidity Sweep /
+Structure Primitive Features, the feature-contract gate includes the
+FeatureRequest gate, FeatureSpec / FeatureVersion contracts,
+`alpha_system.features.primitives`, the additive Base OHLCV family, the
+additive BBO tradability family, and the additive Liquidity/Structure family.
+The next work is the remaining Wave 1 family merge queue, if any, then
+`FLF-P13` feature integration. The completed data-foundation
 baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
