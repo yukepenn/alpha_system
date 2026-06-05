@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src"
 
@@ -138,8 +137,7 @@ def _run_help(*args: str) -> subprocess.CompletedProcess[str]:
         cwd=REPO_ROOT,
         env=_env_with_src_path(),
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
 
@@ -150,8 +148,7 @@ def _run_management(*args: str) -> subprocess.CompletedProcess[str]:
         cwd=REPO_ROOT,
         env=_env_with_src_path(),
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
 

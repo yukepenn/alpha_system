@@ -4,7 +4,6 @@ import importlib
 
 import pytest
 
-
 IMPORTABLE_MODULES = (
     "alpha_system",
     "alpha_system.backtest",
