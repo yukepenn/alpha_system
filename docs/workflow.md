@@ -26,16 +26,20 @@ Boundary:
 
 Supported commands:
 
+Omit `<campaign>` to use the `ACTIVE_CAMPAIGN.md` pointer.
+
 ```bash
-just frontier-run-campaign <campaign>
-just frontier-run-next <campaign>
-just frontier-run-next-x <campaign> <phase_count>
-just frontier-run-campaign-mock <campaign>
-just frontier-run-next-mock <campaign>
-just frontier-run-next-x-mock <campaign> <phase_count>
-just frontier-run-campaign-ledger <campaign>
-just frontier-run-overnight <campaign>
-just frontier-resume <run_id>
+just frontier-run [<campaign>]                  # start/continue (LIVE: real PR + auto-merge)
+just frontier-resume [<campaign>]               # auto-resume the latest run of the active campaign
+just frontier-next [<campaign>] [<phase_count>] # step forward N phases (default 1)
+just frontier-run-parallel [<campaign>] [<n>]   # DAG-wave parallel build, serial merge
+just frontier-plan [<campaign>]                 # read-only DAG wave plan
+just frontier-run-mock [<campaign>]             # safe mock run
+just frontier-next-mock [<campaign>] [<n>]
+just frontier-run-parallel-mock [<campaign>] [<n>]
+just frontier-ledger [<campaign>]               # ledger-only scaffold
+just frontier-resume-run <run_id>               # resume a specific run directory
+just frontier-resume-stage <campaign> <run_dir> <phase> [<from_stage>]
 just frontier-tail <run_id>
 just frontier-summary <run_id>
 just frontier-stop <run_id>
@@ -43,11 +47,29 @@ just frontier-heartbeat <run_id>
 just frontier-acceptance
 ```
 
+## Scheduling modes (DAG wave)
+
+`frontier.yaml` `workflow2.scheduler` (overridable per campaign) selects how Ralph
+picks work:
+
+- `mode: sequential` (default) — historical list-order, one phase at a time.
+- `mode: dag_wave` — phases are chosen by their dependency-ready set; with
+  `parallel_execution: true` and `max_parallel_phases > 1` (or `--parallel` /
+  `frontier-run-parallel`), a conflict-free, parallel-safe wave **builds
+  concurrently** in isolated worktrees and **merges serially** through a merge
+  queue. Use `frontier-plan` to preview the waves first.
+
+A phase joins a parallel wave only when it declares `parallel_safe: true` with
+disjoint `allowed_paths`, is not `must_run_alone` or RED (unless RED scope is
+armed), and does not declare a global file (e.g. `ACTIVE_CAMPAIGN.md`). In a
+parallel wave the coordinator owns `ACTIVE_CAMPAIGN.md`; phase branches never
+write it. Merge stays serial regardless of build concurrency.
+
 ## Modes
 
 - Mock mode sets `FRONTIER_MOCK_PROVIDERS=1`; it writes deterministic artifacts and never calls Claude or Codex CLIs.
 - Provider-wired local mode uses `claude -p` and `codex exec --sandbox workspace-write -` with full prompts on stdin.
-- `frontier-run-next` resumes the latest active local run for the campaign and runs one phase. `frontier-run-next-x` resumes that same latest active run and runs up to the requested phase count. Both commands default to real PR creation, automerge enabled, merge dry-run disabled, and `FRONTIER_DISABLE_AUTOMERGE` unset. Use `frontier-run-campaign` to start a fresh run.
+- `frontier-next` resumes the latest active local run for the campaign and runs N phases (default 1). `frontier-run` and `frontier-resume` default to real PR creation, automerge enabled, merge dry-run disabled, and `FRONTIER_DISABLE_AUTOMERGE` unset. `frontier-resume` with no campaign resolves the active campaign from `ACTIVE_CAMPAIGN.md`.
 - Worktree mode uses `FRONTIER_WORKTREE_MODE=1` or `--worktree-mode` to create `auto/<campaign>/<phase>-<slug>` branches in Frontier-owned worktrees.
 - GitHub PR/CI mode uses `gh` for PR creation, CI polling, branch protection inspection, and merge.
 - Real PR creation first pushes the phase branch with a non-force refspec, verifies the remote branch exists with `git ls-remote`, and checks the remote SHA matches the local commit.

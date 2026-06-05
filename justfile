@@ -54,49 +54,66 @@ frontier-merge:
 frontier-new-campaign:
     python tools/frontier/campaign.py new --campaign-id "${FRONTIER_CAMPAIGN:?set FRONTIER_CAMPAIGN}"
 
-frontier-run-campaign $campaign_id="G005_WORKFLOW2_TOY":
-    python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+# ── Workflow 2 (Ralph) — autonomous campaign loop ────────────────────
+# LIVE recipes (frontier-run / -resume / -next / -run-parallel / -overnight)
+# arm REAL PR creation + auto-merge (FRONTIER_CREATE_PR=1,
+# FRONTIER_ALLOW_AUTOMERGE=1, FRONTIER_MERGE_DRY_RUN=0): they merge to the
+# protected branch once CI + the merge gate pass. The *-mock recipes are the
+# safe local dry runs (no providers, no network, no merge). Omit the campaign id
+# to use the ACTIVE_CAMPAIGN.md pointer (resume picks the latest run).
 
-# WARNING: frontier-run-next / -x arm REAL PR creation + auto-merge
-# (FRONTIER_ALLOW_AUTOMERGE=1, FRONTIER_MERGE_DRY_RUN=0): they merge to the
-# protected branch once CI + merge gate pass. Use the *-mock variants below for
-# safe local/dry runs.
-frontier-run-next $campaign_id="G005_WORKFLOW2_TOY":
-    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
+# Start (or continue) a campaign run; sequential or dag_wave per campaign.yaml.
+frontier-run $campaign_id="":
+    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
 
-frontier-run-next-x $campaign_id="G005_WORKFLOW2_TOY" $max_phases="1":
+# Auto-resume the latest non-completed run of the active (or given) campaign.
+frontier-resume $campaign_id="":
+    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired
+
+# Step a run forward by N phases (default 1).
+frontier-next $campaign_id="" $max_phases="1":
     env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases "$max_phases"
 
-frontier-run-campaign-mock $campaign_id="G005_WORKFLOW2_TOY":
+# DAG-wave parallel run: concurrent build in isolated worktrees, serial merge.
+frontier-run-parallel $campaign_id="" $max_parallel="3":
+    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired --parallel --max-parallel "$max_parallel"
+
+# Read-only DAG plan: dependency graph, ready waves, conflicts, run-alone phases.
+frontier-plan $campaign_id="":
+    python tools/frontier/ralph_driver.py plan-dag --campaign-id "$campaign_id"
+
+# Unattended long run (overnight); same live merge arming as frontier-run.
+frontier-overnight $campaign_id="":
+    env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_RUN_MODE=overnight FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
+
+# ── Safe mock variants (no providers / network / merge) ──────────────
+frontier-run-mock $campaign_id="G005_WORKFLOW2_TOY":
     FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
 
-frontier-run-next-mock $campaign_id="G005_WORKFLOW2_TOY":
-    FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
-
-frontier-run-next-x-mock $campaign_id="G005_WORKFLOW2_TOY" $max_phases="1":
+frontier-next-mock $campaign_id="G005_WORKFLOW2_TOY" $max_phases="1":
     FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases "$max_phases"
 
-frontier-run-campaign-ledger $campaign_id="G005_WORKFLOW2_TOY":
+frontier-run-parallel-mock $campaign_id="G005_WORKFLOW2_TOY" $max_parallel="3":
+    FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired --parallel --max-parallel "$max_parallel"
+
+# Deterministic local toy campaign (mock providers, no network).
+frontier-run-workflow2-toy:
+    FRONTIER_MOCK_PROVIDERS=1 python tools/frontier/ralph_driver.py run --campaign-id G005_WORKFLOW2_TOY --provider-wired
+
+# ── Scaffold / power-user resume ─────────────────────────────────────
+# Ledger-only scaffold: parse phases, no provider execution, no merge.
+frontier-ledger $campaign_id="":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --ledger-only
 
-frontier-run-overnight $campaign_id="G005_WORKFLOW2_TOY":
-    FRONTIER_RUN_MODE=overnight python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
-
-frontier-run-workflow2 $campaign_id="G005_WORKFLOW2_TOY":
-    python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id"
-
-frontier-run-workflow2-toy:
-    python tools/frontier/ralph_driver.py run --campaign-id G005_WORKFLOW2_TOY
-
-frontier-run-workflow2-goal:
-    python tools/frontier/ralph_driver.py run --goal "${FRONTIER_GOAL:?set FRONTIER_GOAL}" --lane "${FRONTIER_LANE:-yellow}"
-
-frontier-resume $run_id:
+# Resume a specific run directory by run id.
+frontier-resume-run $run_id:
     python tools/frontier/ralph_driver.py resume --run-id "$run_id" --provider-wired
 
-frontier-resume-campaign $campaign_id $run_dir $phase_id $from_stage="merge_gate":
+# Surgical stage-level resume of one phase (skips provider replay).
+frontier-resume-stage $campaign_id $run_dir $phase_id $from_stage="merge_gate":
     FRONTIER_NO_PROVIDER_REPLAY=1 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --run-dir "$run_dir" --phase-id "$phase_id" --from-stage "$from_stage" --provider-wired --no-provider-replay
 
+# ── Run lifecycle helpers ────────────────────────────────────────────
 frontier-stop $run_id:
     touch "runs/$run_id/STOP"
 

@@ -17,7 +17,7 @@ python tools/verify.py --artifacts
 Workflow2 smoke validation:
 
 ```bash
-FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 just frontier-run-campaign G005_WORKFLOW2_TOY
+FRONTIER_MOCK_PROVIDERS=1 FRONTIER_MAX_PHASES=1 just frontier-run-mock G005_WORKFLOW2_TOY
 just frontier-acceptance
 ```
 

@@ -57,6 +57,40 @@ RUN_INIT -> CAMPAIGN_LOAD -> PHASE_SELECT -> SPEC_GENERATE -> SPEC_VALIDATE -> W
 An executor must not skip ahead to review, verdict, PR, CI, merge, or done
 states. Those are Ralph-owned gate actions.
 
+The 13 per-phase stages (`spec -> execute -> validate -> review -> done_check ->
+commit -> push -> pr -> ci -> branch_protection -> merge_gate -> merge ->
+complete`) are unchanged. The scheduler sits **above** `PHASE_SELECT`: it decides
+which phase(s) enter the loop and in what order.
+
+## Scheduling: Sequential And DAG Wave
+
+`frontier.yaml` `workflow2.scheduler` (overridable per campaign) chooses how
+phases are selected:
+
+- `mode: sequential` (default): phases run in list order, one at a time —
+  unchanged behaviour.
+- `mode: dag_wave`: Ralph selects the dependency-ready set. With
+  `parallel_execution: true` and `max_parallel_phases > 1` (or `--parallel`), a
+  conflict-free, parallel-safe wave **builds concurrently** in isolated worktrees
+  and **merges serially** through a merge queue. `python tools/frontier/ralph_driver.py
+  plan-dag --campaign-id <id>` previews the plan without running anything.
+
+Optional per-phase scheduler metadata in `campaign.yaml` (all default to the
+conservative run-alone choice, so omitting them keeps sequential behaviour):
+
+- `parallel_safe: true` — eligible to share a wave (requires `allowed_paths`).
+- `allowed_paths: [...]` / `forbidden_paths: [...]` — declared write scope; two
+  phases with overlapping `allowed_paths` never share a wave.
+- `conflicts_with: [...]` — never co-run with the listed phases.
+- `resource_class: [...]` — phases sharing an exclusive resource never co-run.
+- `must_run_alone: true` — always its own wave.
+- `merge_group: <name>` — keep group members adjacent in the merge queue.
+
+In a parallel wave the **coordinator owns `ACTIVE_CAMPAIGN.md`**: executors and
+phase branches must never write it, so concurrent branches cannot conflict on the
+pointer. RED phases never parallelize unless RED scope is armed. Merge is always
+serial, even when builds run concurrently.
+
 ## STOP And Resume
 
 A file at `runs/<RUN_ID>/STOP` is an active stop request. Ralph must check STOP
