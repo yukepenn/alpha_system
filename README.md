@@ -8,12 +8,11 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, FLF-P20 Strategy-Agnostic Event Labels is complete as part of the
-parallel `label_families` wave. The next dependency-gated label integration
-phase is FLF-P21 after FLF-P17, FLF-P18, FLF-P19, and FLF-P20 are merged.
-FLF-P20 adds `alpha_system.labels.families.event` and
-`docs/feature_label_foundation/labels/event.md`. Ralph owns serial merge
-ordering and next-phase selection for the surrounding label-family wave and
+merge, FLF-P21 Label Materialization Engine is complete in the serial
+`label_integration` track. FLF-P21 adds `alpha_system.labels.engine` and
+`docs/feature_label_foundation/LABEL_MATERIALIZATION.md`. The next
+dependency-gated label integration phase is FLF-P22 LabelStore / LabelRegistry
+integration. Ralph owns serial merge ordering and next-phase selection for
 downstream label integration.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
@@ -130,12 +129,17 @@ family config placeholders, and:
 
 - `docs/feature_label_foundation/labels/event.md`
 
+`FLF-P21` adds the local-only label materialization engine
+`alpha_system.labels.engine`, scoped synthetic unit and integration tests, and:
+
+- `docs/feature_label_foundation/LABEL_MATERIALIZATION.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
-no external provider calls; no silent BBO forward-fill or interpolation; no
-synthetic no-trade row is treated as a trade bar; feature and label values
-remain local-only; feature report bundles and the feature registry DB remain
-local-only and uncommitted;
+no external provider calls; no label-as-feature path; no silent BBO forward-fill
+or interpolation; no synthetic no-trade row is treated as a trade bar; feature
+and label values remain local-only; feature report bundles and the feature
+registry DB remain local-only and uncommitted;
 governance is consumed, not duplicated; no broker, live, paper, order, or
 account scope; and no alpha, tradability, or profitability claims.
 
