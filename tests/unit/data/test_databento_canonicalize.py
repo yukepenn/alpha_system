@@ -323,7 +323,7 @@ def test_databento_real_dbn_loader_requests_raw_fixed_point_prices(
 
     rows = canonicalize_module._load_real_dbn_rows(manifest)
 
-    assert calls == [{"pretty_px": False, "pretty_ts": True, "map_symbols": True}]
+    assert calls == [{"price_type": "fixed", "pretty_ts": True, "map_symbols": True}]
     assert rows["ohlcv-1m"][0]["job_id"] == "job-a"
 
 

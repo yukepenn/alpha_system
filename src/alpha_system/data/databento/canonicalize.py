@@ -53,7 +53,7 @@ OHLCV_PARTITION_SCHEMA = "ohlcv_1m"
 BBO_PARTITION_SCHEMA = "bbo_1m"
 SUPPORTED_ROOTS: frozenset[str] = frozenset({"ES", "NQ", "RTY"})
 _PRICE_SCALE = Decimal("1000000000")
-# Real DBN loads use pretty_px=False, so price fields are raw fixed-point
+# Real DBN loads use price_type="fixed", so price fields are raw fixed-point
 # integers scaled by 1e9. Databento undefined prices use INT64_MAX; quarantine
 # that sentinel instead of scaling it into a bogus canonical price.
 _DATABENTO_UNDEF_PRICE = 2**63 - 1
@@ -354,7 +354,7 @@ def _load_real_dbn_rows(
             msg = "Databento manifest file path escaped raw_root"
             raise DataFoundationValidationError(msg)
         store = dbn_store.from_file(path)
-        frame = store.to_df(pretty_px=False, pretty_ts=True, map_symbols=True)
+        frame = store.to_df(price_type="fixed", pretty_ts=True, map_symbols=True)
         reset_index = getattr(frame, "reset_index", None)
         if callable(reset_index):
             frame = reset_index()

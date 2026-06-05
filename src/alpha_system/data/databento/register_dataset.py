@@ -492,7 +492,10 @@ def _read_parquet(path: Path) -> tuple[Mapping[str, object], ...]:
     pyarrow = _optional_module("pyarrow")
     if pyarrow is not None:
         parquet = importlib.import_module("pyarrow.parquet")
-        return tuple(parquet.read_table(path).to_pylist())
+        # Read the single file's own columns only. ``read_table`` on a path under
+        # ``schema=.../root=.../`` auto-infers hive partition columns and injects
+        # ``schema``/``root`` keys that the strict canonical from_mapping rejects.
+        return tuple(parquet.ParquetFile(path).read().to_pylist())
     polars = _optional_module("polars")
     if polars is not None:
         return tuple(polars.read_parquet(path.as_posix()).to_dicts())
