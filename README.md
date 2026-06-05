@@ -8,12 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, campaign progress is 23 of 32 phases (`FLF-P00` through `FLF-P23`).
-FLF-P23 adds the label leakage and availability audit layer in
-`alpha_system.labels.leakage_audit` and
-`docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`. The next
-dependency-gated phase is FLF-P24 Feature/Label Diagnostics Reports. Ralph owns
-serial merge ordering and next-phase selection for downstream diagnostics work.
+merge, campaign progress is 24 of 32 phases (`FLF-P00` through `FLF-P24`).
+FLF-P24 adds descriptive Feature/Label diagnostics in
+`alpha_system.research.feature_label_diagnostics` and
+`docs/feature_label_foundation/diagnostics.md`. The next dependency-gated phase
+is FLF-P25 Synthetic Fixtures and Fail-Closed Tests. Ralph owns serial merge
+ordering and next-phase selection for downstream diagnostics work.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -151,14 +151,20 @@ family config placeholders, and:
 
 - `docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`
 
+`FLF-P24` adds the descriptive Feature/Label diagnostics module
+`alpha_system.research.feature_label_diagnostics`, scoped synthetic report tests,
+and:
+
+- `docs/feature_label_foundation/diagnostics.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no label-as-feature path; no silent BBO forward-fill
 or interpolation; no synthetic no-trade row is treated as a trade bar; feature
-and label values remain local-only; feature report bundles and the feature
-and label registry DBs remain local-only and uncommitted; governance is
-consumed, not duplicated; no broker, live, paper, order, or account scope; and
-no alpha, tradability, or profitability claims.
+and label values remain local-only; feature report bundles, diagnostics report
+bundles, and the feature and label registry DBs remain local-only and
+uncommitted; governance is consumed, not duplicated; no broker, live, paper,
+order, or account scope; and no alpha, tradability, or profitability claims.
 
 Post-closeout, the data foundation was exercised with real local-only data from
 two providers with distinct roles. **Databento** is the primary deep-history
@@ -178,16 +184,17 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 23 of
-32 phases after this phase merge (`FLF-P00` through `FLF-P23`). Durable modules
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 24 of
+32 phases after this phase merge (`FLF-P00` through `FLF-P24`). Durable modules
 now include feature request gating, feature contracts, feature families,
 feature materialization and registry integration, feature reports, label
 contracts, label families, label materialization, and the local-only
-LabelRegistry in `alpha_system.labels.registry`, plus label leakage and
-availability audits in `alpha_system.labels.leakage_audit`. FLF-P23 adds
-`docs/feature_label_foundation/LABEL_LEAKAGE_AUDIT.md`; the next phase is
-FLF-P24 Feature/Label Diagnostics Reports. The completed data-foundation
-baseline remains unchanged.
+LabelRegistry in `alpha_system.labels.registry`, label leakage and availability
+audits in `alpha_system.labels.leakage_audit`, and descriptive Feature/Label
+diagnostics in `alpha_system.research.feature_label_diagnostics`. FLF-P24 adds
+`docs/feature_label_foundation/diagnostics.md`; the next phase is FLF-P25
+Synthetic Fixtures and Fail-Closed Tests. The completed data-foundation baseline
+remains unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
