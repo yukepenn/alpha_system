@@ -7,7 +7,7 @@ Read:
 - `AGENTS.md`
 - `frontier.yaml`
 - existing `campaigns/`
-- `docs/architecture.md`
+- `docs/ARCHITECTURE.md`
 - `PROJECT_STATUS.md`
 - `PROGRESS.md`
 

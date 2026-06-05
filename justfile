@@ -57,6 +57,10 @@ frontier-new-campaign:
 frontier-run-campaign $campaign_id="G005_WORKFLOW2_TOY":
     python tools/frontier/ralph_driver.py run --campaign-id "$campaign_id" --provider-wired
 
+# WARNING: frontier-run-next / -x arm REAL PR creation + auto-merge
+# (FRONTIER_ALLOW_AUTOMERGE=1, FRONTIER_MERGE_DRY_RUN=0): they merge to the
+# protected branch once CI + merge gate pass. Use the *-mock variants below for
+# safe local/dry runs.
 frontier-run-next $campaign_id="G005_WORKFLOW2_TOY":
     env -u FRONTIER_DISABLE_AUTOMERGE FRONTIER_CREATE_PR=1 FRONTIER_ALLOW_AUTOMERGE=1 FRONTIER_MERGE_DRY_RUN=0 python tools/frontier/ralph_driver.py resume --campaign-id "$campaign_id" --provider-wired --max-phases 1
 

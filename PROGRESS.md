@@ -44,6 +44,17 @@ first real local-only DatasetVersion,
 `dsv_ibkr_es_nq_rty_eth_20260603_v1`, for ES/NQ/RTY ETH data (PR #97). No raw
 data, registry DB, cache, or generated market-data artifact is committed.
 
+A subsequent post-closeout track added Databento as the primary deep-history
+research source, kept separate from the IBKR broker-validation source. Phase B
+(PR #107) pulled the full GLBX.MDP3 ES/NQ/RTY continuous OHLCV-1m + BBO-1m
+history (2018-01-01 → 2026-06-01), canonicalized it into sparse provider truth
+plus a derived dense research grid, applied quality/coverage gates, and
+registered 27 local-only DatasetVersions across development, validation, and
+locked-test partitions. All raw/canonical/registry data stays local-only under
+`ALPHA_DATA_ROOT`; nothing is committed. This is research-readiness only and
+implies no alpha, tradability, profitability, paper/live, broker, or production
+claim. See `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
+
 ## Next intended campaign
 
 ALPHA_FEATURE_LABEL_FOUNDATION_V1. Future feature/label work must consume only

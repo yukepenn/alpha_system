@@ -1,5 +1,9 @@
 # L2-Derived Feature Skeleton
 
+> **Design-only — not implemented.** Future, non-MVP L2/replay concepts for a
+> later campaign. No L2 replay, passive-fill, queue, or live/order behavior is
+> implemented or authorized in the current system.
+
 ASV1-P26 adds a design-only, fixture-only skeleton for future L2-derived
 features. It consumes the ASV1-P25 L2 snapshot and delta contracts and keeps
 `event_ts`, `receive_ts`, and `available_ts` distinct.

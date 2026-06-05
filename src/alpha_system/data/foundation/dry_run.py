@@ -53,6 +53,7 @@ from alpha_system.data.foundation.requests import (
     require_pacing_policy_for_provider_pull,
     require_validated_manifest_for_provider_pull,
 )
+from alpha_system.data.foundation.serialization import json_ready_base as _json_ready
 from alpha_system.data.foundation.sources import (
     DEFAULT_ALLOWED_SUBDIRS,
     DEFAULT_FORBIDDEN_REPO_PATHS,
@@ -67,7 +68,6 @@ from alpha_system.data.foundation.version_registry import (
     persist_dataset_version,
     resolve_dataset_version,
 )
-from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 
 DEFAULT_E2E_FIXTURE_RELATIVE_PATH = Path(
     "tests/fixtures/data/synthetic_ibkr_e2e_provider_fixture.json"

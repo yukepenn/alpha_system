@@ -43,9 +43,9 @@ from alpha_system.data.foundation.requests import (
     require_pacing_policy_for_provider_pull,
     require_validated_manifest_for_provider_pull,
 )
+from alpha_system.data.foundation.serialization import json_ready_base as _json_ready
 from alpha_system.data.foundation.sources import DataAccessMode, DataFoundationValidationError
 from alpha_system.data.ibkr._connection import require_env_present as _require_env_present
-from alpha_system.data.ibkr._json_utils import json_ready_base as _json_ready
 
 DATA_P22_MAX_SMOKE_CHUNKS = 1
 DEFAULT_SMOKE_BATCH_ID = "mini_main"

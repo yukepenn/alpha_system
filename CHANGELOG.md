@@ -46,4 +46,10 @@ Status: executor-complete with warnings on deterministic fixtures.
 - Post-closeout ADF1 Task 1A/1B added the read-only IBKR connector,
   resumable backfill/materialize path, and first real local-only
   DatasetVersion `dsv_ibkr_es_nq_rty_eth_20260603_v1`.
+- Post-closeout ADF1 Databento track added the primary deep-history research
+  source: Phase B (PR #107) pulled, canonicalized (sparse provider truth plus a
+  derived dense research grid), quality/coverage-gated, and registered 27
+  local-only Databento DatasetVersions for GLBX.MDP3 ES/NQ/RTY OHLCV-1m + BBO-1m
+  (2018–2026), kept separate from the IBKR DatasetVersions. No raw or heavy data
+  is committed; no alpha/tradability/profitability/paper/live/broker claim is made.
 - Next intended macro-campaign: `ALPHA_FEATURE_LABEL_FOUNDATION_V1`.

@@ -7,6 +7,18 @@ The repository-level campaign pointer records `ALPHA_DATA_FOUNDATION_V1` as
 complete, with current phase `none`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`.
 
+Post-closeout, the data foundation was exercised with real local-only data from
+two providers with distinct roles. **Databento** is the primary deep-history
+research source: Phase B (PR #107) pulled the full GLBX.MDP3 ES/NQ/RTY
+continuous OHLCV-1m + BBO-1m history (2018–2026), canonicalized it into sparse
+provider truth plus a derived dense research grid, and registered 27 local-only
+DatasetVersions. **IBKR** is the read-only broker-validation source (~2 years of
+available depth) with its own separate DatasetVersions. All raw/canonical data,
+registries, and reports stay local-only under `ALPHA_DATA_ROOT`; nothing is
+committed, and no alpha, tradability, profitability, paper/live, or broker claim
+is made. See `handoffs/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md` and
+the `docs/data_foundation/` docs (including the `databento/` subdirectory).
+
 This repository is not a broker, paper-trading, live-trading, order-routing, or
 production execution system. It must not introduce alpha, profitability,
 tradability, or production-readiness claims.
@@ -355,6 +367,8 @@ The data-foundation docs root currently includes:
 
 - `docs/data_foundation/README.md`
 - `docs/data_foundation/DATA_FOUNDATION_OVERVIEW.md`
+- `docs/data_foundation/databento/` — primary deep-history provider docs
+  (`README.md`, `CONSUMPTION.md`, `INGESTION_RUNBOOK.md`)
 - `docs/data_foundation/NAMING.md`
 - `docs/data_foundation/DATA_SOURCE_PROFILE.md`
 - `docs/data_foundation/LOCAL_DATA_ROOT_POLICY.md`

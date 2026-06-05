@@ -25,8 +25,8 @@ from typing import Any
 
 from alpha_system.core.registry import is_local_only_registry_path
 from alpha_system.data.databento.canonicalize import BBO_PARTITION_SCHEMA, OHLCV_PARTITION_SCHEMA
+from alpha_system.data.foundation.serialization import json_ready as _json_ready
 from alpha_system.data.foundation.sources import DataFoundationValidationError
-from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 from alpha_system.data.ibkr.materialize import _repo_root, _validate_data_root
 
 SUPPORTED_ROOTS: frozenset[str] = frozenset({"ES", "NQ", "RTY"})

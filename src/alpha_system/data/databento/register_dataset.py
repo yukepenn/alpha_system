@@ -52,9 +52,9 @@ from alpha_system.data.foundation.datasets import (
 )
 from alpha_system.data.foundation.grid import DenseGridBarRecord
 from alpha_system.data.foundation.quotes import CanonicalBBORecord
+from alpha_system.data.foundation.serialization import json_ready as _json_ready
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import persist_dataset_version
-from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 from alpha_system.data.ibkr.materialize import (
     _load_calendar,
     _partition_plan,

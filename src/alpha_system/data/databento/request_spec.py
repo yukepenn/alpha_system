@@ -16,8 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from types import MappingProxyType
 
+from alpha_system.data.foundation.serialization import json_ready as _json_ready
 from alpha_system.data.foundation.sources import DataFoundationValidationError
-from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 
 DATABENTO_DATASET = "GLBX.MDP3"
 DATABENTO_ENCODING = "dbn"

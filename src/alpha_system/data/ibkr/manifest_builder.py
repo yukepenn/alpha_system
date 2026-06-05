@@ -20,9 +20,9 @@ from alpha_system.data.foundation.requests import (
     HistoricalRequestManifest,
     HistoricalRequestSpec,
 )
+from alpha_system.data.foundation.serialization import json_ready as _json_ready
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.ibkr._connection import require_env_present
-from alpha_system.data.ibkr._json_utils import json_ready as _json_ready
 
 DEFAULT_SYMBOLS: tuple[str, ...] = ("ES", "NQ", "RTY")
 DEFAULT_PACING_POLICY_ID = "rpp_ibkr_historical_conservative_tobeverified_v1"

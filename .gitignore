@@ -14,6 +14,9 @@ __pycache__/
 **/.ruff_cache/
 *.pyc
 
+# Claude Code harness local runtime lock (the /loop scheduler).
+.claude/scheduled_tasks.lock
+
 # Logs, temp files, and caches
 **/*.log
 **/logs/
@@ -54,6 +57,7 @@ __pycache__/
 # Local data and model artifacts
 **/*.dbn
 **/*.dbn.*
+**/*.raw
 **/*.zst
 **/*.zstd
 **/*.parquet
