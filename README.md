@@ -8,12 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, Wave 1 feature-family work is underway and complete through `FLF-P09` of
-32: the governed FeatureRequest gate, FeatureSpec / FeatureVersion contracts,
-shared causal primitives, additive Base OHLCV family, and additive BBO
-tradability family are present. Active phase snapshot: `FLF-P09` - BBO
-Tradability Feature Families. The next work remains the FLF-P10...FLF-P12
-parallel feature-family wave, dependent on FLF-P06 and FLF-P07.
+merge, Wave 1 feature-family work is underway: FLF-P08 Base OHLCV, FLF-P09 BBO
+tradability, and FLF-P11 Cross-Market ES/NQ/RTY feature families are present
+alongside the governed FeatureRequest gate, FeatureSpec / FeatureVersion
+contracts, and shared causal primitives. Active phase snapshot: `FLF-P11` -
+Cross-Market ES/NQ/RTY Feature Families. The next dependency-ready work remains
+the remaining Wave 1 family phase(s), then Wave 2 feature integration
+`FLF-P13`.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -69,13 +70,20 @@ config placeholders, and:
 
 - `docs/feature_label_foundation/features/bbo.md`
 
-No new command surface is added by FLF-P09.
+`FLF-P11` adds the additive Cross-Market ES/NQ/RTY feature family package
+`alpha_system.features.families.cross_market`, scoped synthetic fixture tests,
+family config placeholders, and:
+
+- `docs/feature_label_foundation/features/cross_market.md`
+
+No new command surface is added by FLF-P11.
 
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
-only; no raw provider access; no external provider calls; no silent BBO
-forward-fill or interpolation; feature and label values remain local-only;
-governance is consumed, not duplicated; no broker, live, paper, order, or
-account scope; and no alpha, tradability, or profitability claims.
+only; ES/NQ/RTY cross-market inputs must stay within one accepted
+DatasetVersion family; no raw provider access; no external provider calls; no
+silent BBO forward-fill or interpolation; feature and label values remain
+local-only; governance is consumed, not duplicated; no broker, live, paper,
+order, or account scope; and no alpha, tradability, or profitability claims.
 
 Post-closeout, the data foundation was exercised with real local-only data from
 two providers with distinct roles. **Databento** is the primary deep-history
@@ -95,13 +103,14 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress is complete through
-`FLF-P09` of 32 after this phase merge; the active phase snapshot is `FLF-P09`,
-the feature-contract gate includes the FeatureRequest gate, FeatureSpec /
-FeatureVersion contracts, `alpha_system.features.primitives`, the additive Base
-OHLCV family, and the additive BBO tradability family, and the next work is the
-FLF-P10...FLF-P12 parallel feature-family wave. The completed data-foundation
-baseline remains unchanged:
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` foundation-wave progress includes FLF-P08,
+FLF-P09, and FLF-P11 after this phase merge; the active phase snapshot is
+`FLF-P11`, the feature-contract gate includes the FeatureRequest gate,
+FeatureSpec / FeatureVersion contracts, `alpha_system.features.primitives`, the
+additive Base OHLCV family, the additive BBO tradability family, and the
+additive Cross-Market ES/NQ/RTY family, and the next work is the remaining Wave
+1 family phase(s) before FLF-P13 feature integration. The completed
+data-foundation baseline remains unchanged:
 `ALPHA_DATA_FOUNDATION_V1` is
 complete. Within the
 `campaign_bootstrap` gate,
