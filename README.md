@@ -8,15 +8,17 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P04 StudyRunSpec and RuntimePlan contracts snapshot, progress is `RT-P04`
-complete / `5 of 27`; the active next phase is `RT-P05` - StudyRunRecord,
-Manifest, and Runtime Artifact Contract. The campaign now has the durable
-runtime entry contract module `alpha_system.runtime.entry_contract`, the
-importable `alpha_system.runtime` package skeleton for later runtime phases,
-the input resolver module `alpha_system.runtime.input_resolver`
-(`RuntimeInputPack` and `FeatureLabelPackResolver`), and the runtime contracts
-package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
-`StudyRunSpec`) and `plan` (`RuntimePlan`). Durable runtime documentation:
+RT-P05 StudyRunRecord, manifest, and runtime artifact contract snapshot,
+progress is `RT-P05` complete / `6 of 27`; the active next phase is `RT-P06` -
+Diagnostics Report Contracts. The campaign now has the durable runtime entry
+contract module `alpha_system.runtime.entry_contract`, the importable
+`alpha_system.runtime` package skeleton for later runtime phases, the input
+resolver module `alpha_system.runtime.input_resolver` (`RuntimeInputPack` and
+`FeatureLabelPackResolver`), and the runtime contracts package
+`alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
+`StudyRunSpec`), `plan` (`RuntimePlan`), `run_record` (`StudyRunRecord`),
+`manifest` (`StudyRunManifest`), and `artifacts`
+(`RuntimeArtifactManifest`). Durable runtime documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
@@ -24,9 +26,10 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 - `docs/research_runtime/NAMING.md`
 - `docs/research_runtime/INPUT_RESOLVER.md`
 - `docs/research_runtime/RUN_SPEC_AND_PLAN.md`
+- `docs/research_runtime/RUN_RECORD_AND_MANIFEST.md`
 
 `configs/runtime/` remains the future runtime configuration home. No
-`alpha runtime` command surface is added in RT-P04; that CLI remains scoped to
+`alpha runtime` command surface is added in RT-P05; that CLI remains scoped to
 RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
