@@ -1,0 +1,98 @@
+[
+  {
+    "symbol": "ES",
+    "event_ts": "2026-01-05T14:30:00Z",
+    "available_ts": "2026-01-05T14:30:01Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 100.0,
+    "regime_label": "opening"
+  },
+  {
+    "symbol": "NQ",
+    "event_ts": "2026-01-05T14:30:00Z",
+    "available_ts": "2026-01-05T14:30:02Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 200.0,
+    "regime_label": "opening"
+  },
+  {
+    "symbol": "RTY",
+    "event_ts": "2026-01-05T14:30:00Z",
+    "available_ts": "2026-01-05T14:30:03Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 50.0,
+    "regime_label": "opening"
+  },
+  {
+    "symbol": "ES",
+    "event_ts": "2026-01-05T14:31:00Z",
+    "available_ts": "2026-01-05T14:31:01Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 101.0,
+    "regime_label": "opening"
+  },
+  {
+    "symbol": "NQ",
+    "event_ts": "2026-01-05T14:31:00Z",
+    "available_ts": "2026-01-05T14:31:02Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 202.0,
+    "regime_label": "opening"
+  },
+  {
+    "symbol": "RTY",
+    "event_ts": "2026-01-05T14:31:00Z",
+    "available_ts": "2026-01-05T14:31:03Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 49.0,
+    "regime_label": "opening"
+  },
+  {
+    "symbol": "ES",
+    "event_ts": "2026-01-05T14:32:00Z",
+    "available_ts": "2026-01-05T14:32:01Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 102.0,
+    "regime_label": "midday"
+  },
+  {
+    "symbol": "NQ",
+    "event_ts": "2026-01-05T14:32:00Z",
+    "available_ts": "2026-01-05T14:32:02Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 201.0,
+    "regime_label": "midday"
+  },
+  {
+    "symbol": "RTY",
+    "event_ts": "2026-01-05T14:32:00Z",
+    "available_ts": "2026-01-05T14:32:03Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 51.0,
+    "regime_label": "midday"
+  },
+  {
+    "symbol": "ES",
+    "event_ts": "2026-01-05T14:33:00Z",
+    "available_ts": "2026-01-05T14:33:01Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 103.0,
+    "regime_label": "midday"
+  },
+  {
+    "symbol": "NQ",
+    "event_ts": "2026-01-05T14:33:00Z",
+    "available_ts": "2026-01-05T14:33:02Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 204.0,
+    "regime_label": "midday"
+  },
+  {
+    "symbol": "RTY",
+    "event_ts": "2026-01-05T14:33:00Z",
+    "available_ts": "2026-01-05T14:33:03Z",
+    "data_version": "dsv_synthetic_cross_market_fixture_v1",
+    "feature_value": 52.0,
+    "regime_label": "midday"
+  }
+]
