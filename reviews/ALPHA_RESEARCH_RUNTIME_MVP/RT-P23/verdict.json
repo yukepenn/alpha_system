@@ -1,0 +1,30 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**Files confined to Allowed Paths.** Working tree shows only `README.md` (modified) plus new files under `src/alpha_system/runtime/reports.py`, `tests/unit/runtime/test_reports.py`, `docs/research_runtime/{REPORTS.md,templates/,report_cards/}`, and the commit-eligible handoff. No forbidden path touched: no `cli/main.py`, no diagnostics core (`__init__.py`/`contracts.py`/`report.py`), no `ACTIVE_CAMPAIGN.md`, no broker/live/paper/governance/experiments/backtest/features/labels/data. \u2705",
+    "**Orchestration, not duplication.** `_payload()` calls `.to_dict()` on already-existing contracts (`FactorDiagnosticsReport`, `LabelDiagnosticsReport`, `CostSensitivityReport`, `RejectionReasonRecord`, `EvidenceDraft`, `ReferenceCandidateHandoff`) \u2014 confirmed by the test importing those real types. No diagnostics math, cost model, probe, grid, evidence, or handoff logic is re-implemented. \u2705",
+    "**Non-promotional / no prohibited MVP state.** Three independent guards: `_state_text()` rejects prohibited states (also delegating to `is_prohibited_mvp_state_value`), `_safe_text()` rejects claim phrases, and `_assert_render_safe()` re-scans the final Markdown. Independent grep across all new docs found zero prohibited tokens. `REFERENCE_HANDOFF_READY` documented as the ceiling. \u2705",
+    "**Distinctions preserved.** \"fast path - non-Reference\", \"draft input - not Reference truth\", and \"handoff package - not Reference validation\" are rendered and asserted by tests. \u2705",
+    "**No raw/heavy data.** Renderer emits only scalars (ids, hashes, statuses, reasons, gates); `HEAVY_RENDER_TOKENS` guard plus a test that rejects a `feature_values` key. Scaffolds contain only synthetic ids/hashes. \u2705",
+    "**Local-first / deterministic.** Pure in-memory rendering; no network, provider, broker, or filesystem write. \u2705",
+    "`git ls-files runs` \u2192 empty. No `runs/` path in working tree or handoff curated list. \u2705",
+    "Executor left everything unstaged per Workflow 2 contract; Ralph owns staging. Curated list in handoff is explicit and by-path. \u2705",
+    "Canaries all PASS (incl. `forbidden_scope_drift`, `forbidden_local_artifacts`, `forbidden_raw_data_commit`); `frontier-doctor` PASS; `verify.py --smoke` exit 0. \u2705"
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T09:05:58Z",
+  "phase_id": "RT-P23",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P23/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

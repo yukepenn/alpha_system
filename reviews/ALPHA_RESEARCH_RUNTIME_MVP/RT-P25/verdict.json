@@ -1,0 +1,33 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/runtime/dry_run.py` \u2014 local-only orchestration entry point.",
+    "`tests/integration/runtime/test_dry_run.py` \u2014 4 integration tests.",
+    "`docs/research_runtime/E2E_DRY_RUN.md` \u2014 pipeline order, fixtures, command, warning path, non-promotional framing.",
+    "`README.md` \u2014 concise snapshot update.",
+    "`handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P25.md` \u2014 commit-eligible handoff.",
+    "No-spec \u2192 no-run: `test_missing_alpha_or_study_spec_blocks_before_runtime_execution` asserts `BLOCKED`, `executed is False`, no tool_result/run_summary, with `missing_alpha_spec_ref` / `missing_study_spec_ref` reasons.",
+    "Cost stress base + `double_cost` + slippage proxy: asserted (`{\"base\",\"double_cost\"} <= profile_names`, `slippage_labeled_proxy is True`).",
+    "Bounded `VariantBudget`, no locked-test selection: asserted (`realized_variant_count <= effective_max_combinations`; `locked_test_candidate`/`latest_shadow_candidate` absent from partition scope).",
+    "No-lookahead audit coverage `{available_ts, label_available_ts, same_bar_fills, locked_test_metadata}` + `POINT_IN_TIME_SAFE`: asserted.",
+    "`EvidenceDraft` \u2260 candidate / \u2260 reference truth; `ReferenceCandidateHandoff` `strategy_not_validated`, `next_required_gate = REFERENCE_VALIDATION_REQUIRED`, `reference_validation_performed is False`: asserted.",
+    "Agent-facing outputs value-free: `test_agent_facing_outputs_are_value_free_and_reference_only` scans the rendered JSON for raw/heavy markers (`feature_values`, `.parquet`, `.dbn`, `.sqlite`, `data/raw/`, `artifacts/`, \u2026).",
+    "No prohibited MVP state reachable: `PROHIBITED_MVP_STATES.isdisjoint(RuntimeDecisionState values)` \u2014 the prohibited strings are not even members of the enum."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T13:26:09Z",
+  "phase_id": "RT-P25",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P25/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "`docs/research_runtime/E2E_DRY_RUN.md` \u2014 pipeline order, fixtures, command, warning path, non-promotional framing."
+  ]
+}
