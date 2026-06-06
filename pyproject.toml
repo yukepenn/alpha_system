@@ -31,6 +31,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Use the importlib import mode so test modules are imported by their full path
+# rather than by bare basename. This lets same-named test files coexist across
+# packages (e.g. tests/unit/features/test_contracts.py and
+# tests/unit/runtime/diagnostics/test_contracts.py) without pytest's
+# "import file mismatch" collection error, and removes the need for scattered
+# __init__.py files to disambiguate duplicate basenames.
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 target-version = "py312"
