@@ -9,8 +9,11 @@ which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
 core-contracts gate through `AGENT-P06` (Research Queue and Work Item
-Contracts) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P07`
-(Research Director Role Contract), which starts the parallel role-contract wave.
+Contracts) of `AGENT-P00` through `AGENT-P25`; the parallel `agent_roles` wave
+is advancing, and `AGENT-P08` adds the Hypothesis Scout role contract. Active /
+next work is the remaining wave-1 role contracts (`AGENT-P07`, `AGENT-P09`
+through `AGENT-P15`) and the later `AGENT-P16` integration through the serial
+merge queue.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -84,6 +87,19 @@ refs, allowed/blocked partitions, mandatory finite variant and compute budgets,
 required independent reviews, retry policy, blockers, and next actions. The
 queue has no scheduler, no self-feeding enqueue behavior, and no continuous
 runner surface.
+
+`AGENT-P08` adds the contracts-only Hypothesis Scout role contract:
+
+- `alpha_system.agent_factory.roles.hypothesis_scout`
+- `docs/agent_factory/roles/hypothesis_scout.md`
+- `templates/agent_factory/roles/hypothesis_scout.md`
+
+The Scout drafts 3-5 value-free `AlphaSpec` draft refs for one scoped
+`ResearchTask`, consults rejected-idea and research/library memory summaries by
+ref, surfaces matched prior-rejection reason refs, and hands off to the
+independent AlphaSpec Critic. It does not approve, critique, implement, run
+diagnostics, resolve datasets, write registries, promote, or instantiate an
+agent.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
