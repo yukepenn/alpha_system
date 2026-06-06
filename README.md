@@ -8,10 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P10 Cross-Market Diagnostics Runtime snapshot, progress is in the Wave 1
-diagnostics fan-out (`RT-P07` through `RT-P11`) after the merged RT-P06 shared
-diagnostics contracts. Ralph remains responsible for validation, review, merge
-queue handling, and next-phase selection; phase branches do not update
+RT-P12 Simple Signal Probe Runtime snapshot, progress has entered the Wave 2
+sequential `integration` track after the merged Wave 1 diagnostics fan-out
+(`RT-P07` through `RT-P11`). RT-P12 adds the simple Signal Probe runtime. Active:
+`RT-P12` - Simple Signal Probe Runtime. Next: `RT-P13` - Bounded Grid / Variant
+Budget Guard. Ralph remains responsible for validation, review, merge queue
+handling, and next-phase selection; phase branches do not update
 `ACTIVE_CAMPAIGN.md` in parallel mode.
 
 Durable Research Runtime modules currently include
@@ -20,10 +22,12 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.diagnostics.factor`,
 `alpha_system.runtime.diagnostics.label`,
 `alpha_system.runtime.diagnostics.splits`, and
-`alpha_system.runtime.diagnostics.cross_market`. RT-P10 adds synthetic-safe
-cross-market config templates under `configs/runtime/diagnostics/cross_market/`
-and durable cross-market diagnostics documentation. No `alpha runtime` CLI
-surface is added in RT-P10; that CLI remains scoped to RT-P18.
+`alpha_system.runtime.diagnostics.cross_market`,
+`alpha_system.runtime.cost`, and `alpha_system.runtime.probe`. RT-P12 adds
+`SignalProbeSpec` / `SignalProbeReport`, durable Signal Probe documentation, and
+a synthetic-safe config template under `configs/runtime/probe/`. No
+`alpha runtime` CLI surface is added in RT-P12; that CLI remains scoped to
+RT-P18.
 
 Durable runtime documentation:
 
@@ -39,6 +43,8 @@ Durable runtime documentation:
 - `docs/research_runtime/diagnostics/factor.md`
 - `docs/research_runtime/diagnostics/label.md`
 - `docs/research_runtime/diagnostics/cross_market.md`
+- `docs/research_runtime/COST_STRESS.md`
+- `docs/research_runtime/SIGNAL_PROBE.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider

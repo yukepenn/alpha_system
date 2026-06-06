@@ -1,0 +1,18 @@
+{
+  "config_id": "runtime_signal_probe_synthetic_default_v1",
+  "description": "Tiny synthetic-safe Signal Probe template for local tests and docs only.",
+  "direction_policy": "long_short_flat",
+  "thresholds": ["0.5", "0.55", "0.6"],
+  "primary_threshold": "0.5",
+  "fill_policy": {
+    "timing": "next_bar",
+    "delay_bars": 1,
+    "allow_same_bar_fill": false
+  },
+  "cost_stress_config_ref": "configs/runtime/cost/default_cost_stress.json",
+  "fixture_ref": "tests/fixtures/runtime/probe/synthetic_signal_probe_rows.json",
+  "fast_path": true,
+  "not_strategy_validation": true,
+  "not_a_candidate": true,
+  "not_a_backtest": true
+}
