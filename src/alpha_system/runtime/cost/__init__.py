@@ -23,7 +23,12 @@ _EXPORTS = {
     "load_cost_stress_config": "alpha_system.runtime.cost.spec",
 }
 
-__all__ = sorted(_EXPORTS)
+# Symbols are resolved lazily from their defining modules via __getattr__ below
+# (callers and tests import them from this package path), but package-level
+# __all__ is kept empty to match the runtime subpackage convention shared with
+# the factor/label/splits/cross_market diagnostics packages and enforced by
+# tests/unit/runtime/test_package_skeleton.py.
+__all__: list[str] = []
 
 
 def __getattr__(name: str) -> Any:
