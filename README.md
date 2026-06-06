@@ -8,13 +8,13 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P14 No-Lookahead Runtime Audit snapshot, progress remains in the Wave 2
-sequential `integration` track after the merged Wave 1 diagnostics fan-out
-(`RT-P07` through `RT-P11`). RT-P14 adds the runtime point-in-time integrity
-audit. Active/next: `RT-P15` - RejectionReasonRecord and Runtime Decision
-States. Ralph remains responsible for validation, review, merge queue handling,
-and next-phase selection; phase branches do not update `ACTIVE_CAMPAIGN.md` in
-parallel mode.
+RT-P15 RejectionReasonRecord and Runtime Decision States snapshot, progress is
+16/27 phases through RT-P15 in the Wave 2 sequential `integration` track.
+RT-P15 adds the canonical runtime decision-state visibility surface for
+rejected, inconclusive, and blocked runs. Active/next: `RT-P16` - EvidenceBundle
+Draft Builder. Ralph remains responsible for validation, review, merge queue
+handling, and next-phase selection; phase branches do not update
+`ACTIVE_CAMPAIGN.md` in parallel mode.
 
 Durable Research Runtime modules currently include
 `alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
@@ -24,12 +24,12 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.diagnostics.splits`, and
 `alpha_system.runtime.diagnostics.cross_market`,
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
-`alpha_system.runtime.grid`, and `alpha_system.runtime.audit`. RT-P14 adds
-`NoLookaheadRuntimeAudit`, durable no-lookahead audit documentation, and
-fail-closed synthetic tests for runtime availability, label-as-feature, live
-window, signal-probe fill, and locked-test metadata violations. No
-`alpha runtime` CLI surface is added in RT-P14; that CLI remains scoped to
-RT-P18.
+`alpha_system.runtime.grid`, `alpha_system.runtime.audit`, and
+`alpha_system.runtime.decisions`. RT-P15 adds `RejectionReasonRecord`, runtime
+decision states, `RuntimeStopCondition`, durable decision-state documentation,
+and fail-closed synthetic tests for visible rejected, inconclusive, and blocked
+outcomes. No `alpha runtime` CLI surface is added in RT-P15; that CLI remains
+scoped to RT-P18.
 
 Durable runtime documentation:
 
@@ -49,20 +49,21 @@ Durable runtime documentation:
 - `docs/research_runtime/SIGNAL_PROBE.md`
 - `docs/research_runtime/BOUNDED_GRID.md`
 - `docs/research_runtime/NO_LOOKAHEAD_AUDIT.md`
+- `docs/research_runtime/DECISION_STATES.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
 access; no external provider calls; `available_ts` / `label_available_ts`
 discipline with no label-as-feature path; no centered or future live feature
 windows; no same-bar optimistic signal-probe fills; no locked-test use without
-governance contamination metadata; no broker, live, paper, order, or account
-scope; bounded grids and no-lookahead audits are not promotion; descriptive
-non-promotional reports only; and no alpha,
-tradability, profitability, strategy, backtest, portfolio, or
-production-readiness claim. The Research Runtime campaign is the executable
-research loop layer over the completed Feature/Label substrate; it is not Agent
-Factory, alpha search, factor promotion, Strategy Reference Validation, or a
-Portfolio AlphaBook.
+governance contamination metadata; failed, inconclusive, and blocked runs stay
+visible through structured reasons; no broker, live, paper, order, or account
+scope; bounded grids, no-lookahead audits, and decision states are not
+promotion; descriptive non-promotional reports only; and no alpha, tradability,
+profitability, strategy, backtest, portfolio, or production-readiness claim. The
+Research Runtime campaign is the executable research loop layer over the
+completed Feature/Label substrate; it is not Agent Factory, alpha search, factor
+promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
