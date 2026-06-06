@@ -1,0 +1,69 @@
+# Synthetic, value-free ResearchTask template for Agent Factory operators.
+# Placeholder ids only. This is not an alpha claim, data read, runtime request,
+# continuous runner, factor promotion, strategy, broker, paper, or live action.
+
+task_id: research_task:placeholder_single_task
+task_status: RESEARCH_TASK_QUEUED
+allowed_alpha_family:
+  - placeholder_bounded_family
+
+allowed_dataset_version_id: dataset_version:placeholder_versioned
+allowed_dataset_version_state: VERSIONED
+allowed_feature_pack_refs:
+  - feature_pack:placeholder_seed_ref
+allowed_label_pack_refs:
+  - label_pack:placeholder_seed_ref
+
+allowed_partitions:
+  - development
+  - validation
+blocked_partitions:
+  - locked_test_candidate
+partition_governance_metadata_refs: []
+
+research_budget:
+  variant_budget:
+    max_variants: 2
+  compute_budget:
+    max_runtime_minutes: 30
+
+review_requirements:
+  - review_id: review:placeholder_alphaspec_critique
+    review_kind: alphaspec_critique
+    reviewer_role_id: alpha_spec_critic
+    independent_from_role_ids:
+      - hypothesis_scout
+      - research_director
+    required_before_status: ALPHASPEC_CRITIQUED
+    satisfied_by_ref: null
+  - review_id: review:placeholder_statistical_review
+    review_kind: runtime_evidence_review
+    reviewer_role_id: statistical_reviewer
+    independent_from_role_ids:
+      - diagnostics_runner
+      - feature_engineer
+    required_before_status: STATISTICAL_REVIEW_INCONCLUSIVE
+    satisfied_by_ref: null
+
+retry_policy:
+  max_attempts: 1
+  retry_on_statuses:
+    - INCONCLUSIVE
+
+rejection_reason: null
+next_action: director_scope_task
+
+blocker:
+  blocker_id: blocker:locked_test_metadata_absent
+  blocker_kind: locked_test_governance_metadata_required
+  blocked_refs:
+    - partition:locked_test_candidate
+  reason: Locked-test partition remains blocked without governance contamination metadata.
+  required_resolution: Attach governance metadata before locked-test use.
+  next_action: keep_locked_test_blocked
+
+assignments:
+  - assignment_id: assignment:placeholder_director
+    task_id: research_task:placeholder_single_task
+    role_id: research_director
+    assignment_scope_ref: scope:placeholder_task_scope
