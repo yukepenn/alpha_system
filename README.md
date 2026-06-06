@@ -8,29 +8,33 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P02 runtime package-skeleton and naming snapshot, progress is `RT-P02`
-complete / `3 of 27`; the active next phase is `RT-P03` - Runtime Input
-Resolver: DatasetVersion and Feature/Label Packs. The campaign now has the
-durable runtime entry contract module `alpha_system.runtime.entry_contract`,
-the importable `alpha_system.runtime` package skeleton for later runtime
-phases, and documentation:
+RT-P03 runtime input-resolver snapshot, progress is `RT-P03` complete /
+`4 of 27`; the active next phase is `RT-P04` - StudyRunSpec and RuntimePlan
+Contracts. The campaign now has the durable runtime entry contract module
+`alpha_system.runtime.entry_contract`, the importable `alpha_system.runtime`
+package skeleton for later runtime phases, the input resolver module
+`alpha_system.runtime.input_resolver` (`RuntimeInputPack` and
+`FeatureLabelPackResolver`), and documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
 - `docs/research_runtime/ENTRY_CONTRACT.md`
 - `docs/research_runtime/NAMING.md`
+- `docs/research_runtime/INPUT_RESOLVER.md`
 
-RT-P02 also establishes `configs/runtime/` as the future runtime configuration
-home. No `alpha runtime` command surface is added in RT-P02; that CLI remains
-scoped to RT-P18.
+`configs/runtime/` remains the future runtime configuration home. No
+`alpha runtime` command surface is added in RT-P03; that CLI remains scoped to
+RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
-DatasetVersion-only consumption; no external provider calls; no broker, live,
-paper, order, or account scope; and no alpha, tradability, profitability,
-strategy, backtest, portfolio, or production-readiness claim. The Research
-Runtime campaign is the executable research loop layer over the completed
-Feature/Label substrate; it is not Agent Factory, alpha search, factor
-promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
+DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
+access; no external provider calls; `available_ts` / `label_available_ts`
+discipline with no label-as-feature path; no broker, live, paper, order, or
+account scope; and no alpha, tradability, profitability, strategy, backtest,
+portfolio, or production-readiness claim. The Research Runtime campaign is the
+executable research loop layer over the completed Feature/Label substrate; it
+is not Agent Factory, alpha search, factor promotion, Strategy Reference
+Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
