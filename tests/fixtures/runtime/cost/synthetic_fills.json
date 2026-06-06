@@ -1,0 +1,20 @@
+[
+  {
+    "price": "100.00",
+    "quantity": "10",
+    "side": "buy",
+    "bid": "99.95",
+    "ask": "100.05",
+    "spread": "0.10",
+    "session_label": "RTH"
+  },
+  {
+    "price": "100.00",
+    "quantity": "10",
+    "side": "sell",
+    "bid": "99.95",
+    "ask": "100.05",
+    "spread": "0.10",
+    "session_label": "ETH"
+  }
+]
