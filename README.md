@@ -8,9 +8,9 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P06 Diagnostics Report Contracts snapshot, progress is `RT-P06` complete /
-`7 of 27`; the active next phase is `RT-P07` - Factor Diagnostics Runtime, the
-first phase of the parallel diagnostics wave W1. The campaign now has the
+RT-P07 Factor Diagnostics Runtime snapshot, progress is `RT-P07` complete /
+`8 of 27`; the active next phase is `RT-P08` - Label Diagnostics Runtime, a
+parallel Wave-1 sibling. The campaign now has the
 durable runtime entry contract module `alpha_system.runtime.entry_contract`,
 the importable `alpha_system.runtime` package skeleton for later runtime
 phases, the input resolver module `alpha_system.runtime.input_resolver`
@@ -21,7 +21,11 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 (`RuntimeArtifactManifest`), and the shared diagnostics contracts package
 `alpha_system.runtime.diagnostics` with `contracts` (`DiagnosticsRunSpec`,
 `DiagnosticsRunRecord`) and `report` (the descriptive report shape and
-`DiagnosticsQualityGate`). Durable runtime documentation:
+`DiagnosticsQualityGate`). RT-P07 adds the
+`alpha_system.runtime.diagnostics.factor` runtime, which orchestrates
+`alpha_system.research.ic` and `alpha_system.research.buckets` into a
+descriptive `FactorDiagnosticsReport`; no new `alpha runtime` CLI surface is
+added in this phase. Durable runtime documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
@@ -31,9 +35,10 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 - `docs/research_runtime/RUN_SPEC_AND_PLAN.md`
 - `docs/research_runtime/RUN_RECORD_AND_MANIFEST.md`
 - `docs/research_runtime/DIAGNOSTICS_CONTRACTS.md`
+- `docs/research_runtime/diagnostics/factor.md`
 
-`configs/runtime/` remains the future runtime configuration home. No
-`alpha runtime` command surface is added in RT-P06; that CLI remains scoped to
+`configs/runtime/diagnostics/factor/defaults.json` provides synthetic/default
+descriptive threshold scaffolding. The `alpha runtime` CLI remains scoped to
 RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
