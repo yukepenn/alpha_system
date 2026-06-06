@@ -8,11 +8,10 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-core-contracts gate through `AGENT-P06` and the `agent_roles` wave now includes
-the `AGENT-P15` Librarian role contract alongside the other role contracts
-landed through the serial merge queue. After `AGENT-P15`, active / next work
-completes the parallel role-contract wave toward `AGENT-P16` Separation-of-
-Duties and No-Self-Review Enforcement.
+`agent_roles` wave (`AGENT-P07` through `AGENT-P15`). `AGENT-P16` lands
+separation-of-duties and no-self-review enforcement, opening the
+`enforcement_and_records` gate. Active / next work is `AGENT-P17` Agent Handoff
+and Tool Invocation Records.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -137,10 +136,23 @@ broker/paper/live actions, self-review, promote, or make alpha claims.
 The Librarian records decisions, rejected ideas, duplicate findings, and
 proposed memory updates only after an independent `ReviewerVerdict` ref exists.
 It registers additively through the role registry and declares the
-`librarian_needs_reviewer_verdict_ref` invariant for later AGENT-P16
+`librarian_needs_reviewer_verdict_ref` invariant consumed by AGENT-P16
 enforcement. Recording an `EvidenceDraft` or `ReferenceCandidateHandoff` into
 memory is not promotion, validation, candidacy, alpha evidence, or tradability
 evidence.
+
+`AGENT-P16` adds the contracts-only separation-of-duties enforcement layer:
+
+- `alpha_system.agent_factory.separation.enforcement`
+- `alpha_system.agent_factory.separation.wiring`
+- `docs/agent_factory/SEPARATION_OF_DUTIES.md`
+
+The wiring module imports the ten MVP role modules, assembles them with the
+permission matrix, and fails closed on self-approval, self-review, promotion
+permission, missing matrix coverage, weakened human-approval / Red-lane
+markers, or Librarian write paths without a reviewer verdict ref. It adds no
+autonomous agent, no continuous research runner, no tool execution, no runtime
+call, no record write, and no alpha or promotion path.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
