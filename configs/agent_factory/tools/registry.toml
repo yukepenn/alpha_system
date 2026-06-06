@@ -1,0 +1,489 @@
+# Synthetic, value-free Agent Factory tool contract table.
+# The importable registry in alpha_system.agent_factory.tools.registry is authoritative.
+
+schema_version = "agent-factory-tool-registry-v1"
+campaign_id = "ALPHA_AGENT_FACTORY_MVP"
+phase_id = "AGENT-P05"
+default_posture = "default-deny-fail-closed"
+output_schema = "AgentToolResult"
+
+[[tools]]
+name = "registry.list_datasets"
+group = "registry"
+allowed_callers = ["data_contract_auditor"]
+permission_matrix_refs = ["registry.resolve_dataset_version"]
+required_inputs = ["request_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["unknown_registry_view", "registry_unavailable", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "A caller cannot issue the independent admissibility decision for its own request."
+status = "mvp"
+
+[[tools]]
+name = "registry.resolve_dataset_version"
+group = "registry"
+allowed_callers = ["data_contract_auditor"]
+permission_matrix_refs = ["registry.resolve_dataset_version"]
+required_inputs = ["request_id", "dataset_query_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["dataset_version_not_found", "dataset_version_not_accepted", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "Dataset admissibility review must be separated from downstream diagnostics or promotion decisions."
+status = "mvp"
+
+[[tools]]
+name = "registry.list_feature_packs"
+group = "registry"
+allowed_callers = ["data_contract_auditor"]
+permission_matrix_refs = ["registry.list_feature_packs"]
+required_inputs = ["request_id", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["dataset_version_not_found", "feature_pack_ref_unavailable", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "Feature-pack admissibility remains independent from feature implementation work."
+status = "mvp"
+
+[[tools]]
+name = "registry.list_label_packs"
+group = "registry"
+allowed_callers = ["data_contract_auditor"]
+permission_matrix_refs = ["registry.list_label_packs"]
+required_inputs = ["request_id", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["dataset_version_not_found", "label_pack_ref_unavailable", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "Label-pack admissibility remains independent from label implementation work."
+status = "mvp"
+
+[[tools]]
+name = "feature.request"
+group = "feature_label"
+allowed_callers = ["feature_engineer"]
+permission_matrix_refs = ["feature.draft_request"]
+required_inputs = ["request_id", "alpha_spec_id", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["malformed_feature_request", "dataset_version_missing", "permission_denied"]
+required_reviewer = "alpha_spec_critic"
+reviewer_independence_note = "Feature request review must be separate from the feature requester."
+status = "mvp"
+
+[[tools]]
+name = "feature.validate_spec"
+group = "feature_label"
+allowed_callers = ["feature_engineer"]
+permission_matrix_refs = ["feature.validate_request"]
+required_inputs = ["request_id", "feature_spec_ref", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["feature_spec_invalid", "dataset_contract_mismatch", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "Feature validation cannot approve its own admissibility or downstream evidence."
+status = "mvp"
+
+[[tools]]
+name = "feature.materialize"
+group = "feature_label"
+allowed_callers = ["feature_engineer"]
+permission_matrix_refs = ["feature.validate_request"]
+required_inputs = ["request_id", "feature_spec_ref", "seed_or_synthetic_scope_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["materialization_not_implemented", "scope_not_seed_or_synthetic", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "Materialization remains contract-only until a later reviewed runtime bridge."
+status = "target"
+
+[[tools]]
+name = "label.validate_spec"
+group = "feature_label"
+allowed_callers = ["label_engineer"]
+permission_matrix_refs = ["label.validate_spec"]
+required_inputs = ["request_id", "label_spec_ref", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["label_spec_invalid", "lookahead_risk_unresolved", "permission_denied"]
+required_reviewer = "no_lookahead_auditor"
+reviewer_independence_note = "Label validation cannot replace independent lookahead review."
+status = "mvp"
+
+[[tools]]
+name = "label.materialize"
+group = "feature_label"
+allowed_callers = ["label_engineer"]
+permission_matrix_refs = ["label.validate_spec"]
+required_inputs = ["request_id", "label_spec_ref", "seed_or_synthetic_scope_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["materialization_not_implemented", "scope_not_seed_or_synthetic", "permission_denied"]
+required_reviewer = "no_lookahead_auditor"
+reviewer_independence_note = "Materialized label refs require independent no-lookahead review before use."
+status = "target"
+
+[[tools]]
+name = "runtime.plan"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.plan"]
+required_inputs = ["request_id", "study_spec_id", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["study_spec_missing", "dataset_version_not_accepted", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Diagnostics planning cannot issue the statistical evidence verdict."
+status = "mvp"
+
+[[tools]]
+name = "runtime.validate_inputs"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.validate_inputs"]
+required_inputs = ["request_id", "study_spec_id", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["input_contract_invalid", "dataset_version_not_accepted", "permission_denied"]
+required_reviewer = "data_contract_auditor"
+reviewer_independence_note = "Runtime input validation does not replace independent data-contract audit."
+status = "mvp"
+
+[[tools]]
+name = "runtime.run_diagnostics"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.run_diagnostics"]
+required_inputs = ["request_id", "study_spec_id", "dataset_version_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["diagnostics_not_executed", "runtime_bridge_missing", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Diagnostics output requires independent statistical review before any decision."
+status = "mvp"
+
+[[tools]]
+name = "runtime.run_label_diagnostics"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.run_label_diagnostics"]
+required_inputs = ["request_id", "study_spec_id", "label_pack_refs"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["label_diagnostics_not_executed", "runtime_bridge_missing", "permission_denied"]
+required_reviewer = "no_lookahead_auditor"
+reviewer_independence_note = "Label diagnostics require independent lookahead review before evidence use."
+status = "mvp"
+
+[[tools]]
+name = "runtime.run_signal_probe"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.run_signal_probe"]
+required_inputs = ["request_id", "study_spec_id", "feature_pack_refs", "label_pack_refs"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["signal_probe_not_executed", "runtime_bridge_missing", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Signal probe summaries do not authorize promotion or alpha claims."
+status = "mvp"
+
+[[tools]]
+name = "runtime.run_cost_stress"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.run_cost_stress"]
+required_inputs = ["request_id", "study_spec_id", "cost_assumption_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["cost_stress_not_executed", "runtime_bridge_missing", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Cost stress summaries require independent evidence review."
+status = "mvp"
+
+[[tools]]
+name = "runtime.build_evidence_draft"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.summarize"]
+required_inputs = ["request_id", "runtime_run_id", "study_spec_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["runtime_summary_missing", "evidence_draft_incomplete", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Evidence drafts must be reviewed by a role that did not run diagnostics."
+status = "target"
+
+[[tools]]
+name = "runtime.build_reference_handoff"
+group = "runtime"
+allowed_callers = ["diagnostics_runner"]
+permission_matrix_refs = ["runtime.summarize"]
+required_inputs = ["request_id", "runtime_run_id", "evidence_bundle_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["handoff_not_supported", "evidence_bundle_missing", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Reference handoff remains a draft until independent review and later gates."
+status = "target"
+
+[[tools]]
+name = "review.no_lookahead_audit"
+group = "review"
+allowed_callers = ["no_lookahead_auditor"]
+permission_matrix_refs = ["runtime.audit_no_lookahead", "governance.check_label_leakage"]
+required_inputs = ["request_id", "study_spec_id", "label_pack_refs"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["lookahead_audit_blocked", "label_leakage_guard_blocked", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Lookahead audit is independent from label construction and diagnostics execution."
+status = "mvp"
+
+[[tools]]
+name = "review.statistical_audit"
+group = "review"
+allowed_callers = ["statistical_reviewer"]
+permission_matrix_refs = ["review.statistical_evidence", "review.issue_verdict"]
+required_inputs = ["request_id", "evidence_bundle_ref", "runtime_run_id"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["evidence_bundle_missing", "statistical_review_inconclusive", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "The statistical reviewer cannot be the implementer or diagnostics runner for the reviewed work."
+status = "mvp"
+
+[[tools]]
+name = "ledger.record_trial"
+group = "ledger_memory_promotion"
+allowed_callers = ["librarian"]
+permission_matrix_refs = ["ledger.record_decision"]
+required_inputs = ["request_id", "study_spec_id", "review_verdict_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["review_verdict_missing", "ledger_record_blocked", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Ledger recording follows an independent review verdict and cannot create one."
+status = "mvp"
+
+[[tools]]
+name = "evidence.build_bundle"
+group = "ledger_memory_promotion"
+allowed_callers = ["diagnostics_runner", "statistical_reviewer"]
+permission_matrix_refs = ["runtime.summarize", "review.statistical_evidence"]
+required_inputs = ["request_id", "runtime_run_id", "diagnostics_summary_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["diagnostics_summary_missing", "evidence_bundle_incomplete", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Evidence bundle review must remain independent from the diagnostics runner."
+status = "target"
+
+[[tools]]
+name = "memory.record_rejection"
+group = "ledger_memory_promotion"
+allowed_callers = ["librarian"]
+permission_matrix_refs = ["ledger.record_rejection"]
+required_inputs = ["request_id", "rejection_reasons", "review_verdict_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["rejection_reason_missing", "memory_record_blocked", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Rejected-idea memory updates require a prior independent rejection verdict."
+status = "mvp"
+
+[[tools]]
+name = "memory.record_watch"
+group = "ledger_memory_promotion"
+allowed_callers = ["librarian"]
+permission_matrix_refs = ["memory.propose_update"]
+required_inputs = ["request_id", "watch_reasons", "review_verdict_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+]
+artifact_policy = "local_only"
+failure_states = ["watch_reason_missing", "memory_record_blocked", "permission_denied"]
+required_reviewer = "statistical_reviewer"
+reviewer_independence_note = "Watch memory updates require an independent review verdict."
+status = "mvp"
+
+[[tools]]
+name = "promotion.review"
+group = "ledger_memory_promotion"
+allowed_callers = ["statistical_reviewer"]
+permission_matrix_refs = ["review.issue_verdict"]
+required_inputs = ["request_id", "evidence_bundle_ref", "human_gate_ref"]
+forbidden_side_effects = [
+  "direct_registry_write",
+  "raw_provider_access",
+  "external_provider_call",
+  "raw_or_heavy_result_payload",
+  "value_materialization_in_mvp",
+  "broker_paper_live_order_scope",
+  "factor_promotion_without_human_approval",
+]
+artifact_policy = "local_only"
+failure_states = ["human_gate_missing", "promotion_not_authorized", "permission_denied"]
+required_reviewer = "human_operator"
+reviewer_independence_note = "Promotion review is future contract-only and cannot promote without human approval."
+status = "future"

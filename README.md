@@ -8,9 +8,9 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is in progress with the
-foundation gate advancing through `AGENT-P04` (Agent Permission Matrix and Tool
-Access Policy) of `AGENT-P00` through `AGENT-P25`; the next phase is
-`AGENT-P05` (Tool Contract Registry and Structured Outputs).
+core-contracts gate through `AGENT-P05` (Tool Contract Registry and Structured
+Outputs) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P06`
+(Research Queue and Work Item Contracts).
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -59,6 +59,18 @@ can self-register without shared per-role imports.
 The matrix is default-deny and fail-closed: every MVP roster role has an
 explicit entry, unknown roles raise on lookup, raw-provider access is denied,
 direct registry writes are denied, and no role has promotion permission.
+
+`AGENT-P05` adds the contracts-only agent-facing tool registry and structured
+outputs:
+
+- `alpha_system.agent_factory.tools.contracts`
+- `alpha_system.agent_factory.tools.registry`
+- `alpha_system.agent_factory.tools.results`
+- `docs/agent_factory/TOOLS.md`
+
+Every registered tool returns `AgentToolResult`, the registry is default-deny,
+and results are structured and value-free: ids, refs, summaries, statuses,
+rejection/blocking notes, artifact refs, limitations, and next gates only.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
