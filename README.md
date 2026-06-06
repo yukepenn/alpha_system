@@ -8,11 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P18 Runtime CLI / Tool Surface snapshot, progress is 19/27 phases through
-RT-P18 in the `runtime_integration` gate. RT-P18 adds the additive
-`alpha runtime` CLI group as the local command surface over existing runtime
-contracts and builders. Active/next: `RT-P18` done; next phase `RT-P19` -
-Runtime Cache and Local Artifact Policy. Ralph remains responsible for
+RT-P19 Runtime Cache and Local Artifact Policy snapshot, progress is 20/27
+phases through RT-P19 in the `runtime_integration` gate. RT-P19 adds the
+metadata-only `RuntimeCachePolicy` and the pure runtime artifact policy for
+derived-summary cache keys and `commit_allowed` classification. Active/next:
+`RT-P19` done; next phase `RT-P20` - Synthetic Runtime Fixtures and Fail-Closed
+Tests, in the parallel tests/tools/docs wave. Ralph remains responsible for
 validation, review, merge queue handling, and next-phase selection; phase
 branches do not update `ACTIVE_CAMPAIGN.md` in parallel mode.
 
@@ -26,12 +27,16 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
-`alpha_system.runtime.handoff`. RT-P18 adds `alpha_system.cli.runtime` and the
-`alpha runtime` commands: `plan`, `validate-inputs`, `run-diagnostics`,
+`alpha_system.runtime.handoff`, plus `alpha_system.runtime.cache_policy` and
+`alpha_system.runtime.artifact_policy`. RT-P18 adds
+`alpha_system.cli.runtime` and the `alpha runtime` commands: `plan`,
+`validate-inputs`, `run-diagnostics`,
 `run-label-diagnostics`, `run-signal-probe`, `run-cost-stress`,
 `build-evidence-draft`, `build-reference-handoff`, `summarize`, `inspect`, and
-`replay-summary`. The CLI is an orchestration layer only; it does not duplicate
-runtime logic.
+`replay-summary`. RT-P19 adds value-free cache lineage keys, hit/miss/stale
+metadata decisions, local-only storage-root resolution, and reusable
+commit-eligible-vs-local-only artifact classification. The CLI is an
+orchestration layer only; it does not duplicate runtime logic.
 
 Durable runtime documentation:
 
@@ -55,6 +60,7 @@ Durable runtime documentation:
 - `docs/research_runtime/EVIDENCE_DRAFT.md`
 - `docs/research_runtime/REFERENCE_HANDOFF.md`
 - `docs/research_runtime/CLI.md`
+- `docs/research_runtime/CACHE_AND_ARTIFACTS.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -70,12 +76,15 @@ profitability, strategy, backtest, portfolio, or production-readiness claim. The
 validation, not Reference truth, and not alpha/tradability/profitability. A
 `ReferenceCandidateHandoff` is a handoff only, not Reference validation, not
 Reference truth, not strategy validation, and not a promotional or trading
-claim. The `alpha runtime` CLI remains local-only and CI-safe: help and
-argument-validation paths perform no provider, network, broker, live, paper, or
-heavy work. The Research Runtime campaign is the executable research loop layer
-over the completed Feature/Label substrate; it is not Agent Factory, alpha
-search, factor promotion, Strategy Reference Validation, or a Portfolio
-AlphaBook.
+claim. Runtime cache and artifact policy remains local-only and
+orchestration-only: derived caches stay out of commit-eligible source paths,
+heavy and value-bearing outputs are never commit-eligible, and curated summary
+commit eligibility is row-free and descriptive. The `alpha runtime` CLI
+remains local-only and CI-safe: help and argument-validation paths perform no
+provider, network, broker, live, paper, or heavy work. The Research Runtime
+campaign is the executable research loop layer over the completed Feature/Label
+substrate; it is not Agent Factory, alpha search, factor promotion, Strategy
+Reference Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
