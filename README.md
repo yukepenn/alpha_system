@@ -8,9 +8,9 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is in progress. The active
-phase is `AGENT-P02` (Agent Factory Package, Docs, and Template Skeleton and
-Naming) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P03`
-(Agent Role Contract Model).
+phase is `AGENT-P03` (Agent Role Contract Model) of `AGENT-P00` through
+`AGENT-P25`; the next phase is `AGENT-P04` (Agent Permission Matrix and Tool
+Access Policy).
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -40,6 +40,15 @@ later contract phases:
 
 These are skeletons only; they add no role, permission, tool, queue, separation,
 record, memory, or dry-run behavior.
+
+`AGENT-P03` adds the contracts-only role model and discovery registry:
+
+- `alpha_system.agent_factory.roles.contracts`
+- `alpha_system.agent_factory.roles.registry`
+- `docs/agent_factory/ROLES.md`
+
+No new command is added. The registry is discovery-based so later role modules
+can self-register without shared per-role imports.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
