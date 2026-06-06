@@ -54,8 +54,15 @@ def run_plan(args: argparse.Namespace) -> int:
 
 
 def run_materialize(args: argparse.Namespace) -> int:
-    """Run ``alpha feature materialize`` as a dry-run plan-only command."""
+    """Run ``alpha feature materialize``.
 
+    Default behavior is the unchanged dry-run plan. When ``--execute`` is passed,
+    materialize AND register a seed FeaturePack from real canonical Parquet via
+    the governed seed-pack operator and emit a curated JSON summary.
+    """
+
+    if getattr(args, "execute", False):
+        return _run_with_error_handling(lambda: _emit_seed_feature_pack(args))
     return _run_with_error_handling(lambda: _emit_feature_plan(args, dry_run=True))
 
 
@@ -100,16 +107,20 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
 
     materialize_parser = feature_subparsers.add_parser(
         "materialize",
-        help="Build a dry-run feature materialization plan; values are not written.",
+        help=(
+            "Dry-run feature materialization plan by default; with --execute, "
+            "materialize and register a seed FeaturePack from real canonical Parquet."
+        ),
     )
     _add_registry_arguments(materialize_parser)
-    _add_feature_set_arguments(materialize_parser)
-    _add_dataset_arguments(materialize_parser)
+    _add_feature_set_arguments(materialize_parser, required=False)
+    _add_dataset_arguments(materialize_parser, required=False)
+    _add_seed_execute_arguments(materialize_parser)
     materialize_parser.add_argument(
         "--dry-run",
         action="store_true",
         default=True,
-        help="Plan only; this is the default and only CLI mode.",
+        help="Plan only; this is the default mode unless --execute is passed.",
     )
     materialize_parser.add_argument("--json", action="store_true", help="Emit JSON.")
     materialize_parser.set_defaults(handler=run_materialize, dry_run=True)
@@ -149,33 +160,33 @@ def _add_registry_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_feature_set_arguments(parser: argparse.ArgumentParser) -> None:
+def _add_feature_set_arguments(parser: argparse.ArgumentParser, *, required: bool = True) -> None:
     parser.add_argument(
         "--feature-set-id",
-        required=True,
+        required=required,
         help="Registered FeatureSetSpec id to plan from the local feature registry.",
     )
     parser.add_argument(
         "--feature-set-version",
-        required=True,
+        required=required,
         help="Registered FeatureSetSpec version to plan from the local feature registry.",
     )
 
 
-def _add_dataset_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--dataset-registry", required=True)
-    parser.add_argument("--dataset-version-id", required=True)
+def _add_dataset_arguments(parser: argparse.ArgumentParser, *, required: bool = True) -> None:
+    parser.add_argument("--dataset-registry", required=required)
+    parser.add_argument("--dataset-version-id", required=required)
     parser.add_argument(
         "--lifecycle-state",
         default="VERSIONED",
         help="Accepted DatasetVersion lifecycle state evidence.",
     )
-    parser.add_argument("--quality-report", required=True)
-    parser.add_argument("--coverage-report", required=True)
-    parser.add_argument("--source-manifest", required=True)
-    parser.add_argument("--code-hash", required=True)
-    parser.add_argument("--config-hash", required=True)
-    parser.add_argument("--partition", required=True)
+    parser.add_argument("--quality-report", required=required)
+    parser.add_argument("--coverage-report", required=required)
+    parser.add_argument("--source-manifest", required=required)
+    parser.add_argument("--code-hash", required=required)
+    parser.add_argument("--config-hash", required=required)
+    parser.add_argument("--partition", required=required)
     parser.add_argument(
         "--governance-metadata",
         help="Optional JSON mapping for locked-partition governance metadata.",
@@ -183,6 +194,37 @@ def _add_dataset_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--partition-plan",
         help="Optional JSON DatasetPartitionPlan used for partition gating.",
+    )
+
+
+def _add_seed_execute_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Materialize and register a seed FeaturePack from real canonical Parquet.",
+    )
+    parser.add_argument(
+        "--seed-config",
+        help="Path to a JSON seed-pack config consumed when --execute is passed.",
+    )
+    parser.add_argument(
+        "--canonical-root",
+        help=(
+            "Local canonical Parquet root (defaults to "
+            "ALPHA_DATA_ROOT/databento/canonical/glbx_mdp3)."
+        ),
+    )
+    parser.add_argument(
+        "--symbol",
+        help="Override the seed-config symbol.",
+    )
+    parser.add_argument(
+        "--start",
+        help="Override the seed-config window start_ts (ISO-8601).",
+    )
+    parser.add_argument(
+        "--end",
+        help="Override the seed-config window end_ts (ISO-8601).",
     )
 
 
@@ -237,6 +279,64 @@ def _emit_feature_plan(args: argparse.Namespace, *, dry_run: bool) -> None:
         "plan": plan.to_dict(),
     }
     _emit(payload, emit_json=args.json)
+
+
+def _emit_seed_feature_pack(args: argparse.Namespace) -> None:
+    from alpha_system.cli.seed_pack import (
+        SeedPackError,
+        load_seed_pack_config,
+        run_seed_feature_pack,
+    )
+
+    if not args.seed_config:
+        raise FeatureCliError("--seed-config is required with --execute")
+    alpha_data_root = _require_seed_alpha_data_root(args)
+    canonical_root = _resolve_canonical_root(args, alpha_data_root)
+    dataset_registry = _require_seed_dataset_registry(args)
+    config = _apply_seed_overrides(load_seed_pack_config(args.seed_config), args)
+    try:
+        summary = run_seed_feature_pack(
+            config,
+            alpha_data_root=alpha_data_root,
+            canonical_root=canonical_root,
+            datasets_registry_path=dataset_registry,
+        )
+    except SeedPackError as exc:
+        raise FeatureCliError(str(exc)) from exc
+    _emit({"command": "feature materialize --execute", **summary}, emit_json=args.json)
+
+
+def _require_seed_alpha_data_root(args: argparse.Namespace) -> str:
+    if not args.alpha_data_root:
+        raise FeatureCliError("--alpha-data-root is required with --execute")
+    return args.alpha_data_root
+
+
+def _require_seed_dataset_registry(args: argparse.Namespace) -> str:
+    if not args.dataset_registry:
+        raise FeatureCliError("--dataset-registry is required with --execute")
+    return args.dataset_registry
+
+
+def _resolve_canonical_root(args: argparse.Namespace, alpha_data_root: str) -> str:
+    if args.canonical_root:
+        return args.canonical_root
+    return str(Path(alpha_data_root) / "databento" / "canonical" / "glbx_mdp3")
+
+
+def _apply_seed_overrides(config: Any, args: argparse.Namespace) -> Any:
+    from dataclasses import replace
+
+    overrides: dict[str, Any] = {}
+    if args.symbol:
+        overrides["symbol"] = args.symbol
+    if args.start:
+        overrides["window_start_ts"] = args.start
+    if args.end:
+        overrides["window_end_ts"] = args.end
+    if args.dataset_version_id:
+        overrides["dataset_version_id"] = args.dataset_version_id
+    return replace(config, **overrides) if overrides else config
 
 
 def _emit_feature_report(args: argparse.Namespace) -> None:
@@ -450,6 +550,16 @@ def _emit(payload: Mapping[str, Any], *, emit_json: bool) -> None:
         return
     command = payload["command"]
     print(f"Feature command: {command}")
+    if payload.get("pack_kind") == "feature":
+        print(f"DatasetVersion: {payload.get('dataset_version_id')}")
+        print(f"Feature set: {payload.get('feature_set_id')} {payload.get('feature_set_version')}")
+        print(f"Registered features: {payload.get('feature_count')}")
+        print(f"Value records: {payload.get('value_record_count')}")
+        print(f"Quality status: {payload.get('quality_status')}")
+        print(f"Coverage status: {payload.get('coverage_status')}")
+        print(f"Output path: {payload.get('output_path')}")
+        print(f"Registry: {payload.get('registry_path')}")
+        return
     if "registry_path" in payload:
         print(f"Registry: {payload['registry_path'] or 'not configured'}")
     if "record_count" in payload:

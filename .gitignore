@@ -133,3 +133,7 @@ artifacts/**
 
 # Frontier Workflow 2 runtime state is always local-only.
 runs/**
+
+# Editable-install build metadata (local only)
+*.egg-info/
+**/*.egg-info/

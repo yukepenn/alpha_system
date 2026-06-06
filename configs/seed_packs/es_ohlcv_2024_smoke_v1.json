@@ -1,0 +1,33 @@
+{
+  "schema": "alpha_system.seed_pack.v1",
+  "description": "ES OHLCV+session smoke seed FeaturePack/LabelPack over a small early-2024 window of the accepted Databento canonical TRADES dataset version. Local-only; values never committed. See ADR-0006 and configs/seed_packs/README.md.",
+  "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+  "partition_schema": "ohlcv_1m",
+  "symbol": "ES",
+  "partition_id": "development_partition",
+  "window": {
+    "start_ts": "2024-01-02T00:00:00+00:00",
+    "end_ts": "2024-01-09T00:00:00+00:00"
+  },
+  "feature_set": {
+    "feature_set_id": "fset_es_ohlcv_session_smoke",
+    "feature_set_version": "v1",
+    "alpha_spec_id": "aspec_5eed0a1b2c3d4e5f60718293",
+    "features": [
+      {"name": "returns", "window_length": 1, "horizon": 1},
+      {"name": "log_returns", "window_length": 1, "horizon": 1},
+      {"name": "rolling_volatility", "window_length": 30},
+      {"name": "rolling_range", "window_length": 30},
+      {"name": "volume_zscore", "window_length": 30},
+      {"name": "range_position", "window_length": 1}
+    ]
+  },
+  "label_set": {
+    "label_set_id": "lset_es_fwd_returns_smoke",
+    "labels": [
+      {"name": "fwd_ret_5m", "horizon": "5m"},
+      {"name": "fwd_ret_10m", "horizon": "10m"},
+      {"name": "fwd_ret_30m", "horizon": "30m"}
+    ]
+  }
+}

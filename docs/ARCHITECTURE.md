@@ -38,6 +38,18 @@ Polars supports lazy dataframe pipelines. Generated data, local DB files,
 reports, and run state remain local-only unless a later phase explicitly
 authorizes a tiny synthetic fixture under `tests/fixtures/**`.
 
+Canonical market data already follows this: OHLCV/BBO bars are written as
+Hive-partitioned Parquet and read through optional, dependency-guarded
+`pyarrow`/`polars`/`duckdb` paths, while core dependencies stay empty.
+
+Feature, label, and factor **value** payloads follow the two-tier policy in
+[ADR-0006](../decisions/0006-feature-label-value-storage.md): deterministic
+JSONL is the current audit/small/MVP tier, and Parquet is the intended
+research-scale tier (deferred to `FEATURE_LABEL_PARQUET_SINK_V1`). The
+`features.sqlite` / `labels.sqlite` / `datasets.sqlite` registries store
+metadata, paths, hashes, counts, and timestamp ranges only — never value
+payloads.
+
 ## Domain Boundaries
 
 The architecture treats boundaries as enforceable invariants:
