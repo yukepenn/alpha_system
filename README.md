@@ -8,6 +8,14 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
+RT-P22 Agent-Facing Tool Result Contracts snapshot, progress records the RT-P19
+baseline plus RT-P22 now merged in the parallel `tests_tools_docs` wave. RT-P22
+adds value-free `RuntimeToolResult` and `RuntimeRunSummary` contracts for future
+agent-facing runtime tool surfaces. Active/next: `RT-P22` done; Ralph and the
+coordinator-owned serial merge queue select the next remaining Wave 3 phase.
+Ralph remains responsible for validation, review, merge queue handling, and
+next-phase selection; phase branches do not update `ACTIVE_CAMPAIGN.md` in
+parallel mode.
 RT-P20 Synthetic Runtime Fixtures and Fail-Closed Tests snapshot, progress is
 21/27 phases through RT-P20 in the `tests_tools_docs` gate. RT-P20 adds tiny
 synthetic runtime fixtures, the fail-closed runtime test suite, no-lookahead
@@ -28,14 +36,20 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
-`alpha_system.runtime.handoff`, plus `alpha_system.runtime.cache_policy` and
-`alpha_system.runtime.artifact_policy`. RT-P18 adds
+`alpha_system.runtime.handoff`, plus `alpha_system.runtime.cache_policy`,
+`alpha_system.runtime.artifact_policy`, and
+`alpha_system.runtime.tool_results`. RT-P18 adds
 `alpha_system.cli.runtime` and the `alpha runtime` commands: `plan`,
 `validate-inputs`, `run-diagnostics`,
 `run-label-diagnostics`, `run-signal-probe`, `run-cost-stress`,
 `build-evidence-draft`, `build-reference-handoff`, `summarize`, `inspect`, and
 `replay-summary`. RT-P19 adds value-free cache lineage keys, hit/miss/stale
 metadata decisions, local-only storage-root resolution, and reusable
+commit-eligible-vs-local-only artifact classification. The CLI is an
+orchestration layer only; it does not duplicate runtime logic. RT-P22 adds the
+agent-facing `RuntimeToolResult` / `RuntimeRunSummary` structured-output
+contracts; they carry compact summaries, version ids, rejection reasons, and
+artifact references only.
 commit-eligible-vs-local-only artifact classification. RT-P20 adds
 `tests/fixtures/runtime/fail_closed/`, `tests/unit/runtime/fail_closed/`,
 fixture-backed no-lookahead additions under
@@ -65,6 +79,7 @@ Durable runtime documentation:
 - `docs/research_runtime/REFERENCE_HANDOFF.md`
 - `docs/research_runtime/CLI.md`
 - `docs/research_runtime/CACHE_AND_ARTIFACTS.md`
+- `docs/research_runtime/TOOL_RESULTS.md`
 - `docs/research_runtime/FIXTURES.md`
 - `docs/research_runtime/TESTING.md`
 
@@ -87,6 +102,10 @@ orchestration-only: derived caches stay out of commit-eligible source paths,
 heavy and value-bearing outputs are never commit-eligible, and curated summary
 commit eligibility is row-free and descriptive. The `alpha runtime` CLI
 remains local-only and CI-safe: help and argument-validation paths perform no
+provider, network, broker, live, paper, or heavy work. Agent-facing tool
+results carry no raw or heavy data and RT-P22 creates no autonomous agent. The
+Research Runtime campaign is the executable research loop layer over the
+completed Feature/Label substrate; it is not Agent Factory, alpha search, factor
 provider, network, broker, live, paper, or heavy work. RT-P20 fixtures and
 tests are synthetic, tiny, local-only, and not alpha evidence. The Research
 Runtime campaign is the executable research loop layer over the completed
