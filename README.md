@@ -8,32 +8,16 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P23 Runtime Reports, Docs, and Templates snapshot, RT-P23 of RT-P00...RT-P26
-is complete in the `tests_tools_docs` gate. RT-P23 adds the
-`RuntimeReportCard` Markdown renderer plus report-card docs, templates, and
-tiny rendered scaffolds for already-produced value-free runtime contracts.
-Active/next remains Ralph-owned in the parallel tests/tools/docs wave: RT-P20,
-RT-P22, and RT-P23 build in isolated branches and merge serially; RT-P21 is the
-next dependency-gated phase after that wave lands. Ralph remains responsible for
-validation, review, merge queue handling, and next-phase selection; phase
-branches do not update `ACTIVE_CAMPAIGN.md` in parallel mode.
-RT-P22 Agent-Facing Tool Result Contracts snapshot, progress records the RT-P19
-baseline plus RT-P22 now merged in the parallel `tests_tools_docs` wave. RT-P22
-adds value-free `RuntimeToolResult` and `RuntimeRunSummary` contracts for future
-agent-facing runtime tool surfaces. Active/next: `RT-P22` done; Ralph and the
-coordinator-owned serial merge queue select the next remaining Wave 3 phase.
-Ralph remains responsible for validation, review, merge queue handling, and
-next-phase selection; phase branches do not update `ACTIVE_CAMPAIGN.md` in
-parallel mode.
-RT-P20 Synthetic Runtime Fixtures and Fail-Closed Tests snapshot, progress is
-21/27 phases through RT-P20 in the `tests_tools_docs` gate. RT-P20 adds tiny
-synthetic runtime fixtures, the fail-closed runtime test suite, no-lookahead
-fixture-audit additions, and the durable fixture/testing docs. Active/next:
-`RT-P20` done; next phase `RT-P21` - Small Real FLF DatasetVersion Runtime
-Smoke, with parallel W3 siblings `RT-P22` and `RT-P23` still reconciled through
-the serial merge queue as applicable. Ralph remains responsible for validation,
-review, merge queue handling, and next-phase selection; phase branches do not
-update `ACTIVE_CAMPAIGN.md` in parallel mode.
+RT-P21 Small Real FLF DatasetVersion Runtime Smoke snapshot, the runtime adds
+`alpha_system.runtime.smoke` and `docs/research_runtime/REAL_SMOKE.md`: a
+local-only smoke that resolves one accepted local DatasetVersion, registered
+Feature/Label handles, Tier 0 diagnostics, `double_cost` cost stress,
+no-lookahead audit, `EvidenceDraft`, and value-free runtime summaries. Clean
+checkouts without local registries return `PASS_WITH_WARNINGS` rather than
+fabricating a run. Active/next after RT-P21 is Ralph-owned Wave 4 closeout work
+starting at RT-P24. Ralph remains responsible for validation, review, merge
+queue handling, and next-phase selection; phase branches do not update
+`ACTIVE_CAMPAIGN.md` in parallel mode.
 
 Durable Research Runtime modules currently include
 `alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
@@ -45,7 +29,8 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`,
-`alpha_system.runtime.handoff`, and `alpha_system.runtime.reports`, plus
+`alpha_system.runtime.handoff`, `alpha_system.runtime.reports`, and
+`alpha_system.runtime.smoke`, plus
 `alpha_system.runtime.cache_policy` and `alpha_system.runtime.artifact_policy`.
 RT-P18 adds
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
@@ -102,6 +87,7 @@ Durable runtime documentation:
 - `docs/research_runtime/TOOL_RESULTS.md`
 - `docs/research_runtime/FIXTURES.md`
 - `docs/research_runtime/TESTING.md`
+- `docs/research_runtime/REAL_SMOKE.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -124,6 +110,9 @@ commit eligibility is row-free and descriptive. The `alpha runtime` CLI
 remains local-only and CI-safe: help and argument-validation paths perform no
 provider, network, broker, live, paper, or heavy work. Agent-facing tool
 results carry no raw or heavy data and RT-P22 creates no autonomous agent. The
+RT-P21 real-DatasetVersion smoke makes no external provider call, reads no raw
+provider file, commits no data, and preserves the accepted-DatasetVersion-only,
+no-raw-access, no-claims boundary. The
 Research Runtime campaign is the executable research loop layer over the
 completed Feature/Label substrate; it is not Agent Factory, alpha search, factor
 provider, network, broker, live, paper, or heavy work. RT-P20 fixtures and
