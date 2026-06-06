@@ -1,0 +1,13 @@
+schema: alpha_system.runtime.diagnostics.label.config.v1
+diagnostics_family: label
+min_sample_count: 1
+max_majority_class_share: 0.95
+min_horizon_coverage_ratio: 0.80
+require_label_audit: true
+require_feature_label_coverage: true
+require_cost_adjustment_metadata: true
+allow_missing_path_metrics: true
+limitations:
+  - Descriptive label diagnostics only; quality gates are not promotion decisions.
+  - The runtime summarizes supplied diagnostics and references; it does not materialize labels.
+  - Coverage and leakage results depend on upstream registered label audits and input resolution.
