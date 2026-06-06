@@ -8,15 +8,14 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P16 EvidenceBundle Draft Builder snapshot, progress is 17/27 phases through
-RT-P16 in the Wave 2 sequential `integration` track. RT-P16 adds the
-`EvidenceDraft` builder that assembles runtime diagnostics, cost, probe, grid,
-audit, manifest, and decision-state metadata into an evidence input accepted by
-the governance `EvidenceBundle` surface. Active/next: active phase `RT-P16` -
-EvidenceBundle Draft Builder; next phase `RT-P17` - Reference Candidate Handoff
-Builder. Ralph remains responsible for validation, review, merge queue
-handling, and next-phase selection; phase branches do not update
-`ACTIVE_CAMPAIGN.md` in parallel mode.
+RT-P17 Reference Candidate Handoff Builder snapshot, progress is 18/27 phases
+through RT-P17 in the `runtime_integration` gate. RT-P17 adds the
+`ReferenceCandidateHandoff` builder that assembles a conservative,
+reference-only package for a future, separately authorized Reference validation
+step. Active/next: active phase `RT-P17` - Reference Candidate Handoff Builder;
+next phase `RT-P18` - Runtime CLI / Tool Surface. Ralph remains responsible for
+validation, review, merge queue handling, and next-phase selection; phase
+branches do not update `ACTIVE_CAMPAIGN.md` in parallel mode.
 
 Durable Research Runtime modules currently include
 `alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
@@ -27,12 +26,12 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.diagnostics.cross_market`,
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
-`alpha_system.runtime.decisions`, and `alpha_system.runtime.evidence`. RT-P16
-adds the `EvidenceDraft` builder, durable EvidenceDraft documentation, and
-synthetic tests for governance `EvidenceBundle` acceptance, visible terminal
-reasons, no-heavy-data summaries, non-candidate boundaries, and cost discipline.
-No `alpha runtime` CLI surface is added in RT-P16; that CLI remains scoped to
-RT-P18.
+`alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
+`alpha_system.runtime.handoff`. RT-P17 adds the `ReferenceCandidateHandoff`
+builder, durable Reference handoff documentation, and synthetic tests for ready
+handoffs, fail-closed cost/audit preconditions, visible terminal reasons, and
+non-promotional scope boundaries. No `alpha runtime` CLI surface is added in
+RT-P17; that CLI remains scoped to RT-P18.
 
 Durable runtime documentation:
 
@@ -54,6 +53,7 @@ Durable runtime documentation:
 - `docs/research_runtime/NO_LOOKAHEAD_AUDIT.md`
 - `docs/research_runtime/DECISION_STATES.md`
 - `docs/research_runtime/EVIDENCE_DRAFT.md`
+- `docs/research_runtime/REFERENCE_HANDOFF.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -66,10 +66,12 @@ scope; bounded grids, no-lookahead audits, and decision states are not
 promotion; descriptive non-promotional reports only; and no alpha, tradability,
 profitability, strategy, backtest, portfolio, or production-readiness claim. The
 `EvidenceDraft` is an evidence input only, not a candidate, not Reference
-validation, not Reference truth, and not alpha/tradability/profitability. The
-Research Runtime campaign is the executable research loop layer over the
-completed Feature/Label substrate; it is not Agent Factory, alpha search, factor
-promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
+validation, not Reference truth, and not alpha/tradability/profitability. A
+`ReferenceCandidateHandoff` is a handoff only, not Reference validation, not
+Reference truth, not strategy validation, and not a promotional or trading
+claim. The Research Runtime campaign is the executable research loop layer over
+the completed Feature/Label substrate; it is not Agent Factory, alpha search,
+factor promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
