@@ -12,6 +12,9 @@ RT-P09 Session / Regime / RTH / ETH Split Diagnostics snapshot, progress is in
 the Wave 1 diagnostics fan-out (`RT-P07` through `RT-P11`) after the merged
 RT-P06 shared diagnostics contracts. Ralph remains responsible for validation,
 review, merge queue handling, and next-phase selection. The campaign now has the
+RT-P07 Factor Diagnostics Runtime snapshot, progress is `RT-P07` complete /
+`8 of 27`; the active next phase is `RT-P08` - Label Diagnostics Runtime, a
+parallel Wave-1 sibling. The campaign now has the
 durable runtime entry contract module `alpha_system.runtime.entry_contract`,
 the importable `alpha_system.runtime` package skeleton for later runtime
 phases, the input resolver module `alpha_system.runtime.input_resolver`
@@ -26,6 +29,11 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 `alpha_system.runtime.diagnostics.splits`, synthetic-safe split config templates
 under `configs/runtime/diagnostics/splits/`, and durable split diagnostics
 documentation. Durable runtime documentation:
+`DiagnosticsQualityGate`). RT-P07 adds the
+`alpha_system.runtime.diagnostics.factor` runtime, which orchestrates
+`alpha_system.research.ic` and `alpha_system.research.buckets` into a
+descriptive `FactorDiagnosticsReport`; no new `alpha runtime` CLI surface is
+added in this phase. Durable runtime documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
@@ -39,6 +47,11 @@ documentation. Durable runtime documentation:
 
 No `alpha runtime` command surface is added in RT-P09; that CLI remains scoped
 to RT-P18.
+- `docs/research_runtime/diagnostics/factor.md`
+
+`configs/runtime/diagnostics/factor/defaults.json` provides synthetic/default
+descriptive threshold scaffolding. The `alpha runtime` CLI remains scoped to
+RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider

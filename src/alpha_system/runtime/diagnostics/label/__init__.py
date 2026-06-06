@@ -1,3 +1,3 @@
-"""Label diagnostics runtime namespace reserved for later phases."""
+"""Label diagnostics runtime namespace."""
 
 __all__: list[str] = []
