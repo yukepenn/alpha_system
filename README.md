@@ -14,6 +14,10 @@ is advancing, and `AGENT-P08` adds the Hypothesis Scout role contract. Active /
 next work is the remaining wave-1 role contracts (`AGENT-P07`, `AGENT-P09`
 through `AGENT-P15`) and the later `AGENT-P16` integration through the serial
 merge queue.
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed `AGENT-P07`
+(Research Director Role Contract) of `AGENT-P00` through `AGENT-P25`; the
+`agent_roles` parallel wave has started. The next phase is `AGENT-P08`
+(Hypothesis Scout Role Contract), continuing the parallel role-contract wave.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -100,6 +104,17 @@ ref, surfaces matched prior-rejection reason refs, and hands off to the
 independent AlphaSpec Critic. It does not approve, critique, implement, run
 diagnostics, resolve datasets, write registries, promote, or instantiate an
 agent.
+`AGENT-P07` adds the contracts-only Research Director role contract:
+
+- `alpha_system.agent_factory.roles.research_director`
+- `docs/agent_factory/roles/research_director.md`
+- `templates/agent_factory/roles/research_director.md`
+
+The Research Director scopes one bounded `ResearchTask`, assigns downstream
+roles, and sets budgets within queue policy. It registers additively through the
+role registry and its callable tools match the permission matrix grant:
+`queue.scope_task`, `queue.assign_roles`, and `queue.set_budget`. It performs no
+alpha search, no diagnostics, no implementation, no promotion, and no review.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
