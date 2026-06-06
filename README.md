@@ -4,121 +4,42 @@
 an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
 The repository-level campaign pointer targets
-`ALPHA_RESEARCH_RUNTIME_MVP`. Campaign state is tracked in
-`ACTIVE_CAMPAIGN.md`, which is coordinator-owned.
+`ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
+which is coordinator-owned.
 
-`ALPHA_RESEARCH_RUNTIME_MVP` is **complete (`COMPLETE_WITH_WARNINGS`)**. All 27
-phases (`RT-P00` through `RT-P26`) are merged to `main` (PRs #150–#176 plus the
-coordinator closeout), 27 independent Claude Opus review records are committed
-under `reviews/ALPHA_RESEARCH_RUNTIME_MVP/**`, and `tools/verify.py --all`
-passes clean (`2439 passed`). RT-P26's executor truthfully returned `BLOCKED`
-for coordinator-owned items (reviewer records + full validation, which the
-executor's git-command restrictions prevented it from producing); the
-coordinator has since resolved them — see
-`campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md` for the full resolution and
-warning record. This is an MVP scaffold of the executable research-loop layer:
-not validated alpha, not a strategy/candidate, not Reference truth, not
-production-ready.
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` bootstrap complete
+(`AGENT-P00 / 26`). The next phase is `AGENT-P01` (Agent Factory Entry Contract
+and Preflight Gates).
 
-RT-P26 adds `docs/research_runtime/ACCEPTANCE_AUDIT.md` and
-`campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`. The audit records the six
-acceptance gates and the semantic done-check evidence. The closeout frames
-Agent Factory readiness as conditional and non-promotional. RT-P25 adds
-`alpha_system.runtime.dry_run`
-and `docs/research_runtime/E2E_DRY_RUN.md`; the dry run sequences the existing
-runtime contracts over tiny synthetic fixtures and emits value-free
-`RuntimeToolResult` / `RuntimeRunSummary` objects with the next required gate
-still set to `REFERENCE_VALIDATION_REQUIRED`.
+`AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
-Durable Research Runtime modules currently include
-`alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
-`alpha_system.runtime.contracts`, `alpha_system.runtime.diagnostics`,
-`alpha_system.runtime.diagnostics.factor`,
-`alpha_system.runtime.diagnostics.label`,
-`alpha_system.runtime.diagnostics.splits`, and
-`alpha_system.runtime.diagnostics.cross_market`,
-`alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
-`alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
-`alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`,
-`alpha_system.runtime.handoff`, `alpha_system.runtime.reports`, and
-`alpha_system.runtime.smoke`, `alpha_system.runtime.dry_run`, plus
-`alpha_system.runtime.cache_policy` and `alpha_system.runtime.artifact_policy`.
-RT-P18 adds
-`alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
-`alpha_system.runtime.handoff`, plus `alpha_system.runtime.cache_policy`,
-`alpha_system.runtime.artifact_policy`, and
-`alpha_system.runtime.tool_results`. RT-P18 adds
-`alpha_system.cli.runtime` and the `alpha runtime` commands: `plan`,
-`validate-inputs`, `run-diagnostics`,
-`run-label-diagnostics`, `run-signal-probe`, `run-cost-stress`,
-`build-evidence-draft`, `build-reference-handoff`, `summarize`, `inspect`, and
-`replay-summary`. RT-P19 adds value-free cache lineage keys, hit/miss/stale
-metadata decisions, local-only storage-root resolution, and reusable
-commit-eligible-vs-local-only artifact classification. RT-P23 adds report-card
-rendering only; it consumes existing structured outputs and does not duplicate
-runtime logic. The CLI is an orchestration layer only; it does not duplicate
-runtime logic.
-commit-eligible-vs-local-only artifact classification. The CLI is an
-orchestration layer only; it does not duplicate runtime logic. RT-P22 adds the
-agent-facing `RuntimeToolResult` / `RuntimeRunSummary` structured-output
-contracts; they carry compact summaries, version ids, rejection reasons, and
-artifact references only.
-commit-eligible-vs-local-only artifact classification. RT-P20 adds
-`tests/fixtures/runtime/fail_closed/`, `tests/unit/runtime/fail_closed/`,
-fixture-backed no-lookahead additions under
-`tests/no_lookahead/research_runtime/`, and the fixture/testing docs. The CLI is
-an orchestration layer only; it does not duplicate runtime logic.
+- `docs/agent_factory/README.md`
+- `docs/agent_factory/OVERVIEW.md`
 
-Durable runtime documentation:
+No new code modules or commands are added in `AGENT-P00`.
 
-- `docs/research_runtime/README.md`
-- `docs/research_runtime/OVERVIEW.md`
-- `docs/research_runtime/ENTRY_CONTRACT.md`
-- `docs/research_runtime/NAMING.md`
-- `docs/research_runtime/INPUT_RESOLVER.md`
-- `docs/research_runtime/RUN_SPEC_AND_PLAN.md`
-- `docs/research_runtime/RUN_RECORD_AND_MANIFEST.md`
-- `docs/research_runtime/DIAGNOSTICS_CONTRACTS.md`
-- `docs/research_runtime/diagnostics/splits.md`
-- `docs/research_runtime/diagnostics/factor.md`
-- `docs/research_runtime/diagnostics/label.md`
-- `docs/research_runtime/diagnostics/cross_market.md`
-- `docs/research_runtime/COST_STRESS.md`
-- `docs/research_runtime/SIGNAL_PROBE.md`
-- `docs/research_runtime/BOUNDED_GRID.md`
-- `docs/research_runtime/NO_LOOKAHEAD_AUDIT.md`
-- `docs/research_runtime/DECISION_STATES.md`
-- `docs/research_runtime/EVIDENCE_DRAFT.md`
-- `docs/research_runtime/REFERENCE_HANDOFF.md`
-- `docs/research_runtime/CLI.md`
-- `docs/research_runtime/CACHE_AND_ARTIFACTS.md`
-- `docs/research_runtime/REPORTS.md`
-- `docs/research_runtime/templates/`
-- `docs/research_runtime/report_cards/`
-- `docs/research_runtime/TOOL_RESULTS.md`
-- `docs/research_runtime/FIXTURES.md`
-- `docs/research_runtime/TESTING.md`
-- `docs/research_runtime/REAL_SMOKE.md`
-- `docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md`
-- `docs/research_runtime/E2E_DRY_RUN.md`
-- `docs/research_runtime/ACCEPTANCE_AUDIT.md`
-- `campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`
+`ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
+the completed Governance + Feature/Label + Research Runtime stack. It is
+contracts-only at this point: no autonomous agent is instantiated, no continuous
+research runner is started, no alpha search is performed, no factor is promoted,
+and no strategy is validated. It consumes existing runtime, governance, and
+registry primitives; it does not edit or duplicate them.
 
 Safety boundaries are unchanged: local-first execution; accepted
-DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
-access; no external provider calls; `available_ts` / `label_available_ts`
-discipline with no label-as-feature path; no centered or future live feature
-windows; no same-bar optimistic signal-probe fills; no locked-test use without
-governance contamination metadata; failed, inconclusive, and blocked runs stay
-visible through structured reasons; no broker, live, paper, order, or account
-scope; no alpha, tradability, profitability, strategy, backtest, portfolio, or
-production-readiness claim. RT-P25 is synthetic-fixture-only orchestration and
-RT-P26 is documentation/verification-only closeout; neither changes consumed
-primitive packages, scheduler code, campaign contracts, data access,
-broker/live/paper scope, or the merge queue. The Research Runtime campaign is
-the executable research loop layer over the completed Feature/Label substrate;
-it is not Agent Factory, alpha search, factor promotion, Strategy Reference
-Validation, or a Portfolio AlphaBook.
+DatasetVersion-only consumption through sanctioned APIs; no raw-provider access;
+no external provider calls; no broker, live, paper, order, or account scope; no
+alpha, tradability, profitability, strategy, backtest, portfolio, deployment, or
+production-readiness claim; no raw/canonical/feature/label/runtime/agent values,
+heavy artifacts, provider responses, local DBs, logs, or caches committed.
+
+The predecessor `ALPHA_RESEARCH_RUNTIME_MVP` is complete
+(`COMPLETE_WITH_WARNINGS`). Its durable runtime modules include
+`alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
+`alpha_system.runtime.contracts`, diagnostics, cost, probe, grid, audit,
+decisions, evidence, handoff, reports, smoke, dry-run, cache policy, artifact
+policy, and the agent-facing `RuntimeToolResult` / `RuntimeRunSummary`
+structured-output contracts. The `alpha_system.cli.runtime` commands remain the
+sanctioned orchestration surface for runtime workflows.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
