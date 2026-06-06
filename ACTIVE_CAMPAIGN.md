@@ -2,44 +2,51 @@
 
 Project: `alpha_system`
 
-Campaign: `campaigns/ALPHA_RESEARCH_RUNTIME_MVP`
+Campaign: `campaigns/ALPHA_AGENT_FACTORY_MVP`
 Workflow: `workflow2`
-Run: `2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP`
-Status: `complete_with_warnings`
+Run: `none` - not started
+Status: `not_started`
 
-Current phase: `none` - campaign complete
-Last completed phase: `RT-P26` - Acceptance Audit and Closeout
-Last completed status: `PASS_WITH_WARNINGS` (coordinator final: COMPLETE_WITH_WARNINGS)
-Passing phases: `27/27`
+Current phase: `none` - campaign not started
+Last completed phase: `none`
+Last completed status: `none`
+Passing phases: `0/26`
 
-Campaign `ALPHA_RESEARCH_RUNTIME_MVP` is **complete (`COMPLETE_WITH_WARNINGS`)**:
-all 27 phases (`RT-P00`…`RT-P26`) merged to `main` (PRs #150–#176 + coordinator
-closeout), 27 Yellow-lane review records committed under
-`reviews/ALPHA_RESEARCH_RUNTIME_MVP/**`, and `tools/verify.py --all` passing
-clean (`2439 passed`). See `campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`
-and `docs/research_runtime/ACCEPTANCE_AUDIT.md`. The next coordinator-approved
-campaign may consume this runtime; this is an MVP scaffold, not validated alpha.
+Campaign `ALPHA_AGENT_FACTORY_MVP` is the **controlled AI Alpha Research Team
+layer** over the completed Governance + Feature/Label + Research Runtime stack.
+It defines, as **contracts only**, the agent roles, permission matrix, tool
+contracts, research queue, separation-of-duties enforcement, agent/decision/
+handoff records, rejected-idea memory, prompt assets, a runtime tool integration
+bridge, and a bounded non-alpha dry-run harness that future AI Alpha Researchers
+will be driven by. It does **not** instantiate any autonomous agent, does **not**
+start alpha search, does **not** run a continuous research runner, and does
+**not** promote any factor or validate any strategy.
 
-This pointer selects `ALPHA_RESEARCH_RUNTIME_MVP` — the **executable research
-loop layer** between the Feature/Label substrate and the future Agent Factory —
-as the next Workflow 2 campaign. The predecessor
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete (32/32, `COMPLETE_WITH_WARNINGS`,
-closeout `campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/CLOSEOUT.md`); its
-registered, point-in-time-safe FeatureStore/LabelStore substrate is the input
-this campaign's runtime consumes.
+This pointer selects `ALPHA_AGENT_FACTORY_MVP` as the next Workflow 2 campaign.
+The predecessor `ALPHA_RESEARCH_RUNTIME_MVP` is complete (27/27,
+`COMPLETE_WITH_WARNINGS`, closeout
+`campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`); its local-first executable
+research loop (`alpha_system.runtime`, with the agent-facing
+`RuntimeToolResult` / `RuntimeRunSummary` structured outputs) plus the governed
+seed FeaturePack/LabelPack and the real-data runtime smoke
+(`real_dataset_version_smoke_ran: true`, from
+`POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1`) are the substrate this
+campaign's agent contracts drive.
 
-Ralph updates this pointer through reviewed phase commits so the tracked repo stays clean after Workflow 2 stops. In `dag_wave` parallel mode this pointer is **coordinator-owned** and is never written by a phase branch.
+Ralph updates this pointer through reviewed phase commits so the tracked repo
+stays clean after Workflow 2 stops. In `dag_wave` parallel mode this pointer is
+**coordinator-owned** and is never written by a phase branch.
 
 ## Campaign Identity
 
-- Campaign ID: `ALPHA_RESEARCH_RUNTIME_MVP`
-- Campaign path: `campaigns/ALPHA_RESEARCH_RUNTIME_MVP`
+- Campaign ID: `ALPHA_AGENT_FACTORY_MVP`
+- Campaign path: `campaigns/ALPHA_AGENT_FACTORY_MVP`
 - Repo: `alpha_system`
 - Repo path: `~/projects/alpha_system`
 - Workflow: `workflow2`
 - Mode: Ralph-driven strict autonomous loop
-- Project profile: `trading_research` / `research` / `research_runtime`
-- Phase count: 27 phases (`RT-P00` … `RT-P26`)
+- Project profile: `trading_research` / `research` / `agent_factory`
+- Phase count: 26 phases (`AGENT-P00` … `AGENT-P25`)
 
 ## Scheduler
 
@@ -47,9 +54,9 @@ Ralph updates this pointer through reviewed phase commits so the tracked repo st
 - `parallel_execution`: `true`; `max_parallel_phases`: `3`
 - `merge_queue`: `serial` (build in parallel, merge one PR at a time)
 - `update_active_campaign`: `coordinator_only` (phase branches never write this file in parallel mode)
-- Preview: `just frontier-plan ALPHA_RESEARCH_RUNTIME_MVP`
-- Mock first: `just frontier-run-parallel-mock ALPHA_RESEARCH_RUNTIME_MVP 3`
-- Live parallel: `just frontier-run-parallel ALPHA_RESEARCH_RUNTIME_MVP 3`
+- Preview: `just frontier-plan ALPHA_AGENT_FACTORY_MVP`
+- Mock first: `just frontier-run-parallel-mock ALPHA_AGENT_FACTORY_MVP 3`
+- Live parallel: `just frontier-run-parallel ALPHA_AGENT_FACTORY_MVP 3`
 
 ## Model Routing
 
@@ -59,43 +66,60 @@ Ralph updates this pointer through reviewed phase commits so the tracked repo st
 - Execution / tests / repair / handoffs: Codex GPT-5.5 high
 - Orchestration / state machine / DAG scheduler / serial merge queue: Ralph
 
+These are the **build-time** model roles (who writes, reviews, and merges the
+campaign). They are distinct from the Agent Factory **in-product** agent roster
+(Research Director, Hypothesis Scout, AlphaSpec Critic, Data Contract Auditor,
+Feature Engineer, Label Engineer, No-Lookahead Auditor, Diagnostics Runner,
+Statistical Reviewer, Librarian), which this campaign specifies as **contracts
+only** and does not instantiate as autonomous agents.
+
 ## Boundaries
 
-This campaign builds the **local deterministic runtime** that turns an approved
-`AlphaSpec` + `StudySpec` into reproducible diagnostics, cost stress, bounded
-probes, EvidenceDraft inputs, rejection reasons, and a ReferenceCandidateHandoff
-— by **orchestrating existing primitives** (`research.ic/buckets/regimes`,
-`backtest.costs/slippage`, `experiments.limits/overfit_controls`,
-`governance.study_input_pack/evidence_bundle`), never re-implementing them.
+This campaign builds the **controlled AI research team contract layer** that lets
+future agents operate inside durable tool contracts and Workflow 2 gates — to
+reduce human interaction **without weakening any gate**. Every deliverable is a
+contract (role, permission, tool, queue, memory, dry-run) that **drives** the
+existing runtime/governance/registry primitives through their sanctioned APIs;
+nothing duplicates or edits them.
 
-Consume **accepted DatasetVersions** only (`resolve_dataset_version`) plus the
-registered FeatureStore/LabelStore; never read raw provider files. Databento is
-the primary deep-history research source; IBKR is broker-source recent
-validation only. Feature inputs carry `available_ts`; label inputs carry
-`label_available_ts`.
+Agents call the Research Runtime via the `RuntimeToolResult` / `RuntimeRunSummary`
+tool surface and resolve inputs via `resolve_dataset_version`; they never read
+raw provider files, never call external providers, never write value stores or
+registries directly, never bypass `StudySpec`/`AlphaSpec`, never self-review, and
+never self-promote. The human owns risk/capital/live judgment.
 
-Out of scope: broad alpha search, factor promotion, strategy wrappers as
-research products, strategy/backtest/portfolio optimization, paper/live/broker
-trading, order routing, external provider calls, data pulls,
-raw/canonical/feature/label/runtime value commits, heavy artifact or local-DB
-commits, and any alpha/tradability/profitability/production claim. A diagnostic
-PASS is not alpha validation; a signal probe is not a strategy candidate; a
-bounded grid is not promotion; an EvidenceDraft is not a candidate; a
-ReferenceCandidateHandoff is not Reference validation; the fast path is not
-Reference truth.
+Out of scope: autonomous agent instantiation, continuous research runner, broad
+alpha search, factor promotion, strategy wrappers/backtest/portfolio as agent
+products, Core Alpha Pilot, large-scale value-consuming studies before
+`FEATURE_LABEL_PARQUET_SINK_V1`, session-context features before
+`SESSION_LABEL_GUARD_FIX_V1`, ML/DL beyond authorized scope, L2/event-stream,
+paper/live/broker/order/account scope, external provider calls, and any
+raw/canonical/feature/label/runtime/agent value or local-DB commit. Agent
+dry-run success is not alpha; an agent-generated AlphaSpec is not implementation
+approval; a runtime diagnostic PASS is not factor promotion; an EvidenceDraft is
+not a candidate; a ReferenceCandidateHandoff is not Reference validation; no
+alpha/tradability/profitability/production claim is permitted.
+
+## Preflight Gates (encoded in `AGENT-P01`)
+
+- A real seed FeaturePack / LabelPack exists locally (Databento ES/NQ/RTY 2024 seed window).
+- Research Runtime real-data smoke PASSES (`real_dataset_version_smoke_ran: true`).
+- `FEATURE_LABEL_PARQUET_SINK_V1` status is checked; large-scale value-consuming studies are **blocked** until it lands or a human explicitly approves.
+- `SESSION_LABEL_GUARD_FIX_V1` status is checked; session-context features (`rth_flag`/`eth_flag`/`session_minute`) are **blocked** until the `session_label` guard false-positive in `runtime/input_resolver.py` is fixed.
+- The dataset-registry report-rehydration gap is respected; agents use registry/runtime tools and the accepted-DatasetVersion policy, never a bypass.
 
 ## Campaign Files
 
-`campaigns/ALPHA_RESEARCH_RUNTIME_MVP/`: `GOAL.md`, `PHASE_PLAN.md`,
+`campaigns/ALPHA_AGENT_FACTORY_MVP/`: `GOAL.md`, `PHASE_PLAN.md`,
 `campaign.yaml`, `ACCEPTANCE.md`, `RISK_REGISTER.md`, `RUNBOOK.md`. There is no
 campaign-local `ACTIVE_CAMPAIGN.md`; this root pointer is the only one.
 
 ## Acceptance Gates
 
-`campaign_bootstrap` · `runtime_contracts` · `diagnostics_runtime` ·
-`runtime_integration` · `tests_tools_docs` · `workflow_and_closeout`. Every one
-of the 27 phases (`RT-P00` … `RT-P26`) belongs to exactly one gate. Final
-verdict ∈ {`COMPLETE`, `COMPLETE_WITH_WARNINGS`, `BLOCKED`}.
+`bootstrap_and_entry` · `core_contracts` · `agent_roles` ·
+`enforcement_and_records` · `assets_and_bridge` · `dry_run_and_closeout`. Every
+one of the 26 phases (`AGENT-P00` … `AGENT-P25`) belongs to exactly one gate.
+Final verdict ∈ {`COMPLETE`, `COMPLETE_WITH_WARNINGS`, `BLOCKED`}.
 
 ## Stop / Resume
 
@@ -107,6 +131,7 @@ isolated worktrees but merges serially; a STOP halts new phase selection and new
 merges.
 
 Note: Campaign not started. This contract bundle was authored as a
-contract-generation-only patch (no runtime code, no diagnostics run, no data
-read or committed). Run `just frontier-plan ALPHA_RESEARCH_RUNTIME_MVP` and a
-parallel mock before the first live parallel run.
+contract-generation-only patch (no agent code, no autonomous agent, no
+diagnostics run, no data read or committed). Run
+`just frontier-plan ALPHA_AGENT_FACTORY_MVP` and a parallel mock before the first
+live parallel run.
