@@ -1,0 +1,25 @@
+schema: alpha_system.runtime.diagnostics.cross_market.config.v1
+diagnostics_family: cross_market
+required_symbols:
+  - ES
+  - NQ
+  - RTY
+min_aligned_snapshots: 3
+min_symbol_coverage_ratio: 0.80
+max_missingness_rate: 0.20
+max_timestamp_skew_seconds: 5.0
+lead_lag_steps:
+  - 1
+regime_field: regime_label
+value_fields:
+  - cross_market_metric
+  - feature_value
+  - close
+  - mid
+  - value
+limitations:
+  - Cross-market diagnostics are descriptive Tier 0 summaries; a complete diagnostic is not alpha validation.
+  - The report stores scalar summaries only and does not embed market observations or feature and label payloads.
+  - Correlation summaries are delegated to alpha_system.research.correlation.
+  - Lead/lag summaries compare prior synchronized snapshots to current synchronized snapshots under available_ts discipline.
+  - Spread and residual proxies are arithmetic descriptors only; no hedge model, strategy, or portfolio object is created.
