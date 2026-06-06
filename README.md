@@ -7,10 +7,10 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-core-contracts gate through `AGENT-P06` (Research Queue and Work Item
-Contracts) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P07`
-(Research Director Role Contract), which starts the parallel role-contract wave.
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed `AGENT-P07`
+(Research Director Role Contract) of `AGENT-P00` through `AGENT-P25`; the
+`agent_roles` parallel wave has started. The next phase is `AGENT-P08`
+(Hypothesis Scout Role Contract), continuing the parallel role-contract wave.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -84,6 +84,18 @@ refs, allowed/blocked partitions, mandatory finite variant and compute budgets,
 required independent reviews, retry policy, blockers, and next actions. The
 queue has no scheduler, no self-feeding enqueue behavior, and no continuous
 runner surface.
+
+`AGENT-P07` adds the contracts-only Research Director role contract:
+
+- `alpha_system.agent_factory.roles.research_director`
+- `docs/agent_factory/roles/research_director.md`
+- `templates/agent_factory/roles/research_director.md`
+
+The Research Director scopes one bounded `ResearchTask`, assigns downstream
+roles, and sets budgets within queue policy. It registers additively through the
+role registry and its callable tools match the permission matrix grant:
+`queue.scope_task`, `queue.assign_roles`, and `queue.set_budget`. It performs no
+alpha search, no diagnostics, no implementation, no promotion, and no review.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
