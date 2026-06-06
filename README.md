@@ -8,10 +8,9 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-`agent_roles` wave (`AGENT-P07` through `AGENT-P15`). `AGENT-P16` lands
-separation-of-duties and no-self-review enforcement, opening the
-`enforcement_and_records` gate. Active / next work is `AGENT-P17` Agent Handoff
-and Tool Invocation Records.
+`agent_roles` wave (`AGENT-P07` through `AGENT-P15`) and the
+`enforcement_and_records` phases through `AGENT-P17`. Active / next work is
+`AGENT-P18` Rejected-Idea Memory and Research Memory.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -153,6 +152,23 @@ permission, missing matrix coverage, weakened human-approval / Red-lane
 markers, or Librarian write paths without a reviewer verdict ref. It adds no
 autonomous agent, no continuous research runner, no tool execution, no runtime
 call, no record write, and no alpha or promotion path.
+
+`AGENT-P17` adds the contracts-only agent activity record layer:
+
+- `alpha_system.agent_factory.records.models`
+- `docs/agent_factory/HANDOFFS.md`
+- `templates/agent_factory/agent_handoff.template.md`
+
+The record contracts define bounded run records, decision records, structured
+handoffs, tool-invocation records, audit logs, and prompt/role/permission
+version stamps. `AgentHandoff` links a decision to the tool invocation records
+it used and to the AlphaSpec, StudySpec, DatasetVersion, FeaturePack,
+LabelPack, and runtime-run refs it referenced. Records are passive, value-free
+contracts only: they do not instantiate agents, start runners, call tools, call
+external providers, write registries, write memory, access raw/provider data,
+or introduce broker, live, paper, order, deployment, alpha, tradability,
+profitability, candidate, promotion, or strategy-validation behavior.
+No new command is added.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
