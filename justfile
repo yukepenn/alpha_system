@@ -117,6 +117,11 @@ frontier-resume-stage $campaign_id $run_dir $phase_id $from_stage="merge_gate":
 frontier-stop $run_id:
     touch "runs/$run_id/STOP"
 
+# Promote a run's per-phase review.md/verdict.json into the commit-eligible
+# reviews/<campaign>/ tree at closeout. Copies only; stage + commit explicitly.
+frontier-promote-reviews $run_id $campaign_id:
+    python tools/frontier/promote_reviews.py --run-dir "runs/$run_id" --campaign-id "$campaign_id"
+
 frontier-heartbeat $run_id:
     cat "runs/$run_id/heartbeat.json"
 

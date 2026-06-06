@@ -4948,7 +4948,15 @@ def drain_gate_blocked_phases(run_dir: Path, state: dict[str, Any], max_rounds: 
     for _round in range(max(1, max_rounds)):
         if (run_dir / "STOP").exists():
             break
-        blocked = [p for p in state.get("phases", []) if p.get("status") in GATE_BLOCKED_STATUSES]
+        drainable_statuses = set(GATE_BLOCKED_STATUSES)
+        if resume_head_mismatch_allowed():
+            # An authorized head-mismatch (FRONTIER_ALLOW_RESUME_HEAD_MISMATCH=1)
+            # otherwise strands the phase in RESUME_PRECONDITION_FAILED, which is
+            # not a gate-blocked status, so the drain skips it and dag_wave
+            # SCHEDULE_DEADLOCKs. With the override armed, treat it as drainable:
+            # the gate re-run re-checks the PR head (now overridden) and merges.
+            drainable_statuses.add(RESUME_PRECONDITION_FAILED)
+        blocked = [p for p in state.get("phases", []) if p.get("status") in drainable_statuses]
         if not blocked:
             break
         progressed = False
