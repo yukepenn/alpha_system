@@ -7,10 +7,10 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is in progress with the
-core-contracts gate through `AGENT-P05` (Tool Contract Registry and Structured
-Outputs) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P06`
-(Research Queue and Work Item Contracts).
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
+core-contracts gate through `AGENT-P06` (Research Queue and Work Item
+Contracts) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P07`
+(Research Director Role Contract), which starts the parallel role-contract wave.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -71,6 +71,19 @@ outputs:
 Every registered tool returns `AgentToolResult`, the registry is default-deny,
 and results are structured and value-free: ids, refs, summaries, statuses,
 rejection/blocking notes, artifact refs, limitations, and next gates only.
+
+`AGENT-P06` adds the contracts-only research queue and work-item contracts:
+
+- `alpha_system.agent_factory.queue.models`
+- `docs/agent_factory/RESEARCH_QUEUE.md`
+- `templates/agent_factory/research_task.template.yaml`
+
+`ResearchQueue` and `ResearchTask` scope a finite operator-declared set of
+single bounded tasks with accepted-DatasetVersion refs, FeaturePack/LabelPack
+refs, allowed/blocked partitions, mandatory finite variant and compute budgets,
+required independent reviews, retry policy, blockers, and next actions. The
+queue has no scheduler, no self-feeding enqueue behavior, and no continuous
+runner surface.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is

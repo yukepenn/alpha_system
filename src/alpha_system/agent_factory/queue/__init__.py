@@ -1,3 +1,41 @@
-"""Agent research queue contracts (populated by AGENT-P06)."""
+"""Agent research queue and work-item contracts."""
 
-__all__: list[str] = []
+from alpha_system.agent_factory.queue.models import (
+    ALL_TASK_STATUSES,
+    PROHIBITED_MVP_TASK_STATUSES,
+    AgentAssignment,
+    BlockerKind,
+    BlockerRecord,
+    ComputeBudget,
+    DatasetVersionState,
+    FamilyBudgetPolicy,
+    QueuePriorityPolicy,
+    ResearchBudget,
+    ResearchPartition,
+    ResearchQueue,
+    ResearchTask,
+    ResearchTaskStatus,
+    RetryPolicy,
+    ReviewRequirement,
+    VariantBudget,
+)
+
+__all__ = [
+    "ALL_TASK_STATUSES",
+    "PROHIBITED_MVP_TASK_STATUSES",
+    "AgentAssignment",
+    "BlockerKind",
+    "BlockerRecord",
+    "ComputeBudget",
+    "DatasetVersionState",
+    "FamilyBudgetPolicy",
+    "QueuePriorityPolicy",
+    "ResearchBudget",
+    "ResearchPartition",
+    "ResearchQueue",
+    "ResearchTask",
+    "ResearchTaskStatus",
+    "RetryPolicy",
+    "ReviewRequirement",
+    "VariantBudget",
+]
