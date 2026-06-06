@@ -11,6 +11,34 @@ Exact operator command:
 ALPHA_DATA_ROOT=/abs/local/alpha_data ALPHA_DATASET_VERSION_ID=dsv_... ALPHA_FEATURE_PACK_REFS=fver_... ALPHA_LABEL_PACK_REFS=lver_... python -m alpha_system.runtime.smoke
 ```
 
+Set `ALPHA_DATASET_LIFECYCLE_STATE=VERSIONED` (the dataset registry record
+carries no lifecycle field) and `ALPHA_RUNTIME_SMOKE_PARTITION_ID` to the
+partition the packs were materialized under (e.g. `development_partition`).
+
+## Producing seed packs first
+
+The feature/label pack refs above must already be materialized and registered
+locally. Use the governed seed operator (reads already-canonical local Parquet,
+runs real quality/coverage over the partition, writes `values.jsonl` under
+`ALPHA_DATA_ROOT`, and registers metadata into `features.sqlite` /
+`labels.sqlite`):
+
+```bash
+alpha feature materialize --execute --seed-config configs/seed_packs/<file>.json \
+  --alpha-data-root "$ALPHA_DATA_ROOT" \
+  --canonical-root "$ALPHA_DATA_ROOT/databento/canonical/glbx_mdp3" \
+  --dataset-registry "$ALPHA_DATA_ROOT/registry/datasets.sqlite"
+alpha label   materialize --execute --seed-config configs/seed_packs/<file>.json \
+  --alpha-data-root "$ALPHA_DATA_ROOT" \
+  --canonical-root "$ALPHA_DATA_ROOT/databento/canonical/glbx_mdp3" \
+  --dataset-registry "$ALPHA_DATA_ROOT/registry/datasets.sqlite"
+```
+
+Reading real Parquet requires the optional `polars`/`pyarrow` dependencies in
+the execution environment. See `configs/seed_packs/README.md` and
+[ADR-0006](../../decisions/0006-feature-label-value-storage.md) for the storage
+policy and the deferred session-context features.
+
 Optional explicit governance-handle overrides are
 `ALPHA_FEATURE_REQUEST_IDS`, `ALPHA_LABEL_SPEC_IDS`,
 `ALPHA_RUNTIME_SMOKE_PARTITION_ID`, and

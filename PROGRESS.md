@@ -4,6 +4,17 @@ Project: `alpha_system`
 
 ## Current status
 
+Latest (Workflow 1): `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1` —
+storage architecture converged (ADR-0006: JSONL audit tier now, Parquet
+research-scale deferred to `FEATURE_LABEL_PARQUET_SINK_V1`), a governed seed
+FeaturePack/LabelPack operator + canonical-Parquet loader were added, and the
+Research Runtime **real-data smoke now PASSES** against real Databento ES 2024
+seed packs (local-only). See
+`handoffs/POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1.md`. Next campaign:
+`ALPHA_AGENT_FACTORY_MVP`. (Note: the lines below predate the
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` and `ALPHA_RESEARCH_RUNTIME_MVP` campaigns,
+which are complete; this log is not the authoritative ledger.)
+
 Workflow 2 is paused after `ALPHA_DATA_FOUNDATION_V1` completed all 25 phases.
 `ACTIVE_CAMPAIGN.md` points to current phase `none`.
 

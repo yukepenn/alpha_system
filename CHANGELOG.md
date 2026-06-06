@@ -2,6 +2,29 @@
 
 All notable changes to `alpha_system` are recorded here.
 
+## Unreleased — POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1
+
+### Added
+
+- ADR-0006 codifying the two-tier feature/label value-storage policy
+  (JSONL audit/small tier now; Parquet research-scale tier deferred to
+  `FEATURE_LABEL_PARQUET_SINK_V1`), with doc reconciliations and a
+  `RESEARCH_RESOLUTION.md` contract for how research resolves features/labels.
+- Dependency-guarded canonical-Parquet → bar-rows loader
+  (`data/foundation/canonical_loader.py`).
+- Generic governed seed FeaturePack/LabelPack operator (`cli/seed_pack.py`)
+  plus `alpha feature|label materialize --execute` (default remains dry-run),
+  and `configs/seed_packs/` seed configs.
+- First real local seed packs materialized + registered from accepted Databento
+  canonical ES 2024 data; Research Runtime real-data smoke now PASSES against
+  registered packs (local-only; no values or registries committed).
+
+### Notes
+
+- Backlog: `FEATURE_LABEL_PARQUET_SINK_V1` (§4) and the dataset-registry
+  reports gap (§5). Session-context features deferred pending a runtime
+  leakage-guard `session_label` false-positive fix.
+
 ## 0.1.0 — ALPHA_SYSTEM_V1 foundation closeout
 
 Status: executor-complete with warnings on deterministic fixtures.

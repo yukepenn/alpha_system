@@ -88,6 +88,17 @@ Future data is legal only inside label-family horizon/path calculations. A
 materialized label remains a research target, not a live feature and not a
 promoted candidate.
 
+## Storage Tier
+
+The `values.jsonl` output is the **audit/small tier** of the two-tier value
+storage policy in [ADR-0006](../../decisions/0006-feature-label-value-storage.md):
+deterministic JSONL is sanctioned for tiny fixtures, audit/debug output, MVP
+smoke, and small seed packs. JSONL is **not** the permanent large-scale research
+store; research-scale value matrices are intended to move to local Parquet (read
+via DuckDB/Polars) under the deferred follow-up `FEATURE_LABEL_PARQUET_SINK_V1`.
+The LabelRegistry stores only metadata and a value-path pointer, never the
+values.
+
 ## Boundary
 
 Materialized label values are local-only and are never committed. This phase
