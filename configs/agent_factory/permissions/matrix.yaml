@@ -1,0 +1,100 @@
+# Value-free mirror of alpha_system.agent_factory.permissions.matrix.
+# This is review aid data only; the importable Python matrix is authoritative.
+
+campaign_id: ALPHA_AGENT_FACTORY_MVP
+phase_id: AGENT-P04
+default_posture: default-deny-fail-closed
+promotion_grants_allowed: false
+direct_registry_writes_allowed: false
+raw_provider_access_allowed: false
+human_approval_required_actions:
+  - risk_judgment
+  - capital_allocation
+  - factor_promotion
+  - paper_trading
+  - live_trading
+  - broker_operation
+  - order_routing
+red_lane_required_actions:
+  - external_provider_call
+  - production_deployment
+  - paper_trading
+  - live_trading
+  - broker_operation
+  - order_routing
+roles:
+  research_director:
+    tools: [queue.scope_task, queue.assign_roles, queue.set_budget]
+    data: []
+    writes: [research_task.scope_draft]
+    reviews: []
+    promotion: false
+  hypothesis_scout:
+    tools: [memory.lookup_rejected_ideas, library.summarize_prior_work, alphaspec.draft]
+    data: []
+    writes: [alphaspec.draft]
+    reviews: []
+    promotion: false
+  alpha_spec_critic:
+    tools: [alphaspec.critique, alphaspec.request_revision, alphaspec.reject]
+    data: []
+    writes: [alphaspec.critique_record]
+    reviews: [alphaspec_critique]
+    promotion: false
+  data_contract_auditor:
+    tools:
+      - registry.resolve_dataset_version
+      - registry.list_feature_packs
+      - registry.list_label_packs
+      - registry.audit_admissibility
+    data: [accepted_dataset_version_ref, feature_pack_ref, label_pack_ref]
+    writes: [input_audit.record]
+    reviews: []
+    promotion: false
+  feature_engineer:
+    tools: [feature.reference_seed_pack, feature.draft_request, feature.validate_request]
+    data: [accepted_dataset_version_ref, feature_pack_ref]
+    writes: [feature_request.draft]
+    reviews: []
+    promotion: false
+  label_engineer:
+    tools: [label.reference_seed_pack, label.draft_spec, label.validate_spec]
+    data: [accepted_dataset_version_ref, label_pack_ref]
+    writes: [label_spec.draft]
+    reviews: []
+    promotion: false
+  no_lookahead_auditor:
+    tools: [runtime.audit_no_lookahead, governance.check_label_leakage]
+    data: []
+    writes: [lookahead_audit.record]
+    reviews: []
+    promotion: false
+  diagnostics_runner:
+    tools:
+      - runtime.plan
+      - runtime.validate_inputs
+      - runtime.run_diagnostics
+      - runtime.run_label_diagnostics
+      - runtime.run_signal_probe
+      - runtime.run_cost_stress
+      - runtime.summarize
+    data: [accepted_dataset_version_ref]
+    writes: [runtime_request.record]
+    reviews: []
+    promotion: false
+  statistical_reviewer:
+    tools: [review.statistical_evidence, review.issue_verdict]
+    data: []
+    writes: [statistical_review.record]
+    reviews: [runtime_evidence_review]
+    promotion: false
+  librarian:
+    tools:
+      - ledger.record_decision
+      - ledger.record_rejection
+      - memory.lookup_rejected_ideas
+      - memory.propose_update
+    data: []
+    writes: [decision_ledger.record_after_verdict, memory_update.proposal_after_verdict]
+    reviews: []
+    promotion: false
