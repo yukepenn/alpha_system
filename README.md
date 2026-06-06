@@ -4,8 +4,24 @@
 an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
 The repository-level campaign pointer targets
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1`. Campaign state is tracked in
+`ALPHA_RESEARCH_RUNTIME_MVP`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`.
+
+`ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
+RT-P00 bootstrap snapshot, progress is `RT-P00` complete / `1 of 27`; the active
+next phase is `RT-P01` - Runtime Entry Contract After Feature/Label. RT-P00 adds
+the durable `docs/research_runtime/` documentation root:
+
+- `docs/research_runtime/README.md`
+- `docs/research_runtime/OVERVIEW.md`
+
+Safety boundaries are unchanged: local-first execution; accepted
+DatasetVersion-only consumption; no external provider calls; no broker, live,
+paper, order, or account scope; and no alpha, tradability, profitability,
+strategy, backtest, portfolio, or production-readiness claim. The Research
+Runtime campaign is the executable research loop layer over the completed
+Feature/Label substrate; it is not Agent Factory, alpha search, factor
+promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
@@ -234,7 +250,7 @@ This repository is not a broker, paper-trading, live-trading, order-routing, or
 production execution system. It must not introduce alpha, profitability,
 tradability, or production-readiness claims.
 
-## Current Repo Snapshot
+## Feature/Label Foundation Snapshot
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is implemented through `FLF-P31` with a
 `COMPLETE_WITH_WARNINGS` closeout on HEAD `9b2a0b3` (all 32 phases accounted for;
@@ -577,9 +593,9 @@ local-only data-root pointer.
 Field-level acceptance rules, risks, and operator procedures remain in the
 campaign contract bundle.
 
-## Campaign Source Of Truth
+## Data Foundation Source Of Truth
 
-The current completed campaign contract bundle lives under
+The completed data-foundation campaign contract bundle lives under
 `campaigns/ALPHA_DATA_FOUNDATION_V1/`:
 
 - `GOAL.md`
@@ -629,8 +645,8 @@ Required safety defaults:
 - Yellow phases require fresh independent review before merge eligibility.
 - No phase may weaken or game tests.
 - Run-local Workflow 2 artifacts stay under `runs/**`.
-- Commit-eligible data-foundation handoffs live under
-  `handoffs/ALPHA_DATA_FOUNDATION_V1/**`.
+- Commit-eligible Research Runtime handoffs live under
+  `handoffs/ALPHA_RESEARCH_RUNTIME_MVP/**`.
 
 ## Git Discipline
 
@@ -666,8 +682,8 @@ responses, account information, or local environment files.
 Raw and canonical real market data remain local-only outside git. `runs/**` is
 local-only runtime state and must not be staged or committed.
 Permitted placeholders are limited to `.gitkeep` or `README.md` files where the
-campaign policy allows them. Commit-eligible phase handoffs for this campaign
-belong under `handoffs/ALPHA_DATA_FOUNDATION_V1/`.
+campaign policy allows them. Commit-eligible phase handoffs for the active
+Research Runtime campaign belong under `handoffs/ALPHA_RESEARCH_RUNTIME_MVP/`.
 
 ## Documentation Map
 
@@ -683,6 +699,11 @@ Data-foundation docs:
 - `docs/data_foundation/README.md`
 - `docs/data_foundation/DATA_FOUNDATION_OVERVIEW.md`
 - `docs/data_foundation/NAMING.md`
+
+Research-runtime docs:
+
+- `docs/research_runtime/README.md`
+- `docs/research_runtime/OVERVIEW.md`
 
 Governance docs:
 
