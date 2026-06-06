@@ -9,8 +9,9 @@ which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
 `agent_roles` wave (`AGENT-P07` through `AGENT-P15`) and the
-`enforcement_and_records` phases through `AGENT-P17`. Active / next work is
-`AGENT-P18` Rejected-Idea Memory and Research Memory.
+`enforcement_and_records` gate through `AGENT-P18` merged. Active / next work
+is `AGENT-P19` Agent Prompt and Skill Assets, beginning Wave 3
+(`AGENT-P19`, `AGENT-P20`, `AGENT-P21`).
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -170,13 +171,26 @@ or introduce broker, live, paper, order, deployment, alpha, tradability,
 profitability, candidate, promotion, or strategy-validation behavior.
 No new command is added.
 
+`AGENT-P18` adds the contracts-only rejected-idea and research memory layer:
+
+- `alpha_system.agent_factory.memory`
+- `docs/agent_factory/REJECTION_MEMORY.md`
+
+The memory contracts define `RejectedIdeaMemoryRecord` and
+`ResearchMemoryRecord`, consume the governance graveyard
+(`RejectedIdeaRecord` / `ResearchGraveyardLedger`) by import, and provide pure
+in-memory duplicate-idea avoidance plus prior-rejection surfacing. They keep
+failed and rejected ideas visible by ids, refs, statuses, summaries, rejection
+reasons, and next gates only. No new command is added.
+
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
 contracts-only at this point: no autonomous agent is instantiated, no continuous
 research runner is started, no alpha search is performed, no factor is promoted,
 and no strategy is validated. It consumes existing runtime, governance, and
 registry primitives; it does not edit or duplicate them, and it accesses no raw
-or provider data.
+or provider data. The memory layer is not a FactorLibrary or AlphaBook and never
+promotes, writes a registry, or creates candidate/strategy scope.
 
 Safety boundaries are unchanged: contracts only; local-first execution;
 default-deny and fail-closed permissions; accepted DatasetVersion-only
