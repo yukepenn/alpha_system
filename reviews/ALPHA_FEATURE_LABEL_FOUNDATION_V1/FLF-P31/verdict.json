@@ -1,0 +1,35 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "campaign_verdict": "COMPLETE_WITH_WARNINGS",
+  "external_providers_called": false,
+  "findings": [
+    "Final semantic done-check on clean main HEAD 9b2a0b3: all 9 acceptance gates MET_WITH_WARNINGS; all 7 adversarial prohibited-shortcut probes returned no violation; zero blockers.",
+    "`python tools/verify.py --all` -> 2120 passed, 0 failed (shell confirmed free of inherited Frontier Workflow-2 control variables).",
+    "All 14 Frontier canaries PASS, incl. governance_future_shift / governance_permuted_labels / governance_optimistic_fill.",
+    "Artifact audit clean: `git ls-files runs` empty; no data/metadata/heavy/parquet/arrow/feather/sqlite committed outside tests/fixtures/**.",
+    "31 phases FLF-P00..P30 merged (PRs #112-#144, linear serial squash chain); 5 PASS + 26 PASS_WITH_WARNINGS; no FAIL/BLOCKED/REWORK; no RED lane.",
+    "Prior automated FLF-P31 BLOCKED basis empirically confirmed as an executor-environment false negative: 13 driver tests fail only when inherited Workflow-2 control variables force PR/merge/parallel paths; no substrate test fails; clean main is green.",
+    "Accepted-DatasetVersion boundary real (sole door features.consumption over resolve_accepted_dataset_version); available_ts / label_available_ts required+validated; no label-as-feature; governance consumed not duplicated; prohibited MVP states unreachable; serial merge intact; ACTIVE_CAMPAIGN.md coordinator-owned."
+  ],
+  "mock_providers": false,
+  "network_used": false,
+  "parsed_at": "2026-06-06T01:23:41Z",
+  "phase_id": "FLF-P31",
+  "raw_review_path": "reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P31/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "none",
+  "source": "coordinator_done_check",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "26 of 31 merged phases are PASS_WITH_WARNINGS; accepted campaign history, not blockers.",
+    "Verdict-parser metadata artifacts: most PASS_WITH_WARNINGS verdict.json files carry a generic placeholder warning instead of enumerated bullets, and several set external_providers_called/network_used=true contradicting the review prose and the no-external-call contract; parser defaults, not real provider calls.",
+    "Validation-environment: verify.py --all shows 13 red driver tests only when inherited Workflow-2 control variables force PR/merge/parallel paths; clean main is green. Pre-existing repo-wide Ruff backlog and the Workflow-2 driver/GitHub test scaffold are campaign-baseline items tracked separately.",
+    "FLF-P26 real-Databento operator run deferred (no local registry/data); recorded truthfully with the exact operator command; synthetic path proven.",
+    "FLF-P30 E2E wording vs engine dry_run semantics (doc clarity); accepted fail-closed SESSION_COVERAGE_UNRESOLVED disclosed.",
+    "Defensible substrate scoping nuances: resolve_dataset_version lifecycle gating one layer up; LabelQualityReport/LabelCoverageReport delivered in the diagnostics gate; FLF-P22 registry-from-engine.",
+    "Hardening/cleanup follow-ups: add .parquet/.arrow to the raw-provider guard token list; strengthen P13-P15 test breadth; minor dead-code cleanups. None blocks acceptance."
+  ]
+}

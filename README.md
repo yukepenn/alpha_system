@@ -7,14 +7,16 @@ The repository-level campaign pointer targets
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`.
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is the active campaign. After this phase
-merge, campaign progress is 31 of 32 phases (`FLF-P00` through `FLF-P30`) in
-the `workflow_and_closeout` acceptance gate. Active phase: FLF-P30 End-to-End
-Feature/Label Dry Run. Next phase: FLF-P31 Workflow 2 Acceptance Audit and
-Closeout. FLF-P30 adds the row-free
-`docs/feature_label_foundation/E2E_DRY_RUN.md` summary and the CI-safe
-`tests/integration/feature_label/` end-to-end dry-run test. Ralph owns serial
-merge ordering and next-phase selection.
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
+acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
+full-suite validation on HEAD `9b2a0b3` (`2120 passed`, all canaries pass, clean
+artifact audit). All 32 phases (`FLF-P00` through `FLF-P31`) are accounted for;
+`FLF-P00` through `FLF-P30` are merged (PRs #112–#144) and `FLF-P31` is the
+closeout recorded in `campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/CLOSEOUT.md`.
+The next separately authorized campaign may consume the completed substrate after
+coordinator authorization; this repository still makes no alpha, tradability,
+profitability, broker, paper, live, order, account, strategy, backtest,
+portfolio, or production-readiness result.
 
 `FLF-P00` adds the durable `docs/feature_label_foundation/` documentation root:
 
@@ -199,6 +201,14 @@ StudySpec Input Pack validation.
 - `docs/feature_label_foundation/E2E_DRY_RUN.md`
 - `tests/integration/feature_label/test_e2e_dryrun.py`
 
+`FLF-P31` records the final Workflow 2 acceptance audit and campaign closeout
+(`COMPLETE_WITH_WARNINGS`), the durable closeout notes, and this README snapshot.
+
+- `campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/CLOSEOUT.md`
+- `docs/feature_label_foundation/CLOSEOUT_NOTES.md`
+- `reviews/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P31/`
+- `handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P31.md`
+
 Safety boundaries are unchanged: local-only values; accepted DatasetVersions
 only; materialized outputs stay under `ALPHA_DATA_ROOT`; no raw provider access;
 no external provider calls; no label-as-feature path; no silent BBO forward-fill
@@ -226,25 +236,25 @@ tradability, or production-readiness claims.
 
 ## Current Repo Snapshot
 
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` feature/label foundation progress is 31 of
-32 phases after this phase merge (`FLF-P00` through `FLF-P30`). Durable modules
-now include feature request gating, feature contracts, feature families,
-feature materialization and registry integration, feature reports, label
-contracts, label families, label materialization, the local-only LabelRegistry
-in `alpha_system.labels.registry`, label leakage and availability audits in
-`alpha_system.labels.leakage_audit`, descriptive Feature/Label diagnostics in
+`ALPHA_FEATURE_LABEL_FOUNDATION_V1` is implemented through `FLF-P31` with a
+`COMPLETE_WITH_WARNINGS` closeout on HEAD `9b2a0b3` (all 32 phases accounted for;
+`FLF-P00` through `FLF-P30` merged). Durable modules now include feature request
+gating, feature contracts, feature families, feature materialization and registry
+integration, feature reports, label contracts, label families, label
+materialization, the local-only LabelRegistry in `alpha_system.labels.registry`,
+label leakage and availability audits in `alpha_system.labels.leakage_audit`,
+descriptive Feature/Label diagnostics in
 `alpha_system.research.feature_label_diagnostics`, synthetic fixture and
 fail-closed coverage, the small accepted-DatasetVersion dry-run helper in
 `alpha_system.features.engine`, the StudySpec input-pack helper in
 `alpha_system.governance.study_input_pack`, and the local-only `alpha feature`
 / `alpha label` CLI groups. Durable docs now include the Feature/Label
-Foundation researcher guide, agent guide, and request templates under
-`docs/feature_label_foundation/` and `templates/feature_label/`, plus the FLF-P30
-row-free end-to-end dry-run summary. FLF-P28 updates `docs/CLI_REFERENCE.md`;
-FLF-P30 adds the CI-safe end-to-end dry-run test under
-`tests/integration/feature_label/`. The next phase is FLF-P31 Workflow 2
-Acceptance Audit and Closeout. The completed data-foundation baseline remains
-unchanged.
+Foundation researcher guide, agent guide, request templates, row-free end-to-end
+dry-run summary, final closeout, and closeout notes. FLF-P28 updates
+`docs/CLI_REFERENCE.md`; FLF-P30 adds the CI-safe end-to-end dry-run test under
+`tests/integration/feature_label/`. The next separately authorized campaign can
+consume the substrate after coordinator authorization; the completed
+data-foundation baseline remains unchanged.
 
 `DATA-P00` added the durable `docs/data_foundation/` root:
 
