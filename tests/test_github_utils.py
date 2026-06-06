@@ -292,8 +292,8 @@ def test_merge_pr_arms_auto_merge_for_branch_policy_timing(monkeypatch) -> None:
     assert result.metadata["status"] == AUTO_MERGE_ARMED
     assert result.metadata["classification"] == "branch_policy_auto_armed"
     assert result.metadata["auto_merge_armed"] is True
-    assert runner.commands[2] == ["gh", "pr", "merge", "3", "--squash", "--delete-branch"]
-    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash", "--delete-branch"]
+    assert runner.commands[2] == ["gh", "pr", "merge", "3", "--squash"]
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
 
 
 def test_merge_pr_retries_direct_merge_when_auto_merge_disabled_after_checks_clean(monkeypatch) -> None:
@@ -329,8 +329,8 @@ def test_merge_pr_retries_direct_merge_when_auto_merge_disabled_after_checks_cle
     assert result.metadata["status"] == MERGED
     assert result.metadata["classification"] == "auto_retry_failed_direct_retry_merged"
     assert result.metadata["direct_merge_performed"] is True
-    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash", "--delete-branch"]
-    assert runner.commands[6] == ["gh", "pr", "merge", "3", "--squash", "--delete-branch"]
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
+    assert runner.commands[6] == ["gh", "pr", "merge", "3", "--squash"]
 
 
 def test_merge_pr_direct_failure_but_pr_is_merged_succeeds(monkeypatch) -> None:

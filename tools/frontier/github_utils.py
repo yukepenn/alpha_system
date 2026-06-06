@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.frontier.command_runner import CommandRunner
-from tools.frontier.git_utils import current_branch, git, remote_url
+from tools.frontier.git_utils import GIT_SERIAL_LOCK, current_branch, git, remote_url
 
 
 GITHUB_RE = re.compile(r"(?:github\.com[:/])([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
@@ -145,7 +145,19 @@ def _run_gh(
     runner: CommandRunner | None = None,
     timeout_seconds: int = 120,
 ) -> Any:
-    return _runner(root, runner).run(command, timeout_seconds=timeout_seconds)
+    # Serialize gh against every other git/gh op (parallel build threads share one
+    # repo) and restore core.bare before releasing the lock: some gh subcommands
+    # (notably `pr merge`) transiently flip the shared repo to core.bare=true via
+    # their internal git, and a concurrent phase's commit must never observe it.
+    with GIT_SERIAL_LOCK:
+        result = _runner(root, runner).run(command, timeout_seconds=timeout_seconds)
+        try:
+            probe = git(root, "rev-parse", "--is-bare-repository")
+            if probe.returncode == 0 and probe.stdout.strip() == "true":
+                git(root, "config", "core.bare", "false")
+        except Exception:
+            pass
+        return result
 
 
 def _with_repo(command: list[str], repo: str) -> list[str]:
@@ -667,6 +679,42 @@ def wait_for_ci(
     return classify_ci_checks(last_checks, required_checks=required_checks, timed_out=True)
 
 
+def wait_pr_mergeable(
+    pr: str | int,
+    *,
+    timeout_seconds: int = 900,
+    poll_seconds: int = 15,
+    initial_delay_seconds: int = 8,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+) -> bool:
+    """Poll the PR's mergeStateStatus until it is mergeable again.
+
+    A pre-merge base sync pushes a new commit to the phase branch, which makes
+    GitHub re-queue the required status checks and briefly marks the PR
+    UNKNOWN/BLOCKED. Merging in that window fails ("Required status check is
+    queued"). This waits out the re-validation: returns True once the PR is
+    mergeable (CLEAN/UNSTABLE/HAS_HOOKS) or already merged, False on a genuine
+    DIRTY conflict, and True on timeout so the merge attempt can still decide.
+    """
+
+    time.sleep(initial_delay_seconds)
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() <= deadline:
+        view = view_pr(pr, root=root, runner=runner)
+        if not view.blocked:
+            data = _pr_data_from_result(view)
+            if _pr_is_merged(data):
+                return True
+            state = str(data.get("mergeStateStatus") or "").upper()
+            if state in {"CLEAN", "UNSTABLE", "HAS_HOOKS"}:
+                return True
+            if state == "DIRTY":
+                return False
+        time.sleep(poll_seconds)
+    return True
+
+
 def write_ci_status_artifacts(phase_dir: Path, result: CIStatusResult) -> None:
     phase_dir.mkdir(parents=True, exist_ok=True)
     (phase_dir / "ci_status.json").write_text(
@@ -982,7 +1030,15 @@ def merge_pr(
     dry_run: bool = True,
     runner: CommandRunner | None = None,
 ) -> GitHubResult:
-    command = ["gh", "pr", "merge", str(pr), f"--{method}", "--delete-branch"]
+    # NOTE: no `--delete-branch`. In a worktree the merged branch is checked out,
+    # and gh's branch-deletion path can flip the shared repo to core.bare=true,
+    # which breaks sibling phases committing concurrently in a parallel wave.
+    # Branch deletion is instead performed by the driver after the merge, in BOTH
+    # modes: worktree mode via WorktreeManager.cleanup_after_merge (removes the
+    # worktree + deletes the local and remote branch); in-tree mode via
+    # cleanup_phase_worktree_after_merge, which deletes the frontier-owned remote
+    # branch directly. See tools/frontier/ralph_driver.py:cleanup_phase_worktree_after_merge.
+    command = ["gh", "pr", "merge", str(pr), f"--{method}"]
     if os.environ.get("FRONTIER_DISABLE_AUTOMERGE") == "1":
         return GitHubResult(
             "merge_pr",
@@ -1126,7 +1182,7 @@ def merge_pr(
 
     retryable_by_policy = classification in {"branch_policy_timing", "not_mergeable"} or status == MERGE_RETRYABLE
     if retryable_by_policy and _env_flag("FRONTIER_ALLOW_AUTOMERGE"):
-        retry_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}", "--delete-branch"]
+        retry_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}"]
         retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=300)
         retry_view = view_pr(pr, root=root, runner=runner)
         retry_merged = _pr_is_merged(_pr_data_from_result(retry_view)) if not retry_view.blocked else False

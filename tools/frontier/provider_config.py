@@ -26,6 +26,7 @@ class ProviderRuntimeConfig:
     claude_output_format: str | None
     codex_cmd: list[str]
     codex_sandbox: str
+    codex_service_tier: str
     default_worktree_mode: bool
     worktree_root: Path | None
     lane_policies: dict[str, Any]
@@ -34,6 +35,23 @@ class ProviderRuntimeConfig:
     @property
     def provider_mode(self) -> str:
         return "mock" if self.mock_providers else "external"
+
+
+# OpenAI service tiers accepted by the codex CLI `-c service_tier=<v>` override.
+# "fast" is the friendly alias for the priority (expedited, higher-cost) tier.
+_VALID_SERVICE_TIERS = {"auto", "default", "flex", "priority", "scale"}
+_SERVICE_TIER_ALIASES = {"fast": "priority"}
+
+
+def _resolve_service_tier(value: str) -> str:
+    resolved = (value or "").strip().lower()
+    resolved = _SERVICE_TIER_ALIASES.get(resolved, resolved)
+    if resolved not in _VALID_SERVICE_TIERS:
+        raise ProviderConfigError(
+            "Codex service_tier must be one of "
+            f"{sorted(_VALID_SERVICE_TIERS)} (or alias 'fast' -> 'priority'); got {value!r}."
+        )
+    return resolved
 
 
 def load_yaml_file(path: Path) -> dict[str, Any]:
@@ -147,6 +165,10 @@ def load_provider_config(root: Path | None = None, env: Mapping[str, str] | None
         )
         if codex_sandbox not in {"workspace-write", "read-only", "danger-full-access"}:
             raise ProviderConfigError("Codex sandbox must be workspace-write, read-only, or danger-full-access.")
+        codex_service_tier = _resolve_service_tier(
+            os.environ.get("FRONTIER_CODEX_SERVICE_TIER")
+            or str(_nested(providers, "codex", "service_tier") or "fast")
+        )
 
         env_worktree = _bool_from_env("FRONTIER_WORKTREE_MODE")
         configured_worktree = workflow2.get("worktree_mode", workflow2.get("default_worktree_mode", False))
@@ -162,6 +184,7 @@ def load_provider_config(root: Path | None = None, env: Mapping[str, str] | None
             claude_output_format=claude_output_format,
             codex_cmd=codex_cmd,
             codex_sandbox=codex_sandbox,
+            codex_service_tier=codex_service_tier,
             default_worktree_mode=default_worktree_mode,
             worktree_root=worktree_root,
             lane_policies=dict(lanes),

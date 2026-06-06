@@ -75,7 +75,7 @@ def test_codex_command_uses_workspace_write_sandbox(tmp_path, monkeypatch) -> No
 
     command = CodexProviderAdapter(config).build_command("prompt")
 
-    assert command == ["codex", "exec", "--sandbox", "workspace-write", "-"]
+    assert command == ["codex", "exec", "-c", "service_tier=priority", "--sandbox", "workspace-write", "-"]
     assert "--full-auto" not in command
 
 
@@ -91,7 +91,7 @@ def test_codex_prompt_uses_stdin_for_large_prompts(tmp_path, monkeypatch) -> Non
 
     assert response.ok
     command, kwargs = runner.calls[0]
-    assert command == ["codex", "exec", "--sandbox", "workspace-write", "-"]
+    assert command == ["codex", "exec", "-c", "service_tier=priority", "--sandbox", "workspace-write", "-"]
     assert kwargs["stdin_text"] == prompt
     assert prompt not in command
     assert sum(len(part) for part in command) < 1000
