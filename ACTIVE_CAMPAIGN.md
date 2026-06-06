@@ -4,13 +4,21 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_RESEARCH_RUNTIME_MVP`
 Workflow: `workflow2`
-Run: `not_started`
-Status: `not_started`
+Run: `2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP`
+Status: `complete_with_warnings`
 
-Current phase: `RT-P00` - Research Runtime Campaign Bootstrap
-Last completed phase: `none`
-Last completed status: `none`
-Passing phases: `0/27`
+Current phase: `none` - campaign complete
+Last completed phase: `RT-P26` - Acceptance Audit and Closeout
+Last completed status: `PASS_WITH_WARNINGS` (coordinator final: COMPLETE_WITH_WARNINGS)
+Passing phases: `27/27`
+
+Campaign `ALPHA_RESEARCH_RUNTIME_MVP` is **complete (`COMPLETE_WITH_WARNINGS`)**:
+all 27 phases (`RT-P00`…`RT-P26`) merged to `main` (PRs #150–#176 + coordinator
+closeout), 27 Yellow-lane review records committed under
+`reviews/ALPHA_RESEARCH_RUNTIME_MVP/**`, and `tools/verify.py --all` passing
+clean (`2439 passed`). See `campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`
+and `docs/research_runtime/ACCEPTANCE_AUDIT.md`. The next coordinator-approved
+campaign may consume this runtime; this is an MVP scaffold, not validated alpha.
 
 This pointer selects `ALPHA_RESEARCH_RUNTIME_MVP` — the **executable research
 loop layer** between the Feature/Label substrate and the future Agent Factory —

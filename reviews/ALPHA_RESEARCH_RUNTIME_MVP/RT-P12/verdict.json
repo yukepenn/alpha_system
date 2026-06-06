@@ -1,0 +1,30 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`git status` shows **only** `README.md` modified plus the expected untracked probe paths. No forbidden domain (`backtest/**`, `governance/**`, `research/**`, `signals/**`, `strategies/**`, `execution/**`, data paths) was edited. Pre-existing tracked `test_input_resolver_available_ts.py` is untouched.",
+    "No direct `backtest.*` import in the probe package \u2014 cost math is reached only via `runtime.cost.build_cost_sensitivity_report` (verified by grep; the only \"backtest\" hits are non-promotional `not_a_backtest` flags/docstrings).",
+    "`git ls-files runs` empty; no `runs/` path in the handoff staging list; fixture is tiny synthetic JSON.",
+    "**No same-bar optimistic fill:** `FillPolicy.__post_init__` rejects `delay_bars < 1` (\"same-bar optimistic fill is forbidden\") and `allow_same_bar_fill != False`; `build_next_bar_position_series` rejects a signal whose `available_ts` post-dates the eligible fill bar `event_ts`. Independently-provided `verify-canaries` shows **`PASS governance_optimistic_fill`**.",
+    "**Cost stress with `double_cost` required:** `SignalProbeSpec` rejects a `CostStressSpec` lacking `double_cost`; `SignalProbeReport` requires an accompanying `CostSensitivityReport` and `SIGNAL_PROBE_COMPLETE` requires its status be `DIAGNOSTICS_COMPLETE`.",
+    "**Bounded threshold set:** `MAX_THRESHOLD_COUNT = 9`, empty/duplicate/unbounded rejected.",
+    "**Locked-partition selection denied** without governance contamination metadata; label-as-feature tokens rejected on `signal_name`; `available_ts` / `label_available_ts` metadata required; AlphaSpec+StudySpec must match the resolved `RuntimeInputPack`.",
+    "**Non-promotional framing** is pervasive (`fast_path`, `not_strategy_validation`, `not_a_candidate`, `not_a_backtest`, `promotion_basis_allowed: False`). Terminal failure states (`REJECTED`/`INCONCLUSIVE`/`BLOCKED`) require \u22651 visible rejection reason \u2014 failed probes stay visible, no silent drop.",
+    "No broker/live/paper/order/account, no strategy/backtest/portfolio, no provider/network access, no prohibited MVP state."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T06:31:17Z",
+  "phase_id": "RT-P12",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P12/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

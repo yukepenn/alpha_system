@@ -1,0 +1,23 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**W1 \u2014 Full suite is red (out-of-scope).** `python tools/verify.py --all` reports `13 failed, 2243 passed`. The failures are entirely in `tests/test_github_utils.py` and `tests/test_ralph_driver.py` \u2014 Workflow 2 GitHub/Ralph driver harness tests that require provider/GitHub wiring (scaffolded per AGENTS.md) and cannot be affected by an isolated `runtime/diagnostics/label` subpackage. They pre-date this phase. **Documented**, lane-required narrow checks (targeted pytest `5 passed`, smoke, import, canaries) pass. Flagging so the red `--all` is not silently inherited as \"green\" at the merge gate.",
+    "**W2 \u2014 Some descriptive aggregation is local.** Distribution / class-balance / horizon-coverage / cost-sanity summaries are computed in-module (Counter-based histograms), not via a `research.*` primitive. This is report **assembly** of trivial descriptive counts, not re-derivation of a research diagnostic algorithm, so it does not violate the \"consume, never duplicate\" rule \u2014 but it's the one area where a future drift toward re-implementing research math could start. Worth keeping an eye on in RT-P09/P10 siblings for consistency."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T05:36:35Z",
+  "phase_id": "RT-P08",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P08/repair_attempts/001/repair_review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "repair_review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}
