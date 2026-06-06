@@ -7,9 +7,10 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has `AGENT-P01` complete;
-the foundation gate remains in progress. The next phase is `AGENT-P02`
-(Agent Factory Package, Docs, and Template Skeleton and Naming).
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is in progress. The active
+phase is `AGENT-P02` (Agent Factory Package, Docs, and Template Skeleton and
+Naming) of `AGENT-P00` through `AGENT-P25`; the next phase is `AGENT-P03`
+(Agent Role Contract Model).
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -23,12 +24,30 @@ gate documentation/config:
 - `docs/agent_factory/PREFLIGHT_GATES.md`
 - `configs/agent_factory/preflight.toml`
 
+`AGENT-P02` adds the importable Agent Factory package and test skeletons for
+later contract phases:
+
+- `alpha_system.agent_factory.roles`
+- `alpha_system.agent_factory.permissions`
+- `alpha_system.agent_factory.tools`
+- `alpha_system.agent_factory.queue`
+- `alpha_system.agent_factory.separation`
+- `alpha_system.agent_factory.records`
+- `alpha_system.agent_factory.memory`
+- `alpha_system.agent_factory.dry_run`
+- `docs/agent_factory/NAMING.md`
+- `templates/agent_factory/README.md`
+
+These are skeletons only; they add no role, permission, tool, queue, separation,
+record, memory, or dry-run behavior.
+
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
 contracts-only at this point: no autonomous agent is instantiated, no continuous
 research runner is started, no alpha search is performed, no factor is promoted,
 and no strategy is validated. It consumes existing runtime, governance, and
-registry primitives; it does not edit or duplicate them.
+registry primitives; it does not edit or duplicate them, and it accesses no raw
+or provider data.
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption through sanctioned APIs; no raw-provider access;
