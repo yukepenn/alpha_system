@@ -8,16 +8,15 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P21 Small Real FLF DatasetVersion Runtime Smoke snapshot, the runtime adds
-`alpha_system.runtime.smoke` and `docs/research_runtime/REAL_SMOKE.md`: a
-local-only smoke that resolves one accepted local DatasetVersion, registered
-Feature/Label handles, Tier 0 diagnostics, `double_cost` cost stress,
-no-lookahead audit, `EvidenceDraft`, and value-free runtime summaries. Clean
-checkouts without local registries return `PASS_WITH_WARNINGS` rather than
-fabricating a run. Active/next after RT-P21 is Ralph-owned Wave 4 closeout work
-starting at RT-P24. Ralph remains responsible for validation, review, merge
-queue handling, and next-phase selection; phase branches do not update
-`ACTIVE_CAMPAIGN.md` in parallel mode.
+RT-P24 Workflow 2 DAG Integration and Parallel Plan snapshot, the closeout wave
+has reached RT-P24 and the RT-P24 documentation/verification work is complete;
+Ralph still owns validation, review, merge queue handling, and next-phase
+selection. The active/next phase is RT-P25 End-to-End Runtime Dry Run.
+
+RT-P24 adds `docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md`, documenting
+the campaign's `dag_wave` scheduler settings, parallel-safe waves, serial merge
+queue, coordinator-only `ACTIVE_CAMPAIGN.md` ownership, and the read-only
+`plan-dag` preview workflow for this campaign.
 
 Durable Research Runtime modules currently include
 `alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
@@ -88,6 +87,7 @@ Durable runtime documentation:
 - `docs/research_runtime/FIXTURES.md`
 - `docs/research_runtime/TESTING.md`
 - `docs/research_runtime/REAL_SMOKE.md`
+- `docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -96,30 +96,13 @@ discipline with no label-as-feature path; no centered or future live feature
 windows; no same-bar optimistic signal-probe fills; no locked-test use without
 governance contamination metadata; failed, inconclusive, and blocked runs stay
 visible through structured reasons; no broker, live, paper, order, or account
-scope; bounded grids, no-lookahead audits, and decision states are not
-promotion; descriptive non-promotional reports only; and no alpha, tradability,
-profitability, strategy, backtest, portfolio, or production-readiness claim. The
-`EvidenceDraft` is an evidence input only, not a candidate, not Reference
-validation, not Reference truth, and not alpha/tradability/profitability. A
-`ReferenceCandidateHandoff` is a handoff only, not Reference validation, not
-Reference truth, not strategy validation, and not a promotional or trading
-claim. Runtime cache and artifact policy remains local-only and
-orchestration-only: derived caches stay out of commit-eligible source paths,
-heavy and value-bearing outputs are never commit-eligible, and curated summary
-commit eligibility is row-free and descriptive. The `alpha runtime` CLI
-remains local-only and CI-safe: help and argument-validation paths perform no
-provider, network, broker, live, paper, or heavy work. Agent-facing tool
-results carry no raw or heavy data and RT-P22 creates no autonomous agent. The
-RT-P21 real-DatasetVersion smoke makes no external provider call, reads no raw
-provider file, commits no data, and preserves the accepted-DatasetVersion-only,
-no-raw-access, no-claims boundary. The
-Research Runtime campaign is the executable research loop layer over the
-completed Feature/Label substrate; it is not Agent Factory, alpha search, factor
-provider, network, broker, live, paper, or heavy work. RT-P20 fixtures and
-tests are synthetic, tiny, local-only, and not alpha evidence. The Research
-Runtime campaign is the executable research loop layer over the completed
-Feature/Label substrate; it is not Agent Factory, alpha search, factor
-promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
+scope; no alpha, tradability, profitability, strategy, backtest, portfolio, or
+production-readiness claim. RT-P24 changes only documentation and read-only DAG
+verification; it does not change scheduler code, runtime code, campaign
+contracts, data access, or the merge queue. The Research Runtime campaign is the
+executable research loop layer over the completed Feature/Label substrate; it
+is not Agent Factory, alpha search, factor promotion, Strategy Reference
+Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
