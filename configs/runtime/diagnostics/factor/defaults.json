@@ -1,0 +1,21 @@
+{
+  "schema": "alpha_system.runtime.diagnostics.factor.thresholds.v1",
+  "profile": "factor_diagnostics_default_v1",
+  "description": "Synthetic/default descriptive Tier 0 factor diagnostics thresholds. These gates are not alpha validation.",
+  "thresholds": {
+    "min_observations": 3,
+    "min_coverage_ratio": 0.8,
+    "max_missingness_rate": 0.2,
+    "max_outlier_rate": 0.2,
+    "outlier_zscore_threshold": 3.0,
+    "bucket_count": 5,
+    "min_populated_buckets": 2
+  },
+  "safety": {
+    "local_only": true,
+    "descriptive_only": true,
+    "diagnostic_pass_is_alpha_validation": false,
+    "external_provider_calls": false,
+    "broker_live_paper_or_order_scope": false
+  }
+}

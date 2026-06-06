@@ -1,0 +1,134 @@
+# RT-P07 Handoff - Factor Diagnostics Runtime
+
+Campaign: `ALPHA_RESEARCH_RUNTIME_MVP`  
+Phase: `RT-P07` - Factor Diagnostics Runtime  
+Executor: Codex  
+Status: implementation complete; review not run by executor
+
+## Scope Completed
+
+- Added `alpha_system.runtime.diagnostics.factor` with lazy package exports and
+  a factor runtime module.
+- Added `FactorDiagnosticsReport`, `FactorDiagnosticsRunResult`, and
+  `FactorDiagnosticsThresholds`.
+- Added `build_factor_diagnostics_report` and `build_factor_diagnostics_run`
+  orchestration helpers that consume RT-P06 diagnostics spec/report contracts
+  and RT-P05 `RunRejectionReason` / `StudyRunResultState`.
+- Delegated IC, RankIC, decay, and bucket summaries to
+  `alpha_system.research.ic` and `alpha_system.research.buckets`; no consumed
+  primitive package was edited.
+- Produced scalar-only descriptive summaries for coverage, missingness,
+  outlier rate, IC/RankIC, bucket monotonicity, tail expectancy, and decay.
+- Added visible rejected, failed, and inconclusive outcomes with rejection
+  reasons and terminal diagnostics states.
+- Added tiny synthetic in-memory unit tests under the authorized factor test
+  path.
+- Added factor diagnostics documentation and synthetic/default threshold config
+  scaffolding.
+- Updated the README snapshot for RT-P07 progress and next phase RT-P08.
+
+## Explicit Staging List For Ralph
+
+No files were staged by Codex. Per executor instructions, Ralph should stage
+only these commit-eligible paths if accepting this phase:
+
+- `src/alpha_system/runtime/diagnostics/factor/__init__.py`
+- `src/alpha_system/runtime/diagnostics/factor/runtime.py`
+- `tests/unit/runtime/diagnostics/factor/test_factor_runtime.py`
+- `docs/research_runtime/diagnostics/factor.md`
+- `configs/runtime/diagnostics/factor/defaults.json`
+- `README.md`
+- `handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P07.md`
+
+No `runs/` path is included. No
+`reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P07/**` files were created by Codex;
+fresh review and verdict artifacts are owned by Ralph/reviewer.
+
+## Git Status
+
+`git status --short` was not run. The executor safety override explicitly
+forbade `git status`, `git diff`, staging, committing, and pushing. No
+`git add`, `git commit`, `git push`, `git status`, or `git diff` command was
+run by Codex.
+
+## Validation Commands
+
+- `test -f runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/STOP && printf 'RUN_STOP_PRESENT\n' || printf 'RUN_STOP_ABSENT\n'`
+  - Result: exit 0, `RUN_STOP_ABSENT`.
+- `python -m ruff format src/alpha_system/runtime/diagnostics/factor/__init__.py src/alpha_system/runtime/diagnostics/factor/runtime.py tests/unit/runtime/diagnostics/factor/test_factor_runtime.py`
+  - Result: exit 0; final run reported `3 files left unchanged`.
+- `python -m ruff check src/alpha_system/runtime/diagnostics/factor/__init__.py src/alpha_system/runtime/diagnostics/factor/runtime.py tests/unit/runtime/diagnostics/factor/test_factor_runtime.py`
+  - Result: initial run exited 1 with three E501 line-length findings in
+    `runtime.py`; findings were fixed. Final run exited 0,
+    `All checks passed!`.
+- `PYTHONPATH=src python -c "import alpha_system.runtime.diagnostics.factor"`
+  - Result: exit 0.
+- `python tools/verify.py --smoke`
+  - Result: exit 0.
+- `PYTHONPATH=src python -m pytest tests/unit/runtime/diagnostics/factor -q`
+  - Result: exit 0, `4 passed in 0.27s`.
+- `test -f docs/research_runtime/diagnostics/factor.md`
+  - Result: exit 0.
+- `git ls-files runs`
+  - Result: exit 0, empty output.
+- `PYTHONPATH=src python -m pytest tests/unit/runtime/diagnostics -q`
+  - Result: exit 0, `28 passed in 0.14s`.
+- `python -m compileall -q src/alpha_system/runtime/diagnostics/factor tests/unit/runtime/diagnostics/factor`
+  - Result: exit 0. This produced standard ignored `__pycache__` files that
+    remain local-only and are not in the staging list.
+
+Skipped:
+
+- `git status --short`
+  - Reason: explicitly forbidden by the executor safety override.
+- `git diff --cached --name-only`
+  - Reason: explicitly forbidden by the executor safety override, and Codex did
+    not stage any files.
+- Claude review, `review.md`, and `verdict.json`
+  - Reason: explicitly forbidden by the executor safety override; Ralph owns
+    reviewer orchestration and verdict parsing.
+- `git add`, `git commit`, and `git push`
+  - Reason: explicitly forbidden by the executor safety override; Ralph owns
+    authoritative staging and commit.
+
+## Artifact Audit
+
+- `git ls-files runs` returned empty output.
+- No `runs/**` artifact was created or edited by Codex.
+- No review artifacts were created by Codex.
+- No files were staged by Codex. Therefore this executor introduced no staged
+  `runs/` path and no staged forbidden heavy/data/cache/log/DB artifact.
+- `git diff --cached --name-only` was not run because the executor safety
+  override forbade `git diff` and Codex did no staging.
+- Python `__pycache__` files generated by `compileall` are ignored local caches
+  and are not commit-eligible.
+- Explicit staging is confirmed as Ralph-owned; the staging list above contains
+  only commit-eligible RT-P07 paths.
+
+## README Snapshot Confirmation
+
+`README.md` now states the RT-P07 snapshot as `RT-P07` complete / `8 of 27`,
+next phase `RT-P08` - Label Diagnostics Runtime, the new
+`alpha_system.runtime.diagnostics.factor` runtime, the new
+`docs/research_runtime/diagnostics/factor.md` documentation, the synthetic
+`configs/runtime/diagnostics/factor/defaults.json` threshold scaffold, no new
+`alpha runtime` CLI surface, and unchanged local-first /
+accepted-DatasetVersion-only / no-provider / no-broker / descriptive /
+non-promotional / no-claim safety boundaries.
+
+## Caveats And RT-P08-RT-P11 Follow-Ups
+
+- The package preserves the RT-P02 scaffold expectation by keeping
+  `alpha_system.runtime.diagnostics.factor.__all__ == []` while resolving
+  symbols lazily.
+- This phase checks presence of `available_ts` and `label_available_ts` on the
+  in-memory factor diagnostics view. The full availability, locked-test, and
+  no-lookahead runtime audit remains later-phase scope.
+- `FactorDiagnosticsReport` wraps the shared RT-P06 `DiagnosticsReport`; the
+  base report carries scalar summaries, explicit limitations, non-promotional
+  flags, and visible rejection reasons for failed or inconclusive outcomes.
+- RT-P08 through RT-P11 should keep the same family-local pattern: specialize
+  shared diagnostics contracts, orchestrate existing primitives, avoid shared
+  diagnostics core edits, keep reports scalar-only, and avoid alpha,
+  tradability, profitability, promotion, signal-probe, strategy, backtest,
+  portfolio, broker, paper, live, order, account, or production scope.
