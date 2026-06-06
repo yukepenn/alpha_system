@@ -1,3 +1,27 @@
-"""Agent decision and handoff record contracts (populated by AGENT-P17)."""
+"""Agent decision, handoff, invocation, audit, and version record contracts."""
 
-__all__: list[str] = []
+from alpha_system.agent_factory.records.models import (
+    AgentAuditLog,
+    AgentDecisionClassification,
+    AgentDecisionRecord,
+    AgentHandoff,
+    AgentPermissionVersion,
+    AgentPromptVersion,
+    AgentRoleVersion,
+    AgentRunRecord,
+    AgentRunStatus,
+    ToolInvocationRecord,
+)
+
+__all__ = [
+    "AgentAuditLog",
+    "AgentDecisionClassification",
+    "AgentDecisionRecord",
+    "AgentHandoff",
+    "AgentPermissionVersion",
+    "AgentPromptVersion",
+    "AgentRoleVersion",
+    "AgentRunRecord",
+    "AgentRunStatus",
+    "ToolInvocationRecord",
+]
