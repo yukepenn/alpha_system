@@ -1,0 +1,21 @@
+# Declarative Agent Factory preflight defaults.
+# This file carries no market data, secrets, registry values, or provider payloads.
+
+[registries]
+feature_registry_relative_path = "registry/features.sqlite"
+label_registry_relative_path = "registry/labels.sqlite"
+
+[runtime_real_smoke]
+real_dataset_version_smoke_ran = true
+status_source = "POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1"
+
+[future_blockers]
+parquet_sink_landed = false
+parquet_sink_human_approved = false
+session_label_guard_fixed = false
+session_context_features_explicitly_available = false
+
+[request_scope]
+large_scale_value_consuming_study_requested = false
+session_context_features_requested = []
+

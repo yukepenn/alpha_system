@@ -7,16 +7,21 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` bootstrap complete
-(`AGENT-P00 / 26`). The next phase is `AGENT-P01` (Agent Factory Entry Contract
-and Preflight Gates).
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has `AGENT-P01` complete;
+the foundation gate remains in progress. The next phase is `AGENT-P02`
+(Agent Factory Package, Docs, and Template Skeleton and Naming).
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
 - `docs/agent_factory/README.md`
 - `docs/agent_factory/OVERVIEW.md`
 
-No new code modules or commands are added in `AGENT-P00`.
+`AGENT-P01` adds the contracts-only Agent Factory entry contract and preflight
+gate documentation/config:
+
+- `alpha_system.agent_factory.entry_contract`
+- `docs/agent_factory/PREFLIGHT_GATES.md`
+- `configs/agent_factory/preflight.toml`
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
