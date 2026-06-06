@@ -8,17 +8,21 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P01 runtime entry-contract snapshot, progress is `RT-P01` complete /
-`2 of 27`; the active next phase is `RT-P02` - Runtime Package Skeleton and
-Naming. The campaign now has the durable runtime entry contract module
-`alpha_system.runtime.entry_contract` and documentation:
+RT-P02 runtime package-skeleton and naming snapshot, progress is `RT-P02`
+complete / `3 of 27`; the active next phase is `RT-P03` - Runtime Input
+Resolver: DatasetVersion and Feature/Label Packs. The campaign now has the
+durable runtime entry contract module `alpha_system.runtime.entry_contract`,
+the importable `alpha_system.runtime` package skeleton for later runtime
+phases, and documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
 - `docs/research_runtime/ENTRY_CONTRACT.md`
+- `docs/research_runtime/NAMING.md`
 
-No `alpha runtime` command surface is added in RT-P01; that CLI remains scoped
-to RT-P18.
+RT-P02 also establishes `configs/runtime/` as the future runtime configuration
+home. No `alpha runtime` command surface is added in RT-P02; that CLI remains
+scoped to RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption; no external provider calls; no broker, live,
