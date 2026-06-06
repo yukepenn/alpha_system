@@ -96,6 +96,14 @@ class WorktreeManager:
         path = Path(plan.path)
         if path.exists():
             raise FileExistsError(f"Worktree path already exists: {path}")
+        # Reclaim stale frontier state left by an interrupted run: prune dangling
+        # worktree registrations, then delete a leftover frontier-owned local
+        # branch (the branch name is fully deterministic per phase, so any
+        # pre-existing one is stale). Without this, `git worktree add -b` fails
+        # because the branch already exists and aborts the whole wave.
+        git(self.repo_root, "worktree", "prune")
+        if is_frontier_branch(plan.branch) and local_branch_exists(self.repo_root, plan.branch):
+            git(self.repo_root, "branch", "-D", plan.branch)
         result = git(self.repo_root, "worktree", "add", "-b", plan.branch, plan.path)
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip())

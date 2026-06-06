@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
@@ -14,6 +15,15 @@ from tools.frontier.artifact_policy import curate_commit_paths
 
 ROOT = Path(__file__).resolve().parents[2]
 SLUG_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+
+# Process-wide serialization of git/gh mutations. In dag_wave parallel mode the
+# build workers run as threads in one process; a `gh pr merge` (or other gh
+# command) can transiently flip the shared repo to core.bare=true, which breaks
+# any sibling phase running git concurrently. Holding this lock around every
+# git() call and every gh command (see github_utils._run_gh, which also restores
+# core.bare before releasing it) means no git op ever runs while core.bare is
+# flipped. It is an RLock so a gh wrapper may call git() while holding it.
+GIT_SERIAL_LOCK = threading.RLock()
 
 
 @dataclass(frozen=True)
@@ -122,7 +132,8 @@ def git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         raise ValueError(f"Refusing destructive git command: git {' '.join(args)}")
     if len(args) >= 2 and args[0] == "add" and args[1] in {".", "-A"}:
         raise ValueError(f"Refusing broad git staging command: git {' '.join(args)}")
-    return subprocess.run(["git", *args], cwd=root, text=True, capture_output=True, check=False)
+    with GIT_SERIAL_LOCK:
+        return subprocess.run(["git", *args], cwd=root, text=True, capture_output=True, check=False)
 
 
 def current_branch(root: Path = ROOT) -> str:
@@ -387,6 +398,18 @@ def push_phase_branch(root: Path, branch: str, *, remote: str = "origin", dry_ru
     if dry_run:
         return PushBranchResult(True, branch, remote, command, pushed=False)
     result = git(root, "push", "-u", remote, f"HEAD:refs/heads/{branch}")
+    # A leftover frontier-owned remote branch from an interrupted run causes a
+    # non-fast-forward rejection. The branch name is deterministic per phase, so a
+    # divergent remote tip is always stale; force-push is forbidden, so delete the
+    # stale branch and re-push instead of hard-blocking.
+    if (
+        result.returncode != 0
+        and branch.startswith("auto/")
+        and "non-fast-forward" in f"{result.stderr} {result.stdout}".lower()
+    ):
+        delete = git(root, "push", remote, "--delete", branch)
+        if delete.returncode == 0:
+            result = git(root, "push", "-u", remote, f"HEAD:refs/heads/{branch}")
     instructions = None
     if result.returncode != 0:
         instructions = "Network/auth push failed. Fix git push output and resume the run."

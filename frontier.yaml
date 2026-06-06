@@ -78,6 +78,11 @@ providers:
     cmd: "codex"
     exec_args: ["exec"]
     sandbox: "workspace-write"
+    # Service tier for codex API calls. "fast" is the friendly alias for the
+    # OpenAI "priority" (expedited) tier: higher token cost, faster turnaround.
+    # Accepts fast/priority/flex/default/auto/scale. Env override:
+    # FRONTIER_CODEX_SERVICE_TIER. Wired into `codex exec -c service_tier=<v>`.
+    service_tier: "fast"
 
 lanes:
   green:

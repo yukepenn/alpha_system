@@ -58,6 +58,7 @@ from tools.frontier.github_utils import (
     inspect_branch_protection,
     list_pr_diff_files,
     wait_for_ci,
+    wait_pr_mergeable,
     view_pr,
     write_branch_protection_artifacts,
     write_ci_status_artifacts,
@@ -508,10 +509,38 @@ def quarantine_executor_review_artifacts(
         )
 
 
+def state_snapshot_for_serialization(state: dict[str, Any]) -> dict[str, Any]:
+    """A shallow snapshot safe to json.dump while worker threads mutate phases.
+
+    In dag_wave parallel mode the build threads mutate EXISTING phase dicts
+    (status, stage checkpoints) concurrently. ``dict(...)`` is a single CPython
+    C-level copy with no thread-switch point, so copying the top-level state and
+    each phase dict yields stable objects that json.dump can iterate without
+    hitting "dictionary changed size during iteration". The phases list itself is
+    fixed for a run's lifetime, so a shallow per-phase copy is sufficient.
+
+    Worker threads also mutate the top-level ``attempts`` and ``repair_attempts``
+    dicts (execute_provider_phase / run_provider_repair_loop) without holding
+    _RUN_WRITE_LOCK, so those nested dicts are copied here too. Any future
+    top-level nested mutable value mutated by workers MUST be added to this copy
+    list — do not rely on the json encoder's GIL atomicity to hide the race.
+    """
+
+    snapshot = dict(state)
+    for key in ("attempts", "repair_attempts"):
+        value = state.get(key)
+        if isinstance(value, dict):
+            snapshot[key] = dict(value)
+    phases = state.get("phases")
+    if isinstance(phases, list):
+        snapshot["phases"] = [dict(p) if isinstance(p, dict) else p for p in phases]
+    return snapshot
+
+
 def write_state(run_dir: Path, state: dict[str, Any]) -> None:
     with _RUN_WRITE_LOCK:
         state["updated_at"] = utc_now()
-        write_json(run_dir / "state.json", state)
+        write_json(run_dir / "state.json", state_snapshot_for_serialization(state))
         write_heartbeat(run_dir, state)
 
 
@@ -2030,6 +2059,8 @@ Safety rules:
 - Do not create a PR.
 - Do not merge.
 - Do not mark the phase PASS.
+- Do not run `git add`, `git commit`, `git push`, `git status`, or `git diff`, and do not stage or commit anything yourself. Leave all your changes UNSTAGED in the working tree.
+- OVERRIDE: the spec's "Allowed Paths" / "Commit only" lists exist to tell the Ralph driver which files to stage and commit on your behalf — they are NOT an instruction for you to run git. Just create or edit those files in the working tree and list them by path in your handoff. (In worktree mode the shared `.git` metadata is read-only to you by design; the unsandboxed driver performs the authoritative staging and commit after you finish, so a git failure on your side is expected and must not be treated as a blocker.)
 - Do not use `{FORBIDDEN_GIT_ADD_DOT}`, `{FORBIDDEN_GIT_ADD_ALL}`, or force push.
 - Do not weaken tests or add visible test-only branches.
 - Keep generated local-only artifacts out of git.
@@ -2037,7 +2068,7 @@ Safety rules:
 {executor_run_artifact_policy(phase["phase_id"])}
 - Run only validation that is safe and requested by the spec.
 - Write execution output and handoff only.
-- The Ralph driver owns validation, review, done-check, verdict, repair, PR, CI, and merge gate.
+- The Ralph driver owns staging, commit, validation, review, done-check, verdict, repair, PR, CI, and merge gate.
 
 Run artifact directory available to you:
 {phase_dir.relative_to(ROOT)}
@@ -2607,33 +2638,64 @@ def cleanup_phase_worktree_after_merge(
     *,
     dry_run: bool | None = None,
 ) -> None:
-    if not state.get("worktree_mode") or not phase.get("merged"):
-        return
-    path_text = str(phase.get("worktree_path") or "").strip()
-    branch = str(phase.get("branch") or "").strip()
-    if not path_text or not branch:
+    if not phase.get("merged"):
         return
     phase_dir = provider_phase_dir(run_dir, phase)
     config = load_config(ROOT / "frontier.yaml")
     github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
     remote = str(github_config.get("remote") or "origin")
-    manager = WorktreeManager(ROOT, runtime_config().worktree_root)
-    cleanup = manager.cleanup_after_merge(
-        Path(path_text),
-        branch,
-        remote=remote,
-        dry_run=bool(state.get("mock_providers")) if dry_run is None else dry_run,
-    )
-    write_json(phase_dir / "worktree_cleanup.json", cleanup)
-    append_event(
-        run_dir,
-        state,
-        "WORKTREE_CLEANUP" if cleanup.get("ok") else "WORKTREE_CLEANUP_BLOCKED",
-        phase_id=phase["phase_id"],
-        branch=branch,
-        path=path_text,
-        ok=bool(cleanup.get("ok")),
-    )
+    # Worktree removal + branch delete only apply in worktree mode.
+    if state.get("worktree_mode"):
+        path_text = str(phase.get("worktree_path") or "").strip()
+        branch = str(phase.get("branch") or "").strip()
+        if path_text and branch:
+            manager = WorktreeManager(ROOT, runtime_config().worktree_root)
+            cleanup = manager.cleanup_after_merge(
+                Path(path_text),
+                branch,
+                remote=remote,
+                dry_run=bool(state.get("mock_providers")) if dry_run is None else dry_run,
+            )
+            write_json(phase_dir / "worktree_cleanup.json", cleanup)
+            append_event(
+                run_dir,
+                state,
+                "WORKTREE_CLEANUP" if cleanup.get("ok") else "WORKTREE_CLEANUP_BLOCKED",
+                phase_id=phase["phase_id"],
+                branch=branch,
+                path=path_text,
+                ok=bool(cleanup.get("ok")),
+            )
+    else:
+        # In-tree (serial default) mode: there is no worktree to remove, but the
+        # merged remote branch still needs cleanup. merge_pr no longer passes
+        # `--delete-branch` (it can flip core.bare while a branch is checked out),
+        # so delete the frontier-owned remote branch directly here. A plain
+        # `git push --delete` does not flip core.bare. Guarded to auto/ branches,
+        # skipped under mock/dry-run; best-effort, never blocks the merge.
+        branch = str(phase.get("branch") or "").strip()
+        effective_dry = bool(state.get("mock_providers")) if dry_run is None else bool(dry_run)
+        if branch.startswith("auto/") and not effective_dry:
+            delete = git(ROOT, "push", remote, "--delete", branch)
+            append_event(
+                run_dir,
+                state,
+                "REMOTE_BRANCH_DELETED" if delete.returncode == 0 else "REMOTE_BRANCH_DELETE_FAILED",
+                phase_id=phase["phase_id"],
+                branch=branch,
+                ok=delete.returncode == 0,
+            )
+    # Post-merge repo hygiene runs in ALL modes (worktree and in-tree).
+    repo_hygiene = restore_local_repo_after_merge(state, remote=remote)
+    if repo_hygiene.get("core_bare_restored") or repo_hygiene.get("base_synced"):
+        append_event(
+            run_dir,
+            state,
+            "POST_MERGE_REPO_HYGIENE",
+            phase_id=phase["phase_id"],
+            core_bare_restored=bool(repo_hygiene.get("core_bare_restored")),
+            base_synced=bool(repo_hygiene.get("base_synced")),
+        )
 
 
 def read_json_if_exists(path: Path) -> dict[str, Any]:
@@ -3208,6 +3270,206 @@ def post_phase_git_github(
     )
 
 
+def restore_local_repo_after_merge(
+    state: dict[str, Any],
+    *,
+    remote: str = "origin",
+) -> dict[str, Any]:
+    """Post-merge repo hygiene for both worktree/parallel and in-tree modes.
+
+    A ``gh pr merge`` run with the working directory set to a phase worktree
+    (where the merged branch is the checked-out branch) can, on some gh/git
+    versions, leave the *shared* repo with ``core.bare = true``. The remote merge
+    still succeeds, but every subsequent phase then fails its local git
+    (``fatal: this operation must be run in a work tree``) and the wave
+    coordinator blocks. This guard repairs the local repository after each
+    successful merge:
+
+    1. Restore ``core.bare = false`` if a merge flipped it.
+    2. Sync the local base branch to the freshly merged remote so the next phase
+       branches off the correct, up-to-date base: fast-forward it when the shared
+       repo is on the base branch (worktree mode), or update the base ref directly
+       without checkout when it is on a phase branch (in-tree mode).
+
+    It runs in BOTH worktree and in-tree modes; it is a no-op only under mock
+    providers. Every step is best-effort: failures are recorded but never raise,
+    so they cannot block an otherwise-successful merge.
+    """
+
+    report: dict[str, Any] = {"checked": False, "core_bare_restored": False, "base_synced": False}
+    if bool(state.get("mock_providers")):
+        return report
+    report["checked"] = True
+    is_bare = git(ROOT, "rev-parse", "--is-bare-repository")
+    if is_bare.returncode == 0 and is_bare.stdout.strip() == "true":
+        git(ROOT, "config", "core.bare", "false")
+        report["core_bare_restored"] = True
+    # Sync the local base branch to the freshly merged remote so the next phase
+    # builds off the correct base. When the shared repo is on the base branch
+    # (worktree mode), fast-forward it; when it is on a phase branch (in-tree
+    # mode), update the base ref directly without checking it out.
+    base_branch = detect_default_branch(root=ROOT)
+    current = git(ROOT, "rev-parse", "--abbrev-ref", "HEAD")
+    cur = current.stdout.strip() if current.returncode == 0 else ""
+    if cur == base_branch:
+        git(ROOT, "fetch", remote, base_branch)
+        ff = git(ROOT, "merge", "--ff-only", f"{remote}/{base_branch}")
+        report["base_synced"] = ff.returncode == 0
+    elif cur:
+        fetched = git(ROOT, "fetch", remote, f"{base_branch}:{base_branch}")
+        report["base_synced"] = fetched.returncode == 0
+    return report
+
+
+def ensure_union_merge_attributes(root: Path = ROOT) -> None:
+    """Union-merge ONLY the append-only README.md snapshot so parallel phases'
+    README additions coexist during the pre-merge base sync. Written to the shared
+    .git/info/attributes (local, never committed); idempotent and best-effort.
+
+    Scope is deliberately limited to README.md. A blanket ``**/*.md merge=union``
+    would silently concatenate conflicting same-region edits in load-bearing docs
+    (specs/<ID>/*.md, campaigns/<ID>/ACCEPTANCE.md|GOAL.md|RISK_REGISTER.md,
+    decisions/*.md, handoffs/<ID>.md) and, worse, defeat presync_phase_branch_with_base's
+    conflict detection (which relies on a non-zero merge return to block truthfully).
+    Those docs must keep normal conflict detection; the README snapshot is the only
+    file parallel phases append to in the same region, so it is the only union case.
+    """
+
+    try:
+        common = git(root, "rev-parse", "--git-common-dir")
+        raw = common.stdout.strip() if common.returncode == 0 else ""
+        gitdir = Path(raw) if raw else (root / ".git")
+        if not gitdir.is_absolute():
+            gitdir = (root / gitdir).resolve()
+        info = gitdir / "info"
+        info.mkdir(parents=True, exist_ok=True)
+        attrs = info / "attributes"
+        marker = "Frontier: union-merge README snapshot"
+        existing = attrs.read_text(encoding="utf-8") if attrs.exists() else ""
+        if marker not in existing:
+            prefix = existing + ("\n" if existing and not existing.endswith("\n") else "")
+            attrs.write_text(
+                prefix + f"# {marker} (parallel phase README coexistence only)\n"
+                "README.md merge=union\n",
+                encoding="utf-8",
+            )
+    except Exception:
+        pass
+
+
+def presync_phase_branch_with_base(
+    execution_root: Path,
+    branch: str,
+    *,
+    remote: str = "origin",
+) -> dict[str, Any]:
+    """Merge the latest base into the phase branch so its PR is mergeable.
+
+    Parallel phases branch off the same base and can both touch shared docs.
+    README/markdown are union-merged via .git/info/attributes (written at run
+    start), so doc additions from sibling phases coexist instead of colliding.
+    This merges the current base into the phase worktree and pushes the result
+    (a fast-forward of the phase's own remote branch), so the serial merge always
+    operates on an up-to-date, conflict-free branch. A genuine non-union (e.g.
+    code) conflict is aborted and reported (``conflict``) so the merge blocks
+    truthfully rather than failing at gh. A non-conflict merge failure that starts
+    no merge (e.g. local/untracked changes would be overwritten) is reported
+    distinctly (``merge_failed`` + ``error``) instead of being mislabeled a
+    conflict, so the operator gets an accurate block message.
+    """
+
+    report: dict[str, Any] = {"synced": False, "conflict": False, "pushed": False, "merge_failed": False}
+    if not branch:
+        return report
+    base_branch = detect_default_branch(root=execution_root)
+    git(execution_root, "fetch", remote, base_branch)
+    merge = git(execution_root, "merge", "--no-edit", f"{remote}/{base_branch}")
+    if merge.returncode != 0:
+        # Distinguish a real merge conflict (leaves unmerged entries / MERGE_HEAD)
+        # from a merge that never started (e.g. "would be overwritten by merge").
+        # Only `git merge --abort` when a merge is actually in progress.
+        combined = f"{merge.stdout}\n{merge.stderr}".upper()
+        unmerged = git(execution_root, "ls-files", "-u")
+        is_conflict = "CONFLICT" in combined or bool(unmerged.stdout.strip())
+        if is_conflict:
+            git(execution_root, "merge", "--abort")
+            report["conflict"] = True
+        else:
+            report["merge_failed"] = True
+            report["error"] = (merge.stderr or merge.stdout or "merge failed").strip()[:300]
+        return report
+    report["synced"] = True
+    push = git(execution_root, "push", remote, f"HEAD:refs/heads/{branch}")
+    report["pushed"] = push.returncode == 0
+    return report
+
+
+def presync_before_merge_or_block(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    execution_root: Path,
+    pr_number: str | int | None = None,
+) -> bool:
+    """Pre-merge base sync for parallel worktree merges.
+
+    Merges the latest base into the phase branch and pushes it, then waits for
+    the PR to become mergeable again (the push re-queues required checks). Returns
+    True to proceed with the merge, or False after blocking the phase (true
+    conflict or push failure). A no-op outside worktree mode / under mock.
+    """
+
+    if not state.get("worktree_mode") or bool(state.get("mock_providers")) or Path(execution_root) == ROOT:
+        return True
+    phase_dir = provider_phase_dir(run_dir, phase)
+    branch = str(phase.get("branch") or phase_branch_from_artifacts(phase_dir, state, phase))
+    config = load_config(ROOT / "frontier.yaml")
+    github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
+    remote = str(github_config.get("remote") or "origin")
+    presync = presync_phase_branch_with_base(Path(execution_root), branch, remote=remote)
+    if (
+        presync.get("conflict")
+        or presync.get("merge_failed")
+        or (presync.get("synced") and not presync.get("pushed"))
+    ):
+        if presync.get("conflict"):
+            detail = "true merge conflict"
+        elif presync.get("merge_failed"):
+            detail = f"base sync could not start: {presync.get('error') or 'merge failed'}"
+        else:
+            detail = "branch push failed"
+        reason = (
+            f"MERGE_EXECUTION_BLOCKED: pre-merge base sync failed ({detail}); resolve and resume."
+        )
+        block_provider_gate(
+            run_dir,
+            state,
+            phase,
+            MERGE_EXECUTION_BLOCKED,
+            reason,
+            event=MERGE_EXECUTION_BLOCKED,
+            source="presync_failed",
+        )
+        return False
+    if presync.get("synced"):
+        append_event(run_dir, state, "PRE_MERGE_BASE_SYNC", phase_id=phase["phase_id"], pushed=bool(presync.get("pushed")))
+        # The sync push re-queues the required status checks; wait for the PR to
+        # be mergeable again before attempting the merge (else gh reports the
+        # check as "queued" and the merge fails).
+        if pr_number is not None and not wait_pr_mergeable(pr_number, root=Path(execution_root)):
+            block_provider_gate(
+                run_dir,
+                state,
+                phase,
+                MERGE_EXECUTION_BLOCKED,
+                "MERGE_EXECUTION_BLOCKED: PR still not mergeable after base sync; resolve and resume.",
+                event=MERGE_EXECUTION_BLOCKED,
+                source="presync_not_mergeable",
+            )
+            return False
+    return True
+
+
 def finalize_phase_merge(
     run_dir: Path,
     state: dict[str, Any],
@@ -3302,6 +3564,8 @@ def finalize_phase_merge(
         )
         return False
     if pr_number is not None:
+        if not presync_before_merge_or_block(run_dir, state, phase, Path(execution_root), pr_number):
+            return False
         merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
         write_merge_result_artifacts(phase_dir, merge_result)
         if merge_result_auto_armed(merge_result):
@@ -3794,6 +4058,8 @@ def run_deterministic_resume_gates(
         return False
 
     if gate.merge_allowed:
+        if not presync_before_merge_or_block(run_dir, state, phase, Path(execution_root), pr_number):
+            return False
         merge_result = perform_merge(pr_number=pr_number, gate=gate, root=execution_root)
         write_merge_result_artifacts(phase_dir, merge_result)
         append_event(
@@ -4141,7 +4407,19 @@ def execute_provider_phase(
     workflow2 = runtime_config().raw.get("workflow2", {})
     if not isinstance(workflow2, dict) or bool(workflow2.get("semantic_done_check_required", True)):
         existing_done = read_json_if_exists(phase_dir / "done_check.json")
-        if existing_done.get("verdict"):
+        # Only reuse a prior done-check when it is at least as new as this
+        # execution's executor output. A re-executed phase rewrites
+        # executor_output.md, which makes any stale done_check.json (e.g. a
+        # BLOCKED verdict from an earlier attempt under a since-fixed
+        # environment fault) older — so it is re-run fresh instead of cached.
+        _done_path = phase_dir / "done_check.json"
+        _exec_path = phase_dir / "executor_output.md"
+        _done_is_fresh = (
+            bool(existing_done.get("verdict"))
+            and _done_path.exists()
+            and (not _exec_path.exists() or _done_path.stat().st_mtime >= _exec_path.stat().st_mtime)
+        )
+        if _done_is_fresh:
             done_text = _read_phase_text(phase_dir / "done_check.md")
             done_verdict = str(existing_done.get("verdict"))
             record_stage_checkpoint(
@@ -4650,6 +4928,67 @@ def finalize_completed_campaign(run_dir: Path, state: dict[str, Any]) -> int:
     return 0
 
 
+MAX_GATE_RETRIES = 2
+
+
+def drain_gate_blocked_phases(run_dir: Path, state: dict[str, Any], max_rounds: int = MAX_GATE_RETRIES) -> list[str]:
+    """Self-heal: retry phases left gate-blocked (CI/merge-gate/merge-execution)
+    by routing each through the gate-retry path (which runs presync + CI re-wait
+    + merge) using its own worktree. Bounded by ``max_rounds`` and by lack of
+    progress so a persistent block stops cleanly instead of looping. This is what
+    lets the parallel coordinator recover from a transient block (CI revalidation
+    timing, a moved base) and lets a plain resume retry a gate-blocked phase
+    instead of orphaning it and its dependents. Pre-PR blocks (e.g. PUSH_BLOCKED)
+    have no PR yet and are skipped here. Returns phase_ids still gate-blocked.
+
+    Runs only in the coordinator/main thread between waves, so no worker threads
+    touch the run state concurrently while it mutates it.
+    """
+
+    for _round in range(max(1, max_rounds)):
+        if (run_dir / "STOP").exists():
+            break
+        blocked = [p for p in state.get("phases", []) if p.get("status") in GATE_BLOCKED_STATUSES]
+        if not blocked:
+            break
+        progressed = False
+        for phase in blocked:
+            phase_dir = provider_phase_dir(run_dir, phase)
+            if recover_pr_number(phase_dir, phase, state) is None:
+                continue
+            worktree_path = str(phase.get("worktree_path") or "").strip()
+            execution_root = (
+                Path(worktree_path)
+                if state.get("worktree_mode") and worktree_path and Path(worktree_path).exists()
+                else ROOT
+            )
+            append_event(
+                run_dir, state, "GATE_RETRY_DRAIN", phase_id=phase["phase_id"], status=phase.get("status")
+            )
+            # Re-validate from CI so a phase blocked on a (now-fixed) CI failure
+            # re-waits the checks; for merge-stage blocks CI is already green so
+            # wait_for_ci returns quickly. Both then run presync + merge.
+            try:
+                run_deterministic_resume_gates(
+                    run_dir,
+                    state,
+                    phase,
+                    from_stage="ci",
+                    no_provider_replay=True,
+                    execution_root=execution_root,
+                )
+            except Exception as error:  # never crash the coordinator on a retry
+                append_event(
+                    run_dir, state, "GATE_RETRY_DRAIN_ERROR", phase_id=phase["phase_id"], error=str(error)[:300]
+                )
+            if phase.get("status") in PASSING_VERDICTS:
+                progressed = True
+        write_state(run_dir, state)
+        if not progressed:
+            break
+    return [p["phase_id"] for p in state.get("phases", []) if p.get("status") in GATE_BLOCKED_STATUSES]
+
+
 def run_dag_wave_parallel(
     run_dir: Path,
     state: dict[str, Any],
@@ -4669,6 +5008,7 @@ def run_dag_wave_parallel(
         append_event(
             run_dir, state, "WORKTREE_MODE_FORCED", reason="parallel execution requires per-phase worktrees"
         )
+    ensure_union_merge_attributes()
     state.setdefault("wave_counter", 0)
     executed = 0
     append_event(
@@ -4711,6 +5051,26 @@ def run_dag_wave_parallel(
                         run_dir, state, f"Merge-queue drain interrupted; {', '.join(still_ready)} remain MERGE_READY."
                     )
                 continue
+
+            # Self-heal on resume: retry any phase left gate-blocked by a prior
+            # interrupted run (or a transient CI/merge timing) before scheduling
+            # new work, so it and its dependents are not orphaned by the
+            # PENDING-only wave selector (the "resume silent stall").
+            if any(p.get("status") in GATE_BLOCKED_STATUSES for p in state["phases"]):
+                remaining_blocked = drain_gate_blocked_phases(run_dir, state)
+                if not remaining_blocked:
+                    continue
+                reason = (
+                    f"Gate-blocked phase(s) could not be auto-retried: {', '.join(remaining_blocked)}. "
+                    "Resolve the blocking condition and resume."
+                )
+                state["status"] = "STOPPED"
+                state["stop_requested"] = True
+                write_provider_stop(run_dir, state, reason)
+                write_state(run_dir, state)
+                write_provider_summary(run_dir, state, reason)
+                print(f"Stopped (persistent gate-block) at {run_dir.relative_to(ROOT)}")
+                return 0
 
             wave = ready_wave_phases(state, scheduler)
             if not wave:
@@ -4760,6 +5120,15 @@ def run_dag_wave_parallel(
             write_state(run_dir, state)
 
             if stalled:
+                # Self-heal: retry gate-blocked phases (presync + CI re-wait +
+                # merge) once before giving up, so a transient block (CI
+                # revalidation timing, a moved base) does not require a manual
+                # resume. Genuine blocks (no PR, exhausted retries) still stop.
+                if any(p.get("status") in GATE_BLOCKED_STATUSES for p in wave):
+                    drain_gate_blocked_phases(run_dir, state)
+                    stalled = [p["phase_id"] for p in wave if p.get("status") not in PASSING_VERDICTS]
+                if not stalled:
+                    continue
                 reason = (
                     f"Wave {wave_index} left {len(stalled)} phase(s) not passing: {', '.join(stalled)}. "
                     "Resume after the blocking conditions are resolved."

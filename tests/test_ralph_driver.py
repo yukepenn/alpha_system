@@ -610,8 +610,12 @@ def test_executor_prompt_declares_review_boundary() -> None:
     assert "Do not stage or commit anything under `runs/`." in prompt
     assert "Do not stage run-local `handoff.md` under `runs/<run_id>/...`." in prompt
     assert "Before commit, `git diff --cached --name-only` must contain no `runs/` path." in prompt
+    # Executor-no-git / driver-owns-staging policy (parallel worktree mode: the
+    # shared .git is read-only to the executor; the unsandboxed driver stages and
+    # commits on its behalf).
+    assert "Leave all your changes UNSTAGED in the working tree." in prompt
     assert (
-        "The Ralph driver owns validation, review, done-check, verdict, repair, "
+        "The Ralph driver owns staging, commit, validation, review, done-check, verdict, repair, "
         "PR, CI, and merge gate."
         in prompt
     )
