@@ -8,6 +8,10 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
+RT-P09 Session / Regime / RTH / ETH Split Diagnostics snapshot, progress is in
+the Wave 1 diagnostics fan-out (`RT-P07` through `RT-P11`) after the merged
+RT-P06 shared diagnostics contracts. Ralph remains responsible for validation,
+review, merge queue handling, and next-phase selection. The campaign now has the
 RT-P07 Factor Diagnostics Runtime snapshot, progress is `RT-P07` complete /
 `8 of 27`; the active next phase is `RT-P08` - Label Diagnostics Runtime, a
 parallel Wave-1 sibling. The campaign now has the
@@ -21,6 +25,10 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 (`RuntimeArtifactManifest`), and the shared diagnostics contracts package
 `alpha_system.runtime.diagnostics` with `contracts` (`DiagnosticsRunSpec`,
 `DiagnosticsRunRecord`) and `report` (the descriptive report shape and
+`DiagnosticsQualityGate`). RT-P09 adds the split diagnostics module
+`alpha_system.runtime.diagnostics.splits`, synthetic-safe split config templates
+under `configs/runtime/diagnostics/splits/`, and durable split diagnostics
+documentation. Durable runtime documentation:
 `DiagnosticsQualityGate`). RT-P07 adds the
 `alpha_system.runtime.diagnostics.factor` runtime, which orchestrates
 `alpha_system.research.ic` and `alpha_system.research.buckets` into a
@@ -35,6 +43,10 @@ added in this phase. Durable runtime documentation:
 - `docs/research_runtime/RUN_SPEC_AND_PLAN.md`
 - `docs/research_runtime/RUN_RECORD_AND_MANIFEST.md`
 - `docs/research_runtime/DIAGNOSTICS_CONTRACTS.md`
+- `docs/research_runtime/diagnostics/splits.md`
+
+No `alpha runtime` command surface is added in RT-P09; that CLI remains scoped
+to RT-P18.
 - `docs/research_runtime/diagnostics/factor.md`
 
 `configs/runtime/diagnostics/factor/defaults.json` provides synthetic/default

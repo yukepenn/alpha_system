@@ -1,0 +1,74 @@
+[
+  {
+    "available_ts": "2026-01-05T09:35:00+00:00",
+    "label_available_ts": "2026-01-05T09:40:00+00:00",
+    "session_label": "RTH",
+    "session_segment": "open",
+    "volatility_bucket": "low",
+    "spread_bucket": "narrow",
+    "liquidity_bucket": "thick",
+    "trend_state": "trend",
+    "factor_value": 1.0,
+    "label_value": 0.5
+  },
+  {
+    "available_ts": "2026-01-05T11:00:00+00:00",
+    "label_available_ts": "2026-01-05T11:05:00+00:00",
+    "session_label": "RTH",
+    "session_segment": "mid",
+    "volatility_bucket": "high",
+    "spread_bucket": "wide",
+    "liquidity_bucket": "thin",
+    "trend_state": "range",
+    "factor_value": -1.0,
+    "label_value": -0.25
+  },
+  {
+    "available_ts": "2026-01-05T15:30:00+00:00",
+    "label_available_ts": "2026-01-05T15:35:00+00:00",
+    "session_label": "RTH",
+    "session_segment": "close",
+    "volatility_bucket": "low",
+    "spread_bucket": "narrow",
+    "liquidity_bucket": "thick",
+    "trend_state": "trend",
+    "factor_value": 0.8,
+    "label_value": 0.1
+  },
+  {
+    "available_ts": "2026-01-05T20:00:00+00:00",
+    "label_available_ts": "2026-01-05T20:05:00+00:00",
+    "session_label": "ETH",
+    "session_segment": "open",
+    "volatility_bucket": "high",
+    "spread_bucket": "wide",
+    "liquidity_bucket": "thin",
+    "trend_state": "range",
+    "factor_value": -0.4,
+    "label_value": -0.15
+  },
+  {
+    "available_ts": "2026-01-06T01:00:00+00:00",
+    "label_available_ts": "2026-01-06T01:05:00+00:00",
+    "session_label": "ETH",
+    "session_segment": "mid",
+    "volatility_bucket": "low",
+    "spread_bucket": "narrow",
+    "liquidity_bucket": "thick",
+    "trend_state": "trend",
+    "factor_value": 0.25,
+    "label_value": 0.05
+  },
+  {
+    "available_ts": "2026-01-06T15:45:00+00:00",
+    "label_available_ts": "2026-01-06T15:50:00+00:00",
+    "session_label": "RTH",
+    "session_segment": "close",
+    "volatility_bucket": "high",
+    "spread_bucket": "wide",
+    "liquidity_bucket": "thin",
+    "trend_state": "range",
+    "factor_value": -0.7,
+    "label_value": -0.05
+  }
+]

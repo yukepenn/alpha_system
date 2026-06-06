@@ -1,0 +1,33 @@
+{
+  "schema": "alpha_system.runtime.diagnostics.splits.session_windows.v1",
+  "description": "Synthetic-safe session metadata used by RT-P09 tests.",
+  "rth": {
+    "field": "session_label",
+    "start": "09:30",
+    "end": "16:00",
+    "buckets": ["RTH", "ETH"]
+  },
+  "segments": [
+    {
+      "name": "open",
+      "field": "session_segment",
+      "start": "09:30",
+      "end": "10:30"
+    },
+    {
+      "name": "mid",
+      "field": "session_segment",
+      "start": "10:30",
+      "end": "15:00"
+    },
+    {
+      "name": "close",
+      "field": "session_segment",
+      "start": "15:00",
+      "end": "16:00"
+    }
+  ],
+  "conditioning_time_reference": "available_ts",
+  "label_outcome_guard": "label_available_ts",
+  "descriptive_only": true
+}
