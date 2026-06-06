@@ -8,16 +8,10 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-core-contracts gate through `AGENT-P06` (Research Queue and Work Item
-Contracts) of `AGENT-P00` through `AGENT-P25`; the parallel `agent_roles` wave
-is advancing, and `AGENT-P08` adds the Hypothesis Scout role contract. Active /
-next work is the remaining wave-1 role contracts (`AGENT-P07`, `AGENT-P09`
-through `AGENT-P15`) and the later `AGENT-P16` integration through the serial
-merge queue.
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed `AGENT-P07`
-(Research Director Role Contract) of `AGENT-P00` through `AGENT-P25`; the
-`agent_roles` parallel wave has started. The next phase is `AGENT-P08`
-(Hypothesis Scout Role Contract), continuing the parallel role-contract wave.
+core-contracts gate through `AGENT-P06` and the `agent_roles` wave is advancing
+through `AGENT-P11` (Feature Engineer and Label Engineer Role Contracts). Active
+/ next work remains the coordinator-selected sibling role contracts and the
+later `AGENT-P16` integration through the serial merge queue.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -115,6 +109,23 @@ roles, and sets budgets within queue policy. It registers additively through the
 role registry and its callable tools match the permission matrix grant:
 `queue.scope_task`, `queue.assign_roles`, and `queue.set_budget`. It performs no
 alpha search, no diagnostics, no implementation, no promotion, and no review.
+
+`AGENT-P11` adds the contracts-only Feature Engineer and Label Engineer role
+contracts:
+
+- `alpha_system.agent_factory.roles.feature_engineer`
+- `alpha_system.agent_factory.roles.label_engineer`
+- `docs/agent_factory/roles/feature_engineer.md`
+- `docs/agent_factory/roles/label_engineer.md`
+- `templates/agent_factory/roles/feature_engineer.md`
+- `templates/agent_factory/roles/label_engineer.md`
+
+These roles reference approved seed FeaturePack/LabelPack refs or draft bounded
+`FeatureRequest` / `LabelSpec` refs only. They consume existing governance,
+registry, permission, and tool-result primitives; they do not edit those
+primitives, instantiate agents, materialize values, bypass accepted
+DatasetVersion policy, read raw/provider data, call external providers, perform
+broker/paper/live actions, self-review, promote, or make alpha claims.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
