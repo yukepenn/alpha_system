@@ -4,13 +4,19 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1`
 Workflow: `workflow2`
-Run: `none`
-Status: `not_started`
+Run: `complete`
+Status: `complete_with_warnings`
 
-Current phase: `FLF-P00` - Feature/Label Campaign Bootstrap
-Last completed phase: `none`
-Last completed status: `none`
-Passing phases: `0/32`
+Current phase: `none` - campaign complete
+Last completed phase: `FLF-P31` - Workflow 2 Acceptance Audit and Closeout
+Last completed status: `COMPLETE_WITH_WARNINGS`
+Passing phases: `32/32`
+
+Closeout: `campaigns/ALPHA_FEATURE_LABEL_FOUNDATION_V1/CLOSEOUT.md` (verdict
+`COMPLETE_WITH_WARNINGS`, HEAD `9b2a0b3` + this closeout). No next campaign is
+selected; a future separately-authorized campaign
+(`ALPHA_AGENT_FACTORY_MVP` / `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`) may consume the
+completed Feature/Label substrate under its own contract.
 
 Ralph updates this pointer through reviewed phase commits so the tracked repo stays clean after Workflow 2 stops. In `dag_wave` parallel mode this pointer is **coordinator-owned** and is never written by a phase branch.
 
@@ -60,4 +66,7 @@ Out of scope: broker/live/paper trading, order routing, account trading, externa
 
 A `runs/<run_id>/STOP` file is an active stop request; Ralph checks it before phase selection, execution, checks, review, PR, CI, merge gate, merge, done-check, and next-phase. Resume continues from recorded run state rather than regenerating completed work. In parallel mode a wave builds concurrently in isolated worktrees but merges serially; a STOP halts new phase selection and new merges.
 
-Note: Campaign contract generated; not yet started. This file is the projected `not_started` pointer.
+Note: Campaign complete with warnings. All 32 phases (`FLF-P00`–`FLF-P31`) are
+accounted for; `FLF-P00`–`FLF-P30` merged (PRs #112–#144) and `FLF-P31` closed out
+with verdict `COMPLETE_WITH_WARNINGS`. This coordinator-owned pointer reflects the
+final state.
