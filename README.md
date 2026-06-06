@@ -8,6 +8,15 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
+RT-P23 Runtime Reports, Docs, and Templates snapshot, RT-P23 of RT-P00...RT-P26
+is complete in the `tests_tools_docs` gate. RT-P23 adds the
+`RuntimeReportCard` Markdown renderer plus report-card docs, templates, and
+tiny rendered scaffolds for already-produced value-free runtime contracts.
+Active/next remains Ralph-owned in the parallel tests/tools/docs wave: RT-P20,
+RT-P22, and RT-P23 build in isolated branches and merge serially; RT-P21 is the
+next dependency-gated phase after that wave lands. Ralph remains responsible for
+validation, review, merge queue handling, and next-phase selection; phase
+branches do not update `ACTIVE_CAMPAIGN.md` in parallel mode.
 RT-P22 Agent-Facing Tool Result Contracts snapshot, progress records the RT-P19
 baseline plus RT-P22 now merged in the parallel `tests_tools_docs` wave. RT-P22
 adds value-free `RuntimeToolResult` and `RuntimeRunSummary` contracts for future
@@ -35,6 +44,10 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.diagnostics.cross_market`,
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
+`alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`,
+`alpha_system.runtime.handoff`, and `alpha_system.runtime.reports`, plus
+`alpha_system.runtime.cache_policy` and `alpha_system.runtime.artifact_policy`.
+RT-P18 adds
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
 `alpha_system.runtime.handoff`, plus `alpha_system.runtime.cache_policy`,
 `alpha_system.runtime.artifact_policy`, and
@@ -45,6 +58,10 @@ Durable Research Runtime modules currently include
 `build-evidence-draft`, `build-reference-handoff`, `summarize`, `inspect`, and
 `replay-summary`. RT-P19 adds value-free cache lineage keys, hit/miss/stale
 metadata decisions, local-only storage-root resolution, and reusable
+commit-eligible-vs-local-only artifact classification. RT-P23 adds report-card
+rendering only; it consumes existing structured outputs and does not duplicate
+runtime logic. The CLI is an orchestration layer only; it does not duplicate
+runtime logic.
 commit-eligible-vs-local-only artifact classification. The CLI is an
 orchestration layer only; it does not duplicate runtime logic. RT-P22 adds the
 agent-facing `RuntimeToolResult` / `RuntimeRunSummary` structured-output
@@ -79,6 +96,9 @@ Durable runtime documentation:
 - `docs/research_runtime/REFERENCE_HANDOFF.md`
 - `docs/research_runtime/CLI.md`
 - `docs/research_runtime/CACHE_AND_ARTIFACTS.md`
+- `docs/research_runtime/REPORTS.md`
+- `docs/research_runtime/templates/`
+- `docs/research_runtime/report_cards/`
 - `docs/research_runtime/TOOL_RESULTS.md`
 - `docs/research_runtime/FIXTURES.md`
 - `docs/research_runtime/TESTING.md`
