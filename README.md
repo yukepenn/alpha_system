@@ -5,16 +5,27 @@ an Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
 The repository-level campaign pointer targets
 `ALPHA_RESEARCH_RUNTIME_MVP`. Campaign state is tracked in
-`ACTIVE_CAMPAIGN.md`.
+`ACTIVE_CAMPAIGN.md`, which is coordinator-owned.
 
-`ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P25 End-to-End Runtime Dry Run snapshot, the closeout wave has reached
-RT-P25 and the dry-run orchestration work is complete in the working tree;
-Ralph still owns validation, review, merge queue handling, and next-phase
-selection. The active/next phase is RT-P26 Acceptance Audit and Closeout.
+`ALPHA_RESEARCH_RUNTIME_MVP` is **complete (`COMPLETE_WITH_WARNINGS`)**. All 27
+phases (`RT-P00` through `RT-P26`) are merged to `main` (PRs #150–#176 plus the
+coordinator closeout), 27 independent Claude Opus review records are committed
+under `reviews/ALPHA_RESEARCH_RUNTIME_MVP/**`, and `tools/verify.py --all`
+passes clean (`2439 passed`). RT-P26's executor truthfully returned `BLOCKED`
+for coordinator-owned items (reviewer records + full validation, which the
+executor's git-command restrictions prevented it from producing); the
+coordinator has since resolved them — see
+`campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md` for the full resolution and
+warning record. This is an MVP scaffold of the executable research-loop layer:
+not validated alpha, not a strategy/candidate, not Reference truth, not
+production-ready.
 
-RT-P25 adds `alpha_system.runtime.dry_run` and
-`docs/research_runtime/E2E_DRY_RUN.md`. The dry run sequences the existing
+RT-P26 adds `docs/research_runtime/ACCEPTANCE_AUDIT.md` and
+`campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`. The audit records the six
+acceptance gates and the semantic done-check evidence. The closeout frames
+Agent Factory readiness as conditional and non-promotional. RT-P25 adds
+`alpha_system.runtime.dry_run`
+and `docs/research_runtime/E2E_DRY_RUN.md`; the dry run sequences the existing
 runtime contracts over tiny synthetic fixtures and emits value-free
 `RuntimeToolResult` / `RuntimeRunSummary` objects with the next required gate
 still set to `REFERENCE_VALIDATION_REQUIRED`.
@@ -90,6 +101,8 @@ Durable runtime documentation:
 - `docs/research_runtime/REAL_SMOKE.md`
 - `docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md`
 - `docs/research_runtime/E2E_DRY_RUN.md`
+- `docs/research_runtime/ACCEPTANCE_AUDIT.md`
+- `campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -99,12 +112,13 @@ windows; no same-bar optimistic signal-probe fills; no locked-test use without
 governance contamination metadata; failed, inconclusive, and blocked runs stay
 visible through structured reasons; no broker, live, paper, order, or account
 scope; no alpha, tradability, profitability, strategy, backtest, portfolio, or
-production-readiness claim. RT-P25 is synthetic-fixture-only orchestration; it
-does not change consumed primitive packages, scheduler code, campaign
-contracts, data access, broker/live/paper scope, or the merge queue. The
-Research Runtime campaign is the executable research loop layer over the
-completed Feature/Label substrate; it is not Agent Factory, alpha search,
-factor promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
+production-readiness claim. RT-P25 is synthetic-fixture-only orchestration and
+RT-P26 is documentation/verification-only closeout; neither changes consumed
+primitive packages, scheduler code, campaign contracts, data access,
+broker/live/paper scope, or the merge queue. The Research Runtime campaign is
+the executable research loop layer over the completed Feature/Label substrate;
+it is not Agent Factory, alpha search, factor promotion, Strategy Reference
+Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean

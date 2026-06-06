@@ -1,0 +1,32 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/runtime/evidence/{__init__.py,draft.py}`",
+    "`tests/unit/runtime/evidence/test_evidence_draft.py`",
+    "`docs/research_runtime/EVIDENCE_DRAFT.md`",
+    "`README.md`",
+    "`handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P16.md`",
+    "**Not a candidate / not promotion**: hard-coded flags `not_a_candidate`, `not_reference_truth`, `not_finalized_evidence_bundle`, `promotion_basis_allowed=False` on the object, the diagnostics summary, and every section. \u2714",
+    "**Terminal-state visibility**: `_coerce_decision` carries `REJECTED/INCONCLUSIVE/BLOCKED` with their `RejectionReasonRecord`s; a forward state never overwrites a terminal one; `_decision_only_section` guarantees a visibility section. \u2714",
+    "**No raw/heavy data**: `_checked_key` rejects value-bearing key tokens (`values`, `rows`, `series`, `array`, `dataframe`, \u2026) and `_pruned_json_value` permits only JSON scalar/summary metadata, raising on arbitrary objects. \u2714",
+    "**Cost discipline**: forward `EVIDENCE_DRAFT_READY` requires a cost report, a no-lookahead result, and a diagnostics report; `_cost_section` enforces `base`+`double_cost` profiles, `slippage_labeled_proxy is True`, and rejects any `promotion_basis_allowed` profile. A referenced `SignalProbeReport` must match the supplied cost report. \u2714",
+    "**No-claims guard**: `_required_text` fails closed on promotional phrases (`profitable`, `tradable`, `alpha validated`, `production-ready`, \u2026) and on vague placeholders, applied to all text fields. \u2714",
+    "No prohibited MVP state token appears (handoff `rg` returned no match; confirmed in source). No external provider/file readers in the subpackage. \u2714"
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T07:41:26Z",
+  "phase_id": "RT-P16",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P16/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

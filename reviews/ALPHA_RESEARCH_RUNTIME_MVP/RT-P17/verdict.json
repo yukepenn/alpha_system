@@ -1,0 +1,18 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T08:02:19Z",
+  "phase_id": "RT-P17",
+  "raw_review_path": null,
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "none",
+  "source": "done_check_warning",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": []
+}

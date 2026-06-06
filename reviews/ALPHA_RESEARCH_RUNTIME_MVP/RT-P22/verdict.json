@@ -1,0 +1,29 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**Allowed paths only.** `git status --short` shows exactly five touched files: `README.md`, `docs/research_runtime/TOOL_RESULTS.md`, `handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P22.md`, `src/alpha_system/runtime/tool_results.py`, `tests/unit/runtime/test_tool_results.py`. No `configs/runtime/tool_results/**` (correctly omitted \u2014 the spec made it conditional).",
+    "**No forbidden/shared files touched.** No `runtime/diagnostics/{__init__,contracts,report}.py`, no `cli/main.py`, no `ACTIVE_CAMPAIGN.md`. Parallel-wave disjointness holds. Consumed primitives (`governance.*`, `diagnostics.*`, `cost.*`, `decisions.*`, `contracts.*`) are **imported, never edited** \u2014 consistent with `forbidden_paths` \"consume only.\"",
+    "**Consumes, does not duplicate.** `RuntimeVersionIds.from_manifest`, `RuntimeDiagnosticsSummary.from_reports`, `RuntimeCostSummary.from_cost_report`, `from_study_run_record` all read existing contracts by real import paths and re-derive nothing.",
+    "**No raw/heavy data.** Defense is layered and genuine: `FORBIDDEN_DATA_FIELD_TOKENS`, `HEAVY_ARTIFACT_TOKENS`, `FORBIDDEN_DATA_PATH_PREFIXES` are enforced on keys, text, and artifact locations; summary mappings are restricted to JSON scalars; `_reject_extra_keys` closes every mapping; artifacts normalize to `{artifact_id, location, content_hash}` only. Tests assert rejection of value arrays, provider payloads, `.parquet`, `data/raw/...` version ids, and non-contract fields.",
+    "**No prohibited MVP state representable.** `status` is the closed `RuntimeDecisionState` enum; `_coerce_string_decision_state` raises on all nine prohibited values; the enum omits them entirely. Test parametrizes every prohibited value and asserts unrepresentability.",
+    "**No autonomous agent.** Module is pure dataclasses/coercion \u2014 no loop, runner, scheduler, provider, or network. Docs state the \"prepares tool surfaces without creating any agent\" framing.",
+    "**No promotional claims.** `PROMOTIONAL_CLAIM_PHRASES` rejects alpha/tradable/profitable/etc. in any text field; docs carry explicit non-promotional / fast-path-is-not-Reference-truth language; terminal states require matching visible `RejectionReasonRecord`s (fail-closed, no hidden outcomes). `DIAGNOSTICS_FAILED` correctly coerces to `REJECTED`.",
+    "`git ls-files runs` is **empty**; no `runs/**` path staged. No data/DB/cache/heavy/log path in the curated list. `forbidden_*` canaries all PASS; `forbidden_test_tamper` PASS confirms no test weakening (the change only adds tests). README snapshot is factual, compact, and reaffirms unchanged safety boundaries."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T09:01:25Z",
+  "phase_id": "RT-P22",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P22/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

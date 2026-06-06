@@ -1,0 +1,25 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_RESEARCH_RUNTIME_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`artifact_policy.py` is a pure classification surface \u2014 fail-closed: `commit_allowed = not reasons` (any negative signal \u2192 `local_only`). Forbidden path prefixes include `runs/`, `artifacts/`, `cache/`, `data/{raw,canonical,factors,labels,cache}/`, `metadata/`, `logs/`, `$alpha_data_root/`; heavy suffixes and value-bearing kind tokens are classified out. No values embedded.",
+    "`cache_policy.py` is metadata-only (no payload reads, no directory/file creation). It **reuses** `governance.serialization.content_hash` rather than reimplementing a primitive \u2014 correct consume-don't-duplicate posture. `resolve_storage_root` rejects any non-`runs/**` root that resolves inside the repo tree.",
+    "`git ls-files runs` \u2192 empty. Staged set is exactly the 7 curated paths; no `runs/`, heavy, DB, or data path staged.",
+    "`just frontier-doctor` passed; `just verify-canaries` \u2192 all 16 canaries PASS (including `forbidden_cache_data_commit`, `forbidden_local_artifacts`, `forbidden_scope_drift`, `forbidden_raw_data_commit`)."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T08:45:23Z",
+  "phase_id": "RT-P19",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP/phases/RT-P19/repair_attempts/001/repair_review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T031044Z_ALPHA_RESEARCH_RUNTIME_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "repair_review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}
