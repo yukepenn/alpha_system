@@ -8,12 +8,11 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P17 Reference Candidate Handoff Builder snapshot, progress is 18/27 phases
-through RT-P17 in the `runtime_integration` gate. RT-P17 adds the
-`ReferenceCandidateHandoff` builder that assembles a conservative,
-reference-only package for a future, separately authorized Reference validation
-step. Active/next: active phase `RT-P17` - Reference Candidate Handoff Builder;
-next phase `RT-P18` - Runtime CLI / Tool Surface. Ralph remains responsible for
+RT-P18 Runtime CLI / Tool Surface snapshot, progress is 19/27 phases through
+RT-P18 in the `runtime_integration` gate. RT-P18 adds the additive
+`alpha runtime` CLI group as the local command surface over existing runtime
+contracts and builders. Active/next: `RT-P18` done; next phase `RT-P19` -
+Runtime Cache and Local Artifact Policy. Ralph remains responsible for
 validation, review, merge queue handling, and next-phase selection; phase
 branches do not update `ACTIVE_CAMPAIGN.md` in parallel mode.
 
@@ -27,11 +26,12 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
-`alpha_system.runtime.handoff`. RT-P17 adds the `ReferenceCandidateHandoff`
-builder, durable Reference handoff documentation, and synthetic tests for ready
-handoffs, fail-closed cost/audit preconditions, visible terminal reasons, and
-non-promotional scope boundaries. No `alpha runtime` CLI surface is added in
-RT-P17; that CLI remains scoped to RT-P18.
+`alpha_system.runtime.handoff`. RT-P18 adds `alpha_system.cli.runtime` and the
+`alpha runtime` commands: `plan`, `validate-inputs`, `run-diagnostics`,
+`run-label-diagnostics`, `run-signal-probe`, `run-cost-stress`,
+`build-evidence-draft`, `build-reference-handoff`, `summarize`, `inspect`, and
+`replay-summary`. The CLI is an orchestration layer only; it does not duplicate
+runtime logic.
 
 Durable runtime documentation:
 
@@ -54,6 +54,7 @@ Durable runtime documentation:
 - `docs/research_runtime/DECISION_STATES.md`
 - `docs/research_runtime/EVIDENCE_DRAFT.md`
 - `docs/research_runtime/REFERENCE_HANDOFF.md`
+- `docs/research_runtime/CLI.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -69,9 +70,12 @@ profitability, strategy, backtest, portfolio, or production-readiness claim. The
 validation, not Reference truth, and not alpha/tradability/profitability. A
 `ReferenceCandidateHandoff` is a handoff only, not Reference validation, not
 Reference truth, not strategy validation, and not a promotional or trading
-claim. The Research Runtime campaign is the executable research loop layer over
-the completed Feature/Label substrate; it is not Agent Factory, alpha search,
-factor promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
+claim. The `alpha runtime` CLI remains local-only and CI-safe: help and
+argument-validation paths perform no provider, network, broker, live, paper, or
+heavy work. The Research Runtime campaign is the executable research loop layer
+over the completed Feature/Label substrate; it is not Agent Factory, alpha
+search, factor promotion, Strategy Reference Validation, or a Portfolio
+AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
