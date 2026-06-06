@@ -8,9 +8,10 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P06 Diagnostics Report Contracts snapshot, progress is `RT-P06` complete /
-`7 of 27`; the active next phase is `RT-P07` - Factor Diagnostics Runtime, the
-first phase of the parallel diagnostics wave W1. The campaign now has the
+RT-P09 Session / Regime / RTH / ETH Split Diagnostics snapshot, progress is in
+the Wave 1 diagnostics fan-out (`RT-P07` through `RT-P11`) after the merged
+RT-P06 shared diagnostics contracts. Ralph remains responsible for validation,
+review, merge queue handling, and next-phase selection. The campaign now has the
 durable runtime entry contract module `alpha_system.runtime.entry_contract`,
 the importable `alpha_system.runtime` package skeleton for later runtime
 phases, the input resolver module `alpha_system.runtime.input_resolver`
@@ -21,7 +22,10 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 (`RuntimeArtifactManifest`), and the shared diagnostics contracts package
 `alpha_system.runtime.diagnostics` with `contracts` (`DiagnosticsRunSpec`,
 `DiagnosticsRunRecord`) and `report` (the descriptive report shape and
-`DiagnosticsQualityGate`). Durable runtime documentation:
+`DiagnosticsQualityGate`). RT-P09 adds the split diagnostics module
+`alpha_system.runtime.diagnostics.splits`, synthetic-safe split config templates
+under `configs/runtime/diagnostics/splits/`, and durable split diagnostics
+documentation. Durable runtime documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
@@ -31,10 +35,10 @@ package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 - `docs/research_runtime/RUN_SPEC_AND_PLAN.md`
 - `docs/research_runtime/RUN_RECORD_AND_MANIFEST.md`
 - `docs/research_runtime/DIAGNOSTICS_CONTRACTS.md`
+- `docs/research_runtime/diagnostics/splits.md`
 
-`configs/runtime/` remains the future runtime configuration home. No
-`alpha runtime` command surface is added in RT-P06; that CLI remains scoped to
-RT-P18.
+No `alpha runtime` command surface is added in RT-P09; that CLI remains scoped
+to RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider

@@ -1,0 +1,33 @@
+{
+  "schema": "alpha_system.runtime.diagnostics.splits.regime_buckets.v1",
+  "description": "Synthetic-safe descriptive regime split bucket names.",
+  "families": [
+    {
+      "family": "volatility",
+      "field": "volatility_bucket",
+      "buckets": ["low", "high"],
+      "threshold_ref": "synthetic_low_high_bucket_definition"
+    },
+    {
+      "family": "spread",
+      "field": "spread_bucket",
+      "buckets": ["narrow", "wide"],
+      "threshold_ref": "synthetic_narrow_wide_bucket_definition"
+    },
+    {
+      "family": "liquidity",
+      "field": "liquidity_bucket",
+      "buckets": ["thin", "thick"],
+      "threshold_ref": "synthetic_thin_thick_bucket_definition"
+    },
+    {
+      "family": "trend",
+      "field": "trend_state",
+      "buckets": ["trend", "range"],
+      "threshold_ref": "synthetic_trend_range_state_definition"
+    }
+  ],
+  "conditioning_time_reference": "available_ts",
+  "label_outcome_guard": "label_available_ts",
+  "descriptive_only": true
+}
