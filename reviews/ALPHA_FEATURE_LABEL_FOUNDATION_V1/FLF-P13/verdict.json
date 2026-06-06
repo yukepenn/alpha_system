@@ -1,0 +1,28 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**Accepted-DatasetVersion-only:** `resolve_feature_materialization_dataset` delegates to `consumption.resolve_accepted_dataset_version`; the unit test monkeypatches `consumption.resolve_dataset_version` and asserts the adapter is the resolution path. No raw provider readers \u2014 confirmed `consumption.py` is the sole data entry and the engine imports only contracts/families/input_views/semantics/consumption.",
+    "**Fail-closed on unvalidated specs:** `_validate_materializable_feature_spec` rejects non-`implementation_eligible` specs, non-causal/non-live-compatible windows, and `available_ts` rules not derived from `available_ts`. `_definitions_by_feature_id` additionally requires each definition's request-gate decision to allow implementation and the FeatureVersion to match. Verified `implementation_eligible`, `live`, `window.is_live_compatible`, and `derive_feature_version` exist on `FeatureSpec`.",
+    "**Locked-partition governance:** routed through `accepted_version.require_partition_access(...)` \u2192 `require_governance_metadata_for_locked_partition_use`; the unit test confirms a `locked_test_candidate` partition raises without contamination metadata and succeeds with it.",
+    "**available_ts on every value:** `_validate_materialized_records` requires tz-aware `event_ts`/`available_ts` on every record and `available_ts >= event_ts`; the integration test asserts every emitted value line carries `available_ts`.",
+    "**BBO / no-trade semantics:** dense-grid rows pass through `is_synthetic_no_trade_bar`; synthetic rows lacking the canonical no-trade signature are rejected; no forward-fill introduced.",
+    "**Output containment:** `_alpha_data_root` rejects a root equal to or under the repo tree; `_require_under_root` enforces every write stays under `$ALPHA_DATA_ROOT`. The unit test confirms `Path.cwd()/data` is refused.",
+    "**Idempotency/determinism:** content-hashed `plan_id`/`idempotency_key`, atomic temp-file replace, no-op rewrite when content is unchanged (integration test asserts `wrote_output` flips to `False` on second run)."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T19:44:36Z",
+  "phase_id": "FLF-P13",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P13/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

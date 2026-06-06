@@ -43,14 +43,34 @@ def test_import_requires_no_local_data_network_or_credentials(
     for name in CREDENTIAL_ENV_NAMES:
         monkeypatch.delenv(name, raising=False)
     _forbid_network(monkeypatch)
+
+    # Snapshot the loaded alpha_system modules so clearing them for a clean
+    # re-import does not leak freshly-imported class objects into later tests.
+    # Without restoring, a class re-imported here (e.g. governance FeatureRequest)
+    # is a different object than the one other test modules imported at import
+    # time, which breaks their isinstance checks suite-wide.
+    saved = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "alpha_system" or name.startswith("alpha_system.")
+    }
     _clear_alpha_system_modules()
+    try:
+        assert not Path("data").exists()
+        assert not Path("metadata").exists()
 
-    assert not Path("data").exists()
-    assert not Path("metadata").exists()
+        module = importlib.import_module("alpha_system")
 
-    module = importlib.import_module("alpha_system")
-
-    assert module.__name__ == "alpha_system"
+        assert module.__name__ == "alpha_system"
+    finally:
+        # Drop anything freshly imported during this test and restore originals.
+        for name in [
+            name
+            for name in sys.modules
+            if name == "alpha_system" or name.startswith("alpha_system.")
+        ]:
+            del sys.modules[name]
+        sys.modules.update(saved)
 
 
 def test_cli_help_requires_no_local_data_network_or_credentials(

@@ -1,0 +1,32 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**Changed files** (`git status`): only `src/alpha_system/features/primitives/**`, the two test files, `docs/feature_label_foundation/PRIMITIVES.md`, `README.md`, and the commit-eligible handoff. Exactly the Allowed Paths; nothing outside.",
+    "**Governance consumed, not duplicated (R-022):** `contracts.py`, `semantics.py`, `input_views.py`, and all governance modules are **unmodified**. FLF-P06 `TransformSpec`/`WindowSpec`/`NormalizationSpec` and FLF-P04 `is_real_trade_bar`/`has_missing_or_abnormal_bbo` are imported and reused.",
+    "**No `ACTIVE_CAMPAIGN.md` write** (coordinator-only, dag_wave) \u2014 confirmed.",
+    "**Artifact policy clean:** `git ls-files runs` empty; no `runs/` path staged; no heavy/DB/raw-data artifacts; explicit staging left to Ralph.",
+    "**No forbidden scope:** no broker/live/paper/order/account, no strategy/backtest/portfolio, no external provider calls, no materialization. README claim-scan shows only pre-existing disclaimers and module names \u2014 **no new alpha/tradability claims**.",
+    "`_ordered_points` sorts strictly by `(available_ts, original_index)`; `_causal_window_points` slices `points[start : index+1]` \u2014 **trailing-only**, never reaching forward. `source_available_ts` is asserted \u2264 output `available_ts` in tests.",
+    "The no-lookahead suite proves the strong property: a late-`available_ts` value (event_ts in the past) does **not** alter any earlier output (`test_late_available_future_value_cannot_change_prior_outputs`), and ordering uses `available_ts` not `event_ts`.",
+    "**Offline isolation is structural and double-layered:** `_require_live_window_spec` fails closed on `centered`/`future`/`offline_only` windows (raising `PrimitiveSpecError`), offline helpers live in a separate `primitives.offline` module that is **not exported from the package root** (`assert not hasattr(primitives, \"offline_future_mean\")`), and the FLF-P06 `FeatureSpec` independently rejects a live feature bound to such a window (`FeatureContractError`). A live feature cannot reach a centered/future window through any public entry point.",
+    "`points_from_trade_rows`/`bars_from_trade_rows` emit no-trade rows as gaps (value `None` + `no_trade` flag), never as trade bars.",
+    "`points_from_bbo_rows` surfaces missing/quarantined BBO as gaps \u2014 **no silent forward-fill**.",
+    "`_rolling_reduce` propagates `input_gap` rather than imputing when any window member is a gap; session-reset paths block cross-session windows."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T16:41:54Z",
+  "phase_id": "FLF-P07",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P07/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

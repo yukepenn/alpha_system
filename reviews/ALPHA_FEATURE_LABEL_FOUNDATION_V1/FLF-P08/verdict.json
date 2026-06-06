@@ -1,0 +1,29 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "`git status --short` shows only `README.md` modified plus untracked `configs/features/families/`, `docs/feature_label_foundation/features/`, `handoffs/.../FLF-P08.md`, `src/.../families/ohlcv/`, `tests/.../families/`. No shared-core, cross-family, label, governance, broker/live/paper, data, or `ACTIVE_CAMPAIGN.md` edits.",
+    "`git ls-files runs` \u2192 empty. No `runs/` path staged or present. No data/DB/heavy/provider artifacts (only stray `__pycache__` `.pyc`, which are ignored, not committed).",
+    "Validation output: `just frontier-doctor` exit 0; `just verify-canaries` all 16+ canaries PASS (including `forbidden_scope_drift`, `forbidden_boundary_import`, `forbidden_raw_data_commit`, `governance_future_shift`, `governance_permuted_labels`).",
+    "`_require_definition` rejects non-eligible specs, gate-denied decisions, version mismatches, and non-causal windows.",
+    "`available_ts` carried on every `FeatureValueRecord`; rows sorted by `available_ts`; window state restricted to `available_ts <= t`.",
+    "No-trade rows (`is_real_trade_bar`) excluded from return/range/volume/VWAP/trend logic, emitting `None` + `no_trade`/`ohlcv_gap` flags rather than fills.",
+    "Future/centered live windows rejected at `FeatureSpec` construction (`contracts.py:344` \u2014 test asserts `match=\"live FeatureSpec\"`).",
+    "Negative-path tests cover missing `available_ts`, absent/pending `FeatureRequest`, and future/centered windows."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T16:56:23Z",
+  "phase_id": "FLF-P08",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P08/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

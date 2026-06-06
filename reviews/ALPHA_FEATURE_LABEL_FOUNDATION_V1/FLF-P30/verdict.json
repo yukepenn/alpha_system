@@ -1,0 +1,33 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**No `src/**` change, no governance edit.** `git diff --name-only HEAD` shows only `README.md`; the five forbidden governance modules (`study_spec.py`, `feature_request.py`, `label_spec.py`, `duplicate_exposure.py`, `label_leakage_guard.py`) are imported and *consumed*, never modified. \u2705",
+    "**`git ls-files runs` empty**; no `runs/` path in the working set; no `.parquet/.sqlite/.dbn/.zst`/heavy artifact staged. Frontier canaries all PASS (incl. `forbidden_raw_data_commit`, `forbidden_scope_drift`, `governance_future_shift`, `governance_permuted_labels`, `governance_optimistic_fill`). \u2705",
+    "**No `ACTIVE_CAMPAIGN.md` write** (run-alone closeout, coordinator-only). \u2705",
+    "**No raw-provider access / accepted-DatasetVersion-only:** dataset resolved via `consumption.resolve_accepted_dataset_version` against a local sqlite built in `tmp_path`; no Databento/IBKR client import or network call. \u2705",
+    "**`available_ts` / `label_available_ts` presence & ordering:** asserted tz-aware and `available_ts >= event_ts` (181\u2013182), `label_available_ts >= horizon_end_ts` (267\u2013270). \u2705",
+    "**No label-as-feature; leakage audit clean:** `check_label_leakage` + `audit_registered_label` both asserted CLEAN with availability-respecting feature refs (293\u2013301). \u2705",
+    "**BBO missingness / quarantine, no silent forward-fill:** `missing_bbo` and `bbo_quarantined` records asserted to carry `value is None` (197\u2013200); quality reports assert nonzero missing/quarantined counts (239\u2013240). \u2705",
+    "**Synthetic no-trade row never treated as a trade:** `has_trade=False`, `synthetic=True`, `no_trade`, zero volume asserted (208, `_synthetic_no_trade_rows`). \u2705",
+    "**StudySpec Input Pack additive:** built via `create_study_input_pack` / `validate_study_input_pack_references`; StudySpec schema untouched. \u2705",
+    "**Prohibited MVP states unreachable:** `PROHIBITED_FEATURE_REGISTRY_STATES` / `PROHIBITED_LABEL_REGISTRY_STATES` asserted disjoint from the actual lifecycle enums (241\u2013243, 307\u2013309). \u2705",
+    "**No repo-tree writes:** outputs asserted relative to the temp `ALPHA_DATA_ROOT`, plus an explicit assertion that nothing materialized under `cwd` (474\u2013482). \u2705",
+    "**No alpha/tradability/profitability/broker/live/paper claim:** doc and handoff both carry explicit disclaimers; no such scope anywhere. \u2705"
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T00:00:41Z",
+  "phase_id": "FLF-P30",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P30/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

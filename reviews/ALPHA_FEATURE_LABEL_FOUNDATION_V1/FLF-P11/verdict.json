@@ -1,0 +1,35 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**Disjoint paths, additive only.** Working tree contains exactly: `src/.../families/cross_market/{__init__.py,family.py}`, `tests/unit/.../cross_market/`, `docs/.../cross_market.md`, `configs/.../cross_market/README.md`, the commit-eligible handoff, and `README.md`. Nothing else.",
+    "**No shared-core / governance / label / other-family edits.** Explicit `git status` over every forbidden path (`contracts.py`, `consumption.py`, `input_views.py`, `semantics.py`, `request_gate.py`, `primitives/`, `engine/`, `store.py`, `registry.py`, `features/__init__.py`, `features/families/__init__.py`, `governance/`, `labels/`, `ACTIVE_CAMPAIGN.md`) returns empty. No other family under `families/` touched. (R-027 clean.)",
+    "**`ACTIVE_CAMPAIGN.md` not written** by the phase branch (R-028 clean). Coordinator-owned pointer respected.",
+    "**DAG metadata correct:** parallel-safe, `must_run_alone: false`, no global/coordinator write.",
+    "**Governance consumed, not re-implemented (R-022):** the sole admission path `build_cross_market_feature_definition` calls `require_feature_request_implementation_allowed` from `request_gate`; `RegistryReader`/`FeatureRequest` imported from `governance`. Fail-closed on missing/pending/unchecked requests is unit-tested (`test_feature_request_gate_is_required_and_fail_closed`).",
+    "**`available_ts` on every value, causal alignment (R-013/R-006/R-007):** `align_cross_market_rows` builds as-of snapshots; `_latest_row_as_of` / `_latest_result_as_of` admit only `available_ts <= t` per instrument. `test_late_available_instrument_row_cannot_change_prior_cross_market_output` mutates a late-arriving NQ row and proves prior outputs are unchanged, and asserts every recorded source timestamp \u2264 output `available_ts`. Missing `available_ts` fails closed (`test_missing_available_ts_fails_closed`).",
+    "**No future/centered live windows:** `_default_window` uses `CAUSAL`; `_require_definition` rejects non-live-compatible windows; centered/future windows fail closed (`test_future_and_centered_live_windows_fail_closed`).",
+    "**No-trade / BBO semantics (R-? FLF-P04):** `no_trade` rows become return gaps (value `None` + flags), never trade bars; exact-time `missing_bbo`/`bbo_quarantined` is flagged via `bbo_quote_semantics` with no forward-fill \u2014 both unit-tested.",
+    "**Single DatasetVersion family (no Databento+IBKR merge):** `_validate_single_dataset_family` / `_validate_dataset_version_id_family` reject mixed families; tested by `test_mixed_dataset_version_families_fail_closed`.",
+    "**Feature coverage** matches the spec's required minimum (synchronized returns, NQ/RTY-minus-ES spreads, rolling beta residual, rolling correlation, confirmation/divergence flags, risk-on/off rotation proxies).",
+    "`git ls-files runs` is empty; no `runs/**` created or staged; explicit-staging discipline preserved (executor staged nothing, left for Ralph). No raw/canonical/value/DB/heavy/provider artifacts present.",
+    "No provider/file readers in family code (heuristic clean); no broker/live/paper/order/account scope.",
+    "**No alpha/tradability/profitability claims (R-016/R-017):** docs, config, README, and `contract_metadata` (`\"cross_market_structure_only_no_alpha_or_tradability_claim\"`) describe co-movement/structure substrate only. README snapshot is factual, compact, and free of run/artifact paths.",
+    "**Handoff is truthful:** it honestly records that git inspection commands were skipped per the executor prompt and that the as-written import-smoke command failed on `PYTHONPATH` (with the real package importing fine under verify/pytest). No hidden failures, no test weakening."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T18:13:39Z",
+  "phase_id": "FLF-P11",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P11/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

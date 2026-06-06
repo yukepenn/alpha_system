@@ -1,0 +1,26 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/features/consumption.py` is a genuinely thin, read-only adapter. It wraps `version_registry.resolve_dataset_version(...)` and the canonical `from_mapping` loaders only; it reads no files, imports no provider client, and materializes nothing.",
+    "Admissibility is **fail-closed**: `resolve_dataset_version` returns `None` for missing records (confirmed at `version_registry.py:180-182`) \u2192 adapter raises `DataFoundationValidationError`. Lifecycle gating delegates to the real `DatasetVersion.require_lifecycle_prerequisites(...)` (signature matches exactly, `datasets.py:2951`).",
+    "Admissible states resolve to the genuine `DATASET_VERSION_ADMISSIBLE_STATES = {\"VERSIONED\", \"READY_FOR_RESEARCH\"}` (`datasets.py:132-134`). **No prohibited MVP lifecycle state is reachable** \u2014 the prohibited states cannot enter this set.",
+    "Locked-partition use routes through the real `require_governance_metadata_for_locked_partition_use(..., plan=...)` (`datasets.py:3162`); kwarg shape matches. Non-QA locked-partition access without contamination metadata fails closed.",
+    "Databento/IBKR kept distinct: the `AcceptedDatasetVersion` handle binds exactly one provenance line, and `_require_record_data_version` enforces per-record `data_version` match. No merge path exists."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T15:12:19Z",
+  "phase_id": "FLF-P01",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P01/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

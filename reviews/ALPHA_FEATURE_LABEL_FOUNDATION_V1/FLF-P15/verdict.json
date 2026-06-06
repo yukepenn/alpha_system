@@ -1,0 +1,34 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "`git status --short` shows **exactly** the spec's Allowed Paths and nothing more: `README.md` (modified) plus six new files \u2014 `src/alpha_system/features/reports.py`, `src/alpha_system/reports/feature_card.py`, the two test files, `docs/feature_label_foundation/FEATURE_REPORTS.md`, and `handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P15.md`. No scope drift.",
+    "`git ls-files runs` is empty; no `runs/**`, DB, parquet/arrow/feather/dbn/zst, cache, or value artifacts staged or present. Working tree is left unstaged for Ralph, per executor override.",
+    "The `alpha_system/reports/` and `tests/unit/reports/` packages already exist; new files slot in cleanly. `prohibited_claims.py` is **reused, not duplicated** (R-022 honored).",
+    "**Blocking vs non-blocking partition is real and enforced** \u2014 `FeatureReportFinding` carries a `FeatureReportSeverity`, and both report `__post_init__`s reject mis-classified findings (blocking list must be blocking severity, and vice-versa).",
+    "**`available_ts` presence/consistency checked** \u2014 missing/invalid/`available_ts < event_ts` each emit dedicated **blocking** codes; registry span mismatch also blocks.",
+    "**Missing-BBO surfaced, never filled** \u2014 `missing_bbo` / `bbo_quarantined` tokens counted and emitted as **non-blocking** evidence; no silent fill.",
+    "**Coverage by symbol/session/partition** with development/validation/locked_test_candidate role mapping; undocumented gaps are **blocking**, documented gaps are **non-blocking**, and *missing expectation metadata fails closed* (`SYMBOL/SESSION_COVERAGE_EXPECTATIONS_MISSING`) \u2014 a strong fail-closed default (R-018).",
+    "**Dumping-ground / duplicate exposure surfaced** (R-001/R-005) via `duplicate_exposure_status` + `equivalent_feature_groups` in both reports and the card.",
+    "**No raw provider access** \u2014 reads only local materialized JSONL, enforces path containment under `ALPHA_DATA_ROOT` (`MATERIALIZATION_OUTPUT_OUTSIDE_ALPHA_DATA_ROOT`), rejects non-`.jsonl` formats. No re-materialization.",
+    "**No alpha/tradability/profitability claims** \u2014 the card validates both its dict and text output through `validate_no_prohibited_claims`, the docs explicitly disclaim readiness/predictive language, and a test asserts absence of claim vocabulary.",
+    "`must_run_alone` / `parallel_safe: false` respected; `ACTIVE_CAMPAIGN.md` not edited; no governance/store/registry/family/engine core edits; no broker/live/paper/deploy scope.",
+    "README snapshot is factual and compact (16/32, closes `feature_materialization`, next FLF-P16).",
+    "Independent validation block: `just frontier-doctor` PASS, all 17 Frontier canaries PASS (including scope-drift, test-tamper, artifact-policy, raw-data, boundary-import). Handoff is truthful, including the honest note that bare `python -c` fails without `PYTHONPATH=src`."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T20:21:34Z",
+  "phase_id": "FLF-P15",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P15/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}
