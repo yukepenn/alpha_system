@@ -1,0 +1,24 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "`git status --short src/alpha_system/labels/` \u2192 only `?? labels/families/`. No existing `labels/*.py` edited, moved, renamed, or re-exported. \u2705",
+    "`git status --short src/alpha_system/governance/` \u2192 empty. Governance consumed, not duplicated (R-022). \u2705",
+    "`features/__init__.py` and `features/consumption.py` (FLF-P01 surface) \u2192 unchanged. \u2705"
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T15:24:06Z",
+  "phase_id": "FLF-P02",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P02/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

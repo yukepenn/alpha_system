@@ -1,0 +1,34 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**Additive, consume-only.** The module imports and calls the existing public governance API (`validate_governance_id`, `prefix_for_kind`, `GovernanceIdKind`, `validate_schema`, `require_mapping`, and the public `validate_*` constructors for `FeatureRequest`/`LabelSpec`/`AlphaSpec`/`StudySpec`). I confirmed each symbol exists in `governance/ids.py` and `governance/validation.py`, and that `validate_schema`'s signature matches the call site. No id parsing or prefix table is re-implemented.",
+    "**No governance edits / no schema change.** `git diff --name-only HEAD` shows only `README.md` tracked as modified; all other deliverables are new untracked files. No existing governance module is touched. `StudySpec` schema is unchanged; the dedicated test `test_study_input_pack_does_not_mutate_study_spec_schema_or_private_helpers` asserts this and that no private (`_`-prefixed) symbols are imported across the boundary. **R-022 satisfied.**",
+    "**No StudySpec construction/persistence.** The pack is handle-only; `validate_study_input_pack_references` cross-checks *caller-resolved* records without registry lookup or mutation.",
+    "**Fail-closed coverage** is comprehensive: malformed / wrong-prefix / unknown-prefix handles, empty lists, duplicates, empty/vague/null/non-serializable `dataset_scope`, and resolved-record mismatches all raise `GovernanceValidationError`. Tests parametrize each negative path with the expected error code.",
+    "No broker, live, paper, order-routing, account, strategy, backtest, or portfolio scope. No provider imports (Databento/IBKR). No destructive ops, no PR/merge actions by the executor.",
+    "Doc (`governance_integration.md`) and config README use explicit no-claims language per `RESEARCH_INTERPRETATION_POLICY.md`; no alpha/tradability/profitability claims. Synthetic config uses placeholder handles (`aspec_000\u20260003`) and \"not market data\" metadata only.",
+    "README snapshot is factual and compact, reflects FLF-P27 progress and the FLF-P28 pointer, and adds no run details or claims.",
+    "`git ls-files runs` is **empty**; no `runs/**` path is staged or tracked.",
+    "Working tree contains only the spec's Allowed Paths (README + new files). No data/heavy/DB/value artifacts. `find data/metadata/*.parquet` checks empty (per validation + executor).",
+    "No `git add .`/`-A`, no force push (executor staged nothing; Ralph owns staging).",
+    "Frontier canaries: **all 16 PASS** (validation output), including `forbidden_scope_drift`, `forbidden_raw_data_commit`, governance leakage canaries. `frontier-doctor` PASS.",
+    "I independently confirmed: imported public API exists; the four test fixtures exist; `validate_schema` signature matches; only README is tracked-modified.",
+    "pytest is gated behind approval in this review session, so I could not re-execute the 17-test suite myself. Static review of the test/impl pairing (error codes, immutability, round-trip) plus the executor's reported `17 passed`, `--smoke` PASS, `--typecheck` PASS, and targeted ruff PASS give high confidence."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T22:54:41Z",
+  "phase_id": "FLF-P27",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P27/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

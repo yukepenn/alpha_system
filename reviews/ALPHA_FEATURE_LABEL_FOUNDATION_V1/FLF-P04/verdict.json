@@ -1,0 +1,23 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**R-012 (no-trade misuse):** `is_synthetic_no_trade_bar` requires the full canonical signature (`has_trade=False`, `synthetic=True`, `fill_method=\"previous_close\"`, `volume==0`, `no_trade` flag, `provider_bar_ref is None`). `is_real_trade_bar` excludes those rows; sparse `OHLCVInputRow` is admitted as provider trade-truth unless it carries `no_trade`. Correct.",
+    "**R-011 (BBO silently filled):** Missingness uses only `missing_bbo` / `bbo_quarantined`. `select_valid_bbo_quotes` returns existing unflagged rows only \u2014 no fabrication, fill, or interpolation anywhere in the module. Correct.",
+    "**BBO invariants:** `mid`, `spread`, `ask>=bid`, `available_ts>=bar_end_ts`, and `bid<=microprice<=ask` (only when microprice present, with positive sizes) checked on the row *as stored*, never recomputed against fabricated quotes. Matches spec \u00a73.",
+    "**Fail-closed:** Unsupported row shapes and malformed `quality_flags` raise `DataFoundationValidationError`. Predicates are pure/deterministic. No future/centered-window or label-as-feature logic introduced."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T15:55:09Z",
+  "phase_id": "FLF-P04",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P04/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS",
+  "warnings": []
+}

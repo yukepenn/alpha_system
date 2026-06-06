@@ -1,0 +1,31 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "**Additive only.** The sole tracked modification is `README.md`. All new files live under the disjoint allowed paths: `src/alpha_system/features/families/structure/`, `tests/unit/features/families/structure/`, `docs/feature_label_foundation/features/structure.md`, `configs/features/families/structure/README.md`, and the commit-eligible handoff.",
+    "**Shared core untouched.** `FeatureFamily.LIQUIDITY_STRUCTURE` already exists in `contracts.py` (line 54) \u2014 the phase consumed it, did not add it. No edits to `contracts.py`, `request_gate.py`, `primitives/**`, `input_views.py`, `semantics.py`, or any sibling family.",
+    "**No `ACTIVE_CAMPAIGN.md` write; no cross-family writes.** Confirmed.",
+    "**`git ls-files runs` empty.** No `runs/**` staged or created. No heavy artifacts, DB, data, or logs.",
+    "**R-006 (`available_ts`):** every `FeatureValueRecord` carries the current OHLCV row's `available_ts`; rows are sorted by `available_ts`; a fail-closed test (`test_missing_available_ts_fails_closed`) proves a `None` available_ts raises.",
+    "**R-007 (future/centered leakage):** `_default_window` emits only `WindowCausality.CAUSAL`; `_require_definition` rejects non-live-compatible windows; `test_future_and_centered_live_windows_fail_closed` (parametrized \u00d72) proves CENTERED/FUTURE windows fail closed. `test_late_available_row_cannot_change_prior_structure_output` proves a late-available future row cannot alter a prior output.",
+    "**R-012 (no-trade rows):** `is_real_trade_bar` gates every descriptor; `_current_trade_gap` and `_window_gap_flags` emit `no_trade`/`structure_gap` flags with `value=None` instead of treating synthetic rows as trades; `test_no_trade_rows_are_not_treated_as_trade_bars` confirms.",
+    "**R-003/R-005 (gate / duplicate exposure):** definitions are admissible only via `require_feature_request_implementation_allowed` consuming the FLF-P05 gate and `RegistryReader` duplicate-exposure check \u2014 consumed, not re-implemented (R-022). `test_feature_request_gate_is_required_and_fail_closed` proves `None` and `PENDING` requests raise.",
+    "**BBO missingness:** exact-`available_ts` join only; `missing_bbo`/`bbo_quarantined` surfaced as flags, never forward-filled; `test_exact_time_bbo_missingness_is_flagged_without_forward_fill` confirms.",
+    "**All 11 named descriptors implemented** (prior high/low distance, opening-range high/low distance, sweep high/low flags, failed high/low breakout flags, close location value, wick rejection score, range contraction)."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T18:41:10Z",
+  "phase_id": "FLF-P12",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P12/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

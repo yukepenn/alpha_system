@@ -1,0 +1,31 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/labels/families/event/{__init__.py,family.py}`",
+    "`tests/unit/labels/families/event/test_event_family.py`",
+    "`configs/labels/families/event/README.md`",
+    "`docs/feature_label_foundation/labels/event.md`",
+    "`handoffs/ALPHA_FEATURE_LABEL_FOUNDATION_V1/FLF-P20.md`",
+    "`README.md` (modified)",
+    "Every record carries `label_available_ts = max(resolution ts, available_ts, LabelSpec.availability_time)` \u2014 fail-closed `_require_definition` checks `future_data_legal_only_for_labels`.",
+    "`validate_not_live_feature` / `validate_live_feature_references` rejects label-as-feature; future window marked `offline_only=True`, `legal_consumer=labels_only`.",
+    "`_real_trade_rows` filters via `is_real_trade_bar`; synthetic `no_trade` rows excluded from anchors and outcomes.",
+    "BBO gaps flagged (`missing_bbo`/`bbo_quarantined`/`future_bbo_gap`) and yield `value=None` \u2014 no forward-fill/interpolation."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T21:14:42Z",
+  "phase_id": "FLF-P20",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P20/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/cli/feature.py` \u2014 `list` / `plan` / `materialize --dry-run` / `report` / `duplicate-audit`. \u2705",
+    "`src/alpha_system/cli/label.py` \u2014 `list` / `plan` / `materialize --dry-run` / `report` / `leakage-audit` / `input-pack`. \u2705",
+    "`src/alpha_system/cli/main.py` \u2014 adds `register_feature_subparser` / `register_label_subparser` imports and calls in the established alphabetical pattern; no existing subcommand altered. \u2705",
+    "Both CLI test files + `docs/CLI_REFERENCE.md` + compact `README.md` snapshot + commit-eligible handoff. \u2705",
+    "**Imports/signatures resolve.** I confirmed every symbol the CLI imports exists and that call sites match real APIs: `build_feature_materialization_plan` / `resolve_feature_materialization_dataset` (re-exported from `features.engine`), `build_label_materialization_plan` (accepts `instrument_ids`/`alpha_data_root`/`governance_metadata`/`partition_plan`/`dry_run`), all four `labels.families.*` builders, `validate_study_input_pack`, `audit_registered_label`, and the FLF-P15 `FeatureQualityReport`/`FeatureCoverageReport.from_registry_record`. The two tests' main failure risk (unresolved imports) is therefore ruled out.",
+    "**No provider/network surface.** No `databento`/`ib_insync`/parquet/arrow/dbn/zst readers in either module; provider-reader heuristic returns clean; both tests assert provider client modules stay out of `sys.modules`. Dataset access is only via the sanctioned `resolve_*_materialization_dataset` adapters. \u2705",
+    "**Dry-run defaults.** `materialize` sets `default=True` + `set_defaults(dry_run=True)` in both groups; payloads hardcode `writes_values: False`. Plan builders write nothing. \u2705",
+    "**Fail-closed.** Missing registry/spec/DatasetVersion raises typed errors \u2192 exit 2 with no fabricated output; registries opened read-only (`mode=ro`). \u2705",
+    "**No forbidden scope.** No order/account/broker/paper/live, no alpha-search/strategy/backtest/portfolio, no promotion. No prohibited MVP-state strings reachable. Output is row-free metadata (ids/counts/lifecycle), no value leakage. \u2705",
+    "**Governance consumed not edited (R-022).** No edits to `governance/study_spec.py`, `feature_request.py`, `label_spec.py`, `duplicate_exposure.py`, `label_leakage_guard.py`, or `study_input_pack.py`. `ACTIVE_CAMPAIGN.md` untouched. \u2705",
+    "**Artifact policy.** `git ls-files runs` empty; no `runs/` path staged; no DB/parquet/heavy/data artifact in the change set; explicit staging only. \u2705",
+    "**Tests not weakened.** No `skip`/`xfail`/marker/mock-stub; `monkeypatch` used legitimately to simulate missing-dataset fail-closed paths. \u2705"
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T23:31:36Z",
+  "phase_id": "FLF-P28",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1/phases/FLF-P28/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

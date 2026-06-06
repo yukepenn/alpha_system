@@ -1,0 +1,18 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "external_providers_called": true,
+  "findings": [],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-05T17:22:54Z",
+  "phase_id": "FLF-P09",
+  "raw_review_path": null,
+  "required_repairs": [],
+  "run_id": "2026-06-05T131433Z_ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "none",
+  "source": "done_check_warning",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": []
+}
