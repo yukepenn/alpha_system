@@ -8,10 +8,11 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-core-contracts gate through `AGENT-P06` and the `agent_roles` wave is advancing
-through `AGENT-P11` (Feature Engineer and Label Engineer Role Contracts). Active
-/ next work remains the coordinator-selected sibling role contracts and the
-later `AGENT-P16` integration through the serial merge queue.
+core-contracts gate through `AGENT-P06` and the `agent_roles` wave now includes
+the `AGENT-P15` Librarian role contract alongside the other role contracts
+landed through the serial merge queue. After `AGENT-P15`, active / next work
+completes the parallel role-contract wave toward `AGENT-P16` Separation-of-
+Duties and No-Self-Review Enforcement.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -126,6 +127,20 @@ registry, permission, and tool-result primitives; they do not edit those
 primitives, instantiate agents, materialize values, bypass accepted
 DatasetVersion policy, read raw/provider data, call external providers, perform
 broker/paper/live actions, self-review, promote, or make alpha claims.
+
+`AGENT-P15` adds the contracts-only Librarian role contract:
+
+- `alpha_system.agent_factory.roles.librarian`
+- `docs/agent_factory/roles/librarian.md`
+- `templates/agent_factory/roles/librarian.md`
+
+The Librarian records decisions, rejected ideas, duplicate findings, and
+proposed memory updates only after an independent `ReviewerVerdict` ref exists.
+It registers additively through the role registry and declares the
+`librarian_needs_reviewer_verdict_ref` invariant for later AGENT-P16
+enforcement. Recording an `EvidenceDraft` or `ReferenceCandidateHandoff` into
+memory is not promotion, validation, candidacy, alpha evidence, or tradability
+evidence.
 
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
