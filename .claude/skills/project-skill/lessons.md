@@ -41,11 +41,14 @@ Add concise entries only after they are validated by real work.
   `FRONTIER_MERGE_DRY_RUN`, `FRONTIER_PARALLEL`, `FRONTIER_MAX_PARALLEL_PHASES`)
   force PR/merge/parallel driver paths during tests and fail exactly 13 driver
   tests (`tests/test_ralph_driver.py`, `tests/test_github_utils.py`) on otherwise
-  green main — a false negative with zero substrate tests affected. This caused the
-  `FLF-P31` closeout to be wrongly `BLOCKED`; the fix was to re-validate in a clean
-  environment (`2120 passed`) and reissue `COMPLETE_WITH_WARNINGS`. Tests run via
-  `PYTHONPATH=src` (the bare `python -c "import alpha_system..."` smoke commands in
-  specs only resolve with it).
+  green main — a false negative with zero substrate tests affected. This wrongly
+  `BLOCKED` the `FLF-P31` closeout (re-validated clean: `2120 passed`) and recurred
+  identically at the `RT-P26` (`ALPHA_RESEARCH_RUNTIME_MVP`) closeout (`13 failed`
+  vs clean `2439 passed`). **Now fixed permanently**: an autouse fixture in
+  `tests/conftest.py` clears `FRONTIER_*` before each test, so the suite is
+  hermetic regardless of ambient env (PR #178). Tests run via `PYTHONPATH=src`
+  (the bare `python -c "import alpha_system..."` smoke commands in specs only
+  resolve with it).
 
 - **Manual gh ops from a worktree need a core.bare check.** A manual
   `gh pr merge` / push from a worktree can leave the shared root repo with
@@ -62,3 +65,50 @@ Add concise entries only after they are validated by real work.
   to `true` by default; these contradict the review prose and the no-external-call
   contract. Read the `review.md` narrative for the real residual warnings, and
   treat the boolean flags as parser defaults, not evidence of provider calls.
+
+## Workflow 2 — live run recovery (ALPHA_RESEARCH_RUNTIME_MVP, 27/27)
+
+- **The live loop is sound; failures are content/external, not the parallel loop.**
+  The first real `frontier-run-parallel` run (27 phases) stopped four times — all
+  from per-phase content or a provider blip, never the dag_wave coordinator, which
+  correctly isolated each bad phase (stalled it, never merged broken code, resumed
+  cleanly). Single-phase waves fail identically to parallel ones for these causes.
+
+- **pytest needs `--import-mode=importlib` for duplicate test basenames.** Phases
+  add `tests/.../test_contracts.py` etc.; two same-basename files under packages
+  without `__init__.py` abort collection with *"import file mismatch"* under the
+  default `prepend` mode, failing only `frontier-ci` (local phase checks run a
+  scoped subset and miss it). Fixed repo-wide via `addopts="--import-mode=importlib"`
+  in `pyproject.toml` (PR #157).
+
+- **Runtime subpackage `__init__.__all__` stays empty.** The RT-P02 skeleton test
+  `test_created_subpackage_surfaces_are_empty_until_later_phases` asserts the
+  runtime subpackages keep `__all__ == []`; a later phase that populates it
+  (`splits`/RT-P09, `cost`/RT-P11) breaks CI and **cannot edit the skeleton test**
+  (boundary). Conform the phase: keep `__all__ = []`, re-export symbols via plain
+  imports or a lazy `__getattr__` (callers/tests import from the package root,
+  which works regardless of `__all__`).
+
+- **Authorized resume head-mismatch — recover, don't hand-edit.** After a manual
+  fix changes a phase branch head, resume hits `RESUME_PRECONDITION_FAILED`; arm
+  `FRONTIER_ALLOW_RESUME_HEAD_MISMATCH=1` **only after** verifying the PR diff ==
+  the reviewed files. The drain now treats that stranded status as drainable when
+  the override is armed (PR #178); previously it dropped out of the gate-blocked
+  set, dag_wave `SCHEDULE_DEADLOCK`ed, and needed a `state.json` edit restoring
+  `CI_BLOCKED`.
+
+- **Re-run a mid-build stage (e.g. review after a transient 529) sequentially.**
+  In a `dag_wave` campaign the coordinator only schedules `PENDING`/gate-blocked
+  phases, so `--from-stage review` deadlocks. Force
+  `FRONTIER_SCHEDULER_MODE=sequential` with `--run-dir --phase-id --from-stage
+  review` (no `--no-provider-replay`, so the provider is actually re-called). A
+  gate-drain recovery also targeted-stops after the one phase ("no later phases
+  started") — resume again to continue.
+
+- **Promote reviewer records at closeout.** The driver keeps Opus reviews run-local
+  (`runs/<run>/phases/<phase>/{review.md,verdict.json}`); the
+  `yellow_phase_reviews_present` acceptance gate wants them committed under
+  `reviews/<campaign>/<phase>/`. Use `just frontier-promote-reviews <run_id>
+  <campaign>` (PR #178) at closeout, then stage explicitly. RT-P26's executor
+  correctly reported `BLOCKED` for this coordinator-owned gap; the coordinator
+  resolved it and recorded `COMPLETE_WITH_WARNINGS`.
