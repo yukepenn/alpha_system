@@ -1,0 +1,3212 @@
+campaign_id: ALPHA_RESEARCH_RUNTIME_MVP
+campaign_name: 'Research Runtime MVP: Executable Research Loop Layer over the Feature/Label Substrate'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  primary: trading_research
+  secondary: research
+  project_type: research_runtime
+  profiles:
+  - trading_research
+  - research
+  - research_runtime
+  builds_on:
+  - ALPHA_SYSTEM_V1
+  - ASV1_RELEASE_HYGIENE
+  - ALPHA_RESEARCH_GOVERNANCE_MVP
+  - ALPHA_DATA_FOUNDATION_V1
+  - PRE_FEATURE_REPO_CONSOLIDATION_V1
+  - WF2_PARALLEL_DAG_SCHEDULER_MVP
+  - ALPHA_FEATURE_LABEL_FOUNDATION_V1
+  local_first: true
+  executable_research_loop_layer_not_alpha_search: true
+  orchestrates_existing_primitives_not_duplicates: true
+  databento_primary_deep_history_source: true
+  ibkr_broker_source_recent_validation_only: true
+  consumes_accepted_dataset_versions_only: true
+  broker_live_trading_in_scope: false
+  paper_trading_in_scope: false
+  order_placement_in_scope: false
+  account_trading_in_scope: false
+  alpha_search_in_scope: false
+  factor_promotion_in_scope: false
+  strategy_backtest_portfolio_in_scope: false
+  production_trading_claims_allowed: false
+  alpha_tradability_claims_allowed_without_evidence: false
+workflow:
+  harness: Frontier Harness Generic
+  harness_version: '3.0'
+  workflow_id: Workflow 2
+  driver: Ralph
+  executor: Codex
+  reviewer: Claude
+  mode: ralph_driven_strict_autonomous_loop
+  loose_loop: false
+  loose_loop_allowed: false
+  fresh_context_per_phase: true
+  git_memory: true
+  campaign_contract_based: true
+  automatic_pr_merge_by_lane: true
+  stop_file_supported: true
+  semantic_done_check_required: true
+  handoff_required_per_phase: true
+  review_required_for_yellow: true
+  fake_completion_forbidden: true
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  requirements:
+  - run_frontier_plan_before_execution
+  - run_parallel_mock_before_first_live_parallel_run
+  - serial_merge_queue_required
+  - phase_branches_do_not_write_active_campaign
+  - red_phases_not_parallel_by_default
+  - parallel_safe_phases_require_disjoint_allowed_paths
+  - omitting_parallel_safe_or_allowed_paths_means_run_alone
+runtime:
+  host: Windows
+  primary_environment: WSL2 Ubuntu
+  primary_runtime: WSL2 Ubuntu
+  repo_must_live_under: ~/projects/alpha_system
+  required_filesystem: WSL2 Linux filesystem
+  forbidden_active_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  forbidden_active_worktree_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  local_first: true
+  cloud_db_required: false
+  paid_db_required: false
+  broker_credentials_required: false
+  live_market_data_required: false
+  external_provider_calls_require_red_authorization: true
+models:
+  strategy:
+    name: ChatGPT Pro GPT-5.5 Thinking
+    model: ChatGPT Pro / GPT-5.5 Thinking
+    responsibilities:
+    - strategy
+    - roadmap
+    - campaign reasoning
+    - post-run reasoning
+  spec_review_donecheck:
+    name: Claude Opus 4.8 xhigh
+    model: Claude Opus
+    responsibilities:
+    - phase specs
+    - architecture specs
+    - semantic review
+    - done-check
+    - campaign decomposition
+  verifier:
+    name: Claude Sonnet 4.6
+    model: Claude Sonnet
+    responsibilities:
+    - source maps
+    - verifier support
+    - audits
+    - mechanical inspection
+  executor:
+    name: Codex GPT-5.5 high
+    model: Codex GPT-5.5 high
+    responsibilities:
+    - implementation
+    - tests
+    - repair
+    - handoff writing
+  orchestrator:
+    name: Ralph
+    model: Ralph
+    responsibilities:
+    - Workflow 2 state machine
+    - DAG wave scheduler
+    - serial merge queue
+    - run control
+    - phase transitions
+    - STOP/resume
+    - validation ledger
+    - review routing
+    - verdict parsing
+    - PR/CI/merge gates
+    - bounded repair enforcement
+lane_policy:
+  GREEN:
+    description: Low-risk docs, campaign-contract, and mechanical work for the Research Runtime layer.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: false
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    description: Material Research Runtime engineering. Every YELLOW phase is local-only, consumes ACCEPTED DatasetVersions plus governance specs, and orchestrates existing diagnostics/grid/cost/evidence primitives; no phase calls an external provider API, runs broad alpha search, promotes a factor, or introduces order/account/paper/live scope.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    most_phases: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  RED:
+    description: 'External, destructive, live, production, or broker-adjacent operations. This campaign has NO RED-lane phases: the runtime consumes local accepted DatasetVersions only and makes no external provider calls. The RED lane definition is retained for harness completeness only.'
+    automatic_execute_when_scoped: true
+    automatic_repair: false
+    automatic_merge: false
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    required_scope_env:
+    - PROJECT_OP_AUTHORIZED
+    - PROJECT_OP_SCOPE
+    - PROJECT_OP_EXPIRES
+    expected_in_this_campaign: false
+    expected_red_phases: []
+    note_no_red_phases: This campaign has no RED-lane phases and makes no external provider calls. All consumption is local-only against accepted DatasetVersions.
+    red_requires:
+    - explicit_external_authorization
+    - human_authorization
+    - no_ci_execution
+    - local_only_outputs
+    - no_data_artifacts_committed
+    - no_order_api_surface
+    - no_stop_file
+state_machine:
+  strict: true
+  states:
+  - RUN_INIT
+  - CAMPAIGN_LOAD
+  - PHASE_SELECT
+  - SPEC_GENERATE
+  - SPEC_VALIDATE
+  - WORKTREE_CREATE
+  - CODEX_EXECUTE
+  - CHECKS_RUN
+  - HANDOFF_VALIDATE
+  - CLAUDE_REVIEW
+  - VERDICT_PARSE
+  - PR_CREATE
+  - CI_WAIT
+  - MERGE_GATE
+  - MERGE
+  - DONE_CHECK
+  - NEXT_PHASE
+  - CAMPAIGN_DONE_CHECK
+  - RUN_SUMMARY
+  scheduler_mode: dag_wave
+  parallel_execution: true
+  merge_queue: serial
+  failure_routes:
+    REWORK:
+      route: bounded_repair_loop
+      repair_attempts_tracked: true
+      max_repair_attempts_default: 2
+      repair_attempts_path: runs/<run_id>/phases/<phase_id>/repair_attempts/
+      requires_repair_attempt_record: true
+      fake_completion_forbidden: true
+    BLOCKED:
+      route: blocked_handoff_and_stop_or_escalation
+      blocked_handoff_required: true
+      dependent_phases_blocked: true
+      fake_completion_allowed: false
+    FAIL:
+      route: checks_failure_repair_loop_or_blocked_handoff
+      repair_attempts_tracked: true
+      fake_completion_forbidden: true
+runtime_state_model:
+  description: Research-run lifecycle the runtime objects must enforce. Listed here as the contract Workflow 2 phases implement; not executed by Ralph itself.
+  states:
+  - RUNTIME_REQUESTED
+  - INPUTS_RESOLVED
+  - PLAN_VALIDATED
+  - DIAGNOSTICS_READY
+  - DIAGNOSTICS_RUNNING
+  - DIAGNOSTICS_COMPLETE
+  - DIAGNOSTICS_FAILED
+  - SIGNAL_PROBE_READY
+  - SIGNAL_PROBE_COMPLETE
+  - COST_STRESS_COMPLETE
+  - EVIDENCE_DRAFT_READY
+  - REFERENCE_HANDOFF_READY
+  - REJECTED
+  - INCONCLUSIVE
+  - BLOCKED
+  prohibited_mvp_states:
+  - ALPHA_VALIDATED
+  - FACTOR_PROMOTED
+  - STRATEGY_READY
+  - PORTFOLIO_READY
+  - LIVE_READY
+  - PAPER_READY
+  - PROFITABLE
+  - TRADABLE
+  - PRODUCTION_READY
+  prohibited_state_note: Listed only as future, non-MVP concepts. They must not be reachable by any transition implemented in this campaign. REFERENCE_HANDOFF_READY is the most advanced state any survivor may reach.
+artifact_policy:
+  never_commit:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - artifacts/**/full_trade_logs/**
+  - '**/*credential*'
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - source code
+  - configs
+  - schemas
+  - docs
+  - tests
+  - tiny synthetic fixtures
+  - templates
+  - handoffs
+  - reviews
+  - curated summaries
+  - sample configs with synthetic data only
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_provider_response_commits: true
+    no_runtime_heavy_output_commits: true
+    no_account_info_commits: true
+    no_heavy_artifact_commits: true
+    no_local_db_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_provider_responses_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  yellow_requires_fresh_claude_review: true
+  green_review_optional_unless_phase_requires: true
+  red_requires_scoped_authorization_and_claude_review: true
+  verdict_json_required: true
+  review_artifact_required_for_yellow: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+  allowed_verdicts_for_merge:
+  - PASS
+  - PASS_WITH_WARNINGS
+  blocked_verdicts:
+  - FAIL
+  - BLOCKED
+  - REWORK_REQUIRED
+  reviewer_independence_required: true
+  implementer_cannot_self_approve: true
+  review_must_check:
+  - phase scope compliance
+  - runtime objects orchestrate existing primitives and do not duplicate research/experiments/governance/backtest code
+  - AlphaSpec and StudySpec required before any runtime study runs
+  - only accepted DatasetVersions consumed via resolve_dataset_version; no raw provider access
+  - feature inputs carry available_ts; label inputs carry label_available_ts; no label-as-feature
+  - no-lookahead runtime audit covers available_ts, label_available_ts, same-bar fills, locked-test metadata
+  - cost stress present for any signal probe or handoff; slippage labeled proxy; double-cost present
+  - variant budget enforced; no unbounded grid; locked-test selection forbidden
+  - EvidenceDraft is not a candidate; ReferenceCandidateHandoff is not Reference validation; fast path is not Reference truth
+  - failed and inconclusive runs remain visible with RejectionReasonRecord
+  - agent-facing tool results carry no raw or heavy data
+  - 'DAG metadata correctness: parallel_safe phases have disjoint allowed_paths and no global files'
+  - serial merge queue respected; phase branch does not write ACTIVE_CAMPAIGN.md in parallel mode
+  - artifact policy compliance; no raw/canonical/feature/label/runtime values or DB committed
+  - no broker/live/paper/order-routing or account-trading scope
+  - no alpha/profitability/tradability claims; no strategy/backtest/portfolio/alpha-search scope
+  - no test weakening or gaming
+  - handoff completeness and semantic done criteria
+merge_policy:
+  GREEN:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+    - ci_pass_if_configured
+  RED:
+    auto_pr_if_authorized: true
+    auto_merge: false
+    requires:
+    - scoped_authorization_present
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_data_artifacts_committed
+    - no_forbidden_paths
+    - no_stop_file
+    - ci_pass_if_configured
+  green_auto_pr: true
+  green_auto_merge: true
+  yellow_auto_pr: true
+  yellow_auto_merge: true
+  red_auto_pr: true
+  red_auto_merge: false
+  require_ci_pass: true
+  require_artifact_policy_pass: true
+  require_no_stop_file: true
+  require_verdict_json: true
+  require_no_data_artifacts_committed: true
+  merge_queue: serial
+  parallel_build_serial_merge: true
+  global_blockers:
+  - STOP file present
+  - forbidden path staged
+  - raw or canonical data staged
+  - feature or label values staged
+  - runtime heavy output staged
+  - provider response staged
+  - heavy artifact staged
+  - local DB staged
+  - external provider call attempted
+  - raw provider data read by runtime code
+  - accepted DatasetVersion bypassed
+  - runtime study run without AlphaSpec or StudySpec
+  - feature input without available_ts
+  - label input without label_available_ts
+  - label values exposed as live features
+  - signal probe called strategy validation
+  - bounded grid unbounded or variant budget exceeded
+  - locked-test partition used without contamination metadata
+  - cost stress omitted for probe or handoff
+  - zero-cost result used as promotion basis
+  - fast path treated as Reference truth
+  - EvidenceDraft treated as candidate
+  - ReferenceCandidateHandoff treated as Reference validation
+  - failed or inconclusive run hidden
+  - factor promotion or alpha search scope introduced
+  - strategy/backtest/portfolio scope introduced
+  - unsupported alpha/tradability claim introduced
+  - parallel phase lacks disjoint allowed_paths
+  - parallel wave has path/resource conflict
+  - phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  - merge occurs outside serial merge queue
+  - test weakening detected
+  - semantic done-check failed
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - account trading
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access from runtime code
+  - broad alpha search
+  - factor promotion
+  - strategy/backtest/portfolio research as a runtime product
+  - ML/DL training beyond authorized scope
+  - L2/event-stream ingestion
+  - raw data commit
+  - canonical data commit
+  - feature value commit
+  - label value commit
+  - runtime heavy output commit
+  - provider response commit
+  - heavy artifact commit
+  - local DB commit
+  - label-as-feature
+  - future/centered live-window feature input
+  - alpha/profitability/tradability claim
+  - duplicate of an existing governance/research/experiments/backtest primitive
+  - test weakening or gaming
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+runtime_policy:
+  alpha_spec_required: true
+  study_spec_required: true
+  orchestrates_existing_primitives_not_duplicates: true
+  no_alpha_search: true
+  no_factor_promotion: true
+  no_strategy_wrappers_as_research_products: true
+  diagnostic_pass_not_alpha_validation: true
+  signal_probe_not_strategy_validation: true
+  bounded_grid_not_promotion: true
+  evidence_draft_not_candidate: true
+  fast_path_not_reference_truth: true
+  reference_handoff_not_reference_validation: true
+  failed_and_inconclusive_runs_visible: true
+  consumes_study_input_pack: true
+  feeds_governance_evidence_bundle: true
+dataset_consumption_policy:
+  accepted_dataset_versions_required: true
+  raw_provider_access_forbidden: true
+  no_external_provider_calls: true
+  databento_primary_source: true
+  ibkr_validation_source_only: true
+  sanctioned_consumption_api: alpha_system.data.foundation.version_registry.resolve_dataset_version
+  canonical_records_only:
+  - CanonicalBarRecord
+  - CanonicalBBORecord
+  - DenseGridBarRecord
+  admissible_dataset_version_states:
+  - VERSIONED
+  - READY_FOR_RESEARCH
+  consumes_feature_store_and_label_store: true
+  no_merge_of_databento_and_ibkr_versions: true
+  locked_partition_use_requires_governance_metadata: true
+diagnostics_policy:
+  factor_diagnostics_required: true
+  label_diagnostics_required: true
+  session_split_required: true
+  rth_eth_split_required: true
+  regime_split_required: true
+  cross_market_diagnostics_required_for_multi_instrument: true
+  cost_aware_diagnostics_required: true
+  descriptive_non_promotional_only: true
+  rejection_reason_required_for_fail: true
+  orchestrates_research_diagnostics_primitives: true
+cost_policy:
+  cost_model_version_required: true
+  base_stress_required: true
+  double_cost_required: true
+  bbo_spread_crossing_required_if_available: true
+  slippage_proxy_must_be_labeled_proxy: true
+  session_specific_cost_required: true
+  zero_cost_not_promotion_basis: true
+  consumes_backtest_cost_and_slippage_models: true
+anti_overfit_policy:
+  variant_budget_required: true
+  locked_test_contamination_metadata_required: true
+  no_unbounded_grid: true
+  no_selection_on_locked_test: true
+  failed_runs_visible: true
+  repeated_run_records_required: true
+  consumes_experiments_limits_and_overfit_controls: true
+tool_policy:
+  structured_outputs_required: true
+  agent_facing_contracts_required: true
+  raw_data_in_tool_response_forbidden: true
+  heavy_artifact_commit_forbidden: true
+  prepares_agent_factory_tool_contracts_without_creating_agents: true
+compute_policy:
+  local_only: true
+  deterministic: true
+  heavy_outputs_local_only: true
+  no_distributed_compute_required: true
+  no_ray_cluster: true
+  no_ml_experiment_platform: true
+  heavy_dependencies_require_justification: true
+partition_policy:
+  locked_test_metadata_required: true
+  locked_test_use_requires_governance_metadata: true
+  partition_contamination_must_be_recorded: true
+  development_partition: 2018-01-01 through 2022-12-31
+  validation_partition: 2023-01-01 through 2024-12-31
+  locked_test_candidate: 2025-01-01 through as_of_run
+  latest_shadow_candidate: optional rolling recent period
+phases:
+- id: RT-P00
+  name: Research Runtime Campaign Bootstrap
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/GOAL.md
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/campaign.yaml
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/RUNBOOK.md
+  - test '!' -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/ACTIVE_CAMPAIGN.md
+  - test -f handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P00.md
+  - grep -q "ALPHA_RESEARCH_RUNTIME_MVP" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/ALPHA_RESEARCH_RUNTIME_MVP/**
+  - docs/research_runtime/README.md
+  - docs/research_runtime/OVERVIEW.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P00.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P00/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/**
+  - tests/**
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - campaign control + overview docs
+    - commit-eligible handoff
+    never_commit: &id001
+    - runs/**
+    - raw or canonical market data
+    - provider responses (Databento DBN/Zstd, IBKR)
+    - materialized feature values
+    - materialized label values
+    - runtime diagnostics heavy outputs
+    - heavy artifacts (parquet/arrow/feather)
+    - local DB/registry files (sqlite/db/wal)
+    - logs and caches
+    explicit_staging_only: true
+- id: RT-P01
+  name: Runtime Entry Contract After Feature/Label
+  lane: YELLOW
+  dependencies:
+  - RT-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.entry_contract"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime -q
+  - test -f docs/research_runtime/ENTRY_CONTRACT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/runtime/__init__.py
+  - src/alpha_system/runtime/entry_contract.py
+  - tests/unit/runtime/test_entry_contract.py
+  - docs/research_runtime/ENTRY_CONTRACT.md
+  - configs/runtime/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P01.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P01/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - runtime entry contract
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P02
+  name: Runtime Package Skeleton and Naming
+  lane: YELLOW
+  dependencies:
+  - RT-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime -q
+  - test -f docs/research_runtime/NAMING.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/runtime/**
+  - tests/unit/runtime/**
+  - docs/research_runtime/NAMING.md
+  - configs/runtime/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P02.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P02/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - runtime package skeleton
+    - naming conventions
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P03
+  name: 'Runtime Input Resolver: DatasetVersion and Feature/Label Packs'
+  lane: YELLOW
+  dependencies:
+  - RT-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.input_resolver"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime tests/no_lookahead/research_runtime -q
+  - test -f docs/research_runtime/INPUT_RESOLVER.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/runtime/input_resolver.py
+  - tests/unit/runtime/test_input_resolver.py
+  - tests/no_lookahead/research_runtime/test_input_resolver_available_ts.py
+  - docs/research_runtime/INPUT_RESOLVER.md
+  - configs/runtime/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P03.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P03/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - RuntimeInputPack resolver
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P04
+  name: StudyRunSpec and RuntimePlan Contracts
+  lane: YELLOW
+  dependencies:
+  - RT-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.contracts.run_spec, alpha_system.runtime.contracts.plan"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime -q
+  - test -f docs/research_runtime/RUN_SPEC_AND_PLAN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/runtime/contracts/__init__.py
+  - src/alpha_system/runtime/contracts/run_spec.py
+  - src/alpha_system/runtime/contracts/plan.py
+  - tests/unit/runtime/contracts/test_run_spec.py
+  - tests/unit/runtime/contracts/test_plan.py
+  - docs/research_runtime/RUN_SPEC_AND_PLAN.md
+  - configs/runtime/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P04.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P04/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - StudyRunSpec / RuntimePlan / RuntimeRequest contracts
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P05
+  name: StudyRunRecord, Manifest, and Runtime Artifact Contract
+  lane: YELLOW
+  dependencies:
+  - RT-P04
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.contracts.run_record, alpha_system.runtime.contracts.manifest"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime -q
+  - test -f docs/research_runtime/RUN_RECORD_AND_MANIFEST.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/runtime/contracts/run_record.py
+  - src/alpha_system/runtime/contracts/manifest.py
+  - src/alpha_system/runtime/contracts/artifacts.py
+  - tests/unit/runtime/contracts/test_run_record.py
+  - tests/unit/runtime/contracts/test_manifest.py
+  - tests/unit/runtime/contracts/test_artifacts.py
+  - docs/research_runtime/RUN_RECORD_AND_MANIFEST.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P05.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P05/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - StudyRunRecord / StudyRunManifest / RuntimeArtifactManifest
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P06
+  name: Diagnostics Report Contracts
+  lane: YELLOW
+  dependencies:
+  - RT-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.diagnostics.contracts"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/diagnostics -q
+  - test -f docs/research_runtime/DIAGNOSTICS_CONTRACTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - tests/unit/runtime/diagnostics/test_contracts.py
+  - tests/unit/runtime/diagnostics/test_report.py
+  - docs/research_runtime/DIAGNOSTICS_CONTRACTS.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P06.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P06/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - DiagnosticsRunSpec / DiagnosticsRunRecord / report contracts
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P07
+  name: Factor Diagnostics Runtime
+  lane: YELLOW
+  dependencies:
+  - RT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.diagnostics.factor"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/diagnostics/factor -q
+  - test -f docs/research_runtime/diagnostics/factor.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/factor/**
+  - tests/unit/runtime/diagnostics/factor/**
+  - docs/research_runtime/diagnostics/factor.md
+  - configs/runtime/diagnostics/factor/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P07.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P07/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - Factor diagnostics runtime (orchestrates research.ic/buckets)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P08
+  name: Label Diagnostics Runtime
+  lane: YELLOW
+  dependencies:
+  - RT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.diagnostics.label"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/diagnostics/label -q
+  - test -f docs/research_runtime/diagnostics/label.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/label/**
+  - tests/unit/runtime/diagnostics/label/**
+  - docs/research_runtime/diagnostics/label.md
+  - configs/runtime/diagnostics/label/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P08.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P08/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - Label diagnostics runtime (orchestrates research diagnostics)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P09
+  name: Session / Regime / RTH / ETH Split Diagnostics
+  lane: YELLOW
+  dependencies:
+  - RT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.diagnostics.splits"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/diagnostics/splits -q
+  - test -f docs/research_runtime/diagnostics/splits.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/splits/**
+  - tests/unit/runtime/diagnostics/splits/**
+  - docs/research_runtime/diagnostics/splits.md
+  - configs/runtime/diagnostics/splits/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P09.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P09/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - Session/regime/RTH/ETH split diagnostics (orchestrates research.regimes)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P10
+  name: Cross-Market Diagnostics Runtime
+  lane: YELLOW
+  dependencies:
+  - RT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.diagnostics.cross_market"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/diagnostics/cross_market -q
+  - test -f docs/research_runtime/diagnostics/cross_market.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/cross_market/**
+  - tests/unit/runtime/diagnostics/cross_market/**
+  - docs/research_runtime/diagnostics/cross_market.md
+  - configs/runtime/diagnostics/cross_market/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P10.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P10/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - Cross-market ES/NQ/RTY diagnostics (orchestrates research.correlation)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P11
+  name: CostModelVersion and Cost Stress Runtime
+  lane: YELLOW
+  dependencies:
+  - RT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.cost"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/cost -q
+  - test -f docs/research_runtime/COST_STRESS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/runtime/cost/**
+  - tests/unit/runtime/cost/**
+  - docs/research_runtime/COST_STRESS.md
+  - configs/runtime/cost/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P11.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P11/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - CostModelVersion / CostStressSpec / CostSensitivityReport (consumes backtest.costs/slippage)
+    - tests on synthetic fixtures
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P12
+  name: Simple Signal Probe Runtime
+  lane: YELLOW
+  dependencies:
+  - RT-P07
+  - RT-P08
+  - RT-P11
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.probe"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/probe tests/no_lookahead/research_runtime -q
+  - test -f docs/research_runtime/SIGNAL_PROBE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/probe/**
+  - tests/unit/runtime/probe/**
+  - tests/no_lookahead/research_runtime/test_signal_probe_fills.py
+  - docs/research_runtime/SIGNAL_PROBE.md
+  - configs/runtime/probe/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P12.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P12/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - SignalProbeSpec / SignalProbeReport (fast-path probe, not strategy validation)
+    - tests
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P13
+  name: Bounded Grid / Variant Budget Guard
+  lane: YELLOW
+  dependencies:
+  - RT-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.grid"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/grid -q
+  - test -f docs/research_runtime/BOUNDED_GRID.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/grid/**
+  - tests/unit/runtime/grid/**
+  - docs/research_runtime/BOUNDED_GRID.md
+  - configs/runtime/grid/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P13.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P13/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - BoundedGridSpec / VariantBudget guard (consumes experiments.limits/overfit_controls)
+    - tests
+    - docs
+    - configs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P14
+  name: No-Lookahead Runtime Audit
+  lane: YELLOW
+  dependencies:
+  - RT-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.audit"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/audit -q
+  - test -f docs/research_runtime/NO_LOOKAHEAD_AUDIT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/audit/**
+  - tests/unit/runtime/audit/**
+  - docs/research_runtime/NO_LOOKAHEAD_AUDIT.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P14.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P14/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - NoLookaheadRuntimeAudit
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P15
+  name: RejectionReasonRecord and Runtime Decision States
+  lane: YELLOW
+  dependencies:
+  - RT-P13
+  - RT-P14
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.decisions"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/decisions -q
+  - test -f docs/research_runtime/DECISION_STATES.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/decisions/**
+  - tests/unit/runtime/decisions/**
+  - docs/research_runtime/DECISION_STATES.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P15.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P15/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - RejectionReasonRecord + runtime decision states (REJECTED/INCONCLUSIVE/BLOCKED)
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P16
+  name: EvidenceBundle Draft Builder
+  lane: YELLOW
+  dependencies:
+  - RT-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.evidence"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/evidence -q
+  - test -f docs/research_runtime/EVIDENCE_DRAFT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/evidence/**
+  - tests/unit/runtime/evidence/**
+  - docs/research_runtime/EVIDENCE_DRAFT.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P16.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P16/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - EvidenceDraft builder (feeds governance.evidence_bundle; not a candidate)
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P17
+  name: Reference Candidate Handoff Builder
+  lane: YELLOW
+  dependencies:
+  - RT-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.handoff"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/handoff -q
+  - test -f docs/research_runtime/REFERENCE_HANDOFF.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/handoff/**
+  - tests/unit/runtime/handoff/**
+  - docs/research_runtime/REFERENCE_HANDOFF.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P17.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P17/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - ReferenceCandidateHandoff builder (handoff only; not Reference validation)
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P18
+  name: Runtime CLI / Tool Surface
+  lane: YELLOW
+  dependencies:
+  - RT-P17
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.cli.runtime"
+  - python -m alpha_system runtime --help
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/cli/test_runtime.py -q
+  - test -f docs/research_runtime/CLI.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/cli/runtime.py
+  - src/alpha_system/cli/main.py
+  - tests/unit/cli/test_runtime.py
+  - docs/research_runtime/CLI.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P18.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P18/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - alpha runtime CLI surface (local-only, CI-safe, additive registration)
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P19
+  name: Runtime Cache and Local Artifact Policy
+  lane: YELLOW
+  dependencies:
+  - RT-P18
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.artifact_policy"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime -q
+  - test -f docs/research_runtime/CACHE_AND_ARTIFACTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/runtime/cache/**
+  - src/alpha_system/runtime/artifact_policy.py
+  - tests/unit/runtime/cache/**
+  - tests/unit/runtime/test_artifact_policy.py
+  - docs/research_runtime/CACHE_AND_ARTIFACTS.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P19.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P19/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - RuntimeCachePolicy + local-only artifact policy
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P20
+  name: Synthetic Runtime Fixtures and Fail-Closed Tests
+  lane: YELLOW
+  dependencies:
+  - RT-P19
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/fail_closed tests/no_lookahead/research_runtime -q
+  - test -f docs/research_runtime/FIXTURES.md
+  - git ls-files runs
+  - find tests/fixtures/runtime -type f -size +1M -print
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: tests_tools_docs
+  allowed_paths:
+  - tests/fixtures/runtime/**
+  - tests/unit/runtime/fail_closed/**
+  - tests/no_lookahead/research_runtime/**
+  - docs/research_runtime/FIXTURES.md
+  - docs/research_runtime/TESTING.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P20.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P20/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - tiny synthetic runtime fixtures
+    - fail-closed test suite
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P21
+  name: Small Real FLF DatasetVersion Runtime Smoke
+  lane: YELLOW
+  dependencies:
+  - RT-P20
+  - RT-P22
+  - RT-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.smoke"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/integration/runtime -q
+  - test -f docs/research_runtime/REAL_SMOKE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - src/alpha_system/runtime/smoke.py
+  - tests/integration/runtime/test_smoke.py
+  - docs/research_runtime/REAL_SMOKE.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P21.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P21/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - small real DatasetVersion runtime smoke harness (local-only)
+    - integration test
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P22
+  name: Agent-Facing Tool Result Contracts
+  lane: YELLOW
+  dependencies:
+  - RT-P19
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.tool_results"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/test_tool_results.py -q
+  - test -f docs/research_runtime/TOOL_RESULTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: tests_tools_docs
+  allowed_paths:
+  - src/alpha_system/runtime/tool_results.py
+  - tests/unit/runtime/test_tool_results.py
+  - docs/research_runtime/TOOL_RESULTS.md
+  - configs/runtime/tool_results/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P22.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P22/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - RuntimeToolResult / RuntimeRunSummary agent-facing contracts
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P23
+  name: Runtime Reports, Docs, and Templates
+  lane: YELLOW
+  dependencies:
+  - RT-P19
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.reports"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/runtime/test_reports.py -q
+  - test -f docs/research_runtime/REPORTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: tests_tools_docs
+  allowed_paths:
+  - src/alpha_system/runtime/reports.py
+  - tests/unit/runtime/test_reports.py
+  - docs/research_runtime/REPORTS.md
+  - docs/research_runtime/templates/**
+  - docs/research_runtime/report_cards/**
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P23.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P23/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/runtime/diagnostics/__init__.py
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - src/alpha_system/runtime/diagnostics/report.py
+  - src/alpha_system/cli/main.py
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - RuntimeReportCard + report/markdown templates
+    - tests
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P24
+  name: Workflow 2 DAG Integration and Parallel Plan
+  lane: YELLOW
+  dependencies:
+  - RT-P21
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/frontier/ralph_driver.py plan-dag --campaign-id ALPHA_RESEARCH_RUNTIME_MVP
+  - test -f docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P24.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P24.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P24/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - Workflow 2 DAG integration notes + parallel plan
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P25
+  name: End-to-End Runtime Dry Run
+  lane: YELLOW
+  dependencies:
+  - RT-P24
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.dry_run"
+  - python tools/verify.py --all
+  - python -m pytest tests/integration/runtime -q
+  - test -f docs/research_runtime/E2E_DRY_RUN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - src/alpha_system/runtime/dry_run.py
+  - tests/integration/runtime/test_dry_run.py
+  - docs/research_runtime/E2E_DRY_RUN.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P25.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P25/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - end-to-end runtime dry-run harness (local-only)
+    - integration test
+    - docs
+    never_commit: *id001
+    explicit_staging_only: true
+- id: RT-P26
+  name: Acceptance Audit and Closeout
+  lane: YELLOW
+  dependencies:
+  - RT-P25
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - test -f campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md
+  - git ls-files runs
+  - find data -type f ! -name README.md ! -name .gitkeep -print
+  - find artifacts -type f -size +1M -print
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - campaigns/ALPHA_RESEARCH_RUNTIME_MVP/CLOSEOUT.md
+  - docs/research_runtime/ACCEPTANCE_AUDIT.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P26.md
+  - handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P26.md
+  - reviews/ALPHA_RESEARCH_RUNTIME_MVP/RT-P26/**
+  - runs/**
+  forbidden_paths:
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  artifact_policy:
+    commit_only:
+    - acceptance audit
+    - closeout doc with final verdict and next-campaign readiness
+    never_commit: *id001
+    explicit_staging_only: true
+acceptance_gates:
+  campaign_bootstrap:
+    phases:
+    - RT-P00
+    - RT-P01
+    - RT-P02
+    exit_requirement: Campaign control files present; no campaign-local ACTIVE_CAMPAIGN.md; runtime package imports; runtime entry contract consumes accepted DatasetVersions + StudyInputPack; package skeleton + naming present; handoffs/reviews present; artifact audit clean; no forbidden scope or claims.
+    requires:
+    - campaign_control_files_present
+    - no_campaign_local_active_campaign_file
+    - runtime_package_imports
+    - runtime_entry_contract_present
+    - runtime_consumes_study_input_pack
+    - package_skeleton_and_naming_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - alpha_spec_and_study_spec_required
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - cost_stress_required_for_signal_probe_or_handoff
+    - variant_budget_required
+    - no_unbounded_grid
+    - failed_and_inconclusive_runs_visible
+    - evidence_draft_not_candidate
+    - fast_path_not_reference_truth
+    - reference_handoff_not_reference_validation
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_scope
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  runtime_contracts:
+    phases:
+    - RT-P03
+    - RT-P04
+    - RT-P05
+    - RT-P06
+    exit_requirement: RuntimeInputPack resolver, StudyRunSpec/RuntimePlan, StudyRunRecord/manifest/artifact contracts, and diagnostics report contracts present; inputs resolve accepted DatasetVersions and feature/label packs with available_ts/label_available_ts; reproducibility manifest present.
+    requires:
+    - runtime_input_resolver_present
+    - run_spec_and_plan_contracts_present
+    - run_record_and_manifest_present
+    - diagnostics_report_contracts_present
+    - reproducibility_manifest_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - alpha_spec_and_study_spec_required
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - cost_stress_required_for_signal_probe_or_handoff
+    - variant_budget_required
+    - no_unbounded_grid
+    - failed_and_inconclusive_runs_visible
+    - evidence_draft_not_candidate
+    - fast_path_not_reference_truth
+    - reference_handoff_not_reference_validation
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_scope
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  diagnostics_runtime:
+    phases:
+    - RT-P07
+    - RT-P08
+    - RT-P09
+    - RT-P10
+    - RT-P11
+    exit_requirement: Factor, label, session/regime split, cross-market, and cost-stress diagnostics runtimes implemented additively in disjoint dirs, orchestrating existing research/backtest primitives; descriptive and non-promotional; double-cost stress present; slippage labeled proxy.
+    requires:
+    - factor_diagnostics_runtime_present
+    - label_diagnostics_runtime_present
+    - split_diagnostics_runtime_present
+    - cross_market_diagnostics_runtime_present
+    - cost_stress_runtime_present
+    - diagnostics_orchestrate_existing_primitives
+    - diagnostics_descriptive_non_promotional
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - alpha_spec_and_study_spec_required
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - cost_stress_required_for_signal_probe_or_handoff
+    - variant_budget_required
+    - no_unbounded_grid
+    - failed_and_inconclusive_runs_visible
+    - evidence_draft_not_candidate
+    - fast_path_not_reference_truth
+    - reference_handoff_not_reference_validation
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_scope
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  runtime_integration:
+    phases:
+    - RT-P12
+    - RT-P13
+    - RT-P14
+    - RT-P15
+    - RT-P16
+    - RT-P17
+    - RT-P18
+    - RT-P19
+    exit_requirement: Signal probe, bounded-grid/variant-budget guard, no-lookahead runtime audit, rejection/decision states, EvidenceDraft builder, ReferenceCandidateHandoff builder, runtime CLI, and cache/artifact policy present; signal probe is not strategy validation; bounded grid is not promotion; EvidenceDraft is not a candidate.
+    requires:
+    - signal_probe_runtime_present
+    - bounded_grid_variant_budget_guard_present
+    - no_lookahead_runtime_audit_present
+    - rejection_reason_and_decision_states_present
+    - evidence_draft_builder_present
+    - reference_candidate_handoff_builder_present
+    - runtime_cli_surface_present
+    - runtime_cache_and_artifact_policy_present
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - alpha_spec_and_study_spec_required
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - cost_stress_required_for_signal_probe_or_handoff
+    - variant_budget_required
+    - no_unbounded_grid
+    - failed_and_inconclusive_runs_visible
+    - evidence_draft_not_candidate
+    - fast_path_not_reference_truth
+    - reference_handoff_not_reference_validation
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_scope
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  tests_tools_docs:
+    phases:
+    - RT-P20
+    - RT-P21
+    - RT-P22
+    - RT-P23
+    exit_requirement: Synthetic fixtures + fail-closed tests, small real DatasetVersion runtime smoke, agent-facing tool result contracts, and runtime reports/docs/templates present; fixtures tiny and documented; tool results carry no raw/heavy data; smoke passes or records a truthful PASS_WITH_WARNINGS.
+    requires:
+    - synthetic_fixtures_tiny_and_documented
+    - fail_closed_test_suite_covers_prohibited_shortcuts
+    - small_real_datasetversion_smoke_local_only_pass_or_truthful_warnings
+    - agent_facing_tool_result_contracts_present
+    - runtime_reports_docs_templates_present
+    - tool_results_carry_no_raw_or_heavy_data
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - alpha_spec_and_study_spec_required
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - cost_stress_required_for_signal_probe_or_handoff
+    - variant_budget_required
+    - no_unbounded_grid
+    - failed_and_inconclusive_runs_visible
+    - evidence_draft_not_candidate
+    - fast_path_not_reference_truth
+    - reference_handoff_not_reference_validation
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_scope
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+  workflow_and_closeout:
+    phases:
+    - RT-P24
+    - RT-P25
+    - RT-P26
+    exit_requirement: Workflow 2 DAG integration + parallel plan documented; end-to-end runtime dry run passes or records a truthful PASS_WITH_WARNINGS; acceptance audit + semantic done-check pass with a recorded final verdict and Agent Factory next-campaign readiness.
+    requires:
+    - workflow2_dag_integration_documented
+    - end_to_end_dry_run_pass_or_truthful_blocked
+    - acceptance_audit_pass
+    - semantic_done_check_pass_or_truthful_blocked
+    - closeout_doc_with_final_verdict_and_next_campaign_readiness
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+    - alpha_spec_and_study_spec_required
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - available_ts_required_for_features
+    - label_available_ts_required_for_labels
+    - no_label_as_feature
+    - cost_stress_required_for_signal_probe_or_handoff
+    - variant_budget_required
+    - no_unbounded_grid
+    - failed_and_inconclusive_runs_visible
+    - evidence_draft_not_candidate
+    - fast_path_not_reference_truth
+    - reference_handoff_not_reference_validation
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_scope
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  runtime_not_alpha_search:
+    required: true
+    rules:
+      no_broad_alpha_discovery: true
+      no_factor_promotion: true
+    detection:
+    - scope audit
+    - import audit
+    - Claude review
+  alpha_spec_and_study_spec_required:
+    required: true
+    rules:
+      no_runtime_run_without_alpha_spec_and_study_spec: true
+    detection:
+    - runtime request contract tests
+    - Claude review
+  no_raw_provider_access:
+    required: true
+    rules:
+      raw_provider_files_not_read_by_runtime_code: true
+      canonical_records_only: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  accepted_dataset_version_required:
+    required: true
+    rules:
+      resolve_dataset_version_only: true
+      admissible_states_versioned_or_ready_for_research: true
+    detection:
+    - input resolver tests
+    - Claude review
+  no_external_provider_calls:
+    required: true
+    rules:
+      no_databento_or_ibkr_api_calls_in_this_campaign: true
+    detection:
+    - data access mode audit
+    - import audit
+    - CI configuration audit
+  available_ts_required:
+    required: true
+    rules:
+      feature_inputs_carry_available_ts: true
+      label_inputs_carry_label_available_ts: true
+    detection:
+    - input resolver tests
+    - no_lookahead runtime audit
+    - Claude review
+  no_label_as_feature:
+    required: true
+    rules:
+      label_values_never_exposed_as_runtime_features: true
+    detection:
+    - no_lookahead runtime audit
+    - Claude review
+  cost_stress_required:
+    required: true
+    rules:
+      cost_model_version_required: true
+      double_cost_required: true
+      slippage_labeled_proxy: true
+      zero_cost_not_promotion_basis: true
+    detection:
+    - cost stress tests
+    - Claude review
+  variant_budget_required:
+    required: true
+    rules:
+      bounded_grid_required: true
+      no_unbounded_grid: true
+      no_selection_on_locked_test: true
+    detection:
+    - bounded grid tests
+    - experiments.limits enforcement
+    - Claude review
+  no_lookahead_runtime_audit:
+    required: true
+    rules:
+      available_ts_label_available_ts_same_bar_fill_locked_test_metadata_checked: true
+    detection:
+    - no_lookahead runtime audit
+    - no_lookahead test suite
+    - Claude review
+  failed_runs_visible:
+    required: true
+    rules:
+      rejection_reason_record_required_for_fail_or_inconclusive: true
+    detection:
+    - decision state tests
+    - Claude review
+  fast_path_not_reference_truth:
+    required: true
+    rules:
+      evidence_draft_not_candidate: true
+      reference_handoff_not_reference_validation: true
+      fast_path_not_reference_truth: true
+    detection:
+    - evidence/handoff tests
+    - doc grep
+    - Claude review
+  consume_not_duplicate:
+    required: true
+    rules:
+      runtime_orchestrates_research_experiments_governance_backtest_not_duplicates: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  no_alpha_claims:
+    required: true
+    blocked_claims:
+    - alpha without evidence
+    - tradability
+    - profitability
+    - market-beating
+    - production-ready
+    - live-ready
+    - broker-ready
+    - strategy-ready
+    detection:
+    - prohibited claim tests
+    - doc grep
+    - Claude review
+  no_strategy_scope:
+    required: true
+    blocked_scope:
+    - alpha search
+    - strategy optimization
+    - backtest as a runtime product
+    - portfolio allocation
+    - promotion of a candidate
+    - L2 replay
+    - ML training beyond authorized scope
+    detection:
+    - source path audit
+    - dependency audit
+    - Claude review
+  no_raw_heavy_artifacts:
+    required: true
+    rules:
+      no_raw_canonical_feature_label_runtime_values_or_db_committed: true
+    detection:
+    - git status audit
+    - git ls-files audit
+    - artifact policy checks
+    - find artifacts -type f -size +1M -print
+  tool_output_no_raw_data:
+    required: true
+    rules:
+      agent_facing_tool_result_carries_no_raw_or_heavy_data: true
+    detection:
+    - tool result tests
+    - Claude review
+  dag_parallel_requires_allowed_paths:
+    required: true
+    rules:
+      parallel_safe_phase_requires_disjoint_allowed_paths: true
+      no_global_coordinator_file_in_parallel_phase_allowed_paths: true
+    detection:
+    - plan-dag preview
+    - dag_scheduler validation
+    - campaign.yaml validation script
+  serial_merge_queue_required:
+    required: true
+    rules:
+      merge_one_pr_at_a_time: true
+      phase_branches_do_not_write_active_campaign_in_parallel_mode: true
+    detection:
+    - merge_queue validation
+    - Ralph driver
+    - Claude review
+  acceptance_gate_coverage_required:
+    required: true
+    rules:
+      every_phase_in_exactly_one_gate: true
+      no_phase_missing_from_gates: true
+    detection:
+    - campaign.yaml validation script
+    - PHASE_PLAN cross-check
+  no_test_weakening:
+    required: true
+    rules:
+      test_removals_require_explicit_phase_scope: true
+      review_required_for_test_changes: true
+      fake_completion_forbidden: true
+    detection:
+    - diff review
+    - Claude review
+    - semantic done-check
+  local_wsl2_path:
+    required: true
+    allowed_repo_root: ~/projects/alpha_system
+    forbidden_paths:
+    - /mnt/c
+    - OneDrive
+    - Dropbox
+    - Google Drive
+    - Windows-synced folders
+    detection:
+    - RUN_INIT preflight
+    - worktree path audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: raw provider data read by runtime code
+  condition: runtime code reads raw Databento/IBKR files (.dbn/.zst/parquet/arrow/feather) directly
+  action: block_merge_and_repair
+- name: accepted DatasetVersion bypassed
+  condition: runtime inputs produced without resolving an admissible DatasetVersion
+  action: block_merge_and_repair
+- name: external Databento or IBKR API call attempted
+  condition: any external provider API call is attempted in this campaign
+  action: stop_and_escalate
+- name: runtime study run without AlphaSpec or StudySpec
+  condition: a diagnostics or probe run is executed without an AlphaSpec and StudySpec reference
+  action: block_merge_and_repair
+- name: feature input without available_ts
+  condition: a runtime feature input omits available_ts
+  action: block_merge_and_repair
+- name: label input without label_available_ts
+  condition: a runtime label input omits label_available_ts
+  action: block_merge_and_repair
+- name: label values exposed as live features
+  condition: label values are reachable as runtime features or signal inputs
+  action: block_merge_and_escalate
+- name: signal probe called strategy validation
+  condition: a simple signal probe is presented as strategy validation or a candidate
+  action: block_merge_and_rework
+- name: bounded grid unbounded or variant budget exceeded
+  condition: a grid runs without a variant budget or exceeds the configured budget
+  action: block_merge_and_repair
+- name: locked test partition used without contamination metadata
+  condition: locked_test_candidate or latest_shadow_candidate is consumed without governance contamination metadata
+  action: block_merge_and_repair
+- name: cost stress omitted
+  condition: a signal probe or reference handoff is produced without cost stress
+  action: block_merge_and_repair
+- name: zero-cost result used as promotion basis
+  condition: a zero-cost diagnostic is used as a promotion basis
+  action: block_merge_and_rework
+- name: fast path treated as Reference truth
+  condition: a fast-path runtime result is presented as Reference truth
+  action: block_merge_and_rework
+- name: EvidenceDraft treated as candidate
+  condition: an EvidenceDraft is presented as a promoted candidate
+  action: block_merge_and_rework
+- name: ReferenceCandidateHandoff treated as Reference validation
+  condition: a ReferenceCandidateHandoff is presented as completed Reference validation
+  action: block_merge_and_rework
+- name: failed or inconclusive run hidden
+  condition: a failed or inconclusive run is hidden instead of recorded with a RejectionReasonRecord
+  action: block_merge_and_repair
+- name: factor promotion or alpha search scope introduced
+  condition: broad alpha search, factor promotion, or candidate promotion scope appears
+  action: block_merge_and_escalate
+- name: strategy/backtest/portfolio scope introduced
+  condition: strategy optimization, backtest-as-product, or portfolio allocation scope appears
+  action: block_merge_and_escalate
+- name: duplicate of existing primitive introduced
+  condition: runtime code duplicates research/experiments/governance/backtest primitives instead of orchestrating them
+  action: block_merge_and_rework
+- name: alpha/profitability/tradability claim detected
+  condition: unqualified alpha, tradability, profitability, market-beating, production-ready, live-ready, or broker-ready claim appears
+  action: block_merge_and_rework
+- name: raw or heavy data artifact staged
+  condition: raw/canonical/feature/label/runtime values, parquet/arrow/feather, provider responses, or local DB files staged
+  action: block_merge_and_repair
+- name: tool result exposes raw or heavy data
+  condition: an agent-facing tool result embeds raw or heavy data
+  action: block_merge_and_repair
+- name: parallel phase lacks allowed_paths
+  condition: a phase marked parallel_safe declares no allowed_paths or declares a global/coordinator path
+  action: block_campaign_execution_until_fixed
+- name: parallel wave has path/resource conflict
+  condition: two phases scheduled in the same wave have overlapping allowed_paths or a shared resource_class
+  action: stop_phase_selection
+- name: phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  condition: a phase branch writes ACTIVE_CAMPAIGN.md while update_active_campaign is coordinator_only
+  action: block_merge_and_repair
+- name: merge outside serial merge queue
+  condition: a merge is attempted outside the serial merge queue (more than one PR merging at once)
+  action: stop_and_escalate
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, dependencies, or DAG metadata disagree between files
+  action: block_campaign_execution_until_fixed
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced folder
+  action: stop_run_init_or_worktree_create
