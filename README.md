@@ -8,15 +8,16 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P24 Workflow 2 DAG Integration and Parallel Plan snapshot, the closeout wave
-has reached RT-P24 and the RT-P24 documentation/verification work is complete;
+RT-P25 End-to-End Runtime Dry Run snapshot, the closeout wave has reached
+RT-P25 and the dry-run orchestration work is complete in the working tree;
 Ralph still owns validation, review, merge queue handling, and next-phase
-selection. The active/next phase is RT-P25 End-to-End Runtime Dry Run.
+selection. The active/next phase is RT-P26 Acceptance Audit and Closeout.
 
-RT-P24 adds `docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md`, documenting
-the campaign's `dag_wave` scheduler settings, parallel-safe waves, serial merge
-queue, coordinator-only `ACTIVE_CAMPAIGN.md` ownership, and the read-only
-`plan-dag` preview workflow for this campaign.
+RT-P25 adds `alpha_system.runtime.dry_run` and
+`docs/research_runtime/E2E_DRY_RUN.md`. The dry run sequences the existing
+runtime contracts over tiny synthetic fixtures and emits value-free
+`RuntimeToolResult` / `RuntimeRunSummary` objects with the next required gate
+still set to `REFERENCE_VALIDATION_REQUIRED`.
 
 Durable Research Runtime modules currently include
 `alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
@@ -29,7 +30,7 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.grid`, `alpha_system.runtime.audit`,
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`,
 `alpha_system.runtime.handoff`, `alpha_system.runtime.reports`, and
-`alpha_system.runtime.smoke`, plus
+`alpha_system.runtime.smoke`, `alpha_system.runtime.dry_run`, plus
 `alpha_system.runtime.cache_policy` and `alpha_system.runtime.artifact_policy`.
 RT-P18 adds
 `alpha_system.runtime.decisions`, `alpha_system.runtime.evidence`, and
@@ -88,6 +89,7 @@ Durable runtime documentation:
 - `docs/research_runtime/TESTING.md`
 - `docs/research_runtime/REAL_SMOKE.md`
 - `docs/research_runtime/WORKFLOW2_DAG_INTEGRATION.md`
+- `docs/research_runtime/E2E_DRY_RUN.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
@@ -97,12 +99,12 @@ windows; no same-bar optimistic signal-probe fills; no locked-test use without
 governance contamination metadata; failed, inconclusive, and blocked runs stay
 visible through structured reasons; no broker, live, paper, order, or account
 scope; no alpha, tradability, profitability, strategy, backtest, portfolio, or
-production-readiness claim. RT-P24 changes only documentation and read-only DAG
-verification; it does not change scheduler code, runtime code, campaign
-contracts, data access, or the merge queue. The Research Runtime campaign is the
-executable research loop layer over the completed Feature/Label substrate; it
-is not Agent Factory, alpha search, factor promotion, Strategy Reference
-Validation, or a Portfolio AlphaBook.
+production-readiness claim. RT-P25 is synthetic-fixture-only orchestration; it
+does not change consumed primitive packages, scheduler code, campaign
+contracts, data access, broker/live/paper scope, or the merge queue. The
+Research Runtime campaign is the executable research loop layer over the
+completed Feature/Label substrate; it is not Agent Factory, alpha search,
+factor promotion, Strategy Reference Validation, or a Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
