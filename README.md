@@ -7,10 +7,10 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is in progress. The active
-phase is `AGENT-P03` (Agent Role Contract Model) of `AGENT-P00` through
-`AGENT-P25`; the next phase is `AGENT-P04` (Agent Permission Matrix and Tool
-Access Policy).
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is in progress with the
+foundation gate advancing through `AGENT-P04` (Agent Permission Matrix and Tool
+Access Policy) of `AGENT-P00` through `AGENT-P25`; the next phase is
+`AGENT-P05` (Tool Contract Registry and Structured Outputs).
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -50,6 +50,16 @@ record, memory, or dry-run behavior.
 No new command is added. The registry is discovery-based so later role modules
 can self-register without shared per-role imports.
 
+`AGENT-P04` adds the contracts-only permission model and static matrix:
+
+- `alpha_system.agent_factory.permissions.model`
+- `alpha_system.agent_factory.permissions.matrix`
+- `docs/agent_factory/PERMISSIONS.md`
+
+The matrix is default-deny and fail-closed: every MVP roster role has an
+explicit entry, unknown roles raise on lookup, raw-provider access is denied,
+direct registry writes are denied, and no role has promotion permission.
+
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
 contracts-only at this point: no autonomous agent is instantiated, no continuous
@@ -58,12 +68,14 @@ and no strategy is validated. It consumes existing runtime, governance, and
 registry primitives; it does not edit or duplicate them, and it accesses no raw
 or provider data.
 
-Safety boundaries are unchanged: local-first execution; accepted
-DatasetVersion-only consumption through sanctioned APIs; no raw-provider access;
-no external provider calls; no broker, live, paper, order, or account scope; no
-alpha, tradability, profitability, strategy, backtest, portfolio, deployment, or
-production-readiness claim; no raw/canonical/feature/label/runtime/agent values,
-heavy artifacts, provider responses, local DBs, logs, or caches committed.
+Safety boundaries are unchanged: contracts only; local-first execution;
+default-deny and fail-closed permissions; accepted DatasetVersion-only
+consumption through sanctioned APIs; no autonomous agent; no raw-provider
+access; no external provider calls; no broker, live, paper, order, or account
+scope; no alpha, tradability, profitability, strategy, backtest, portfolio,
+deployment, or production-readiness claim; no raw/canonical/feature/label/
+runtime/agent values, heavy artifacts, provider responses, local DBs, logs, or
+caches committed.
 
 The predecessor `ALPHA_RESEARCH_RUNTIME_MVP` is complete
 (`COMPLETE_WITH_WARNINGS`). Its durable runtime modules include
