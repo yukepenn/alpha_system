@@ -1,0 +1,14 @@
+[
+  {
+    "price": "100.00",
+    "quantity": "10",
+    "side": "buy",
+    "session_label": "RTH"
+  },
+  {
+    "price": "100.00",
+    "quantity": "10",
+    "side": "sell",
+    "session_label": "ETH"
+  }
+]

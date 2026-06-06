@@ -1,0 +1,44 @@
+{
+  "config_id": "runtime_cost_stress_default_v1",
+  "description": "Synthetic sample cost-stress profile and session penalty config for local descriptive runtime tests.",
+  "requires_double_cost": true,
+  "profiles": [
+    {
+      "name": "base",
+      "cost_multiplier": "1.0",
+      "slippage_multiplier": "1.0"
+    },
+    {
+      "name": "stress_1",
+      "cost_multiplier": "1.25",
+      "slippage_multiplier": "1.25"
+    },
+    {
+      "name": "stress_2",
+      "cost_multiplier": "1.5",
+      "slippage_multiplier": "1.5"
+    },
+    {
+      "name": "double_cost",
+      "cost_multiplier": "2.0",
+      "slippage_multiplier": "2.0"
+    }
+  ],
+  "session_penalties": [
+    {
+      "session_label": "RTH",
+      "cost_multiplier": "1.0",
+      "slippage_multiplier": "1.0"
+    },
+    {
+      "session_label": "ETH",
+      "cost_multiplier": "1.5",
+      "slippage_multiplier": "1.5"
+    },
+    {
+      "session_label": "ILLIQUID",
+      "cost_multiplier": "2.0",
+      "slippage_multiplier": "2.0"
+    }
+  ]
+}
