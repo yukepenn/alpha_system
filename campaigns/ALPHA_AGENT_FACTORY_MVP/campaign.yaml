@@ -1,0 +1,2457 @@
+campaign_id: ALPHA_AGENT_FACTORY_MVP
+campaign_name: 'Agent Factory MVP: The Controlled AI Alpha Research Team Layer over Governance + Feature/Label + Research Runtime'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  primary: trading_research
+  secondary: research
+  project_type: agent_factory
+  profiles:
+  - trading_research
+  - research
+  - agent_factory
+  builds_on:
+  - ALPHA_SYSTEM_V1
+  - ASV1_RELEASE_HYGIENE
+  - ALPHA_RESEARCH_GOVERNANCE_MVP
+  - ALPHA_DATA_FOUNDATION_V1
+  - PRE_FEATURE_REPO_CONSOLIDATION_V1
+  - WF2_PARALLEL_DAG_SCHEDULER_MVP
+  - ALPHA_FEATURE_LABEL_FOUNDATION_V1
+  - ALPHA_RESEARCH_RUNTIME_MVP
+  - POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1
+  local_first: true
+  controlled_ai_research_team_layer_not_alpha_search: true
+  drives_existing_runtime_not_duplicates: true
+  consumes_governance_runtime_registry_primitives_only: true
+  databento_primary_deep_history_source: true
+  ibkr_broker_source_recent_validation_only: true
+  consumes_accepted_dataset_versions_only: true
+  broker_live_trading_in_scope: false
+  paper_trading_in_scope: false
+  order_placement_in_scope: false
+  account_trading_in_scope: false
+  autonomous_alpha_search_in_scope: false
+  factor_promotion_in_scope: false
+  strategy_backtest_portfolio_in_scope: false
+  continuous_research_runner_in_scope: false
+  large_scale_value_consuming_studies_in_scope: false
+  production_trading_claims_allowed: false
+  alpha_tradability_claims_allowed_without_evidence: false
+workflow:
+  harness: Frontier Harness Generic
+  harness_version: '3.0'
+  workflow_id: Workflow 2
+  driver: Ralph
+  executor: Codex
+  reviewer: Claude
+  mode: ralph_driven_strict_autonomous_loop
+  loose_loop: false
+  loose_loop_allowed: false
+  fresh_context_per_phase: true
+  git_memory: true
+  campaign_contract_based: true
+  automatic_pr_merge_by_lane: true
+  stop_file_supported: true
+  semantic_done_check_required: true
+  handoff_required_per_phase: true
+  review_required_for_yellow: true
+  fake_completion_forbidden: true
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  requirements:
+  - run_frontier_plan_before_execution
+  - run_parallel_mock_before_first_live_parallel_run
+  - serial_merge_queue_required
+  - phase_branches_do_not_write_active_campaign
+  - red_phases_not_parallel_by_default
+  - parallel_safe_phases_require_disjoint_allowed_paths
+  - omitting_parallel_safe_or_allowed_paths_means_run_alone
+runtime:
+  host: Windows
+  primary_environment: WSL2 Ubuntu
+  primary_runtime: WSL2 Ubuntu
+  repo_must_live_under: ~/projects/alpha_system
+  required_filesystem: WSL2 Linux filesystem
+  forbidden_active_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  forbidden_active_worktree_paths:
+  - /mnt/c
+  - /mnt/d
+  - /mnt/e
+  - OneDrive
+  - Dropbox
+  - Google Drive
+  - Windows-synced folders
+  - network drives
+  - temporary directories
+  local_first: true
+  cloud_db_required: false
+  paid_db_required: false
+  broker_credentials_required: false
+  live_market_data_required: false
+  external_provider_calls_require_red_authorization: true
+models:
+  strategy:
+    name: ChatGPT Pro GPT-5.5 Thinking
+    model: ChatGPT Pro / GPT-5.5 Thinking
+    responsibilities:
+    - strategy
+    - roadmap
+    - campaign reasoning
+    - post-run reasoning
+  spec_review_donecheck:
+    name: Claude Opus 4.8 xhigh
+    model: Claude Opus
+    responsibilities:
+    - phase specs
+    - architecture specs
+    - semantic review
+    - done-check
+    - campaign decomposition
+  verifier:
+    name: Claude Sonnet 4.6
+    model: Claude Sonnet
+    responsibilities:
+    - source maps
+    - verifier support
+    - audits
+    - mechanical inspection
+  executor:
+    name: Codex GPT-5.5 high
+    model: Codex GPT-5.5 high
+    responsibilities:
+    - implementation
+    - tests
+    - repair
+    - handoff writing
+  orchestrator:
+    name: Ralph
+    model: Ralph
+    responsibilities:
+    - Workflow 2 state machine
+    - DAG wave scheduler
+    - serial merge queue
+    - run control
+    - phase transitions
+    - STOP/resume
+    - validation ledger
+    - review routing
+    - verdict parsing
+    - PR/CI/merge gates
+    - bounded repair enforcement
+  note_model_routing_vs_agent_roster: 'These five entries are the Workflow 2 build-time model routing (who writes, reviews, and merges the campaign). They are distinct from the Agent Factory IN-PRODUCT agent roster (Research Director, Hypothesis Scout, AlphaSpec Critic, Data Contract Auditor, Feature Engineer, Label Engineer, No-Lookahead Auditor, Diagnostics Runner, Statistical Reviewer, Librarian) defined under agent_policy.roster, which this campaign specifies as CONTRACTS ONLY and does not instantiate as autonomous agents.'
+lane_policy:
+  GREEN:
+    description: Low-risk docs, campaign-contract, and mechanical work for the Agent Factory contract layer.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: false
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    description: Material Agent Factory contract engineering. Every YELLOW phase is local-only, defines agent role/permission/tool/queue/memory/dry-run CONTRACTS only, consumes (never duplicates or edits) the governance/runtime/registry primitives, instantiates no autonomous agent, performs no alpha search, promotes no factor, and introduces no order/account/paper/live scope.
+    automatic_execute: true
+    automatic_repair: true
+    automatic_pr: true
+    automatic_merge: true
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    checks_required: true
+    artifact_policy_required: true
+    handoff_required: true
+    most_phases: true
+    merge_requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  RED:
+    description: 'External, destructive, live, production, or broker-adjacent operations. This campaign has NO RED-lane phases: the Agent Factory contract layer is local-only, defines contracts and dry-run harnesses against seed packs and synthetic fixtures, and makes no external provider calls. The RED lane definition is retained for harness completeness only.'
+    automatic_execute_when_scoped: true
+    automatic_repair: false
+    automatic_merge: false
+    claude_review_required: true
+    required_reviewer: Claude Opus 4.8 xhigh
+    required_scope_env:
+    - PROJECT_OP_AUTHORIZED
+    - PROJECT_OP_SCOPE
+    - PROJECT_OP_EXPIRES
+    expected_in_this_campaign: false
+    expected_red_phases: []
+    note_no_red_phases: This campaign has no RED-lane phases and makes no external provider calls. All consumption is local-only against accepted DatasetVersions, seed FeaturePack/LabelPack, and runtime structured outputs.
+    red_requires:
+    - explicit_external_authorization
+    - human_authorization
+    - no_ci_execution
+    - local_only_outputs
+    - no_data_artifacts_committed
+    - no_order_api_surface
+    - no_stop_file
+state_machine:
+  strict: true
+  states:
+  - RUN_INIT
+  - CAMPAIGN_LOAD
+  - PHASE_SELECT
+  - SPEC_GENERATE
+  - SPEC_VALIDATE
+  - WORKTREE_CREATE
+  - CODEX_EXECUTE
+  - CHECKS_RUN
+  - HANDOFF_VALIDATE
+  - CLAUDE_REVIEW
+  - VERDICT_PARSE
+  - PR_CREATE
+  - CI_WAIT
+  - MERGE_GATE
+  - MERGE
+  - DONE_CHECK
+  - NEXT_PHASE
+  - CAMPAIGN_DONE_CHECK
+  - RUN_SUMMARY
+  scheduler_mode: dag_wave
+  parallel_execution: true
+  merge_queue: serial
+  failure_routes:
+    REWORK:
+      route: bounded_repair_loop
+      repair_attempts_tracked: true
+      max_repair_attempts_default: 2
+      repair_attempts_path: runs/<run_id>/phases/<phase_id>/repair_attempts/
+      requires_repair_attempt_record: true
+      fake_completion_forbidden: true
+    BLOCKED:
+      route: blocked_handoff_and_stop_or_escalation
+      blocked_handoff_required: true
+      dependent_phases_blocked: true
+      fake_completion_allowed: false
+    FAIL:
+      route: checks_failure_repair_loop_or_blocked_handoff
+      repair_attempts_tracked: true
+      fake_completion_forbidden: true
+agent_lifecycle_model:
+  description: 'Agent-research lifecycle the Agent Factory CONTRACTS must enforce. Listed here as the contract Workflow 2 phases specify; not executed by Ralph itself, and not instantiated as an autonomous loop in this campaign.'
+  states:
+  - RESEARCH_TASK_QUEUED
+  - DIRECTOR_SCOPED
+  - HYPOTHESIS_DRAFTED
+  - ALPHASPEC_DRAFTED
+  - ALPHASPEC_CRITIQUED
+  - ALPHASPEC_REVISION_REQUESTED
+  - ALPHASPEC_REJECTED
+  - DATA_CONTRACT_AUDITED
+  - INPUTS_BLOCKED
+  - IMPLEMENTATION_SCOPED
+  - DIAGNOSTICS_REQUESTED
+  - DIAGNOSTICS_COMPLETE
+  - NO_LOOKAHEAD_AUDITED
+  - STATISTICAL_REVIEW_PASS
+  - STATISTICAL_REVIEW_WATCH
+  - STATISTICAL_REVIEW_REJECT
+  - STATISTICAL_REVIEW_INCONCLUSIVE
+  - EVIDENCE_DRAFT_RECORDED
+  - REFERENCE_HANDOFF_RECORDED
+  - LIBRARIAN_MEMORY_RECORDED
+  - REJECTED
+  - INCONCLUSIVE
+  - BLOCKED
+  prohibited_mvp_states:
+  - ALPHA_VALIDATED
+  - FACTOR_PROMOTED
+  - STRATEGY_READY
+  - PORTFOLIO_READY
+  - CANDIDATE_PROMOTED
+  - LIVE_READY
+  - PAPER_READY
+  - PROFITABLE
+  - TRADABLE
+  - PRODUCTION_READY
+  - AUTONOMOUS_RESEARCH_RUNNING
+  prohibited_state_note: 'Listed only as future, non-MVP concepts. They must not be reachable by any transition the contracts in this campaign define. REFERENCE_HANDOFF_RECORDED is the most advanced forward state any dry-run survivor may reach; promotion belongs to a reviewer verdict + PromotionGate under a later, separately-authorized campaign. AUTONOMOUS_RESEARCH_RUNNING (a continuous unattended research loop) belongs to ALPHA_AGENT_RESEARCH_RUNNER_V1, not this campaign.'
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - runtime or agent heavy outputs
+  - heavy artifacts (parquet/arrow/feather)
+  - local DB/registry files (sqlite/db/wal)
+  - agent run logs and caches
+  never_commit_globs:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - '**/*credential*'
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - source code (agent_factory contracts only)
+  - configs
+  - schemas
+  - docs
+  - tests
+  - tiny synthetic fixtures
+  - templates and prompt templates
+  - handoffs
+  - reviews
+  - curated summaries
+  - sample configs with synthetic data only
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/agent_factory/fixtures/**
+    - tests/integration/agent_factory/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+    - value-free or trivially-small
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_provider_response_commits: true
+    no_runtime_or_agent_heavy_output_commits: true
+    no_account_info_commits: true
+    no_heavy_artifact_commits: true
+    no_local_db_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_provider_responses_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  yellow_requires_fresh_claude_review: true
+  green_review_optional_unless_phase_requires: true
+  red_requires_scoped_authorization_and_claude_review: true
+  verdict_json_required: true
+  review_artifact_required_for_yellow: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+  allowed_verdicts_for_merge:
+  - PASS
+  - PASS_WITH_WARNINGS
+  blocked_verdicts:
+  - FAIL
+  - BLOCKED
+  - REWORK_REQUIRED
+  reviewer_independence_required: true
+  implementer_cannot_self_approve: true
+  review_must_check:
+  - phase scope compliance
+  - agent_factory contracts drive existing runtime/governance/registry primitives and do not duplicate or edit them
+  - no autonomous agent is instantiated; only role/permission/tool/queue/memory/dry-run CONTRACTS exist
+  - every agent role has explicit ToolPermission/DataPermission/WritePermission/ReviewPermission/PromotionPermission entries in the permission matrix
+  - separation of duties holds (generator cannot approve, implementer cannot review, diagnostics runner cannot promote, reviewer is not the implementer)
+  - all agent-facing tool contracts produce structured outputs and never embed raw or heavy data
+  - tools consume runtime via RuntimeToolResult/RuntimeRunSummary and resolve_dataset_version; no raw provider access; no external provider calls
+  - preflight gates present (seed FeaturePack/LabelPack exists, runtime real smoke PASS, FEATURE_LABEL_PARQUET_SINK_V1 status, SESSION_LABEL_GUARD_FIX_V1 status)
+  - large-scale value-consuming studies blocked until FEATURE_LABEL_PARQUET_SINK_V1; session-context features blocked until session_label guard fix
+  - dry-run uses synthetic fixtures or seed packs only; seed-pack dry-run is not alpha evidence; EvidenceDraft is not a candidate; ReferenceCandidateHandoff is not Reference validation
+  - failed and rejected ideas remain visible via RejectedIdeaMemoryRecord/RejectionReasonRecord
+  - 'DAG metadata correctness: parallel_safe phases have disjoint allowed_paths and no global files'
+  - serial merge queue respected; phase branch does not write ACTIVE_CAMPAIGN.md in parallel mode
+  - artifact policy compliance; no raw/canonical/feature/label/runtime/agent values or DB committed
+  - no broker/live/paper/order-routing or account-trading scope
+  - no alpha/profitability/tradability claims; no strategy/backtest/portfolio/alpha-search/factor-promotion scope; no continuous autonomous research runner
+  - no test weakening or gaming
+  - handoff completeness and semantic done criteria
+merge_policy:
+  GREEN:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+  YELLOW:
+    auto_pr: true
+    auto_merge: true
+    requires:
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_forbidden_paths
+    - no_stop_file
+    - semantic_done_check_pass
+    - ci_pass_if_configured
+  RED:
+    auto_pr_if_authorized: true
+    auto_merge: false
+    requires:
+    - scoped_authorization_present
+    - checks_pass
+    - handoff_valid
+    - claude_review_complete
+    - verdict_PASS_or_PASS_WITH_WARNINGS
+    - artifact_policy_pass
+    - no_data_artifacts_committed
+    - no_forbidden_paths
+    - no_stop_file
+    - ci_pass_if_configured
+  green_auto_pr: true
+  green_auto_merge: true
+  yellow_auto_pr: true
+  yellow_auto_merge: true
+  red_auto_pr: true
+  red_auto_merge: false
+  require_ci_pass: true
+  require_artifact_policy_pass: true
+  require_no_stop_file: true
+  require_verdict_json: true
+  require_no_data_artifacts_committed: true
+  merge_queue: serial
+  parallel_build_serial_merge: true
+  global_blockers:
+  - STOP file present
+  - forbidden path staged
+  - raw or canonical data staged
+  - feature or label values staged
+  - runtime or agent heavy output staged
+  - provider response staged
+  - heavy artifact staged
+  - local DB staged
+  - external provider call attempted
+  - raw provider data read by agent_factory code
+  - accepted DatasetVersion bypassed
+  - autonomous agent instantiated or continuous research loop introduced
+  - agent role without a permission-matrix entry
+  - tool contract with unstructured output or embedded raw/heavy data
+  - generator approves its own AlphaSpec
+  - implementer reviews its own work
+  - diagnostics runner promotes
+  - reviewer is the implementer
+  - librarian updates a registry without a reviewer verdict
+  - runtime bypassed instead of called via tool contract
+  - StudySpec/AlphaSpec bypassed before diagnostics
+  - large-scale value-consuming study before FEATURE_LABEL_PARQUET_SINK_V1
+  - session-context feature used before session_label guard fix
+  - seed-pack or synthetic dry-run treated as alpha evidence
+  - EvidenceDraft treated as candidate
+  - ReferenceCandidateHandoff treated as Reference validation
+  - failed or rejected idea hidden
+  - factor promotion or alpha search scope introduced
+  - strategy/backtest/portfolio scope introduced
+  - unsupported alpha/tradability claim introduced
+  - parallel phase lacks disjoint allowed_paths
+  - parallel wave has path/resource conflict
+  - phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  - merge occurs outside serial merge queue
+  - test weakening detected
+  - semantic done-check failed
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - account trading
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access from agent_factory code
+  - autonomous agent instantiation
+  - continuous unattended research runner
+  - broad alpha search
+  - factor promotion
+  - strategy/backtest/portfolio research as an agent product
+  - large-scale value-consuming study before FEATURE_LABEL_PARQUET_SINK_V1
+  - session-context feature use before SESSION_LABEL_GUARD_FIX_V1
+  - ML/DL training beyond authorized scope
+  - L2/event-stream ingestion
+  - edits to runtime/governance/research/experiments/backtest/features/labels/data primitives
+  - raw data commit
+  - canonical data commit
+  - feature value commit
+  - label value commit
+  - runtime or agent heavy output commit
+  - provider response commit
+  - heavy artifact commit
+  - local DB commit
+  - direct registry writes outside sanctioned tool APIs
+  - alpha/profitability/tradability claim
+  - duplicate of an existing governance/runtime/research/experiments/backtest primitive
+  - test weakening or gaming
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+agent_policy:
+  autonomous_alpha_search_allowed: false
+  self_review_forbidden: true
+  self_promotion_forbidden: true
+  role_permissions_required: true
+  human_capital_judgment_required: true
+  contracts_only_no_agent_instantiation: true
+  continuous_research_runner_allowed: false
+  agents_are_constrained_workers_not_autonomous_traders: true
+  roster:
+  - role: Research Director
+    purpose: Scope a single bounded research task from a queued ResearchTask; assign roles; set budgets.
+    may_decide:
+    - task scope and budget within queue policy
+    may_not_decide:
+    - approve its own scoping as evidence
+    - promote any factor or candidate
+    forbidden:
+    - alpha search
+    - implementation
+    - review verdicts
+  - role: Hypothesis Scout
+    purpose: Draft 3-5 AlphaSpec drafts for a scoped task, consulting rejected-idea and library summaries.
+    may_decide:
+    - draft AlphaSpec content
+    may_not_decide:
+    - approve its own AlphaSpec
+    - implement code
+    - run diagnostics
+    forbidden:
+    - self-approval
+    - promotion
+  - role: AlphaSpec Critic
+    purpose: Critique/reject/request-revision on AlphaSpec drafts; independence from the drafter.
+    may_decide:
+    - reject or request revision
+    may_not_decide:
+    - implement
+    - promote
+    forbidden:
+    - drafting the spec it reviews
+  - role: Data Contract Auditor
+    purpose: Verify seed DatasetVersion/FeaturePack/LabelPack availability and admissibility via registry tools.
+    may_decide:
+    - inputs available or blocked
+    may_not_decide:
+    - bypass accepted-DatasetVersion policy
+    forbidden:
+    - raw provider access
+    - registry writes
+  - role: Feature Engineer
+    purpose: Reference approved seed features or draft a bounded FeatureRequest contract; never materialize broadly.
+    may_decide:
+    - bounded feature reference or request draft
+    may_not_decide:
+    - review its own work
+    - run promotion
+    - large-scale materialization
+    forbidden:
+    - self-review
+    - value commits
+  - role: Label Engineer
+    purpose: Reference approved seed labels or draft a bounded LabelSpec contract; never materialize broadly.
+    may_decide:
+    - bounded label reference or spec draft
+    may_not_decide:
+    - review its own work
+    - run promotion
+    - large-scale materialization
+    forbidden:
+    - self-review
+    - label-as-feature
+  - role: No-Lookahead Auditor
+    purpose: Audit runtime outputs for available_ts/label_available_ts/same-bar-fill/locked-test discipline via runtime audit + governance leakage guard.
+    may_decide:
+    - lookahead PASS/BLOCKED
+    may_not_decide:
+    - promote
+    forbidden:
+    - weakening the guard
+  - role: Diagnostics Runner
+    purpose: Invoke the Research Runtime (RuntimeToolResult/RuntimeRunSummary) for a bound StudySpec; never alter specs or promote.
+    may_decide:
+    - request runtime diagnostics within budget
+    may_not_decide:
+    - promote
+    - alter feature/label/alpha/study specs
+    forbidden:
+    - runtime bypass
+    - strategy validation framing
+  - role: Statistical Reviewer
+    purpose: Issue an independent PASS/REJECT/WATCH/INCONCLUSIVE review on runtime evidence; never the implementer.
+    may_decide:
+    - PASS/REJECT/WATCH/INCONCLUSIVE
+    may_not_decide:
+    - implement
+    - self-assign as implementer
+    forbidden:
+    - reviewing its own implementation
+  - role: Librarian
+    purpose: Record agent decisions, rejected ideas, and proposed memory updates AFTER a reviewer verdict; never promote.
+    may_decide:
+    - propose memory records
+    may_not_decide:
+    - promote without PromotionGate
+    - write a registry without a reviewer verdict
+    forbidden:
+    - registry writes outside sanctioned tool APIs
+  optional_later_roles_not_mvp:
+  - Strategy Wrapper Agent
+  - Portfolio Agent
+  - ML Meta-Label Agent
+  - Execution Cost Reviewer
+  - Live/Paper Operator
+  - Red-Team Reviewer
+  hard_rules:
+  - no AlphaSpec -> no implementation
+  - no FeatureRequest -> no feature
+  - no LabelSpec -> no label
+  - no StudySpec -> no diagnostics
+  - no EvidenceBundle -> no candidate
+  - no TrialLedger -> no promotion
+  - no reviewer verdict -> no factor library entry
+  - idea generator cannot approve itself
+  - implementation agent cannot review itself
+  - diagnostics runner cannot promote
+  - reviewer cannot be implementer
+  - human owns risk/capital/live judgment
+  agents_may_never:
+  - read raw Databento / IBKR provider files
+  - call external providers
+  - write raw/canonical/feature/label values into repo
+  - modify FeatureStore / LabelStore / DatasetVersion registries directly
+  - bypass the Runtime input resolver or tool surface
+  - bypass StudySpec
+  - self-review
+  - self-promote
+  - claim alpha/profitability/tradability
+  - create paper/live/broker/order code
+  - touch capital allocation
+tool_policy:
+  structured_outputs_required: true
+  raw_tool_output_forbidden: true
+  allowed_tool_registry_required: true
+  direct_registry_writes_forbidden: true
+  agent_facing_contracts_required: true
+  raw_data_in_tool_response_forbidden: true
+  heavy_artifact_commit_forbidden: true
+  drives_existing_runtime_and_governance_tools_not_duplicates: true
+  candidate_tools:
+  - group: registry
+    tools: [registry.list_datasets, registry.resolve_dataset_version, registry.list_feature_packs, registry.list_label_packs]
+    mvp: contract_only
+    backs_onto: alpha_system.data.foundation.version_registry / features.registry / labels.registry
+  - group: feature_label
+    tools: [feature.request, feature.validate_spec, feature.materialize, label.validate_spec, label.materialize]
+    mvp: contract_only_seed_or_synthetic
+    backs_onto: alpha_system.cli.seed_pack / governance.feature_request / governance.label_spec
+  - group: runtime
+    tools: [runtime.plan, runtime.validate_inputs, runtime.run_diagnostics, runtime.run_label_diagnostics, runtime.run_signal_probe, runtime.run_cost_stress, runtime.build_evidence_draft, runtime.build_reference_handoff]
+    mvp: contract_only_via_runtime_tool_results
+    backs_onto: alpha_system.runtime.tool_results / alpha_system.cli.runtime
+  - group: review
+    tools: [review.no_lookahead_audit, review.statistical_audit]
+    mvp: contract_only
+    backs_onto: alpha_system.runtime.audit.no_lookahead / governance.label_leakage_guard / governance.reviewer_verdict
+  - group: ledger_memory_promotion
+    tools: [ledger.record_trial, evidence.build_bundle, memory.record_rejection, memory.record_watch, promotion.review]
+    mvp: contract_only
+    backs_onto: alpha_system.governance.trial_ledger / evidence_bundle / rejected_idea / promotion_gate
+  structured_tool_result_fields:
+  - status
+  - role
+  - request_id
+  - alpha_spec_id
+  - study_spec_id
+  - dataset_version_id
+  - feature_pack_refs
+  - label_pack_refs
+  - runtime_run_id
+  - diagnostics_summary
+  - cost_summary
+  - rejection_reasons
+  - blocking_findings
+  - next_required_gate
+  - artifacts
+  - limitations
+data_access_policy:
+  raw_provider_access_forbidden: true
+  accepted_dataset_version_required: true
+  feature_label_pack_required_for_runtime: true
+  external_provider_calls_forbidden: true
+  large_scale_value_consuming_studies_blocked_until_parquet_sink: true
+  sanctioned_consumption_api: alpha_system.data.foundation.version_registry.resolve_dataset_version
+  admissible_dataset_version_states:
+  - VERSIONED
+  - READY_FOR_RESEARCH
+  canonical_records_only:
+  - CanonicalBarRecord
+  - CanonicalBBORecord
+  - DenseGridBarRecord
+  databento_primary_source: true
+  ibkr_validation_source_only: true
+  no_merge_of_databento_and_ibkr_versions: true
+  locked_partition_use_requires_governance_metadata: true
+  dataset_registry_report_rehydration_gap_respected: true
+runtime_integration_policy:
+  runtime_tool_use_required: true
+  runtime_real_smoke_required_for_dry_run: true
+  seed_pack_dry_run_not_alpha_evidence: true
+  evidence_draft_not_candidate: true
+  reference_handoff_not_reference_validation: true
+  runtime_tool_result_contracts:
+  - alpha_system.runtime.tool_results.RuntimeToolResult
+  - alpha_system.runtime.tool_results.RuntimeRunSummary
+  runtime_cli_surface: alpha_system.cli.runtime
+  runtime_consumed_not_edited: true
+review_independence_policy:
+  implementer_cannot_review: true
+  generator_cannot_approve: true
+  diagnostics_runner_cannot_promote: true
+  reviewer_verdict_required_for_any_watch_or_candidate: true
+  statistical_reviewer_independent_of_implementer: true
+  librarian_cannot_update_registry_without_verdict: true
+memory_policy:
+  rejected_ideas_visible: true
+  failed_runs_visible: true
+  agent_decisions_logged: true
+  prompt_versions_logged: true
+  role_versions_logged: true
+  permission_versions_logged: true
+  duplicate_idea_avoidance_required: true
+  prior_rejection_reasons_surfaced: true
+  consumes_governance_rejected_idea_and_graveyard: true
+  record_types:
+  - AgentRunRecord
+  - AgentDecisionRecord
+  - AgentHandoff
+  - RejectedIdeaMemoryRecord
+  - ResearchMemoryRecord
+  - ToolInvocationRecord
+  - AgentAuditLog
+  - AgentPromptVersion
+  - AgentRoleVersion
+  - AgentPermissionVersion
+  no_full_factor_library_or_alphabook_yet: true
+dry_run_policy:
+  synthetic_or_seed_pack_only: true
+  no_alpha_claims: true
+  no_factor_promotion: true
+  no_strategy_generation: true
+  no_external_provider_calls: true
+  no_raw_data_read: true
+  proves_role_routing_tools_permissions_handoffs_rejection_memory: true
+  does_not_prove_alpha: true
+  seed_pack_reference:
+    dataset_version_id: dsv_databento_ohlcv_05404069799decb0
+    description: Databento canonical TRADES ES/NQ/RTY 1-min 2024 seed window (local-only)
+    seed_features: [returns, log_returns, rolling_volatility, rolling_range, volume_zscore, range_position]
+    seed_labels: [fwd_ret_5m, fwd_ret_10m, fwd_ret_30m]
+    real_dataset_version_smoke_ran: true
+    note: Seed packs and registries are local-only under ALPHA_DATA_ROOT; absent in clean checkout/CI, so the dry-run degrades to a truthful PASS_WITH_WARNINGS using synthetic fixtures.
+future_blockers:
+- name: FEATURE_LABEL_PARQUET_SINK_V1
+  condition: required before any large-scale, value-consuming Agent Factory study
+  status: named follow-up, not yet a campaign/spec directory (see decisions/0006-feature-label-value-storage.md and docs/STRUCTURAL_BACKLOG.md)
+  enforced_as: preflight gate + hard scope blocker in this campaign
+- name: SESSION_LABEL_GUARD_FIX_V1
+  condition: required before session-context agent research (rth_flag/eth_flag/session_minute) because runtime/input_resolver.py guard false-positives on the canonical session_label field
+  status: named follow-up, not yet a campaign/spec directory
+  enforced_as: preflight gate + hard scope blocker for session-context features in this campaign
+- name: ALPHA_FUTURES_CORE_ALPHA_PILOT_V1
+  condition: Core Alpha Pilot (real studies, candidate selection) must be a separate, separately-authorized campaign
+  status: future roadmap campaign
+  enforced_as: explicit non-goal; Agent Factory only prepares readiness
+- name: DATASET_REGISTRY_REPORT_REHYDRATION
+  condition: datasets.sqlite persists report hashes not full report objects; agents must use registry/runtime tools and respect this gap, not bypass accepted-DatasetVersion policy
+  status: known coupling gap (docs/STRUCTURAL_BACKLOG.md)
+  enforced_as: data_access_policy.dataset_registry_report_rehydration_gap_respected
+compute_policy:
+  local_only: true
+  deterministic: true
+  heavy_outputs_local_only: true
+  no_distributed_compute_required: true
+  no_ray_cluster: true
+  no_ml_experiment_platform: true
+  heavy_dependencies_require_justification: true
+partition_policy:
+  locked_test_metadata_required: true
+  locked_test_use_requires_governance_metadata: true
+  partition_contamination_must_be_recorded: true
+  development_partition: 2018-01-01 through 2022-12-31
+  validation_partition: 2023-01-01 through 2024-12-31
+  locked_test_candidate: 2025-01-01 through as_of_run
+  latest_shadow_candidate: optional rolling recent period
+phases:
+- id: AGENT-P00
+  name: Agent Factory Campaign Bootstrap
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/GOAL.md
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/campaign.yaml
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/RUNBOOK.md
+  - test '!' -f campaigns/ALPHA_AGENT_FACTORY_MVP/ACTIVE_CAMPAIGN.md
+  - test -f handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P00.md
+  - grep -q "ALPHA_AGENT_FACTORY_MVP" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/ALPHA_AGENT_FACTORY_MVP/**
+  - docs/agent_factory/README.md
+  - docs/agent_factory/OVERVIEW.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P00.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P00/**
+  - runs/**
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/broker/**
+  - src/alpha_system/execution/live/**
+  - src/alpha_system/execution/paper/**
+  - src/alpha_system/execution/order_router*
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.sqlite'
+  - '**/*.db'
+  - src/alpha_system/runtime/**
+  - src/alpha_system/governance/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/data/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/cli/**
+  - ACTIVE_CAMPAIGN.md
+  artifact_policy:
+    commit_only:
+    - campaign control + overview docs
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P01
+  name: Agent Factory Entry Contract and Preflight Gates
+  lane: YELLOW
+  dependencies:
+  - AGENT-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.entry_contract"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory -q
+  - test -f docs/agent_factory/PREFLIGHT_GATES.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/agent_factory/__init__.py
+  - src/alpha_system/agent_factory/entry_contract.py
+  - tests/unit/agent_factory/__init__.py
+  - tests/unit/agent_factory/test_entry_contract.py
+  - docs/agent_factory/PREFLIGHT_GATES.md
+  - configs/agent_factory/**
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P01.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - agent factory entry contract + preflight gates
+    - tests
+    - docs
+    - configs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P02
+  name: Agent Factory Package, Docs, and Template Skeleton and Naming
+  lane: YELLOW
+  dependencies:
+  - AGENT-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory -q
+  - test -f docs/agent_factory/NAMING.md
+  - test -f templates/agent_factory/README.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/agent_factory/**
+  - tests/unit/agent_factory/**
+  - docs/agent_factory/NAMING.md
+  - templates/agent_factory/README.md
+  - configs/agent_factory/**
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P02.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - agent factory package skeleton (roles/permissions/tools/queue/separation/records/memory/dry_run subpackages)
+    - naming conventions
+    - tests
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P03
+  name: Agent Role Contract Model
+  lane: YELLOW
+  dependencies:
+  - AGENT-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.contracts, alpha_system.agent_factory.roles.registry"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles -q
+  - test -f docs/agent_factory/ROLES.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/__init__.py
+  - src/alpha_system/agent_factory/roles/contracts.py
+  - src/alpha_system/agent_factory/roles/registry.py
+  - tests/unit/agent_factory/roles/__init__.py
+  - tests/unit/agent_factory/roles/test_contracts.py
+  - tests/unit/agent_factory/roles/test_registry.py
+  - docs/agent_factory/ROLES.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P03.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - AgentRole contract model + registry (discovery-based, no hard per-role imports)
+    - tests
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P04
+  name: Agent Permission Matrix and Tool Access Policy
+  lane: YELLOW
+  dependencies:
+  - AGENT-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.permissions.model, alpha_system.agent_factory.permissions.matrix"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/permissions -q
+  - test -f docs/agent_factory/PERMISSIONS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/agent_factory/permissions/__init__.py
+  - src/alpha_system/agent_factory/permissions/model.py
+  - src/alpha_system/agent_factory/permissions/matrix.py
+  - tests/unit/agent_factory/permissions/__init__.py
+  - tests/unit/agent_factory/permissions/test_model.py
+  - tests/unit/agent_factory/permissions/test_matrix.py
+  - docs/agent_factory/PERMISSIONS.md
+  - configs/agent_factory/permissions/**
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P04.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - permission matrix model (ToolPermission/DataPermission/WritePermission/ReviewPermission/PromotionPermission/HumanApprovalRequired/RedLaneRequired)
+    - fail-closed matrix data
+    - tests
+    - docs
+    - configs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P05
+  name: Tool Contract Registry and Structured Outputs
+  lane: YELLOW
+  dependencies:
+  - AGENT-P04
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.tools.contracts, alpha_system.agent_factory.tools.registry, alpha_system.agent_factory.tools.results"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/tools -q
+  - test -f docs/agent_factory/TOOLS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/agent_factory/tools/__init__.py
+  - src/alpha_system/agent_factory/tools/contracts.py
+  - src/alpha_system/agent_factory/tools/registry.py
+  - src/alpha_system/agent_factory/tools/results.py
+  - tests/unit/agent_factory/tools/__init__.py
+  - tests/unit/agent_factory/tools/test_contracts.py
+  - tests/unit/agent_factory/tools/test_registry.py
+  - tests/unit/agent_factory/tools/test_results.py
+  - docs/agent_factory/TOOLS.md
+  - configs/agent_factory/tools/**
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P05.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P05/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - agent-facing tool contract registry + structured AgentToolResult outputs (value-free, no raw/heavy data)
+    - tests
+    - docs
+    - configs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P06
+  name: Research Queue and Work Item Contracts
+  lane: YELLOW
+  dependencies:
+  - AGENT-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.queue.models"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/queue -q
+  - test -f docs/agent_factory/RESEARCH_QUEUE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/agent_factory/queue/__init__.py
+  - src/alpha_system/agent_factory/queue/models.py
+  - tests/unit/agent_factory/queue/__init__.py
+  - tests/unit/agent_factory/queue/test_models.py
+  - docs/agent_factory/RESEARCH_QUEUE.md
+  - templates/agent_factory/research_task.template.yaml
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P06.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P06/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - ResearchQueue/ResearchTask/AgentAssignment/ResearchBudget/ReviewRequirement/BlockerRecord/QueuePriorityPolicy/FamilyBudgetPolicy contracts
+    - tests
+    - docs
+    - templates
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P07
+  name: Research Director Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.research_director"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_research_director.py -q
+  - test -f docs/agent_factory/roles/research_director.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/research_director.py
+  - tests/unit/agent_factory/roles/test_research_director.py
+  - docs/agent_factory/roles/research_director.md
+  - templates/agent_factory/roles/research_director.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P07.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P07/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Research Director role contract (registers via P03 registry; no edits to roles/__init__ or registry)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P08
+  name: Hypothesis Scout Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.hypothesis_scout"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_hypothesis_scout.py -q
+  - test -f docs/agent_factory/roles/hypothesis_scout.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/hypothesis_scout.py
+  - tests/unit/agent_factory/roles/test_hypothesis_scout.py
+  - docs/agent_factory/roles/hypothesis_scout.md
+  - templates/agent_factory/roles/hypothesis_scout.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P08.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P08/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Hypothesis Scout role contract (drafts AlphaSpec; cannot self-approve)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P09
+  name: AlphaSpec Critic Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.alpha_spec_critic"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_alpha_spec_critic.py -q
+  - test -f docs/agent_factory/roles/alpha_spec_critic.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/alpha_spec_critic.py
+  - tests/unit/agent_factory/roles/test_alpha_spec_critic.py
+  - docs/agent_factory/roles/alpha_spec_critic.md
+  - templates/agent_factory/roles/alpha_spec_critic.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P09.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P09/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - AlphaSpec Critic role contract (rejects/requests revision; independent of drafter; cannot implement or promote)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P10
+  name: Data Contract Auditor Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.data_contract_auditor"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_data_contract_auditor.py -q
+  - test -f docs/agent_factory/roles/data_contract_auditor.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/data_contract_auditor.py
+  - tests/unit/agent_factory/roles/test_data_contract_auditor.py
+  - docs/agent_factory/roles/data_contract_auditor.md
+  - templates/agent_factory/roles/data_contract_auditor.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P10.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P10/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Data Contract Auditor role contract (checks accepted DatasetVersion/FeaturePack/LabelPack availability; no raw access; no registry writes)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P11
+  name: Feature Engineer and Label Engineer Role Contracts
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.feature_engineer, alpha_system.agent_factory.roles.label_engineer"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_feature_engineer.py tests/unit/agent_factory/roles/test_label_engineer.py -q
+  - test -f docs/agent_factory/roles/feature_engineer.md
+  - test -f docs/agent_factory/roles/label_engineer.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/feature_engineer.py
+  - src/alpha_system/agent_factory/roles/label_engineer.py
+  - tests/unit/agent_factory/roles/test_feature_engineer.py
+  - tests/unit/agent_factory/roles/test_label_engineer.py
+  - docs/agent_factory/roles/feature_engineer.md
+  - docs/agent_factory/roles/label_engineer.md
+  - templates/agent_factory/roles/feature_engineer.md
+  - templates/agent_factory/roles/label_engineer.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P11.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P11/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Feature Engineer and Label Engineer role contracts (bounded reference/request/spec only; no self-review; no broad materialization; no value commits)
+    - tests
+    - docs
+    - role prompt templates
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P12
+  name: No-Lookahead Auditor Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.no_lookahead_auditor"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_no_lookahead_auditor.py -q
+  - test -f docs/agent_factory/roles/no_lookahead_auditor.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/no_lookahead_auditor.py
+  - tests/unit/agent_factory/roles/test_no_lookahead_auditor.py
+  - docs/agent_factory/roles/no_lookahead_auditor.md
+  - templates/agent_factory/roles/no_lookahead_auditor.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P12.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P12/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - No-Lookahead Auditor role contract (audits runtime outputs via runtime audit + governance leakage guard; cannot promote; cannot weaken guard)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P13
+  name: Diagnostics Runner Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.diagnostics_runner"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_diagnostics_runner.py -q
+  - test -f docs/agent_factory/roles/diagnostics_runner.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/diagnostics_runner.py
+  - tests/unit/agent_factory/roles/test_diagnostics_runner.py
+  - docs/agent_factory/roles/diagnostics_runner.md
+  - templates/agent_factory/roles/diagnostics_runner.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P13.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P13/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Diagnostics Runner role contract (invokes Research Runtime via tool contracts; cannot promote or alter specs)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P14
+  name: Statistical Reviewer Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.statistical_reviewer"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_statistical_reviewer.py -q
+  - test -f docs/agent_factory/roles/statistical_reviewer.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/statistical_reviewer.py
+  - tests/unit/agent_factory/roles/test_statistical_reviewer.py
+  - docs/agent_factory/roles/statistical_reviewer.md
+  - templates/agent_factory/roles/statistical_reviewer.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P14.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P14/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Statistical Reviewer role contract (issues PASS/REJECT/WATCH/INCONCLUSIVE; independent of implementer)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P15
+  name: Librarian and Memory Update Role Contract
+  lane: YELLOW
+  dependencies:
+  - AGENT-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.roles.librarian"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/roles/test_librarian.py -q
+  - test -f docs/agent_factory/roles/librarian.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: agent_roles
+  allowed_paths:
+  - src/alpha_system/agent_factory/roles/librarian.py
+  - tests/unit/agent_factory/roles/test_librarian.py
+  - docs/agent_factory/roles/librarian.md
+  - templates/agent_factory/roles/librarian.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P15.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P15/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Librarian role contract (records memory/rejections AFTER verdict; cannot promote or write registries without a verdict)
+    - tests
+    - docs
+    - role prompt template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P16
+  name: Separation-of-Duties and No-Self-Review Enforcement
+  lane: YELLOW
+  dependencies:
+  - AGENT-P07
+  - AGENT-P08
+  - AGENT-P09
+  - AGENT-P10
+  - AGENT-P11
+  - AGENT-P12
+  - AGENT-P13
+  - AGENT-P14
+  - AGENT-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.separation.enforcement, alpha_system.agent_factory.separation.wiring"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/separation -q
+  - test -f docs/agent_factory/SEPARATION_OF_DUTIES.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/agent_factory/separation/__init__.py
+  - src/alpha_system/agent_factory/separation/enforcement.py
+  - src/alpha_system/agent_factory/separation/wiring.py
+  - tests/unit/agent_factory/separation/__init__.py
+  - tests/unit/agent_factory/separation/test_enforcement.py
+  - tests/unit/agent_factory/separation/test_wiring.py
+  - docs/agent_factory/SEPARATION_OF_DUTIES.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P16.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P16/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - separation-of-duties enforcement + role/permission/matrix wiring (assembles all roles into the registry; fail-closed self-review/self-promotion checks)
+    - tests
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P17
+  name: Agent Handoff and Tool Invocation Records
+  lane: YELLOW
+  dependencies:
+  - AGENT-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.records.models"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/records -q
+  - test -f docs/agent_factory/HANDOFFS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/agent_factory/records/__init__.py
+  - src/alpha_system/agent_factory/records/models.py
+  - tests/unit/agent_factory/records/__init__.py
+  - tests/unit/agent_factory/records/test_models.py
+  - docs/agent_factory/HANDOFFS.md
+  - templates/agent_factory/agent_handoff.template.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P17.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P17/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - AgentRunRecord/AgentDecisionRecord/AgentHandoff/ToolInvocationRecord/AgentAuditLog/AgentPromptVersion/AgentRoleVersion/AgentPermissionVersion contracts
+    - tests
+    - docs
+    - handoff template
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P18
+  name: Rejected-Idea Memory and Research Memory
+  lane: YELLOW
+  dependencies:
+  - AGENT-P17
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.memory.models"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/memory -q
+  - test -f docs/agent_factory/REJECTION_MEMORY.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/agent_factory/memory/__init__.py
+  - src/alpha_system/agent_factory/memory/models.py
+  - tests/unit/agent_factory/memory/__init__.py
+  - tests/unit/agent_factory/memory/test_models.py
+  - docs/agent_factory/REJECTION_MEMORY.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P18.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P18/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - RejectedIdeaMemoryRecord/ResearchMemoryRecord contracts (consume governance.rejected_idea + ResearchGraveyardLedger; duplicate-idea avoidance; prior-rejection surfacing)
+    - tests
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P19
+  name: Agent Prompt and Skill Assets
+  lane: YELLOW
+  dependencies:
+  - AGENT-P18
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f templates/agent_factory/prompts/README.md
+  - test -d templates/agent_factory/prompts
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: assets
+  allowed_paths:
+  - templates/agent_factory/prompts/**
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P19.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P19/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - durable agent prompt/skill templates with a source-of-truth index (templates/agent_factory/prompts/README.md); no scattered unindexed prompts
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P20
+  name: Agent Factory Docs and Operator Guide
+  lane: YELLOW
+  dependencies:
+  - AGENT-P18
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f docs/agent_factory/GUIDE.md
+  - test -f docs/agent_factory/OPERATOR.md
+  - test -f docs/agent_factory/NEXT_CORE_ALPHA_PILOT_READINESS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: assets
+  allowed_paths:
+  - docs/agent_factory/GUIDE.md
+  - docs/agent_factory/OPERATOR.md
+  - docs/agent_factory/NEXT_CORE_ALPHA_PILOT_READINESS.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P20.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P20/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Agent Factory operator guide + next-Core-Alpha-Pilot readiness doc
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P21
+  name: Runtime Tool Integration Bridge
+  lane: YELLOW
+  dependencies:
+  - AGENT-P18
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.runtime_bridge"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/test_runtime_bridge.py -q
+  - test -f docs/agent_factory/RUNTIME_BRIDGE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: assets
+  allowed_paths:
+  - src/alpha_system/agent_factory/runtime_bridge.py
+  - tests/unit/agent_factory/test_runtime_bridge.py
+  - docs/agent_factory/RUNTIME_BRIDGE.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P21.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P21/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - runtime tool integration bridge (adapts RuntimeToolResult/RuntimeRunSummary into AgentToolResult; imports runtime, never edits it)
+    - tests
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P22
+  name: Agent Dry-Run Harness
+  lane: YELLOW
+  dependencies:
+  - AGENT-P19
+  - AGENT-P20
+  - AGENT-P21
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.dry_run.harness"
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/agent_factory/dry_run -q
+  - test -f docs/agent_factory/DRY_RUN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - src/alpha_system/agent_factory/dry_run/__init__.py
+  - src/alpha_system/agent_factory/dry_run/harness.py
+  - tests/unit/agent_factory/dry_run/__init__.py
+  - tests/unit/agent_factory/dry_run/test_harness.py
+  - docs/agent_factory/DRY_RUN.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P22.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P22/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - bounded non-alpha dry-run harness (synthetic fixtures; routes roles -> tools -> runtime bridge -> rejection memory; no promotion)
+    - tests
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P23
+  name: Seed-Pack and Synthetic Dry Run
+  lane: YELLOW
+  dependencies:
+  - AGENT-P22
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python -m pytest tests/integration/agent_factory -q
+  - test -f docs/agent_factory/DRY_RUN_RESULTS.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - tests/integration/agent_factory/__init__.py
+  - tests/integration/agent_factory/test_dry_run.py
+  - docs/agent_factory/DRY_RUN_RESULTS.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P23.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P23/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - integration dry run over synthetic fixtures (and seed packs when local), recording a truthful PASS_WITH_WARNINGS; seed-pack dry-run is not alpha evidence
+    - integration test
+    - docs
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P24
+  name: Workflow 2 DAG Integration and Parallel Plan
+  lane: YELLOW
+  dependencies:
+  - AGENT-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f docs/agent_factory/WORKFLOW2_DAG.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - docs/agent_factory/WORKFLOW2_DAG.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P24.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P24/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - Workflow 2 DAG integration + parallel plan documentation (waves, disjoint allowed_paths, serial merge)
+    never_commit: *never_commit
+    explicit_staging_only: true
+- id: AGENT-P25
+  name: Acceptance Audit and Closeout
+  lane: YELLOW
+  dependencies:
+  - AGENT-P24
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - test -f campaigns/ALPHA_AGENT_FACTORY_MVP/CLOSEOUT.md
+  - test -f docs/agent_factory/ACCEPTANCE_AUDIT.md
+  - git ls-files runs
+  - find data -type f ! -name README.md ! -name .gitkeep -print
+  - find artifacts -type f -size +1M -print
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - campaigns/ALPHA_AGENT_FACTORY_MVP/CLOSEOUT.md
+  - docs/agent_factory/ACCEPTANCE_AUDIT.md
+  - handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P25.md
+  - reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P25/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - acceptance audit
+    - closeout doc with final verdict and ALPHA_FUTURES_CORE_ALPHA_PILOT_V1 next-campaign readiness
+    never_commit: *never_commit
+    explicit_staging_only: true
+acceptance_gates:
+  bootstrap_and_entry:
+    phases:
+    - AGENT-P00
+    - AGENT-P01
+    - AGENT-P02
+    exit_requirement: Campaign control files present; no campaign-local ACTIVE_CAMPAIGN.md; agent_factory package imports; entry contract encodes preflight gates (seed pack exists, runtime real smoke PASS, FEATURE_LABEL_PARQUET_SINK_V1 status, SESSION_LABEL_GUARD_FIX_V1 status); package/docs/template skeleton + naming present; handoffs/reviews present; artifact audit clean; no forbidden scope or claims.
+    requires: &gate_requires
+    - campaign_control_files_present
+    - no_campaign_local_active_campaign_file
+    - agent_factory_package_imports
+    - preflight_gates_present
+    - contracts_only_no_autonomous_agent_instantiated
+    - every_role_has_permission_matrix_entry
+    - separation_of_duties_enforced
+    - structured_tool_outputs_no_raw_or_heavy_data
+    - runtime_consumed_via_tool_contracts_not_bypassed
+    - accepted_dataset_version_required
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - large_scale_value_consuming_studies_blocked_until_parquet_sink
+    - session_context_features_blocked_until_session_guard_fix
+    - seed_or_synthetic_dry_run_not_alpha_evidence
+    - evidence_draft_not_candidate
+    - reference_handoff_not_reference_validation
+    - failed_and_rejected_ideas_visible
+    - generator_cannot_approve_implementer_cannot_review_runner_cannot_promote
+    - librarian_cannot_write_registry_without_verdict
+    - no_alpha_tradability_profitability_claims
+    - no_strategy_backtest_portfolio_or_alpha_search_scope
+    - no_continuous_autonomous_research_runner
+    - no_paper_live_broker_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+  core_contracts:
+    phases:
+    - AGENT-P03
+    - AGENT-P04
+    - AGENT-P05
+    - AGENT-P06
+    exit_requirement: AgentRole contract model + registry, permission matrix (ToolPermission/DataPermission/WritePermission/ReviewPermission/PromotionPermission/HumanApprovalRequired/RedLaneRequired), tool contract registry with structured value-free outputs, and research queue/work-item contracts present; fail-closed; no agent instantiated.
+    requires: *gate_requires
+  agent_roles:
+    phases:
+    - AGENT-P07
+    - AGENT-P08
+    - AGENT-P09
+    - AGENT-P10
+    - AGENT-P11
+    - AGENT-P12
+    - AGENT-P13
+    - AGENT-P14
+    - AGENT-P15
+    exit_requirement: All ten MVP role contracts (Research Director, Hypothesis Scout, AlphaSpec Critic, Data Contract Auditor, Feature Engineer, Label Engineer, No-Lookahead Auditor, Diagnostics Runner, Statistical Reviewer, Librarian) implemented additively in disjoint files, each with purpose/inputs/tools/outputs/decisions/forbidden-actions/handoff-format/reviewer-independence; each registers via the role registry without editing shared files; no role can self-review or self-promote.
+    requires: *gate_requires
+  enforcement_and_records:
+    phases:
+    - AGENT-P16
+    - AGENT-P17
+    - AGENT-P18
+    exit_requirement: Separation-of-duties enforcement + role/permission wiring assembled fail-closed; agent run/decision/handoff/tool-invocation/audit/version records present; rejected-idea and research memory present (consuming governance graveyard); duplicate-idea avoidance and prior-rejection surfacing implemented.
+    requires: *gate_requires
+  assets_and_bridge:
+    phases:
+    - AGENT-P19
+    - AGENT-P20
+    - AGENT-P21
+    exit_requirement: Durable indexed agent prompt/skill templates, operator guide + next-Core-Alpha-Pilot readiness doc, and the runtime tool integration bridge present; bridge adapts RuntimeToolResult/RuntimeRunSummary without editing runtime and without embedding raw/heavy data.
+    requires: *gate_requires
+  dry_run_and_closeout:
+    phases:
+    - AGENT-P22
+    - AGENT-P23
+    - AGENT-P24
+    - AGENT-P25
+    exit_requirement: Bounded non-alpha dry-run harness + seed-pack/synthetic integration dry run pass or record a truthful PASS_WITH_WARNINGS proving role routing/tool contracts/permissions/handoffs/rejection memory (not alpha); Workflow 2 DAG integration documented; acceptance audit + semantic done-check pass with a recorded final verdict and ALPHA_FUTURES_CORE_ALPHA_PILOT_V1 readiness.
+    requires: *gate_requires
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  agent_factory_not_alpha_search:
+    required: true
+    rules:
+      no_broad_alpha_discovery: true
+      no_continuous_autonomous_runner: true
+      no_factor_promotion: true
+    detection:
+    - scope audit
+    - import audit
+    - Claude review
+  contracts_only_no_agent_instantiation:
+    required: true
+    rules:
+      no_autonomous_agent_loop_created: true
+      role_permission_tool_queue_memory_dry_run_contracts_only: true
+    detection:
+    - scope audit
+    - import audit
+    - Claude review
+  runtime_consumed_not_bypassed:
+    required: true
+    rules:
+      tools_call_runtime_tool_results_and_resolve_dataset_version: true
+      runtime_package_not_edited: true
+      no_runtime_input_resolver_bypass: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  no_raw_provider_access:
+    required: true
+    rules:
+      raw_provider_files_not_read_by_agent_factory_code: true
+      canonical_records_only: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  accepted_dataset_version_required:
+    required: true
+    rules:
+      resolve_dataset_version_only: true
+      admissible_states_versioned_or_ready_for_research: true
+    detection:
+    - data contract auditor tests
+    - Claude review
+  no_external_provider_calls:
+    required: true
+    rules:
+      no_databento_or_ibkr_api_calls_in_this_campaign: true
+    detection:
+    - data access mode audit
+    - import audit
+    - CI configuration audit
+  permission_matrix_required:
+    required: true
+    rules:
+      every_role_has_tool_data_write_review_promotion_permissions: true
+      fail_closed_default_deny: true
+    detection:
+    - permission matrix tests
+    - Claude review
+  separation_of_duties_required:
+    required: true
+    rules:
+      generator_cannot_approve: true
+      implementer_cannot_review: true
+      diagnostics_runner_cannot_promote: true
+      reviewer_is_not_implementer: true
+      librarian_cannot_write_registry_without_verdict: true
+    detection:
+    - separation enforcement tests
+    - Claude review
+  structured_tool_outputs_required:
+    required: true
+    rules:
+      all_tool_results_structured: true
+      no_raw_or_heavy_data_in_tool_results: true
+      allowed_tool_registry_required: true
+      direct_registry_writes_forbidden: true
+    detection:
+    - tool result tests
+    - artifact policy checks
+    - Claude review
+  parquet_sink_blocker:
+    required: true
+    rules:
+      large_scale_value_consuming_studies_blocked_until_FEATURE_LABEL_PARQUET_SINK_V1: true
+    detection:
+    - preflight gate tests
+    - scope audit
+    - Claude review
+  session_label_guard_blocker:
+    required: true
+    rules:
+      session_context_features_blocked_until_SESSION_LABEL_GUARD_FIX_V1: true
+    detection:
+    - preflight gate tests
+    - scope audit
+    - Claude review
+  dry_run_not_evidence:
+    required: true
+    rules:
+      seed_or_synthetic_dry_run_not_alpha_evidence: true
+      evidence_draft_not_candidate: true
+      reference_handoff_not_reference_validation: true
+    detection:
+    - dry-run tests
+    - doc grep
+    - Claude review
+  failed_and_rejected_ideas_visible:
+    required: true
+    rules:
+      rejected_idea_memory_record_required: true
+      failed_runs_visible: true
+    detection:
+    - memory tests
+    - Claude review
+  consume_not_duplicate:
+    required: true
+    rules:
+      agent_factory_orchestrates_governance_runtime_registry_not_duplicates: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  no_alpha_claims:
+    required: true
+    blocked_claims:
+    - alpha without evidence
+    - tradability
+    - profitability
+    - market-beating
+    - production-ready
+    - live-ready
+    - broker-ready
+    - strategy-ready
+    detection:
+    - prohibited claim tests
+    - doc grep
+    - Claude review
+  no_strategy_scope:
+    required: true
+    blocked_scope:
+    - autonomous alpha search
+    - continuous research runner
+    - strategy optimization
+    - backtest as a product
+    - portfolio allocation
+    - promotion of a candidate
+    - L2 replay
+    - ML training beyond authorized scope
+    detection:
+    - source path audit
+    - dependency audit
+    - Claude review
+  human_capital_judgment_required:
+    required: true
+    rules:
+      human_owns_risk_capital_live_judgment: true
+      human_approval_required_flag_respected: true
+    detection:
+    - permission matrix audit
+    - Claude review
+  no_raw_heavy_artifacts:
+    required: true
+    rules:
+      no_raw_canonical_feature_label_runtime_agent_values_or_db_committed: true
+    detection:
+    - git status audit
+    - git ls-files audit
+    - artifact policy checks
+    - find artifacts -type f -size +1M -print
+  agent_docs_indexed:
+    required: true
+    rules:
+      no_scattered_unindexed_agent_prompts: true
+      source_of_truth_index_present: true
+    detection:
+    - docs index check
+    - Claude review
+  dag_parallel_requires_allowed_paths:
+    required: true
+    rules:
+      parallel_safe_phase_requires_disjoint_allowed_paths: true
+      no_global_coordinator_file_in_parallel_phase_allowed_paths: true
+    detection:
+    - plan-dag preview
+    - dag_scheduler validation
+    - campaign.yaml validation script
+  serial_merge_queue_required:
+    required: true
+    rules:
+      merge_one_pr_at_a_time: true
+      phase_branches_do_not_write_active_campaign_in_parallel_mode: true
+    detection:
+    - merge_queue validation
+    - Ralph driver
+    - Claude review
+  acceptance_gate_coverage_required:
+    required: true
+    rules:
+      every_phase_in_exactly_one_gate: true
+      no_phase_missing_from_gates: true
+    detection:
+    - campaign.yaml validation script
+    - PHASE_PLAN cross-check
+  no_test_weakening:
+    required: true
+    rules:
+      test_removals_require_explicit_phase_scope: true
+      review_required_for_test_changes: true
+      fake_completion_forbidden: true
+    detection:
+    - diff review
+    - Claude review
+    - semantic done-check
+  local_wsl2_path:
+    required: true
+    allowed_repo_root: ~/projects/alpha_system
+    forbidden_paths:
+    - /mnt/c
+    - OneDrive
+    - Dropbox
+    - Google Drive
+    - Windows-synced folders
+    detection:
+    - RUN_INIT preflight
+    - worktree path audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: autonomous agent instantiated
+  condition: an autonomous agent loop or continuous research runner is created instead of contracts only
+  action: block_merge_and_escalate
+- name: raw provider data read by agent_factory code
+  condition: agent_factory code reads raw Databento/IBKR files (.dbn/.zst/parquet/arrow/feather) directly
+  action: block_merge_and_repair
+- name: accepted DatasetVersion bypassed
+  condition: agent inputs produced without resolving an admissible DatasetVersion via resolve_dataset_version
+  action: block_merge_and_repair
+- name: external Databento or IBKR API call attempted
+  condition: any external provider API call is attempted in this campaign
+  action: stop_and_escalate
+- name: runtime bypassed
+  condition: agent_factory code performs diagnostics directly instead of calling the runtime tool surface (RuntimeToolResult/RuntimeRunSummary / alpha runtime CLI)
+  action: block_merge_and_repair
+- name: runtime or consumed primitive edited
+  condition: a phase edits src/alpha_system/runtime|governance|research|experiments|backtest|features|labels|data instead of consuming it
+  action: block_merge_and_repair
+- name: AlphaSpec or StudySpec bypassed
+  condition: a diagnostics request is routed without a bound AlphaSpec and StudySpec
+  action: block_merge_and_repair
+- name: role without permission matrix entry
+  condition: an agent role exists without ToolPermission/DataPermission/WritePermission/ReviewPermission/PromotionPermission in the matrix
+  action: block_merge_and_repair
+- name: self-review or self-promotion
+  condition: a generator approves its own AlphaSpec, an implementer reviews its own work, a diagnostics runner promotes, or a reviewer is the implementer
+  action: block_merge_and_rework
+- name: librarian writes registry without verdict
+  condition: the Librarian role updates a registry or promotes without a reviewer verdict + PromotionGate
+  action: block_merge_and_rework
+- name: tool result exposes raw or heavy data
+  condition: an agent-facing tool result is unstructured or embeds raw or heavy data
+  action: block_merge_and_repair
+- name: large-scale value-consuming study before parquet sink
+  condition: a broad/multi-year value-consuming study is attempted before FEATURE_LABEL_PARQUET_SINK_V1 is complete or explicitly human-approved
+  action: block_merge_and_escalate
+- name: session-context feature used before guard fix
+  condition: rth_flag/eth_flag/session_minute (session_label-derived) features are used before SESSION_LABEL_GUARD_FIX_V1
+  action: block_merge_and_rework
+- name: dry-run treated as alpha evidence
+  condition: a seed-pack or synthetic dry-run is presented as alpha evidence, a candidate, or tradability
+  action: block_merge_and_rework
+- name: EvidenceDraft treated as candidate
+  condition: an EvidenceDraft is presented as a promoted candidate
+  action: block_merge_and_rework
+- name: ReferenceCandidateHandoff treated as Reference validation
+  condition: a ReferenceCandidateHandoff is presented as completed Reference validation
+  action: block_merge_and_rework
+- name: failed or rejected idea hidden
+  condition: a failed or rejected idea is hidden instead of recorded with a RejectedIdeaMemoryRecord/RejectionReasonRecord
+  action: block_merge_and_repair
+- name: factor promotion or alpha search scope introduced
+  condition: broad alpha search, factor promotion, candidate promotion, or a continuous research runner scope appears
+  action: block_merge_and_escalate
+- name: strategy/backtest/portfolio scope introduced
+  condition: strategy optimization, backtest-as-product, or portfolio allocation scope appears
+  action: block_merge_and_escalate
+- name: duplicate of existing primitive introduced
+  condition: agent_factory code duplicates governance/runtime/research/experiments/backtest primitives instead of orchestrating them
+  action: block_merge_and_rework
+- name: alpha/profitability/tradability claim detected
+  condition: unqualified alpha, tradability, profitability, market-beating, production-ready, live-ready, or broker-ready claim appears
+  action: block_merge_and_rework
+- name: capital or live judgment automated
+  condition: an agent makes a risk/capital/live decision reserved for the human, or creates paper/live/broker/order code
+  action: stop_and_escalate
+- name: raw or heavy data artifact staged
+  condition: raw/canonical/feature/label/runtime/agent values, parquet/arrow/feather, provider responses, or local DB files staged
+  action: block_merge_and_repair
+- name: agent prompts scattered
+  condition: agent prompt assets are scattered across the repo without a source-of-truth index
+  action: block_merge_and_rework
+- name: parallel phase lacks allowed_paths
+  condition: a phase marked parallel_safe declares no allowed_paths or declares a global/coordinator path
+  action: block_campaign_execution_until_fixed
+- name: parallel wave has path/resource conflict
+  condition: two phases scheduled in the same wave have overlapping allowed_paths or a shared resource_class
+  action: stop_phase_selection
+- name: phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  condition: a phase branch writes ACTIVE_CAMPAIGN.md while update_active_campaign is coordinator_only
+  action: block_merge_and_repair
+- name: merge outside serial merge queue
+  condition: a merge is attempted outside the serial merge queue (more than one PR merging at once)
+  action: stop_and_escalate
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, dependencies, or DAG metadata disagree between files
+  action: block_campaign_execution_until_fixed
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced folder
+  action: stop_run_init_or_worktree_create
