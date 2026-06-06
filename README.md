@@ -8,17 +8,20 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P05 StudyRunRecord, manifest, and runtime artifact contract snapshot,
-progress is `RT-P05` complete / `6 of 27`; the active next phase is `RT-P06` -
-Diagnostics Report Contracts. The campaign now has the durable runtime entry
-contract module `alpha_system.runtime.entry_contract`, the importable
-`alpha_system.runtime` package skeleton for later runtime phases, the input
-resolver module `alpha_system.runtime.input_resolver` (`RuntimeInputPack` and
-`FeatureLabelPackResolver`), and the runtime contracts package
-`alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
+RT-P06 Diagnostics Report Contracts snapshot, progress is `RT-P06` complete /
+`7 of 27`; the active next phase is `RT-P07` - Factor Diagnostics Runtime, the
+first phase of the parallel diagnostics wave W1. The campaign now has the
+durable runtime entry contract module `alpha_system.runtime.entry_contract`,
+the importable `alpha_system.runtime` package skeleton for later runtime
+phases, the input resolver module `alpha_system.runtime.input_resolver`
+(`RuntimeInputPack` and `FeatureLabelPackResolver`), the runtime contracts
+package `alpha_system.runtime.contracts` with `run_spec` (`RuntimeRequest`,
 `StudyRunSpec`), `plan` (`RuntimePlan`), `run_record` (`StudyRunRecord`),
 `manifest` (`StudyRunManifest`), and `artifacts`
-(`RuntimeArtifactManifest`). Durable runtime documentation:
+(`RuntimeArtifactManifest`), and the shared diagnostics contracts package
+`alpha_system.runtime.diagnostics` with `contracts` (`DiagnosticsRunSpec`,
+`DiagnosticsRunRecord`) and `report` (the descriptive report shape and
+`DiagnosticsQualityGate`). Durable runtime documentation:
 
 - `docs/research_runtime/README.md`
 - `docs/research_runtime/OVERVIEW.md`
@@ -27,20 +30,22 @@ resolver module `alpha_system.runtime.input_resolver` (`RuntimeInputPack` and
 - `docs/research_runtime/INPUT_RESOLVER.md`
 - `docs/research_runtime/RUN_SPEC_AND_PLAN.md`
 - `docs/research_runtime/RUN_RECORD_AND_MANIFEST.md`
+- `docs/research_runtime/DIAGNOSTICS_CONTRACTS.md`
 
 `configs/runtime/` remains the future runtime configuration home. No
-`alpha runtime` command surface is added in RT-P05; that CLI remains scoped to
+`alpha runtime` command surface is added in RT-P06; that CLI remains scoped to
 RT-P18.
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
 access; no external provider calls; `available_ts` / `label_available_ts`
 discipline with no label-as-feature path; no broker, live, paper, order, or
-account scope; and no alpha, tradability, profitability, strategy, backtest,
-portfolio, or production-readiness claim. The Research Runtime campaign is the
-executable research loop layer over the completed Feature/Label substrate; it
-is not Agent Factory, alpha search, factor promotion, Strategy Reference
-Validation, or a Portfolio AlphaBook.
+account scope; descriptive non-promotional reports only; and no alpha,
+tradability, profitability, strategy, backtest, portfolio, or
+production-readiness claim. The Research Runtime campaign is the executable
+research loop layer over the completed Feature/Label substrate; it is not Agent
+Factory, alpha search, factor promotion, Strategy Reference Validation, or a
+Portfolio AlphaBook.
 
 `ALPHA_FEATURE_LABEL_FOUNDATION_V1` is complete. `FLF-P31` records the Workflow 2
 acceptance audit and closeout with a `COMPLETE_WITH_WARNINGS` verdict after clean
