@@ -1,0 +1,20 @@
+{
+  "schema": "alpha_system.runtime.grid.config.v1",
+  "config_id": "runtime_bounded_grid_default_budget_v1",
+  "description": "Synthetic-safe default bounded-grid budget for local Tier 1 runtime examples.",
+  "variant_budget": {
+    "max_variants": 16,
+    "max_grid_points": 16,
+    "max_compute_units": 16,
+    "max_distinct_parameter_combinations": 16
+  },
+  "default_partition_scope": ["development", "validation"],
+  "locked_test_selection_allowed": false,
+  "primitive_boundary": {
+    "counting": "alpha_system.experiments.limits.product_count",
+    "limit": "alpha_system.experiments.limits.CombinationLimit",
+    "overfit_context": "alpha_system.experiments.overfit_controls.assess_management_overfit_controls"
+  },
+  "descriptive_only": true,
+  "promotion_basis_allowed": false
+}

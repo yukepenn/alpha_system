@@ -8,13 +8,12 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`.
 
 `ALPHA_RESEARCH_RUNTIME_MVP` is the active Workflow 2 campaign. As of the
-RT-P12 Simple Signal Probe Runtime snapshot, progress has entered the Wave 2
+RT-P13 Bounded Grid / Variant Budget Guard snapshot, progress is in the Wave 2
 sequential `integration` track after the merged Wave 1 diagnostics fan-out
-(`RT-P07` through `RT-P11`). RT-P12 adds the simple Signal Probe runtime. Active:
-`RT-P12` - Simple Signal Probe Runtime. Next: `RT-P13` - Bounded Grid / Variant
-Budget Guard. Ralph remains responsible for validation, review, merge queue
-handling, and next-phase selection; phase branches do not update
-`ACTIVE_CAMPAIGN.md` in parallel mode.
+(`RT-P07` through `RT-P11`). RT-P13 adds the bounded-grid guard and variant
+budget contracts. Active/next: `RT-P14` - No-Lookahead Runtime Audit. Ralph
+remains responsible for validation, review, merge queue handling, and next-phase
+selection; phase branches do not update `ACTIVE_CAMPAIGN.md` in parallel mode.
 
 Durable Research Runtime modules currently include
 `alpha_system.runtime.entry_contract`, `alpha_system.runtime.input_resolver`,
@@ -23,11 +22,11 @@ Durable Research Runtime modules currently include
 `alpha_system.runtime.diagnostics.label`,
 `alpha_system.runtime.diagnostics.splits`, and
 `alpha_system.runtime.diagnostics.cross_market`,
-`alpha_system.runtime.cost`, and `alpha_system.runtime.probe`. RT-P12 adds
-`SignalProbeSpec` / `SignalProbeReport`, durable Signal Probe documentation, and
-a synthetic-safe config template under `configs/runtime/probe/`. No
-`alpha runtime` CLI surface is added in RT-P12; that CLI remains scoped to
-RT-P18.
+`alpha_system.runtime.cost`, `alpha_system.runtime.probe`, and
+`alpha_system.runtime.grid`. RT-P13 adds `BoundedGridSpec` / `VariantBudget` /
+`BoundedGridRunRecord`, durable bounded-grid documentation, and synthetic-safe
+budget defaults under `configs/runtime/grid/`. No `alpha runtime` CLI surface is
+added in RT-P13; that CLI remains scoped to RT-P18.
 
 Durable runtime documentation:
 
@@ -45,12 +44,14 @@ Durable runtime documentation:
 - `docs/research_runtime/diagnostics/cross_market.md`
 - `docs/research_runtime/COST_STRESS.md`
 - `docs/research_runtime/SIGNAL_PROBE.md`
+- `docs/research_runtime/BOUNDED_GRID.md`
 
 Safety boundaries are unchanged: local-first execution; accepted
 DatasetVersion-only consumption via `resolve_dataset_version`; no raw-provider
 access; no external provider calls; `available_ts` / `label_available_ts`
 discipline with no label-as-feature path; no broker, live, paper, order, or
-account scope; descriptive non-promotional reports only; and no alpha,
+account scope; bounded grids are not promotion; descriptive non-promotional
+reports only; and no alpha,
 tradability, profitability, strategy, backtest, portfolio, or
 production-readiness claim. The Research Runtime campaign is the executable
 research loop layer over the completed Feature/Label substrate; it is not Agent
