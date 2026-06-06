@@ -12,10 +12,21 @@ from typing import Any
 
 VALID_VERDICTS = {"PASS", "PASS_WITH_WARNINGS", "REWORK", "BLOCKED"}
 PASSING_VERDICTS = {"PASS", "PASS_WITH_WARNINGS"}
-VERDICT_RE = re.compile(r"^\s*VERDICT\s*:\s*(PASS_WITH_WARNINGS|PASS|REWORK|BLOCKED)\s*$", re.IGNORECASE | re.MULTILINE)
+# Tolerate the Markdown emphasis/decoration models sometimes wrap the verdict
+# line in, e.g. "**DONE_CHECK: PASS_WITH_WARNINGS**", "### VERDICT: PASS", or
+# "`VERDICT: PASS`". The verdict token must still be one of the four and stand
+# alone on its line (modulo decoration), so prose that merely mentions a verdict
+# mid-sentence never matches.
+_VERDICT_LEAD = r"[\s>#*_`-]*"  # leading whitespace, bullet, heading, quote, or emphasis
+_VERDICT_WRAP = r"[\s*_`]*"  # emphasis/backtick padding around the colon and verdict token
+_VERDICT_TOKENS = r"(PASS_WITH_WARNINGS|PASS|REWORK|BLOCKED)"
+VERDICT_RE = re.compile(
+    rf"^{_VERDICT_LEAD}VERDICT{_VERDICT_WRAP}:{_VERDICT_WRAP}{_VERDICT_TOKENS}{_VERDICT_WRAP}$",
+    re.IGNORECASE | re.MULTILINE,
+)
 VALID_DONE_CHECKS = {"PASS", "PASS_WITH_WARNINGS", "REWORK", "BLOCKED"}
 DONE_CHECK_RE = re.compile(
-    r"^\s*DONE_CHECK\s*:\s*(PASS_WITH_WARNINGS|PASS|REWORK|BLOCKED)\s*$",
+    rf"^{_VERDICT_LEAD}DONE_CHECK{_VERDICT_WRAP}:{_VERDICT_WRAP}{_VERDICT_TOKENS}{_VERDICT_WRAP}$",
     re.IGNORECASE | re.MULTILINE,
 )
 REPAIR_SECTION_TITLES = {
