@@ -1,0 +1,185 @@
+{
+  "schema": "alpha_system.tests.runtime.fail_closed.synthetic.v1",
+  "synthetic_attestation": {
+    "constructed_by": "RT-P20",
+    "market_data": false,
+    "provider_response": false,
+    "alpha_evidence": false,
+    "description": "Hand-written scalar fixtures for runtime fail-closed tests only."
+  },
+  "ids": {
+    "alpha_spec_ref": "aspec_af848bc999a4c4b11a421bd0",
+    "study_spec_ref": "sspec_438ceffd40855205de5497f0",
+    "feature_request_ref": "freq_eb180e1226ce34c048c7e6eb",
+    "label_spec_ref": "lspec_8663589ca7a9f1e5859289c7",
+    "dataset_version_id": "dsv_rt_p20_synthetic_fixture_v1",
+    "feature_version_id": "fver_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "label_version_id": "lver_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "dataset_scope": {
+    "instrument_universe": "SYNTH_RUNTIME_FIXTURE_ONLY",
+    "source": "synthetic fixture metadata, not market data",
+    "time_range": "2026-01-02T14:30:00+00:00 through 2026-01-02T14:40:00+00:00"
+  },
+  "partition_scope": {
+    "development": {
+      "partition_id": "development_partition"
+    },
+    "locked_test_without_metadata": {
+      "partition_id": "locked_test_candidate"
+    },
+    "locked_test_selection": {
+      "partition_id": "locked_test_candidate",
+      "selection_request": "locked_test_candidate"
+    }
+  },
+  "session_scope": {
+    "session": "rth_only"
+  },
+  "feature_inputs": {
+    "missing_available_ts": {
+      "event_ts": "2026-01-02T14:35:00+00:00",
+      "feature_value": "0.7",
+      "fields": [
+        "close"
+      ]
+    },
+    "label_value_as_live_feature": {
+      "event_ts": "2026-01-02T14:35:00+00:00",
+      "available_ts": "2026-01-02T14:35:05+00:00",
+      "fields": [
+        "close",
+        "label_value"
+      ]
+    }
+  },
+  "label_inputs": {
+    "missing_label_available_ts": {
+      "event_ts": "2026-01-02T14:35:00+00:00",
+      "horizon_end_ts": "2026-01-02T14:40:00+00:00",
+      "label_value": "0.1"
+    }
+  },
+  "probe": {
+    "same_bar_policy": {
+      "timing": "explicit_delay",
+      "delay_bars": 0,
+      "allow_same_bar_fill": true
+    },
+    "same_bar_report": {
+      "position_summary": {
+        "same_bar_fill_count": 1
+      },
+      "trade_summary": {
+        "fill_delay_bars": 0
+      },
+      "report_metadata": {
+        "same_bar_optimistic_fill_forbidden": false
+      }
+    },
+    "same_bar_fill_record": {
+      "fill_index": 2,
+      "origin_signal_index": 2,
+      "same_bar_fill": true
+    },
+    "rows": [
+      {
+        "row_id": "rt-p20-row-0",
+        "event_ts": "2026-01-02T14:30:00+00:00",
+        "available_ts": "2026-01-02T14:30:05+00:00",
+        "label_available_ts": "2026-01-02T14:35:00+00:00",
+        "feature_value": "0.7",
+        "label_value": "0.0",
+        "price": "1",
+        "session_label": "RTH"
+      },
+      {
+        "row_id": "rt-p20-row-1",
+        "event_ts": "2026-01-02T14:31:00+00:00",
+        "available_ts": "2026-01-02T14:31:05+00:00",
+        "label_available_ts": "2026-01-02T14:36:00+00:00",
+        "feature_value": "-0.7",
+        "label_value": "0.1",
+        "price": "1",
+        "session_label": "RTH"
+      },
+      {
+        "row_id": "rt-p20-row-2",
+        "event_ts": "2026-01-02T14:32:00+00:00",
+        "available_ts": "2026-01-02T14:32:05+00:00",
+        "label_available_ts": "2026-01-02T14:37:00+00:00",
+        "feature_value": "0.0",
+        "label_value": "-0.1",
+        "price": "1",
+        "session_label": "RTH"
+      }
+    ],
+    "cost_profiles_missing_double_cost": [
+      {
+        "name": "base",
+        "cost_multiplier": "1.0",
+        "slippage_multiplier": "1.0"
+      },
+      {
+        "name": "stress_1",
+        "cost_multiplier": "1.25",
+        "slippage_multiplier": "1.25"
+      },
+      {
+        "name": "stress_2",
+        "cost_multiplier": "1.5",
+        "slippage_multiplier": "1.5"
+      }
+    ]
+  },
+  "grid": {
+    "unbounded_parameter_axes": [],
+    "variant_budget_exceeded": {
+      "parameter_axes": {
+        "threshold": [
+          "0.5",
+          "0.6"
+        ],
+        "direction_policy": [
+          "long_flat",
+          "short_flat"
+        ]
+      },
+      "max_variants": 3
+    }
+  },
+  "dataset_lifecycle": {
+    "inadmissible": "DRAFT",
+    "admissible": "VERSIONED"
+  },
+  "prohibited_mvp_states": [
+    "ALPHA_VALIDATED",
+    "FACTOR_PROMOTED",
+    "STRATEGY_READY",
+    "PORTFOLIO_READY",
+    "LIVE_READY",
+    "PAPER_READY",
+    "PROFITABLE",
+    "TRADABLE",
+    "PRODUCTION_READY"
+  ],
+  "artifact_descriptors": {
+    "raw_runtime_values": {
+      "kind": "runtime_values",
+      "location": "artifacts/runtime/feature_values.parquet",
+      "size_bytes": 4096,
+      "curated": false,
+      "row_free": false,
+      "contains_runtime_values": true
+    },
+    "curated_summary": {
+      "kind": "runtime_summary",
+      "location": "handoffs/ALPHA_RESEARCH_RUNTIME_MVP/RT-P20_summary.md",
+      "size_bytes": 1024,
+      "curated": true,
+      "row_free": true,
+      "row_count": 0,
+      "contains_runtime_values": false
+    }
+  }
+}
