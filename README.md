@@ -7,76 +7,24 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P09` records the regime-family AlphaSpec batch for the
-`FUTCORE-P07` through `FUTCORE-P11` parallel AlphaSpec wave. The
-`alpha_spec_batches` gate remains bounded by the serial review and merge queue
-for the family batches.
-
-Active / next work: Ralph owns authoritative validation, review routing, and
-serial merge handling for `FUTCORE-P09`; the remaining AlphaSpec batch wave and
-downstream `FUTCORE-P12` critique stay under Workflow 2 control.
-
-New durable surfaces through `FUTCORE-P09`:
-`FUTCORE-P08` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
-post-merge snapshot as the VWAP / session-auction AlphaSpec draft batch. The
-foundation merge group is complete through `FUTCORE-P06`; `FUTCORE-P08` is one
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active. The
+`bootstrap_and_inputs` gate is complete through `FUTCORE-P06`. `FUTCORE-P10`
+is complete as the Liquidity Sweep / PA AlphaSpec batch and as one
 path-disjoint member of the parallel `alpha_specs` wave.
 
-Active / next work: the remaining `alpha_specs` family batches
-(`FUTCORE-P07`, `FUTCORE-P09`, `FUTCORE-P10`, and `FUTCORE-P11`) continue the
-parallel draft wave, followed by `FUTCORE-P12` AlphaSpec critique and family
-budget audit.
+Active / next work: the remaining `alpha_specs` family batches (`FUTCORE-P07`,
+`FUTCORE-P08`, `FUTCORE-P09`, and `FUTCORE-P11` as applicable) continue under
+Workflow 2 review and serial merge handling, followed by `FUTCORE-P12`
+AlphaSpec Critic and Family Budget Audit.
 
-New durable surfaces through this `FUTCORE-P08` snapshot:
-`FUTCORE-P07` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
-post-merge snapshot and adds the cross-market AlphaSpec batch within the
-parallel `alpha_specs` wave. The `foundation` merge group /
-`bootstrap_and_inputs` gate is complete through `FUTCORE-P06`.
+New durable surfaces in `FUTCORE-P10`:
 
-Active / next work: `FUTCORE-P07` is done. The next work is the remaining
-`FUTCORE-P08` through `FUTCORE-P11` AlphaSpec family batches, followed by
-`FUTCORE-P12` AlphaSpec Critic and Family Budget Audit.
+- `research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/`
+- `docs/futures_core_alpha_pilot/alpha_specs/liquidity_pa.md`
 
-New durable surfaces through `FUTCORE-P07`:
-
-- `docs/futures_core_alpha_pilot/README.md`
-- `docs/futures_core_alpha_pilot/OVERVIEW.md`
-- `docs/futures_core_alpha_pilot/PREFLIGHT.md`
-- `docs/futures_core_alpha_pilot/SCOPE.md`
-- `docs/futures_core_alpha_pilot/INPUT_PACK.md`
-- `docs/futures_core_alpha_pilot/COST_MODEL.md`
-- `docs/futures_core_alpha_pilot/ALPHASPEC_PROTOCOL.md`
-- `docs/futures_core_alpha_pilot/RESEARCH_QUEUE.md`
-- `docs/futures_core_alpha_pilot/alpha_specs/regime.md`
-- `research/futures_core_alpha_pilot_v1/README.md`
-- `research/futures_core_alpha_pilot_v1/.gitkeep`
-- `research/futures_core_alpha_pilot_v1/preflight/preflight_report.md`
-- `research/futures_core_alpha_pilot_v1/scope/scope_contract.md`
-- `research/futures_core_alpha_pilot_v1/input_pack/input_pack_lock.md`
-- `research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md`
-- `research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md`
-- `research/futures_core_alpha_pilot_v1/alpha_specs/README.md`
-- `research/futures_core_alpha_pilot_v1/alpha_specs/regime/`
-- `research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/`
-- `research/futures_core_alpha_pilot_v1/queue/`
-- `docs/futures_core_alpha_pilot/alpha_specs/vwap_session.md`
-
-`FUTCORE-P09` adds value-free regime AlphaSpec drafts and the regime family
+`FUTCORE-P10` adds value-free liquidity/PA AlphaSpec drafts and the family
 index only. It adds no commands, modules, runtime behavior, data readers,
 diagnostics, cost calculations, reviews, agent runners, or broker surfaces.
-No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, reviews, agent runners, or broker surfaces are added by
-`FUTCORE-P08`. The VWAP/session batch records draft AlphaSpec payloads,
-assumptions, limitations, and diagnostic declarations only.
-- `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/`
-- `research/futures_core_alpha_pilot_v1/queue/`
-- `docs/futures_core_alpha_pilot/alpha_specs/cross_market.md`
-
-No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, reviews, agent runners, or broker surfaces are added by
-`FUTCORE-P07`. The cross-market AlphaSpec drafts are value-free research
-evidence only and remain subject to independent critique in `FUTCORE-P12`.
 
 ## Source Of Truth
 
