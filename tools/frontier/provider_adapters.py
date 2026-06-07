@@ -160,6 +160,12 @@ class CodexProviderAdapter(ProviderAdapter):
             "exec",
             "-c",
             f"service_tier={self.config.codex_service_tier}",
+            # Pass the run environment (ALPHA_DATA_ROOT, an activated venv's PATH,
+            # etc.) through to model-executed commands. Codex otherwise sandboxes
+            # the env, so data-dependent phases (which run their runtime via these
+            # commands) cannot resolve inputs and fail closed on empty data.
+            "-c",
+            f"shell_environment_policy.inherit={self.config.codex_shell_environment_inherit}",
             "--sandbox",
             self.config.codex_sandbox,
             "-",

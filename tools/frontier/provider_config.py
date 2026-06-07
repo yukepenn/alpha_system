@@ -27,6 +27,7 @@ class ProviderRuntimeConfig:
     codex_cmd: list[str]
     codex_sandbox: str
     codex_service_tier: str
+    codex_shell_environment_inherit: str
     default_worktree_mode: bool
     worktree_root: Path | None
     lane_policies: dict[str, Any]
@@ -169,6 +170,22 @@ def load_provider_config(root: Path | None = None, env: Mapping[str, str] | None
             os.environ.get("FRONTIER_CODEX_SERVICE_TIER")
             or str(_nested(providers, "codex", "service_tier") or "fast")
         )
+        # Codex sandboxes the environment of model-executed commands; by default it
+        # does NOT pass through custom env vars (e.g. ALPHA_DATA_ROOT) or the
+        # caller's PATH (e.g. an activated venv). Data-dependent phases run their
+        # runtime via those commands, so the executor must inherit the run
+        # environment. Default to "all"; allow narrowing to codex's "core" if a
+        # deployment wants the minimal set.
+        codex_shell_environment_inherit = str(
+            os.environ.get("FRONTIER_CODEX_SHELL_ENV_INHERIT")
+            or _nested(providers, "codex", "shell_environment_inherit")
+            or "all"
+        ).strip().lower()
+        if codex_shell_environment_inherit not in {"all", "core"}:
+            raise ProviderConfigError(
+                "Codex shell_environment_inherit must be 'all' or 'core'; "
+                f"got {codex_shell_environment_inherit!r}."
+            )
 
         env_worktree = _bool_from_env("FRONTIER_WORKTREE_MODE")
         configured_worktree = workflow2.get("worktree_mode", workflow2.get("default_worktree_mode", False))
@@ -185,6 +202,7 @@ def load_provider_config(root: Path | None = None, env: Mapping[str, str] | None
             codex_cmd=codex_cmd,
             codex_sandbox=codex_sandbox,
             codex_service_tier=codex_service_tier,
+            codex_shell_environment_inherit=codex_shell_environment_inherit,
             default_worktree_mode=default_worktree_mode,
             worktree_root=worktree_root,
             lane_policies=dict(lanes),
