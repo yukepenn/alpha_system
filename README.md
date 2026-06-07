@@ -24,6 +24,22 @@ New durable surfaces in this `FUTCORE-P17` snapshot:
 - `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
 
 `FUTCORE-P17` adds no new commands, data readers, agent runners, feature value
+through `FUTCORE-P16`, Cross-Market Diagnostics, in the
+`family_diagnostics` gate. This snapshot records the cross-market family
+diagnostics against registry-resolved locked Parquet inputs.
+
+Active / next work: `FUTCORE-P16` is completed from the executor side. The
+remaining diagnostics wave continues with `FUTCORE-P17` through `FUTCORE-P20`,
+then `FUTCORE-P21` consolidates cost stress and thin-session stress per the
+wave map. Ralph continues to own authoritative validation, review routing,
+staging, PR, CI, merge, and done-check actions.
+
+New durable surfaces in this `FUTCORE-P16` snapshot:
+
+- `docs/futures_core_alpha_pilot/diagnostics/cross_market.md`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/`
+
+`FUTCORE-P16` adds no new commands, data readers, agent runners, feature value
 data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
 or deployment behavior.
 
