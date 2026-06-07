@@ -1,0 +1,89 @@
+{
+  "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "candidate_input_framing": {
+    "label": "candidate-for-later-review",
+    "promotion_state": "not promoted",
+    "reference_validation_state": "not performed",
+    "tradability_state": "not tradable",
+    "validation_state": "not validated"
+  },
+  "card_hash": "2388707c1a4614ebf782aa176bb06d8b6665df85a9bf369bb78d918895bad170",
+  "card_id": "fcard_2388707c1a4614ebf782aa17",
+  "factor_library_input": {
+    "duplicate_exposure_group_hint": "vwap-rth-open-eth",
+    "evidence_draft_ref": {
+      "artifact_path": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_aff70fcbc4b7ff226fcc8149.json",
+      "draft_hash": "b100e83a160d2630546257bfcede27dfd54baeb0c7fd71713fb4c407c908f120",
+      "draft_id": "edraft_b100e83a160d2630546257bf"
+    },
+    "input_type": "FactorCard draft for later review",
+    "linked_rejected_idea_refs": [],
+    "p25_reviewer_verdict_ref": {
+      "content_hash": "77537504219f3d07dfdcd50690e771db4d0b08dc6217c8d3c1a2b9e95e7b6eba",
+      "path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_aff70fcbc4b7ff226fcc8149.json",
+      "role": "statistical_reviewer_verdict",
+      "source_id": "sspec_aff70fcbc4b7ff226fcc8149"
+    },
+    "p26_trial_ledger_refs": [
+      {
+        "content_hash": "eeb44fc100168b126b7f8baab91196ab0550c7c294a494d8d224084cd7aa1b27",
+        "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_3b8f60dd0f4793288360159e.json",
+        "role": "trial_ledger_record",
+        "source_id": "trial_3b8f60dd0f4793288360159e"
+      }
+    ],
+    "reference_candidate_handoff_ref": {
+      "artifact_path": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_aff70fcbc4b7ff226fcc8149.json",
+      "handoff_hash": "3ded4933ba57b9f0f7204fe227bd0aea6611ca09a4d2a7992134906dc8b37c23",
+      "handoff_id": "rhandoff_3ded4933ba57b9f0f7204fe2"
+    }
+  },
+  "family": "vwap_session",
+  "limitations": [
+    "This FactorCard is a draft input for later review only.",
+    "P25 judgement is INCONCLUSIVE and remains unchanged.",
+    "Cost, capacity, and thin-session fields are proxy-only references.",
+    "Temporal and label timing flags remain unresolved by this packaging phase.",
+    "No alpha, profitability, capital, paper, live, broker, order, or deployment claim is made."
+  ],
+  "lineage": {
+    "code_hash": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
+    "config_hash": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "feature_version_ids": [
+      "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+      "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+      "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+      "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169",
+      "fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d",
+      "fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91"
+    ],
+    "label_version_ids": [
+      "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+      "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+      "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a"
+    ],
+    "source_alpha_spec_ref": {
+      "content_hash": "63c9b88ebf6e80726c5270be848d3177ab9c9b0d4065993d5a67eb9dcc19636c",
+      "path": "research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/FUTCORE-P08_vwap_session_07.md",
+      "role": "alpha_spec"
+    },
+    "source_study_spec_ref": {
+      "content_hash": "dcff32bd6a1e40036d29f48b4586c89bd75c87478f702fd8a64d29fce5ef1033",
+      "path": "research/futures_core_alpha_pilot_v1/study_specs/sspec_aff70fcbc4b7ff226fcc8149.json",
+      "role": "study_spec"
+    }
+  },
+  "phase_id": "FUTCORE-P27",
+  "review_boundaries": {
+    "p27_does_not_assign_promotion": true,
+    "p27_does_not_perform_reference_validation": true,
+    "p27_does_not_rerun_diagnostics": true,
+    "p27_does_not_rescore_or_redecide": true,
+    "raw_or_heavy_data_embedded": false
+  },
+  "schema": "alpha_system.futures_core_alpha_pilot.factor_card_draft.v1",
+  "study_spec_id": "sspec_aff70fcbc4b7ff226fcc8149",
+  "survivor_id": "sspec_aff70fcbc4b7ff226fcc8149"
+}

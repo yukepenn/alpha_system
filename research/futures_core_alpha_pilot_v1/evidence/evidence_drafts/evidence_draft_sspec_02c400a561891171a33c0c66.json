@@ -1,0 +1,604 @@
+{
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "candidate_input_framing": {
+    "handoff_state": "reference input only",
+    "label": "candidate-for-later-review",
+    "tradability_state": "not tradable",
+    "validation_state": "not validated"
+  },
+  "phase_id": "FUTCORE-P27",
+  "runtime_evidence_draft": {
+    "alpha_spec_id": "aspec_39ffc190cfbfa6ba0b1a2a25",
+    "artifact_manifest": [
+      {
+        "content_hash": "39400c2a71dbf01bf1e9e3944d476878badacbb3352a197a40418a2783c3caa0",
+        "logical_name": "FUTCORE-P26",
+        "reference": "handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P26.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "6623458118dc97486c5580cb32a209fc571887da35a8d44596cea1b127ce757d",
+        "logical_name": "FUTCORE-P10_liquidity_pa_06",
+        "reference": "research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/FUTCORE-P10_liquidity_pa_06.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "0bba6aad23952e376f1f1c456d657d7164f9cbc7ff72dd86e512bc672ebde49c",
+        "logical_name": "no_lookahead_audit",
+        "reference": "research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "b272ec73ad1853007d1fbc159f0af06b3447649d6544ce8d6a37e3c12549a3f0",
+        "logical_name": "variant_budget_audit",
+        "reference": "research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "b14ef9d1545cd95b8c483223fdf0695db92b2fd663f78eec6828901df4849c96",
+        "logical_name": "cost_sensitivity_report",
+        "reference": "research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "7db53e36f7002cb3b750307971bcb6863543e0e9caee37abf9b331bf5e48c211",
+        "logical_name": "FUTCORE-P19_liquidity_pa_summary",
+        "reference": "research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/FUTCORE-P19_liquidity_pa_summary.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "326da78d4a038c2976a5d590b2408da8fdc5c84e4a14412674861dd7838af645",
+        "logical_name": "runtime_reports",
+        "reference": "research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/sspec_02c400a561891171a33c0c66/runtime_reports.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "029c3941c17c1ccaa417333dc803e8b477061c5996a879f767ca4045ba9c9514",
+        "logical_name": "INDEX",
+        "reference": "research/futures_core_alpha_pilot_v1/ledgers/INDEX.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "3959b0253258f15bcdb5f37260a90f3dcf7b45e6022716fa343a4297bfe9c00d",
+        "logical_name": "rejected_idea_ledger",
+        "reference": "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/rejected_idea_ledger.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "25020c1620a7465a00472de790c42226cee9b2510cd532e7dac3e7c9a888b54d",
+        "logical_name": "trial_45df4e0c5999da63a57ff9b2",
+        "reference": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_45df4e0c5999da63a57ff9b2.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "50ff07aee4b4580b8ecbcd877fe1c51e3fc46f1672164b69b246cdf965f677d2",
+        "logical_name": "trial_ledger",
+        "reference": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/trial_ledger.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "e8c372655c306f2806460e067fe93685a499e9a2d6f1d031615b5d6bec73d0fa",
+        "logical_name": "session_horizon_regime_matrix",
+        "reference": "research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "497e470e6f7673d8a7230896129b7a97c5e6f67d00fa71155d4ab16aa2be006f",
+        "logical_name": "INDEX",
+        "reference": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/INDEX.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "b5089ce28bdeb48e3fac9f034910abb620331cf5bea1f4835ef88b0b1cc334bf",
+        "logical_name": "reviewer_verdict_sspec_02c400a561891171a33c0c66",
+        "reference": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_02c400a561891171a33c0c66.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "fab3a20688993869f607248349f2320862f285c1ef17e50970d619fc1f173725",
+        "logical_name": "INDEX",
+        "reference": "research/futures_core_alpha_pilot_v1/study_specs/INDEX.md",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "bd00567b82eb4c863308073c7fdce07034dc724c6fc9e10ec7a7654470bc9441",
+        "logical_name": "sspec_02c400a561891171a33c0c66",
+        "reference": "research/futures_core_alpha_pilot_v1/study_specs/sspec_02c400a561891171a33c0c66.json",
+        "role": "upstream_reference"
+      },
+      {
+        "content_hash": "5e4327c69741456c25faae6a48a717c9d5e6b3793f7f8ed45b2d730aabecbe63",
+        "logical_name": "FUTCORE-P25",
+        "reference": "reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/statistical/FUTCORE-P25.md",
+        "role": "upstream_reference"
+      }
+    ],
+    "decision": {
+      "reasons": [
+        {
+          "code": "inconclusive",
+          "decision_state": "INCONCLUSIVE",
+          "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+          "source_code": "p25_statistical_reviewer_inconclusive",
+          "source_id": "sspec_02c400a561891171a33c0c66",
+          "stage": "diagnostics"
+        }
+      ],
+      "source_state": "P25_INCONCLUSIVE",
+      "state": "INCONCLUSIVE"
+    },
+    "descriptive_only": true,
+    "draft_hash": "35e94b7ecf400f115c9c6cb7c58844ef3fd294cbdcc16e37161638e09575bfa3",
+    "draft_id": "edraft_35e94b7ecf400f115c9c6cb7",
+    "governance_evidence_bundle_id": "evb_9c46f09d972a0b9d33b938dc",
+    "limitations": [
+      "EvidenceDraft is an evidence input, not a candidate.",
+      "P27 packaging does not run diagnostics or assign promotion decisions.",
+      "Reference validation is a later gate and is not performed here.",
+      "No alpha, profitability, capacity, capital, paper, live, broker, order, or deployment claim is made."
+    ],
+    "not_a_candidate": true,
+    "not_finalized_evidence_bundle": true,
+    "not_reference_truth": true,
+    "promotion_basis_allowed": false,
+    "raw_or_heavy_data_embedded": false,
+    "run_id": "2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1_sspec_02c400a561891171a33c0c66",
+    "schema": "alpha_system.runtime.evidence_draft.v1",
+    "sections": [
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "StudySpec references are copied by id, path, and hash only."
+        ],
+        "promotion_basis_allowed": false,
+        "reason_visibility": "no_terminal_rejection_reason_applicable_for_forward_section",
+        "section_name": "alpha_and_study_spec_refs",
+        "source_ref": {
+          "source_hash": "bd00567b82eb4c863308073c7fdce07034dc724c6fc9e10ec7a7654470bc9441",
+          "source_id": "sspec_02c400a561891171a33c0c66"
+        },
+        "source_type": "StudySpecReferenceSet",
+        "status": "REFERENCED",
+        "summary": {
+          "alpha_spec_id": "aspec_39ffc190cfbfa6ba0b1a2a25",
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "declared_variant_budget": 4,
+          "family": "liquidity_pa",
+          "feature_version_count": 6,
+          "label_version_count": 3,
+          "source_alpha_spec_ref": {
+            "content_hash": "6623458118dc97486c5580cb32a209fc571887da35a8d44596cea1b127ce757d",
+            "path": "research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/FUTCORE-P10_liquidity_pa_06.md",
+            "role": "alpha_spec"
+          },
+          "source_study_spec_ref": {
+            "content_hash": "bd00567b82eb4c863308073c7fdce07034dc724c6fc9e10ec7a7654470bc9441",
+            "path": "research/futures_core_alpha_pilot_v1/study_specs/sspec_02c400a561891171a33c0c66.json",
+            "role": "study_spec"
+          },
+          "study_spec_id": "sspec_02c400a561891171a33c0c66"
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "Diagnostics are referenced only; P27 does not rerun or rescore them."
+        ],
+        "promotion_basis_allowed": false,
+        "rejection_reason_records": [
+          {
+            "code": "inconclusive",
+            "decision_state": "INCONCLUSIVE",
+            "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+            "source_code": "p25_statistical_reviewer_inconclusive",
+            "source_id": "sspec_02c400a561891171a33c0c66",
+            "stage": "diagnostics"
+          }
+        ],
+        "section_name": "diagnostics_report_refs",
+        "source_ref": {
+          "source_hash": "f9b2d17e8a90b851a815701581cc19f042c70f39d8317946ee496c3e49be908b",
+          "source_id": "FUTCORE-P27_sspec_02c400a561891171a33c0c66_diagnostics"
+        },
+        "source_type": "FamilyDiagnosticsReferenceSet",
+        "status": "INCONCLUSIVE",
+        "summary": {
+          "diagnostic_status": "INCONCLUSIVE",
+          "diagnostics_refs": [
+            {
+              "content_hash": "7db53e36f7002cb3b750307971bcb6863543e0e9caee37abf9b331bf5e48c211",
+              "path": "research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/FUTCORE-P19_liquidity_pa_summary.json",
+              "role": "diagnostics_report_reference",
+              "source_id": "FUTCORE-P19_liquidity_pa_summary"
+            },
+            {
+              "content_hash": "326da78d4a038c2976a5d590b2408da8fdc5c84e4a14412674861dd7838af645",
+              "path": "research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/sspec_02c400a561891171a33c0c66/runtime_reports.json",
+              "role": "diagnostics_report_reference",
+              "source_id": "runtime_reports"
+            }
+          ],
+          "runtime_report_count": 2,
+          "source_family": "liquidity_pa"
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "Cost and thin-session evidence remains proxy-only and cannot serve as a promotion basis."
+        ],
+        "promotion_basis_allowed": false,
+        "rejection_reason_records": [
+          {
+            "code": "inconclusive",
+            "decision_state": "INCONCLUSIVE",
+            "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+            "source_code": "p25_statistical_reviewer_inconclusive",
+            "source_id": "sspec_02c400a561891171a33c0c66",
+            "stage": "diagnostics"
+          }
+        ],
+        "section_name": "cost_and_thin_session_refs",
+        "source_ref": {
+          "source_hash": "b14ef9d1545cd95b8c483223fdf0695db92b2fd663f78eec6828901df4849c96",
+          "source_id": "FUTCORE-P21_cost_sensitivity_report"
+        },
+        "source_type": "CostSensitivityReferenceSet",
+        "status": "REFERENCED",
+        "summary": {
+          "cost_stress_refs": [
+            {
+              "content_hash": "b14ef9d1545cd95b8c483223fdf0695db92b2fd663f78eec6828901df4849c96",
+              "path": "research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md",
+              "role": "cost_stress_and_thin_session_reference",
+              "source_id": "cost_sensitivity_report"
+            }
+          ],
+          "proxy_only": true,
+          "required_nonzero_profiles_referenced": [
+            "base",
+            "stress_1",
+            "stress_2",
+            "double_cost"
+          ],
+          "thin_session_policy_ref": {
+            "content_hash": "c04d8d2712c977b61569fdb61a6d44d3eb9c19cbfb4890bb7d8031e26010b862",
+            "path": "research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md",
+            "role": "cost_model_contract"
+          },
+          "zero_cost_policy": "diagnostic_context_only"
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "Matrix cells are reporting slices only and are not promotion decisions."
+        ],
+        "promotion_basis_allowed": false,
+        "rejection_reason_records": [
+          {
+            "code": "inconclusive",
+            "decision_state": "INCONCLUSIVE",
+            "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+            "source_code": "p25_statistical_reviewer_inconclusive",
+            "source_id": "sspec_02c400a561891171a33c0c66",
+            "stage": "diagnostics"
+          }
+        ],
+        "section_name": "session_horizon_regime_matrix_refs",
+        "source_ref": {
+          "source_hash": "e8c372655c306f2806460e067fe93685a499e9a2d6f1d031615b5d6bec73d0fa",
+          "source_id": "FUTCORE-P22_session_horizon_regime_matrix"
+        },
+        "source_type": "SessionHorizonRegimeMatrixReferenceSet",
+        "status": "diagnostic_survivor_for_consolidation",
+        "summary": {
+          "fixed_reporting_slices_only": true,
+          "matrix_refs": [
+            {
+              "content_hash": "e8c372655c306f2806460e067fe93685a499e9a2d6f1d031615b5d6bec73d0fa",
+              "path": "research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md",
+              "role": "session_horizon_regime_matrix_reference",
+              "source_id": "session_horizon_regime_matrix"
+            }
+          ],
+          "matrix_role": "diagnostic_survivor_for_consolidation",
+          "no_promotion_state_assigned": true
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "Temporal audit flags remain unresolved by this packaging phase."
+        ],
+        "promotion_basis_allowed": false,
+        "rejection_reason_records": [
+          {
+            "code": "inconclusive",
+            "decision_state": "INCONCLUSIVE",
+            "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+            "source_code": "p25_statistical_reviewer_inconclusive",
+            "source_id": "sspec_02c400a561891171a33c0c66",
+            "stage": "diagnostics"
+          }
+        ],
+        "section_name": "no_lookahead_audit_refs",
+        "source_ref": {
+          "source_hash": "0bba6aad23952e376f1f1c456d657d7164f9cbc7ff72dd86e512bc672ebde49c",
+          "source_id": "FUTCORE-P23_no_lookahead_audit"
+        },
+        "source_type": "NoLookaheadAuditReferenceSet",
+        "status": "FLAGGED",
+        "summary": {
+          "audit_scope": "value_free_reference_only",
+          "no_lookahead_refs": [
+            {
+              "content_hash": "0bba6aad23952e376f1f1c456d657d7164f9cbc7ff72dd86e512bc672ebde49c",
+              "path": "research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md",
+              "role": "no_lookahead_audit_reference",
+              "source_id": "no_lookahead_audit"
+            }
+          ],
+          "same_bar_optimism_summary": "no_same_bar_optimism_findings_carried",
+          "timing_flags_carried": [
+            "LOOKAHEAD",
+            "LABEL_LEAKAGE"
+          ]
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "Variant-budget audit is referenced only and does not authorize promotion."
+        ],
+        "promotion_basis_allowed": false,
+        "reason_visibility": "no_terminal_rejection_reason_applicable_for_forward_section",
+        "section_name": "variant_budget_refs",
+        "source_ref": {
+          "source_hash": "b272ec73ad1853007d1fbc159f0af06b3447649d6544ce8d6a37e3c12549a3f0",
+          "source_id": "FUTCORE-P24_variant_budget_audit"
+        },
+        "source_type": "VariantBudgetReferenceSet",
+        "status": "WITHIN_DECLARED_BUDGET_BY_REFERENCE",
+        "summary": {
+          "declared_variant_budget": 4,
+          "locked_test_contamination_flag": false,
+          "observed_variant_count": 0,
+          "oos_touched_flag": false,
+          "variant_budget_refs": [
+            {
+              "content_hash": "b272ec73ad1853007d1fbc159f0af06b3447649d6544ce8d6a37e3c12549a3f0",
+              "path": "research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md",
+              "role": "bounded_grid_variant_budget_reference",
+              "source_id": "variant_budget_audit"
+            }
+          ]
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "P25 is an independent evidence-quality judgement, not a promotion decision."
+        ],
+        "promotion_basis_allowed": false,
+        "rejection_reason_records": [
+          {
+            "code": "inconclusive",
+            "decision_state": "INCONCLUSIVE",
+            "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+            "source_code": "p25_statistical_reviewer_inconclusive",
+            "source_id": "sspec_02c400a561891171a33c0c66",
+            "stage": "diagnostics"
+          }
+        ],
+        "section_name": "statistical_reviewer_verdict_ref",
+        "source_ref": {
+          "source_hash": "b5089ce28bdeb48e3fac9f034910abb620331cf5bea1f4835ef88b0b1cc334bf",
+          "source_id": "sspec_02c400a561891171a33c0c66"
+        },
+        "source_type": "StatisticalReviewerVerdictReference",
+        "status": "INCONCLUSIVE",
+        "summary": {
+          "judgement": "INCONCLUSIVE",
+          "promotion_decision_assigned": false,
+          "reviewer_id": "statistical_reviewer_futcore_p25",
+          "reviewer_role": "statistical_reviewer",
+          "reviewer_verdict_refs": [
+            {
+              "content_hash": "b5089ce28bdeb48e3fac9f034910abb620331cf5bea1f4835ef88b0b1cc334bf",
+              "path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_02c400a561891171a33c0c66.json",
+              "role": "statistical_reviewer_verdict",
+              "source_id": "sspec_02c400a561891171a33c0c66"
+            }
+          ],
+          "watch_or_candidate_budget_impact": 0
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "TrialLedger records are source-of-truth references for P27 survivor packaging."
+        ],
+        "promotion_basis_allowed": false,
+        "reason_visibility": "no_terminal_rejection_reason_applicable_for_forward_section",
+        "section_name": "trial_ledger_refs",
+        "source_ref": {
+          "source_hash": "a9ad18e6275307e8dec34539012cac9227ac85cbdc09070f13756b19b0d23f10",
+          "source_id": "sspec_02c400a561891171a33c0c66"
+        },
+        "source_type": "TrialLedgerReferenceSet",
+        "status": "RECORDED_BY_P26",
+        "summary": {
+          "trial_ledger_aggregate_ref": {
+            "content_hash": "50ff07aee4b4580b8ecbcd877fe1c51e3fc46f1672164b69b246cdf965f677d2",
+            "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/trial_ledger.json",
+            "role": "trial_ledger"
+          },
+          "trial_record_count": 1,
+          "trial_record_refs": [
+            {
+              "content_hash": "25020c1620a7465a00472de790c42226cee9b2510cd532e7dac3e7c9a888b54d",
+              "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_45df4e0c5999da63a57ff9b2.json",
+              "role": "trial_ledger_record",
+              "source_id": "trial_45df4e0c5999da63a57ff9b2"
+            }
+          ],
+          "trial_statuses": [
+            "COMPLETED"
+          ]
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "RejectedIdea refs are links only and do not alter survivor membership."
+        ],
+        "promotion_basis_allowed": false,
+        "reason_visibility": "no_terminal_rejection_reason_applicable_for_forward_section",
+        "section_name": "rejected_idea_link_refs",
+        "source_ref": {
+          "source_hash": "c96f4668ddb8ca05a87cc1f879032a77d55eba73f526c0390252b55febe56f55",
+          "source_id": "sspec_02c400a561891171a33c0c66_linked_rejections"
+        },
+        "source_type": "RejectedIdeaLedgerReferenceSet",
+        "status": "NO_EXACT_DUPLICATE_LINK_RECORDED",
+        "summary": {
+          "exact_duplicate_group_link_status": "no_exact_record_for_duplicate_group_hint",
+          "linked_rejected_idea_record_ref_policy": "no_empty_ref_list_emitted",
+          "rejected_idea_ledger_aggregate_ref": {
+            "content_hash": "3959b0253258f15bcdb5f37260a90f3dcf7b45e6022716fa343a4297bfe9c00d",
+            "path": "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/rejected_idea_ledger.json",
+            "role": "rejected_idea_ledger"
+          }
+        }
+      },
+      {
+        "descriptive_only": true,
+        "limitations": [
+          "Duplicate-exposure hint is review context only and is not a clustering decision."
+        ],
+        "promotion_basis_allowed": false,
+        "reason_visibility": "no_terminal_rejection_reason_applicable_for_forward_section",
+        "section_name": "duplicate_exposure_group_hint",
+        "source_ref": {
+          "source_hash": "f797dc835b4b4da9b1d70c0d14d27e69675aa0a40258ac513310782f84bda531",
+          "source_id": "duplicate_exposure_group_hint_pa-failed-breakout"
+        },
+        "source_type": "DuplicateExposureGroupHint",
+        "status": "HINT_ONLY",
+        "summary": {
+          "duplicate_exposure_group_hint": "pa-failed-breakout",
+          "duplicate_review_required_later": true,
+          "exact_rejected_link_count": 0,
+          "hint_source": "P26 TrialLedger parameters"
+        }
+      }
+    ],
+    "study_spec_id": "sspec_02c400a561891171a33c0c66",
+    "trial_ids": [
+      "trial_45df4e0c5999da63a57ff9b2"
+    ]
+  },
+  "runtime_surface": {
+    "evidence_class": "EvidenceDraft",
+    "evidence_module": "alpha_system.runtime.evidence.draft",
+    "governance_evidence_bundle_surface": "alpha_system.governance.evidence_bundle.create_evidence_bundle"
+  },
+  "schema": "alpha_system.futures_core_alpha_pilot.evidence_draft_record.v1",
+  "source_manifest": [
+    {
+      "content_hash": "39400c2a71dbf01bf1e9e3944d476878badacbb3352a197a40418a2783c3caa0",
+      "path": "handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P26.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "6623458118dc97486c5580cb32a209fc571887da35a8d44596cea1b127ce757d",
+      "path": "research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/FUTCORE-P10_liquidity_pa_06.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "0bba6aad23952e376f1f1c456d657d7164f9cbc7ff72dd86e512bc672ebde49c",
+      "path": "research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "b272ec73ad1853007d1fbc159f0af06b3447649d6544ce8d6a37e3c12549a3f0",
+      "path": "research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "b14ef9d1545cd95b8c483223fdf0695db92b2fd663f78eec6828901df4849c96",
+      "path": "research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "7db53e36f7002cb3b750307971bcb6863543e0e9caee37abf9b331bf5e48c211",
+      "path": "research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/FUTCORE-P19_liquidity_pa_summary.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "326da78d4a038c2976a5d590b2408da8fdc5c84e4a14412674861dd7838af645",
+      "path": "research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/sspec_02c400a561891171a33c0c66/runtime_reports.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "029c3941c17c1ccaa417333dc803e8b477061c5996a879f767ca4045ba9c9514",
+      "path": "research/futures_core_alpha_pilot_v1/ledgers/INDEX.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "3959b0253258f15bcdb5f37260a90f3dcf7b45e6022716fa343a4297bfe9c00d",
+      "path": "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/rejected_idea_ledger.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "25020c1620a7465a00472de790c42226cee9b2510cd532e7dac3e7c9a888b54d",
+      "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_45df4e0c5999da63a57ff9b2.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "50ff07aee4b4580b8ecbcd877fe1c51e3fc46f1672164b69b246cdf965f677d2",
+      "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/trial_ledger.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "e8c372655c306f2806460e067fe93685a499e9a2d6f1d031615b5d6bec73d0fa",
+      "path": "research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "497e470e6f7673d8a7230896129b7a97c5e6f67d00fa71155d4ab16aa2be006f",
+      "path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/INDEX.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "b5089ce28bdeb48e3fac9f034910abb620331cf5bea1f4835ef88b0b1cc334bf",
+      "path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_02c400a561891171a33c0c66.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "fab3a20688993869f607248349f2320862f285c1ef17e50970d619fc1f173725",
+      "path": "research/futures_core_alpha_pilot_v1/study_specs/INDEX.md",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "bd00567b82eb4c863308073c7fdce07034dc724c6fc9e10ec7a7654470bc9441",
+      "path": "research/futures_core_alpha_pilot_v1/study_specs/sspec_02c400a561891171a33c0c66.json",
+      "role": "upstream_reference"
+    },
+    {
+      "content_hash": "5e4327c69741456c25faae6a48a717c9d5e6b3793f7f8ed45b2d730aabecbe63",
+      "path": "reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/statistical/FUTCORE-P25.md",
+      "role": "upstream_reference"
+    }
+  ],
+  "survivor_basis": {
+    "p22_matrix_role": "diagnostic_survivor_for_consolidation",
+    "p25_judgement": "INCONCLUSIVE",
+    "p26_trial_ids": [
+      "trial_45df4e0c5999da63a57ff9b2"
+    ],
+    "source_of_truth": "FUTCORE-P26 TrialLedger plus FUTCORE-P25 statistical reviewer verdict"
+  },
+  "survivor_id": "sspec_02c400a561891171a33c0c66"
+}

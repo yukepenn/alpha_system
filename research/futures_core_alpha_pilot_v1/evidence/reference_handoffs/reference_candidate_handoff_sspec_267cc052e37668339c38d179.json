@@ -1,0 +1,256 @@
+{
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "candidate_input_framing": {
+    "label": "candidate-for-later-review",
+    "promotion_decision_assigned": false,
+    "reference_validation_performed": false,
+    "tradability_state": "not tradable",
+    "validation_state": "not validated"
+  },
+  "linked_evidence_draft_path": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_267cc052e37668339c38d179.json",
+  "linked_factor_card_path": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_267cc052e37668339c38d179.json",
+  "phase_id": "FUTCORE-P27",
+  "runtime_reference_candidate_handoff": {
+    "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+    "cost_stress": {
+      "cost_model_version_ref": {
+        "role": "cost_model_version",
+        "source_hash": "c04d8d2712c977b61569fdb61a6d44d3eb9c19cbfb4890bb7d8031e26010b862",
+        "source_id": "cmv_futcore_pilot_three_layer_session_stress_v1",
+        "source_type": "CostModelVersionContract",
+        "status": "proxy_only_reference"
+      },
+      "profile_refs": [],
+      "promotion_basis_allowed": false,
+      "required_profiles": [
+        "base",
+        "double_cost"
+      ],
+      "slippage_labeled_proxy": true
+    },
+    "decision": {
+      "reasons": [
+        {
+          "code": "inconclusive",
+          "decision_state": "INCONCLUSIVE",
+          "message": "P25 statistical reviewer judgement remains inconclusive; P21, P22, P23, and P24 limitations are carried by reference.",
+          "source_code": "p25_statistical_reviewer_inconclusive",
+          "source_id": "sspec_267cc052e37668339c38d179",
+          "stage": "diagnostics"
+        }
+      ],
+      "source_state": "P25_INCONCLUSIVE",
+      "state": "INCONCLUSIVE"
+    },
+    "descriptive_only": true,
+    "diagnostics_report_refs": [
+      {
+        "role": "alpha_and_study_spec_refs",
+        "source_hash": "a54c5e8f4131abc4586875e6d1432c9593fa11cc1d97516e4f3a68ea7d7b6f0e",
+        "source_id": "sspec_267cc052e37668339c38d179",
+        "source_type": "StudySpecReferenceSet",
+        "status": "REFERENCED"
+      },
+      {
+        "role": "diagnostics_report_refs",
+        "source_hash": "15aaf5babdad49285a4ecbb4b0efd8f25108e8be70c526bfb592b7645dea0950",
+        "source_id": "FUTCORE-P27_sspec_267cc052e37668339c38d179_diagnostics",
+        "source_type": "FamilyDiagnosticsReferenceSet",
+        "status": "REJECTED"
+      },
+      {
+        "role": "cost_and_thin_session_refs",
+        "source_hash": "b14ef9d1545cd95b8c483223fdf0695db92b2fd663f78eec6828901df4849c96",
+        "source_id": "FUTCORE-P21_cost_sensitivity_report",
+        "source_type": "CostSensitivityReferenceSet",
+        "status": "REFERENCED"
+      },
+      {
+        "role": "session_horizon_regime_matrix_refs",
+        "source_hash": "e8c372655c306f2806460e067fe93685a499e9a2d6f1d031615b5d6bec73d0fa",
+        "source_id": "FUTCORE-P22_session_horizon_regime_matrix",
+        "source_type": "SessionHorizonRegimeMatrixReferenceSet",
+        "status": "diagnostic_survivor_for_consolidation"
+      },
+      {
+        "role": "no_lookahead_audit_refs",
+        "source_hash": "0bba6aad23952e376f1f1c456d657d7164f9cbc7ff72dd86e512bc672ebde49c",
+        "source_id": "FUTCORE-P23_no_lookahead_audit",
+        "source_type": "NoLookaheadAuditReferenceSet",
+        "status": "FLAGGED"
+      },
+      {
+        "role": "variant_budget_refs",
+        "source_hash": "b272ec73ad1853007d1fbc159f0af06b3447649d6544ce8d6a37e3c12549a3f0",
+        "source_id": "FUTCORE-P24_variant_budget_audit",
+        "source_type": "VariantBudgetReferenceSet",
+        "status": "WITHIN_DECLARED_BUDGET_BY_REFERENCE"
+      },
+      {
+        "role": "statistical_reviewer_verdict_ref",
+        "source_hash": "a44718e28be05fedfddb5792a573580bf822b809e1b685412d72fa9cfa0ce25e",
+        "source_id": "sspec_267cc052e37668339c38d179",
+        "source_type": "StatisticalReviewerVerdictReference",
+        "status": "INCONCLUSIVE"
+      },
+      {
+        "role": "trial_ledger_refs",
+        "source_hash": "32bc2a84225a01af14334e85de2ea7e348d463f33f86cc6d71cfe94c94379e16",
+        "source_id": "sspec_267cc052e37668339c38d179",
+        "source_type": "TrialLedgerReferenceSet",
+        "status": "RECORDED_BY_P26"
+      },
+      {
+        "role": "rejected_idea_link_refs",
+        "source_hash": "3b3678d5871bd4f236353f3bc307fbe9957366b1a683211d4a9d2c5e14c2e1aa",
+        "source_id": "sspec_267cc052e37668339c38d179_linked_rejections",
+        "source_type": "RejectedIdeaLedgerReferenceSet",
+        "status": "NO_EXACT_DUPLICATE_LINK_RECORDED"
+      },
+      {
+        "role": "duplicate_exposure_group_hint",
+        "source_hash": "fda4a7415d0133689b186a784b7606c9711c69a9c1611036f721d562c11d9dd9",
+        "source_id": "duplicate_exposure_group_hint_regime-trend-vol-range",
+        "source_type": "DuplicateExposureGroupHint",
+        "status": "HINT_ONLY"
+      }
+    ],
+    "evidence_draft_ref": {
+      "role": "evidence_draft",
+      "source_hash": "f37f8038a085caff063a6c5682c8db48fac97069178deeede2534299c8a086df",
+      "source_id": "edraft_f37f8038a085caff063a6c56",
+      "source_type": "EvidenceDraft",
+      "status": "INCONCLUSIVE"
+    },
+    "handoff_hash": "3b40fcba5a0d94bb2b3817e2b273738f2432b16a5292521bd0a7d52a702dfa59",
+    "handoff_id": "rhandoff_3b40fcba5a0d94bb2b3817e2",
+    "limitations": [
+      "ReferenceCandidateHandoff is a handoff package only.",
+      "ReferenceCandidateHandoff is not Reference validation.",
+      "Fast-path screening is not Reference truth.",
+      "No strategy has been validated by this handoff.",
+      "This handoff makes no alpha, tradability, or profitability claim.",
+      "ReferenceCandidateHandoff is a handoff package only.",
+      "ReferenceCandidateHandoff is not Reference validation.",
+      "P27 preserves P25 inconclusive judgement and does not change state.",
+      "No strategy, paper, live, broker, order, deployment, capital, alpha, or profitability claim is made."
+    ],
+    "no_lookahead_audit_ref": {
+      "role": "no_lookahead_audit",
+      "source_hash": "0bba6aad23952e376f1f1c456d657d7164f9cbc7ff72dd86e512bc672ebde49c",
+      "source_id": "FUTCORE-P23_no_lookahead_audit",
+      "source_type": "NoLookaheadAuditReport",
+      "status": "FLAGGED"
+    },
+    "not_alpha_validation": true,
+    "not_promotion": true,
+    "not_reference_validation": true,
+    "promotion_basis_allowed": false,
+    "raw_or_heavy_data_embedded": false,
+    "reference_requirements": {
+      "future_authorization_required": true,
+      "handoff_only": true,
+      "max_current_state": "REFERENCE_HANDOFF_READY",
+      "next_required_gate": "REFERENCE_VALIDATION_REQUIRED",
+      "reference_validation_performed": false
+    },
+    "run_id": "2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1:FUTCORE-P18:sspec_267cc052e37668339c38d179",
+    "runtime_artifact_manifest_ref": {
+      "role": "runtime_artifact_manifest",
+      "source_hash": "2351de654c9343fa3b320a58c80736777b2a0b19fc8e94fc7d967465664ffb11",
+      "source_id": "rart_2351de654c9343fa3b320a58",
+      "source_type": "RuntimeArtifactManifest",
+      "status": "entry_count=20"
+    },
+    "schema": "alpha_system.runtime.handoff.reference_candidate.v1",
+    "strategy_not_validated": true,
+    "study_run_manifest_ref": {
+      "role": "study_run_manifest",
+      "source_hash": "f64f1aeccf0c0a7ae93b5dff36d6c8dd2f4c46a49f1de581f2280c7522a10885",
+      "source_id": "smanifest_f64f1aeccf0c0a7ae93b5dff",
+      "source_type": "StudyRunManifest",
+      "status": "accepted_development_partition_reference"
+    },
+    "study_spec_id": "sspec_267cc052e37668339c38d179",
+    "version_lineage": {
+      "code_content_hash": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
+      "code_version": "alpha_system_runtime_reference_surface_for_futcore_p27",
+      "config_hash": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
+      "config_version": "futcore_p14_study_spec_and_p26_ledger_reference_package",
+      "cost_model_hash": "c04d8d2712c977b61569fdb61a6d44d3eb9c19cbfb4890bb7d8031e26010b862",
+      "cost_model_version": "cmv_futcore_pilot_three_layer_session_stress_v1",
+      "dataset_admissibility_state": "accepted_development_partition_reference",
+      "dataset_lineage_ref": "input_pack:research/futures_core_alpha_pilot_v1/input_pack/input_pack_lock.md",
+      "dataset_version_hash": "abbf9ebbecfe97f2c4b31900d9ae44421549e08a65e90ec64e235a958c1d2d31",
+      "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+      "feature_pack_versions": [
+        {
+          "availability_ref": "available_ts_window:2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:29a64bad4966f696b1c18e72432ef2e5e00fff9ed767b6cd968493a7d4a6fa79",
+          "lineage_ref": "feature_request_id:freq_67991722245329f35c0fa612",
+          "pack_id": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+          "pack_role": "feature_pack"
+        },
+        {
+          "availability_ref": "available_ts_window:2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:94430bbd52270daf8a7e043c9a0e1c45b98e1f84b0f9ff0439d7119ddb3ef0ad",
+          "lineage_ref": "feature_request_id:freq_f7d4e9c2f4c60c5c25f15ce2",
+          "pack_id": "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+          "pack_role": "feature_pack"
+        },
+        {
+          "availability_ref": "available_ts_window:2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:0a8d29b9284d85e5306d76e0482ce6925c8384e9bb28247dc9564be02360ed90",
+          "lineage_ref": "feature_request_id:freq_7644d195221963a725953a50",
+          "pack_id": "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+          "pack_role": "feature_pack"
+        },
+        {
+          "availability_ref": "available_ts_window:2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:1ad59e668cbed859460cb3dc672293cfc03f55d600d185477b46cfe1e9c1ec67",
+          "lineage_ref": "feature_request_id:freq_af690f30c36a7bbd12b6d730",
+          "pack_id": "fver_18b5841a0d7f2fd7b86e5d650a21742190c1517dacc40dbb90854a1188191147",
+          "pack_role": "feature_pack"
+        },
+        {
+          "availability_ref": "available_ts_window:2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:c9e133ed324b2b2ea168fa2b2672e99050161c91e34ea919f82eae2be2f96077",
+          "lineage_ref": "feature_request_id:freq_cd75d0b4aa48ba48c04e970b",
+          "pack_id": "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169",
+          "pack_role": "feature_pack"
+        }
+      ],
+      "label_pack_versions": [
+        {
+          "availability_ref": "label_available_ts_window:2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+          "lineage_ref": "label_spec_id:lspec_cd6523694c850c9943b2067e",
+          "pack_id": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+          "pack_role": "label_pack"
+        },
+        {
+          "availability_ref": "label_available_ts_window:2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+          "lineage_ref": "label_spec_id:lspec_15c26c4368bb432b0b0dc6e9",
+          "pack_id": "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+          "pack_role": "label_pack"
+        },
+        {
+          "availability_ref": "label_available_ts_window:2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00",
+          "content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+          "lineage_ref": "label_spec_id:lspec_65ba5b5c9b4fa37e0e42b6ef",
+          "pack_id": "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
+          "pack_role": "label_pack"
+        }
+      ],
+      "value_free": true
+    }
+  },
+  "runtime_surface": {
+    "handoff_class": "ReferenceCandidateHandoff",
+    "handoff_module": "alpha_system.runtime.handoff.reference",
+    "reference_requirement": "REFERENCE_VALIDATION_REQUIRED"
+  },
+  "schema": "alpha_system.futures_core_alpha_pilot.reference_candidate_handoff_record.v1",
+  "survivor_id": "sspec_267cc052e37668339c38d179"
+}
