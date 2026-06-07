@@ -150,6 +150,34 @@ def test_feature_execute_threads_value_store_format(
             sys.modules.pop(module_name, None)
 
 
+def test_feature_materialize_dry_run_seed_config_previews_fvers(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Dry-run with --seed-config emits prospective feature_version_ids without
+    # writing any registry. Uses the official seed config.
+    feature_cli = _feature_cli()
+    parser = _main_cli().build_parser()
+    args = parser.parse_args(
+        [
+            "feature",
+            "materialize",
+            "--seed-config",
+            "configs/seed_packs/es_ohlcv_session_smoke_v1.json",
+            "--json",
+        ]
+    )
+    assert args.dry_run is True
+    rc = feature_cli.run_materialize(args)
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["preview"] is True
+    assert payload["writes_values"] is False
+    assert payload["feature_count"] == 2
+    assert len(payload["feature_version_ids"]) == 2
+    for version_id in payload["feature_version_ids"]:
+        assert version_id.startswith("fver_")
+
+
 def test_feature_plan_fails_closed_when_feature_set_is_missing(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

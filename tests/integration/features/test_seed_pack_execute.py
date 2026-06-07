@@ -6,9 +6,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from dataclasses import replace
+
 from alpha_system.cli.seed_pack import (
     SeedPackConfig,
+    load_seed_pack_config,
     parse_seed_pack_config,
+    preview_seed_feature_pack,
     run_seed_feature_pack,
     run_seed_label_pack,
 )
@@ -219,6 +223,77 @@ def test_seed_feature_and_label_pack_execute_over_synthetic_rows(tmp_path: Path)
     feature_lines = [json.loads(line) for line in feature_output.read_text().splitlines()]
     assert feature_lines[0]["record_type"] == "feature_materialization_plan"
     assert any(line["record_type"] == "feature_value" for line in feature_lines[1:])
+
+
+def _session_smoke_rows(config: SeedPackConfig, length: int = 30) -> tuple[dict[str, Any], ...]:
+    start = _dt(config.window_start_ts)
+    rows: list[dict[str, Any]] = []
+    for index in range(length):
+        bar_start = start + timedelta(minutes=index)
+        bar_end = bar_start + timedelta(minutes=1)
+        close = f"{100.0 + index:.2f}"
+        rows.append(
+            {
+                "instrument_id": config.symbol.upper(),
+                "contract_id": "ESM4",
+                "series_id": f"{config.symbol.upper()}_c_0",
+                "bar_start_ts": bar_start.isoformat(),
+                "bar_end_ts": bar_end.isoformat(),
+                "event_ts": bar_end.isoformat(),
+                "available_ts": (bar_end + timedelta(seconds=1)).isoformat(),
+                "ingested_at": (bar_end + timedelta(seconds=2)).isoformat(),
+                "open": close,
+                "high": close,
+                "low": close,
+                "close": close,
+                "volume": "10",
+                "source": "dsrc_databento_historical",
+                "source_request_id": "req_fixture_1",
+                "data_version": config.dataset_version_id,
+                "quality_flags": (),
+                "session_label": "RTH",
+            }
+        )
+    return tuple(rows)
+
+
+def test_dry_run_preview_fver_equals_execute_registered_fver(tmp_path: Path) -> None:
+    # Round-trip guard: the write-free preview must report the SAME
+    # feature_version_id that a real (temp-root) execute registers, for the
+    # official seed config configs/seed_packs/es_ohlcv_session_smoke_v1.json.
+    config_path = Path("configs/seed_packs/es_ohlcv_session_smoke_v1.json")
+    config = load_seed_pack_config(config_path)
+    # Re-point dataset/window onto the synthetic fixture so we can execute with
+    # in-memory rows (no polars / no real canonical parquet needed).
+    config = replace(
+        config,
+        dataset_version_id=DATASET_ID,
+        window_start_ts=WINDOW_START,
+        window_end_ts=WINDOW_END,
+    )
+    rows = _session_smoke_rows(config)
+
+    preview = preview_seed_feature_pack(config)
+    assert preview["preview"] is True
+    assert preview["writes_values"] is False
+
+    summary = run_seed_feature_pack(
+        config,
+        alpha_data_root=tmp_path / "alpha_data",
+        canonical_root=tmp_path / "unused_canonical",
+        datasets_registry_path=tmp_path / "registry" / "datasets.sqlite",
+        bar_rows=rows,
+        quality_coverage_builder=_synthetic_quality_coverage,
+        value_store_format=ValueStoreFormat.JSONL,
+    )
+
+    # The previewed feature_version_ids must equal the registered ones, in order.
+    assert preview["feature_version_ids"] == summary["feature_version_ids"]
+    assert preview["feature_count"] == summary["feature_count"]
+
+    # The preview wrote nothing: only the execute created the registry.
+    registry_path = tmp_path / "alpha_data" / "registry" / "features.sqlite"
+    assert registry_path.exists()
 
 
 def test_seed_label_pack_rejects_non_trade_price_labels(tmp_path: Path) -> None:

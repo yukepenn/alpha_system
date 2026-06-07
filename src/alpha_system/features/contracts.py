@@ -358,7 +358,12 @@ class FeatureSpec:
         )
 
     def to_contract_dict(self) -> dict[str, JsonValue]:
-        """Return the canonical versioned contract payload."""
+        """Return the canonical versioned contract payload.
+
+        This is the full contract, including ``feature_request_id``, used for
+        storage, serialization, and request provenance. It is intentionally NOT
+        used for content-addressed identity; see ``to_identity_dict``.
+        """
 
         return {
             "feature_id": self.feature_id,
@@ -374,6 +379,26 @@ class FeatureSpec:
             "implementation_eligible": self.implementation_eligible,
             "contract_metadata": self.contract_metadata.to_dict(),
         }
+
+    def to_identity_dict(self) -> dict[str, JsonValue]:
+        """Return the computational-identity payload for content addressing.
+
+        This is the same payload as ``to_contract_dict`` but WITHOUT
+        ``feature_request_id``.
+
+        ``feature_request_id`` is request provenance, not a computational input.
+        The FLF-P05 duplicate-exposure gate regenerates the request id from the
+        live registry population at materialize time, so the same computational
+        feature would otherwise receive a different ``feature_request_id`` (and
+        thus a different ``feature_version_id``) depending only on what else is
+        already registered. Feature identity must be a pure function of the
+        computational contract and independent of registry state / request
+        provenance, so identity hashing excludes ``feature_request_id``.
+        """
+
+        contract = self.to_contract_dict()
+        contract.pop("feature_request_id", None)
+        return contract
 
     def derive_feature_version(self) -> FeatureVersion:
         """Derive the deterministic content-addressed version for this contract."""
@@ -414,9 +439,18 @@ class FeatureVersion:
 
         if not isinstance(spec, FeatureSpec):
             raise FeatureContractError("FeatureVersion.derive requires a FeatureSpec")
+        # Content-address feature identity over the COMPUTATIONAL contract only.
+        # We deliberately hash spec.to_identity_dict() (which omits
+        # feature_request_id) rather than spec.to_contract_dict(). The FLF-P05
+        # duplicate-exposure gate regenerates feature_request_id from the live
+        # registry population at materialize time, so hashing the full contract
+        # leaks registry state into identity: the same computational feature
+        # would get a different feature_version_id depending on what else is
+        # already registered, breaking content-addressing and StudySpec feature
+        # locks. Identity must be request-provenance-independent.
         payload: dict[str, JsonValue] = {
             "algorithm": FEATURE_VERSION_ALGORITHM,
-            "feature_contract": spec.to_contract_dict(),
+            "feature_contract": spec.to_identity_dict(),
         }
         digest = content_hash(payload)
         return cls(feature_version_id=f"fver_{digest}", content_hash=digest)

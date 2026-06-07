@@ -246,6 +246,165 @@ def test_governance_cli_end_to_end_smoke(tmp_path: Path) -> None:
     assert entry.latest_lifecycle_state == "CANDIDATE"
 
 
+def test_governance_cli_validate_feature_locks_ok_and_fail_closed(tmp_path: Path) -> None:
+    # Register real features through the seed operator, then validate locks via CLI.
+    from datetime import UTC, datetime, timedelta
+    from typing import Any
+
+    from alpha_system.cli.seed_pack import parse_seed_pack_config, run_seed_feature_pack
+    from alpha_system.core.value_store import ValueStoreFormat
+    from alpha_system.data.foundation.datasets import (
+        CoverageReport,
+        DataQualityReport,
+        ReportStatus,
+    )
+
+    dataset_id = "dsv_cli_lock_smoke_v1"
+    window_start = "2024-01-02T14:30:00+00:00"
+    window_end = "2024-01-02T15:30:00+00:00"
+
+    config = parse_seed_pack_config(
+        {
+            "schema": "alpha_system.seed_pack.v1",
+            "dataset_version_id": dataset_id,
+            "partition_schema": "ohlcv_1m",
+            "symbol": "ES",
+            "partition_id": "development_partition",
+            "window": {"start_ts": window_start, "end_ts": window_end},
+            "feature_set": {
+                "feature_set_id": "fset_cli_lock_smoke",
+                "feature_set_version": "v1",
+                "alpha_spec_id": ALPHA_SPEC_ID,
+                "features": [{"name": "returns", "window_length": 1, "horizon": 1}],
+            },
+        }
+    )
+
+    def _dt(value: str) -> datetime:
+        return datetime.fromisoformat(value).astimezone(UTC)
+
+    def _rows() -> tuple[dict[str, Any], ...]:
+        start = _dt(window_start)
+        out: list[dict[str, Any]] = []
+        for index in range(30):
+            bar_start = start + timedelta(minutes=index)
+            bar_end = bar_start + timedelta(minutes=1)
+            close = f"{100.0 + index:.2f}"
+            out.append(
+                {
+                    "instrument_id": "ES",
+                    "contract_id": "ESM4",
+                    "series_id": "ES_c_0",
+                    "bar_start_ts": bar_start.isoformat(),
+                    "bar_end_ts": bar_end.isoformat(),
+                    "event_ts": bar_end.isoformat(),
+                    "available_ts": (bar_end + timedelta(seconds=1)).isoformat(),
+                    "ingested_at": (bar_end + timedelta(seconds=2)).isoformat(),
+                    "open": close,
+                    "high": close,
+                    "low": close,
+                    "close": close,
+                    "volume": "10",
+                    "source": "dsrc_databento_historical",
+                    "source_request_id": "req_fixture_1",
+                    "data_version": dataset_id,
+                    "quality_flags": (),
+                    "session_label": "RTH",
+                }
+            )
+        return tuple(out)
+
+    def _quality_coverage(cfg: Any, rows: Any, *, repo_root: Any):
+        passing = {"count": 0, "status": ReportStatus.PASSING.value, "blocking": False}
+        cov = {
+            "status": ReportStatus.PASSING.value,
+            "blocking": False,
+            "expected_count": 1,
+            "observed_count": 1,
+            "missing_count": 0,
+        }
+        part = dict(cov)
+        part["missing_interval_count"] = 0
+        part["incomplete_chunk_count"] = 0
+        quality = DataQualityReport(
+            quality_report_id=f"qr_{cfg.dataset_version_id}",
+            dataset_version_id=cfg.dataset_version_id,
+            gap_summary=dict(passing),
+            duplicate_summary=dict(passing),
+            non_monotonic_summary=dict(passing),
+            ohlc_errors=dict(passing),
+            zero_negative_price_errors=dict(passing),
+            zero_volume_anomalies=dict(passing),
+            dst_anomalies=dict(passing),
+            session_coverage=dict(passing),
+            roll_discontinuities=dict(passing),
+            provider_error_summary=dict(passing),
+            bbo_missing_metric=dict(passing),
+            abnormal_spread_summary=dict(passing),
+            status=ReportStatus.PASSING,
+        )
+        coverage = CoverageReport(
+            coverage_report_id=f"cr_{cfg.dataset_version_id}",
+            dataset_version_id=cfg.dataset_version_id,
+            symbol_coverage=dict(cov),
+            contract_coverage=dict(cov),
+            session_coverage=dict(cov),
+            partition_coverage=part,
+            missing_intervals=(),
+            incomplete_chunks=(),
+        )
+        return quality, coverage
+
+    summary = run_seed_feature_pack(
+        config,
+        alpha_data_root=tmp_path / "alpha_data",
+        canonical_root=tmp_path / "unused_canonical",
+        datasets_registry_path=tmp_path / "registry" / "datasets.sqlite",
+        bar_rows=_rows(),
+        quality_coverage_builder=_quality_coverage,
+        value_store_format=ValueStoreFormat.JSONL,
+    )
+    registry_path = tmp_path / "alpha_data" / "registry" / "features.sqlite"
+    version_ids = list(summary["feature_version_ids"])
+
+    ok_locks = _write_json(
+        tmp_path / "locks_ok.json",
+        {"feature_pack_locks": [{"feature_version_id": vid} for vid in version_ids]},
+    )
+    ok_result = _run_alpha(
+        [
+            "governance",
+            "validate-feature-locks",
+            "--locks",
+            str(ok_locks),
+            "--registry-path",
+            str(registry_path),
+        ]
+    )
+    assert ok_result.returncode == 0, ok_result.stderr
+    ok_payload = json.loads(ok_result.stdout)
+    assert ok_payload["ok"] is True
+    assert ok_payload["stale_lock_count"] == 0
+
+    missing = "fver_" + ("0" * 64)
+    stale_locks = _write_json(
+        tmp_path / "locks_stale.json",
+        {"feature_pack_locks": [{"feature_version_id": missing}]},
+    )
+    stale_result = _run_alpha(
+        [
+            "governance",
+            "validate-feature-locks",
+            "--locks",
+            str(stale_locks),
+            "--registry-path",
+            str(registry_path),
+        ]
+    )
+    assert stale_result.returncode == 2
+    assert missing in stale_result.stderr
+
+
 def test_governance_cli_self_review_smoke_fails_closed(tmp_path: Path) -> None:
     verdict_path = _write_json(
         tmp_path / "self-review.json",

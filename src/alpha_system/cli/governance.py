@@ -372,6 +372,70 @@ def run_promote(args: argparse.Namespace) -> int:
     return _run_json_command("promote", _execute)
 
 
+def run_validate_feature_locks(args: argparse.Namespace) -> int:
+    """Run ``alpha governance validate-feature-locks``."""
+
+    from alpha_system.governance.feature_lock_validation import (
+        FeatureLockValidationError,
+        validate_feature_locks,
+    )
+
+    def _execute() -> dict[str, object]:
+        locks = _load_feature_pack_locks(args.locks)
+        report = validate_feature_locks(locks, registry_path=args.registry_path)
+        return {
+            "status": "ok",
+            "command": "validate-feature-locks",
+            **report.to_dict(),
+        }
+
+    try:
+        payload = _execute()
+    except (
+        FeatureLockValidationError,
+        GovernanceValidationError,
+        GovernanceSerializationError,
+        OSError,
+        ValueError,
+    ) as exc:
+        print(
+            json.dumps(
+                governance_exception_payload("validate-feature-locks", exc),
+                sort_keys=True,
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(json.dumps(payload, sort_keys=True, indent=2))
+    return 0
+
+
+def _load_feature_pack_locks(path: str | Path) -> list[Mapping[str, Any] | str]:
+    """Load a generic feature-pack-locks JSON document.
+
+    The JSON root may be a list of locks (mappings with ``feature_version_id``
+    or bare id strings), or a mapping carrying a ``feature_pack_locks`` list.
+    """
+
+    value = deserialize(Path(path).read_text(encoding="utf-8"))
+    if isinstance(value, Mapping):
+        locks = value.get("feature_pack_locks")
+    else:
+        locks = value
+    if isinstance(locks, str) or not isinstance(locks, list):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="feature_pack_locks",
+                code="invalid_feature_pack_locks",
+                message="locks JSON must be a list or a mapping with feature_pack_locks list",
+                expected="list of feature-pack locks",
+                actual=type(locks).__name__,
+            )
+        )
+    return list(locks)
+
+
 def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     """Register the ``alpha governance`` command group."""
 
@@ -454,6 +518,29 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     )
     _add_status_message_argument(promote_parser)
     promote_parser.set_defaults(handler=run_promote)
+
+    locks_parser = governance_subparsers.add_parser(
+        "validate-feature-locks",
+        help=(
+            "Fail-closed: assert every feature-pack lock feature_version_id "
+            "resolves in the sanctioned local feature registry."
+        ),
+    )
+    locks_parser.add_argument(
+        "--locks",
+        required=True,
+        help=(
+            "Path to a JSON document of feature-pack locks: a list of "
+            "{feature_version_id, ...} mappings (or bare id strings), or a "
+            "mapping with a feature_pack_locks list."
+        ),
+    )
+    locks_parser.add_argument(
+        "--registry-path",
+        required=True,
+        help="Path to the sanctioned local feature registry SQLite file.",
+    )
+    locks_parser.set_defaults(handler=run_validate_feature_locks)
 
 
 def _run_json_command(command: str, execute: Callable[[], dict[str, object]]) -> int:
