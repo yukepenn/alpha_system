@@ -8,15 +8,17 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P06` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
-post-merge snapshot and pins the bounded research queue plus role-assignment
-map. The `foundation` merge group / `bootstrap_and_inputs` gate is complete
-through `FUTCORE-P06`.
+`FUTCORE-P08` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
+post-merge snapshot as the VWAP / session-auction AlphaSpec draft batch. The
+foundation merge group is complete through `FUTCORE-P06`; `FUTCORE-P08` is one
+path-disjoint member of the parallel `alpha_specs` wave.
 
-Active / next work: `FUTCORE-P06` is done. The next work is the
-`FUTCORE-P07` through `FUTCORE-P11` parallel AlphaSpec batch wave.
+Active / next work: the remaining `alpha_specs` family batches
+(`FUTCORE-P07`, `FUTCORE-P09`, `FUTCORE-P10`, and `FUTCORE-P11`) continue the
+parallel draft wave, followed by `FUTCORE-P12` AlphaSpec critique and family
+budget audit.
 
-New durable surfaces through `FUTCORE-P06`:
+New durable surfaces through this `FUTCORE-P08` snapshot:
 
 - `docs/futures_core_alpha_pilot/README.md`
 - `docs/futures_core_alpha_pilot/OVERVIEW.md`
@@ -34,12 +36,14 @@ New durable surfaces through `FUTCORE-P06`:
 - `research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/README.md`
+- `research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/`
 - `research/futures_core_alpha_pilot_v1/queue/`
+- `docs/futures_core_alpha_pilot/alpha_specs/vwap_session.md`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, AlphaSpec drafts, reviews, agent runners, or broker surfaces are
-added by `FUTCORE-P06`. The queue records task ownership, finite budget
-references, and separation-of-duties constraints only.
+calculations, reviews, agent runners, or broker surfaces are added by
+`FUTCORE-P08`. The VWAP/session batch records draft AlphaSpec payloads,
+assumptions, limitations, and diagnostic declarations only.
 
 ## Source Of Truth
 
