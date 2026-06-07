@@ -23,6 +23,22 @@ New durable surfaces in this `FUTCORE-P20` snapshot:
 - `docs/futures_core_alpha_pilot/diagnostics/bbo_tradability.md`
 
 `FUTCORE-P20` adds no new commands, data readers, agent runners, feature value
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is at
+`FUTCORE-P19` of the 31-phase pilot campaign in the `family_diagnostics` gate.
+This snapshot records the liquidity-sweep / objective PA diagnostics point in
+the serial diagnostics merge queue.
+
+Active / next work: the next serial diagnostics phase is `FUTCORE-P20` - BBO
+Tradability Diagnostics, followed by the `FUTCORE-P21` consolidation sequence
+after the diagnostics wave completes. Ralph continues to own authoritative
+validation, review routing, staging, PR, CI, merge, and done-check actions.
+
+New durable surfaces in this `FUTCORE-P19` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/`
+- `docs/futures_core_alpha_pilot/diagnostics/liquidity_pa.md`
+
+`FUTCORE-P19` adds no new commands, data readers, agent runners, feature value
 data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
 or deployment behavior.
 
