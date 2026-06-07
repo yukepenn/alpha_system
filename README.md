@@ -7,27 +7,28 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P28` of the 31-phase pilot campaign in the
-`evidence_ledger_promotion` gate. This snapshot records value-free
-PromotionDecision records for the accepted StudySpec evidence-stage set.
+Current campaign progress: after `FUTCORE-P29` merges,
+`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has completed 30 of 31 phases in the
+`handoff_and_closeout` gate. This snapshot records value-free downstream
+failure-mode handoffs for Validation Governance, FactorLibrary, and Strategy
+Reference validation.
 
-Active / next work: `FUTCORE-P28` is ready for Ralph-owned validation and
-review; the next phase is `FUTCORE-P29` - failure-mode downstream handoffs.
-Ralph continues to own authoritative validation, review routing, staging, PR,
-CI, merge, and done-check actions.
+Active / next work: `FUTCORE-P29` is ready for Ralph-owned validation and
+review; the next phase is `FUTCORE-P30` - Acceptance Audit and Closeout. Ralph
+continues to own authoritative validation, review routing, staging, PR, CI,
+merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P28` snapshot:
+New durable surfaces in this `FUTCORE-P29` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/promotion/`
-- `docs/futures_core_alpha_pilot/PROMOTION_DECISIONS.md`
+- `research/futures_core_alpha_pilot_v1/downstream_handoffs/`
+- `docs/futures_core_alpha_pilot/DOWNSTREAM_HANDOFFS.md`
 
-`FUTCORE-P28` adds no new commands, data readers, agent runners, primitives,
+`FUTCORE-P29` adds no new commands, data readers, agent runners, primitives,
 feature value data, label value data, broker surfaces, live surfaces,
-paper-trading surfaces, or deployment behavior. Promotion decisions remain
-limited to `REJECT | INCONCLUSIVE | WATCH | CANDIDATE_RESEARCH`; this snapshot
-records 4 `REJECT`, 6 `INCONCLUSIVE`, and 0 `WATCH` /
-`CANDIDATE_RESEARCH` outcomes.
+paper-trading surfaces, or deployment behavior. The handoffs carry forward the
+P28 state of 0 `WATCH` / `CANDIDATE_RESEARCH` outcomes, so this pilot creates
+no FactorLibrary-ingestible survivor and no Strategy Reference validation
+candidate.
 
 ## Source Of Truth
 
