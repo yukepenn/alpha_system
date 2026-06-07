@@ -7,6 +7,22 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
+through `FUTCORE-P20` of the 31-phase pilot campaign in the
+`family_diagnostics` gate. This snapshot records value-free BBO confirmation
+diagnostics for the approved BBO StudySpec.
+
+Active / next work: the next phase is `FUTCORE-P21` - Cost Stress and
+Thin-Session Stress Consolidation, once Ralph completes the serial merge of the
+family diagnostics wave. Ralph continues to own authoritative validation, review
+routing, staging, PR, CI, merge, and done-check actions.
+
+New durable surfaces in this `FUTCORE-P20` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/bbo_tradability/`
+- `docs/futures_core_alpha_pilot/diagnostics/bbo_tradability.md`
+
+`FUTCORE-P20` adds no new commands, data readers, agent runners, feature value
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is at
 `FUTCORE-P19` of the 31-phase pilot campaign in the `family_diagnostics` gate.
 This snapshot records the liquidity-sweep / objective PA diagnostics point in
