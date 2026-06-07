@@ -4,13 +4,13 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
 Workflow: `workflow2`
-Run: `not started`
-Status: `ready` - contract bundle authored; not yet executed
+Run: `workflow2 active`
+Status: `active` - bootstrap scaffolding complete after the Ralph-owned merge
 
-Current phase: `none` - awaiting first Workflow 2 run
-Last completed phase: `none`
-Last completed status: `n/a`
-Passing phases: `0/31`
+Current phase: `FUTCORE-P01` - Preflight
+Last completed phase: `FUTCORE-P00`
+Last completed status: `complete after merge`
+Completed phases: `1/31` after merge
 
 Campaign `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is the **first small-but-real,
 evidence-gated, cost-aware ES/NQ/RTY futures alpha research pilot** over the
@@ -23,8 +23,8 @@ evidence only**. It does **not** do scaled/autonomous mining, FactorLibrary V1,
 Strategy Reference Validation, AlphaBook, strategy/backtest/portfolio products,
 paper/live/broker/order work, or any profitability/tradability claim.
 
-This pointer selects `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` as the next Workflow 2
-campaign. The predecessor `ALPHA_AGENT_FACTORY_MVP` is complete (26/26,
+This pointer selects `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` as the active Workflow
+2 campaign. The predecessor `ALPHA_AGENT_FACTORY_MVP` is complete (26/26,
 `COMPLETE_WITH_WARNINGS`,
 `campaigns/ALPHA_AGENT_FACTORY_MVP/CLOSEOUT.md`). The two pre-pilot blockers it
 named — `FEATURE_LABEL_PARQUET_SINK_V1` and `SESSION_LABEL_GUARD_FIX_V1` — both
@@ -33,7 +33,8 @@ campaign's substrate.
 
 Ralph updates this pointer through reviewed phase commits so the tracked repo
 stays clean after Workflow 2 stops. In `dag_wave` parallel mode this pointer is
-**coordinator-owned** and is never written by a phase branch.
+**coordinator-owned** and should not be written by ordinary parallel phase
+branches.
 
 ## Campaign Identity
 
@@ -130,7 +131,7 @@ done-check, and next-phase. Resume continues from recorded run state. In paralle
 mode a wave builds concurrently in isolated worktrees but merges serially; a STOP
 halts new phase selection and new merges.
 
-Note: Campaign not started. This contract bundle was authored as a
-contract-generation-only change (no alpha research, no diagnostics run, no data
-read or committed). Run `just frontier-plan ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
-and a parallel mock before the first live parallel run.
+Note: `FUTCORE-P00` is scaffolding only: campaign bundle confirmation, pilot
+docs index/overview, value-free research evidence skeleton, and a commit-eligible
+handoff. It performs no alpha research, no diagnostics, no provider call, and no
+data read or committed. Next phase is `FUTCORE-P01` Preflight.
