@@ -38,12 +38,15 @@
     "checked": true,
     "findings": [],
     "guard": "duplicate_exposure",
-    "registry_entries_checked": 2,
+    "registry_entries_checked": 11,
     "registry_status": "CHECKED",
     "summary": "P13 locked FeaturePack inventory checked; no locked BBO FeaturePack member or BBO DatasetVersion binding covers this P15 gap item."
   },
-  "feature_request_id": "freq_5ed19554444f449b7c2da377",
+  "feature_request_id": "freq_9593f8957b283031a62447bf",
   "formula_sketch": {
+    "accepted_alpha_specs": [
+      "aspec_1284e49b083df11eeb0481ea"
+    ],
     "gap_id": "P15-G5",
     "implementation_surface": [
       "alpha_system.features.families.bbo"

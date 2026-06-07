@@ -23,7 +23,7 @@
     ]
   },
   "horizon": "15m",
-  "label_spec_id": "lspec_c9e388fde3d860ae012b2ad0",
+  "label_spec_id": "lspec_8ea5c33463a47d467963d216",
   "leakage_checks": [
     "label_as_feature",
     "availability_time",
@@ -33,14 +33,21 @@
   ],
   "path_rules": {
     "future_data_boundary": "future observations are legal only inside the offline label horizon and never as live features",
-    "gap_id": "P15-G2",
+    "gap_id": "P15-G1",
     "horizon_minutes": 15,
     "label_available_ts_rule": "label_available_ts = max(terminal.available_ts, LabelSpec.availability_time)",
     "label_id": "fwd_ret_15m",
-    "label_kind": "mid_price",
-    "label_kind_note": "campaign-permitted price-path label kind; this fixed-horizon label uses canonical close as the price basis and remains labels-only",
     "path": "trade_price_forward_return",
     "price_basis": "close",
+    "required_by_alpha_specs": [
+      "aspec_a41dcccac5552de945aba825",
+      "aspec_b40aee52d4399dd5b855a6ed",
+      "aspec_43cd6c154bca2fcc419eee83",
+      "aspec_eb962fc197eaf3955c5e4711",
+      "aspec_df2d040e45564c259ef3de6d",
+      "aspec_39ffc190cfbfa6ba0b1a2a25",
+      "aspec_1284e49b083df11eeb0481ea"
+    ],
     "terminal_rule": "exact event_ts row at fixed forward horizon; rows without an exact terminal row are excluded"
   },
   "target_stop_rules": {
