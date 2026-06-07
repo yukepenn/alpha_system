@@ -12,6 +12,15 @@
       "series_databento_es_front_unadjusted": 6862
     },
     "joined_observation_count": 6862,
+    "joined_observation_count_by_horizon": {
+      "10m": 6832,
+      "15m": 0,
+      "30m": 6712,
+      "5m": 6862
+    },
+    "resolved_label_pack_count": 3,
+    "resolved_session_context_feature_pack_count": 2,
+    "resolved_vwap_feature_pack_count": 0,
     "session_segment_counts": {
       "ETH_evening": 1783,
       "ETH_other": 1950,
@@ -29,12 +38,59 @@
       "full_session": 6862,
       "post_RTH": 280,
       "pre_RTH": 450
-    }
+    },
+    "session_view_counts_by_horizon": {
+      "10m": {
+        "ETH_evening": 1778,
+        "ETH_only": 6832,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6832,
+        "post_RTH": 255,
+        "pre_RTH": 450
+      },
+      "15m": {
+        "ETH_evening": 0,
+        "ETH_only": 0,
+        "ETH_overnight": 0,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 0,
+        "post_RTH": 0,
+        "pre_RTH": 0
+      },
+      "30m": {
+        "ETH_evening": 1758,
+        "ETH_only": 6712,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6712,
+        "post_RTH": 155,
+        "pre_RTH": 450
+      },
+      "5m": {
+        "ETH_evening": 1783,
+        "ETH_only": 6862,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6862,
+        "post_RTH": 280,
+        "pre_RTH": 450
+      }
+    },
+    "unresolved_label_pack_count": 1
   },
   "dataset_source": "dsrc_databento_historical",
   "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
   "external_provider_call_performed": false,
-  "feature_pack_count": 2,
+  "feature_pack_count": 6,
   "fragile_horizons": [
     {
       "horizon": "1m",
@@ -47,8 +103,8 @@
       "role": "diagnostic_only"
     }
   ],
-  "generated_at_utc": "2026-06-07T09:32:15+00:00",
-  "label_pack_count": 1,
+  "generated_at_utc": "2026-06-07T00:00:00+00:00",
+  "label_pack_count": 3,
   "phase_id": "FUTCORE-P17",
   "primary_horizons": [
     "5m",
@@ -74,37 +130,47 @@
   "studies": [
     {
       "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
-      "joined_observation_count": 6862,
+      "joined_observation_count_by_horizon": {
+        "10m": 6832,
+        "15m": 0,
+        "30m": 6712,
+        "5m": 6862
+      },
       "report_ref_count": 7,
       "resolved_primary_horizons": [
-        "5m"
+        "5m",
+        "10m",
+        "30m"
       ],
       "running_vs_final_vwap_treatment": "running_point_in_time_vwap_required",
       "runtime_tool_status": "INCONCLUSIVE",
-      "source_alpha_spec": "FUTCORE-P08_vwap_session_01",
-      "study_spec_id": "sspec_ab3cbb830a2cede5485de19b",
+      "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/FUTCORE-P08_vwap_session_01.md",
+      "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6",
       "unresolved_primary_horizons": [
-        "10m",
-        "15m",
-        "30m"
+        "15m"
       ],
       "vwap_signal_probe_status": "inconclusive_missing_locked_vwap_feature_pack"
     },
     {
       "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
-      "joined_observation_count": 6862,
+      "joined_observation_count_by_horizon": {
+        "10m": 6832,
+        "15m": 0,
+        "30m": 6712,
+        "5m": 6862
+      },
       "report_ref_count": 7,
       "resolved_primary_horizons": [
-        "5m"
+        "5m",
+        "10m",
+        "30m"
       ],
       "running_vs_final_vwap_treatment": "completed_eth_context_after_eth_close_plus_running_rth_vwap_required",
       "runtime_tool_status": "INCONCLUSIVE",
-      "source_alpha_spec": "FUTCORE-P08_vwap_session_07",
-      "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844",
+      "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/FUTCORE-P08_vwap_session_07.md",
+      "study_spec_id": "sspec_aff70fcbc4b7ff226fcc8149",
       "unresolved_primary_horizons": [
-        "10m",
-        "15m",
-        "30m"
+        "15m"
       ],
       "vwap_signal_probe_status": "inconclusive_missing_locked_vwap_feature_pack"
     }

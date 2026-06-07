@@ -8,6 +8,22 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
+through `FUTCORE-P17` of the 31-phase pilot, VWAP / Session Diagnostics, in the
+`family_diagnostics` gate. This snapshot records value-free VWAP/session
+runtime diagnostics for the two canonical P14 StudySpecs in that family.
+
+Active / next work: the family-diagnostics wave (`FUTCORE-P16` through
+`FUTCORE-P20`) remains Ralph-orchestrated; remaining diagnostics and the
+`FUTCORE-P21` consolidation gate follow the serial merge queue. Ralph owns
+authoritative validation, review routing, staging, PR, CI, merge, and
+done-check actions.
+
+New durable surfaces in this `FUTCORE-P17` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
+- `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
+
+`FUTCORE-P17` adds no new commands, data readers, agent runners, feature value
 through `FUTCORE-P16`, Cross-Market Diagnostics, in the
 `family_diagnostics` gate. This snapshot records the cross-market family
 diagnostics against registry-resolved locked Parquet inputs.
