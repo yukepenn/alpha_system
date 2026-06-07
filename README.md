@@ -8,25 +8,26 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P26` of the 31-phase pilot campaign in the
+through `FUTCORE-P27` of the 31-phase pilot campaign in the
 `evidence_ledger_promotion` gate. This snapshot records value-free
-TrialLedger and RejectedIdeaLedger evidence artifacts.
+EvidenceDraft, FactorCard draft, and ReferenceCandidateHandoff artifacts for
+P25/P26 survivors.
 
-Active / next work: `FUTCORE-P26` is done for executor handoff; the next phase
-is `FUTCORE-P27` - EvidenceDraft and ReferenceCandidateHandoff for Survivors.
+Active / next work: `FUTCORE-P27` is done for executor handoff; the next phase
+is `FUTCORE-P28` - PromotionDecision.
 Ralph continues to own authoritative validation, review routing, staging, PR,
 CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P26` snapshot:
+New durable surfaces in this `FUTCORE-P27` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/ledgers/`
-- `docs/futures_core_alpha_pilot/LEDGERS.md`
+- `research/futures_core_alpha_pilot_v1/evidence/`
+- `docs/futures_core_alpha_pilot/EVIDENCE.md`
 
-`FUTCORE-P26` adds no new commands, data readers, agent runners, primitives,
+`FUTCORE-P27` adds no new commands, data readers, agent runners, primitives,
 feature value data, label value data, broker surfaces, live surfaces,
-paper-trading surfaces, or deployment behavior. The ledger artifacts assign no
-PromotionDecision, and `zero_cost` remains diagnostic-only and is never a
-promotion basis.
+paper-trading surfaces, or deployment behavior. The evidence artifacts assign
+no PromotionDecision, perform no Reference validation, and preserve the P25
+`INCONCLUSIVE` verdicts.
 
 ## Source Of Truth
 

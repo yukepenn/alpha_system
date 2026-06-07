@@ -1,0 +1,157 @@
+{
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "non_claims_framing": {
+    "candidate_input_label": "candidate-for-later-review",
+    "promotion_decision_assigned": false,
+    "raw_or_heavy_data_embedded": false,
+    "reference_validation_performed": false,
+    "tradability_state": "not tradable",
+    "validation_state": "not validated"
+  },
+  "phase_id": "FUTCORE-P27",
+  "run_id": "2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "schema": "alpha_system.futures_core_alpha_pilot.evidence_survivor_index.v1",
+  "survivor_count": 6,
+  "survivor_derivation": {
+    "rejected_idea_ledger_ref": {
+      "content_hash": "3959b0253258f15bcdb5f37260a90f3dcf7b45e6022716fa343a4297bfe9c00d",
+      "path": "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/rejected_idea_ledger.json",
+      "role": "rejected_idea_ledger"
+    },
+    "selection_rule": "unique StudySpec ids with P26 TrialLedger p25_reviewer_judgement INCONCLUSIVE and a P25 reviewer verdict artifact",
+    "statistical_reviewer_record_ref": {
+      "content_hash": "5e4327c69741456c25faae6a48a717c9d5e6b3793f7f8ed45b2d730aabecbe63",
+      "path": "reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/statistical/FUTCORE-P25.md",
+      "role": "p25_statistical_review_record"
+    },
+    "trial_ledger_ref": {
+      "content_hash": "50ff07aee4b4580b8ecbcd877fe1c51e3fc46f1672164b69b246cdf965f677d2",
+      "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/trial_ledger.json",
+      "role": "trial_ledger"
+    }
+  },
+  "survivors": [
+    {
+      "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+      "artifact_paths": {
+        "evidence_draft": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_69c22ec5847395ac8e81b5b6.json",
+        "factor_card": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_69c22ec5847395ac8e81b5b6.json",
+        "reference_candidate_handoff": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_69c22ec5847395ac8e81b5b6.json"
+      },
+      "duplicate_exposure_group_hint": "vwap-reclaim-reject",
+      "evidence_draft_id": "edraft_55823decf1c7e5093254f21f",
+      "factor_card_id": "fcard_57f7d704712732704ce825a8",
+      "family": "vwap_session",
+      "linked_rejected_idea_ids": [
+        "rej_7107e99008c6a7aaf7d2d5b4"
+      ],
+      "p25_judgement": "INCONCLUSIVE",
+      "reference_candidate_handoff_id": "rhandoff_d71de9e10ac0d75ac46597aa",
+      "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6",
+      "trial_ids": [
+        "trial_fffbb48dc4111caeabcc55c9"
+      ]
+    },
+    {
+      "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+      "artifact_paths": {
+        "evidence_draft": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_aff70fcbc4b7ff226fcc8149.json",
+        "factor_card": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_aff70fcbc4b7ff226fcc8149.json",
+        "reference_candidate_handoff": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_aff70fcbc4b7ff226fcc8149.json"
+      },
+      "duplicate_exposure_group_hint": "vwap-rth-open-eth",
+      "evidence_draft_id": "edraft_b100e83a160d2630546257bf",
+      "factor_card_id": "fcard_2388707c1a4614ebf782aa17",
+      "family": "vwap_session",
+      "linked_rejected_idea_ids": [],
+      "p25_judgement": "INCONCLUSIVE",
+      "reference_candidate_handoff_id": "rhandoff_3ded4933ba57b9f0f7204fe2",
+      "study_spec_id": "sspec_aff70fcbc4b7ff226fcc8149",
+      "trial_ids": [
+        "trial_3b8f60dd0f4793288360159e"
+      ]
+    },
+    {
+      "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+      "artifact_paths": {
+        "evidence_draft": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_267cc052e37668339c38d179.json",
+        "factor_card": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_267cc052e37668339c38d179.json",
+        "reference_candidate_handoff": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_267cc052e37668339c38d179.json"
+      },
+      "duplicate_exposure_group_hint": "regime-trend-vol-range",
+      "evidence_draft_id": "edraft_f37f8038a085caff063a6c56",
+      "factor_card_id": "fcard_e99756cbc57da2172d7cdf24",
+      "family": "regime",
+      "linked_rejected_idea_ids": [],
+      "p25_judgement": "INCONCLUSIVE",
+      "reference_candidate_handoff_id": "rhandoff_3b40fcba5a0d94bb2b3817e2",
+      "study_spec_id": "sspec_267cc052e37668339c38d179",
+      "trial_ids": [
+        "trial_94781614f100a2aa0878aae4",
+        "trial_13c98257a704ce5641a51626",
+        "trial_58fdb5456d910efccdd95b7b",
+        "trial_fce335815b1bda26eb898aed"
+      ]
+    },
+    {
+      "alpha_spec_id": "aspec_df2d040e45564c259ef3de6d",
+      "artifact_paths": {
+        "evidence_draft": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_27bf1262b0bd23d27191cc86.json",
+        "factor_card": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_27bf1262b0bd23d27191cc86.json",
+        "reference_candidate_handoff": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_27bf1262b0bd23d27191cc86.json"
+      },
+      "duplicate_exposure_group_hint": "pa-sweep-closeback",
+      "evidence_draft_id": "edraft_7c3f01bd64ca2fdb91f8f2cb",
+      "factor_card_id": "fcard_baf3f0a4f8158b6a967d92d6",
+      "family": "liquidity_pa",
+      "linked_rejected_idea_ids": [],
+      "p25_judgement": "INCONCLUSIVE",
+      "reference_candidate_handoff_id": "rhandoff_3a8a7f59041c4e17413c6c7a",
+      "study_spec_id": "sspec_27bf1262b0bd23d27191cc86",
+      "trial_ids": [
+        "trial_666433ac863d5adb1368a3d1"
+      ]
+    },
+    {
+      "alpha_spec_id": "aspec_39ffc190cfbfa6ba0b1a2a25",
+      "artifact_paths": {
+        "evidence_draft": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_02c400a561891171a33c0c66.json",
+        "factor_card": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_02c400a561891171a33c0c66.json",
+        "reference_candidate_handoff": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_02c400a561891171a33c0c66.json"
+      },
+      "duplicate_exposure_group_hint": "pa-failed-breakout",
+      "evidence_draft_id": "edraft_35e94b7ecf400f115c9c6cb7",
+      "factor_card_id": "fcard_49c97231c80c9d9cdfb6a1b9",
+      "family": "liquidity_pa",
+      "linked_rejected_idea_ids": [],
+      "p25_judgement": "INCONCLUSIVE",
+      "reference_candidate_handoff_id": "rhandoff_bc05472e6ada417887ba269a",
+      "study_spec_id": "sspec_02c400a561891171a33c0c66",
+      "trial_ids": [
+        "trial_45df4e0c5999da63a57ff9b2"
+      ]
+    },
+    {
+      "alpha_spec_id": "aspec_1284e49b083df11eeb0481ea",
+      "artifact_paths": {
+        "evidence_draft": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_9f6f741192a4b534f06e51c0.json",
+        "factor_card": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_9f6f741192a4b534f06e51c0.json",
+        "reference_candidate_handoff": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_9f6f741192a4b534f06e51c0.json"
+      },
+      "duplicate_exposure_group_hint": "bbo-spread-depth-confirmation",
+      "evidence_draft_id": "edraft_b398c33f723d8d2f76bd899f",
+      "factor_card_id": "fcard_30eeed375838770dc95563c7",
+      "family": "bbo_tradability",
+      "linked_rejected_idea_ids": [],
+      "p25_judgement": "INCONCLUSIVE",
+      "reference_candidate_handoff_id": "rhandoff_5c28d833dcc3109ea85c916c",
+      "study_spec_id": "sspec_9f6f741192a4b534f06e51c0",
+      "trial_ids": [
+        "trial_2ae03a839098b6ff741b2f84",
+        "trial_4ee4909066d85d4abcdfaa42",
+        "trial_3a61fa6378614054674171ec",
+        "trial_2c32c84a140e6e99f67f5aa8"
+      ]
+    }
+  ]
+}

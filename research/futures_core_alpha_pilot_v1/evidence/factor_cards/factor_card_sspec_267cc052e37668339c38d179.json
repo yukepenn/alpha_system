@@ -1,0 +1,106 @@
+{
+  "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "candidate_input_framing": {
+    "label": "candidate-for-later-review",
+    "promotion_state": "not promoted",
+    "reference_validation_state": "not performed",
+    "tradability_state": "not tradable",
+    "validation_state": "not validated"
+  },
+  "card_hash": "e99756cbc57da2172d7cdf240d709a52e2d638c1937ba5dea4144cbfa6dc43e6",
+  "card_id": "fcard_e99756cbc57da2172d7cdf24",
+  "factor_library_input": {
+    "duplicate_exposure_group_hint": "regime-trend-vol-range",
+    "evidence_draft_ref": {
+      "artifact_path": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_267cc052e37668339c38d179.json",
+      "draft_hash": "f37f8038a085caff063a6c5682c8db48fac97069178deeede2534299c8a086df",
+      "draft_id": "edraft_f37f8038a085caff063a6c56"
+    },
+    "input_type": "FactorCard draft for later review",
+    "linked_rejected_idea_refs": [],
+    "p25_reviewer_verdict_ref": {
+      "content_hash": "a44718e28be05fedfddb5792a573580bf822b809e1b685412d72fa9cfa0ce25e",
+      "path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_267cc052e37668339c38d179.json",
+      "role": "statistical_reviewer_verdict",
+      "source_id": "sspec_267cc052e37668339c38d179"
+    },
+    "p26_trial_ledger_refs": [
+      {
+        "content_hash": "432d281a793e4f16dd9f772735aef84b84cbca83918c28cdbb9d30482c08d414",
+        "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_94781614f100a2aa0878aae4.json",
+        "role": "trial_ledger_record",
+        "source_id": "trial_94781614f100a2aa0878aae4"
+      },
+      {
+        "content_hash": "0e8dbeba06cf63e39099c6aec1fbc848169203ec81a551088032469cdea2fc0d",
+        "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_13c98257a704ce5641a51626.json",
+        "role": "trial_ledger_record",
+        "source_id": "trial_13c98257a704ce5641a51626"
+      },
+      {
+        "content_hash": "1d10f977398630a72f068cfb2352db524dd58b4df4450c4721b626142f18f0c3",
+        "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_58fdb5456d910efccdd95b7b.json",
+        "role": "trial_ledger_record",
+        "source_id": "trial_58fdb5456d910efccdd95b7b"
+      },
+      {
+        "content_hash": "138e48b844d1242be0481bd80a594f9def22a21530e6f2ae1efb5a520bb13d93",
+        "path": "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_fce335815b1bda26eb898aed.json",
+        "role": "trial_ledger_record",
+        "source_id": "trial_fce335815b1bda26eb898aed"
+      }
+    ],
+    "reference_candidate_handoff_ref": {
+      "artifact_path": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_267cc052e37668339c38d179.json",
+      "handoff_hash": "3b40fcba5a0d94bb2b3817e2b273738f2432b16a5292521bd0a7d52a702dfa59",
+      "handoff_id": "rhandoff_3b40fcba5a0d94bb2b3817e2"
+    }
+  },
+  "family": "regime",
+  "limitations": [
+    "This FactorCard is a draft input for later review only.",
+    "P25 judgement is INCONCLUSIVE and remains unchanged.",
+    "Cost, capacity, and thin-session fields are proxy-only references.",
+    "Temporal and label timing flags remain unresolved by this packaging phase.",
+    "No alpha, profitability, capital, paper, live, broker, order, or deployment claim is made."
+  ],
+  "lineage": {
+    "code_hash": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
+    "config_hash": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "feature_version_ids": [
+      "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+      "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+      "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+      "fver_18b5841a0d7f2fd7b86e5d650a21742190c1517dacc40dbb90854a1188191147",
+      "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169"
+    ],
+    "label_version_ids": [
+      "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+      "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+      "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a"
+    ],
+    "source_alpha_spec_ref": {
+      "content_hash": "c4ace31bd7c0b2a80aca0f6a9fa3043fc7f739c1c50a8b5f4e5b94e137137bff",
+      "path": "research/futures_core_alpha_pilot_v1/alpha_specs/regime/FUTCORE-P09_regime_01.md",
+      "role": "alpha_spec"
+    },
+    "source_study_spec_ref": {
+      "content_hash": "a54c5e8f4131abc4586875e6d1432c9593fa11cc1d97516e4f3a68ea7d7b6f0e",
+      "path": "research/futures_core_alpha_pilot_v1/study_specs/sspec_267cc052e37668339c38d179.json",
+      "role": "study_spec"
+    }
+  },
+  "phase_id": "FUTCORE-P27",
+  "review_boundaries": {
+    "p27_does_not_assign_promotion": true,
+    "p27_does_not_perform_reference_validation": true,
+    "p27_does_not_rerun_diagnostics": true,
+    "p27_does_not_rescore_or_redecide": true,
+    "raw_or_heavy_data_embedded": false
+  },
+  "schema": "alpha_system.futures_core_alpha_pilot.factor_card_draft.v1",
+  "study_spec_id": "sspec_267cc052e37668339c38d179",
+  "survivor_id": "sspec_267cc052e37668339c38d179"
+}
