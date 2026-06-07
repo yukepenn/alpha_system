@@ -19,6 +19,16 @@ parallel draft wave, followed by `FUTCORE-P12` AlphaSpec critique and family
 budget audit.
 
 New durable surfaces through this `FUTCORE-P08` snapshot:
+`FUTCORE-P07` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
+post-merge snapshot and adds the cross-market AlphaSpec batch within the
+parallel `alpha_specs` wave. The `foundation` merge group /
+`bootstrap_and_inputs` gate is complete through `FUTCORE-P06`.
+
+Active / next work: `FUTCORE-P07` is done. The next work is the remaining
+`FUTCORE-P08` through `FUTCORE-P11` AlphaSpec family batches, followed by
+`FUTCORE-P12` AlphaSpec Critic and Family Budget Audit.
+
+New durable surfaces through `FUTCORE-P07`:
 
 - `docs/futures_core_alpha_pilot/README.md`
 - `docs/futures_core_alpha_pilot/OVERVIEW.md`
@@ -44,6 +54,14 @@ No new commands, modules, runtime behavior, data readers, diagnostics, cost
 calculations, reviews, agent runners, or broker surfaces are added by
 `FUTCORE-P08`. The VWAP/session batch records draft AlphaSpec payloads,
 assumptions, limitations, and diagnostic declarations only.
+- `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/`
+- `research/futures_core_alpha_pilot_v1/queue/`
+- `docs/futures_core_alpha_pilot/alpha_specs/cross_market.md`
+
+No new commands, modules, runtime behavior, data readers, diagnostics, cost
+calculations, reviews, agent runners, or broker surfaces are added by
+`FUTCORE-P07`. The cross-market AlphaSpec drafts are value-free research
+evidence only and remain subject to independent critique in `FUTCORE-P12`.
 
 ## Source Of Truth
 
