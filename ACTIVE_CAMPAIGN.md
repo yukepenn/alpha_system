@@ -4,37 +4,39 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
 Workflow: `workflow2`
-Run: `workflow2 active`
-Status: `active` - bootstrap scaffolding complete after the Ralph-owned merge
+Run: `workflow2 complete`
+Status: `complete (with warnings)` - all 31 phases done; the autonomous
+`FUTCORE-P30` closeout recorded `BLOCKED` on a local-only `verify.py --all`
+failure, resolved `COMPLETE_WITH_WARNINGS` by coordinator (CI green; failures
+environmental/pre-existing). See
+`campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT_COORDINATOR_RESOLUTION.md`.
 
-Current phase: `FUTCORE-P01` - Preflight
-Last completed phase: `FUTCORE-P00`
-Last completed status: `complete after merge`
-Completed phases: `1/31` after merge
+Current phase: `none` - campaign complete
+Last completed phase: `FUTCORE-P30` - Acceptance Audit and Closeout
+Last completed status: `complete (with warnings) after coordinator resolution`
+Completed phases: `31/31`
 
-Campaign `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is the **first small-but-real,
-evidence-gated, cost-aware ES/NQ/RTY futures alpha research pilot** over the
-completed Data + Feature/Label + Research Runtime + Agent Factory stack. It drives
-those primitives through their sanctioned APIs to exercise one full controlled
-research loop — hypothesis → AlphaSpec → StudySpec → Runtime diagnostics →
-cost/session/regime/no-lookahead review → TrialLedger/RejectedIdeaLedger →
-`REJECT | INCONCLUSIVE | WATCH | CANDIDATE_RESEARCH`. It produces **research
-evidence only**. It does **not** do scaled/autonomous mining, FactorLibrary V1,
-Strategy Reference Validation, AlphaBook, strategy/backtest/portfolio products,
-paper/live/broker/order work, or any profitability/tradability claim.
+Campaign `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` remains the active pointer by
+closeout convention. It is the first bounded, evidence-gated, cost-aware
+ES/NQ/RTY futures alpha research pilot over the completed Data + Feature/Label
++ Research Runtime + Agent Factory stack. It drove one controlled research
+loop:
 
-This pointer selects `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` as the active Workflow
-2 campaign. The predecessor `ALPHA_AGENT_FACTORY_MVP` is complete (26/26,
-`COMPLETE_WITH_WARNINGS`,
-`campaigns/ALPHA_AGENT_FACTORY_MVP/CLOSEOUT.md`). The two pre-pilot blockers it
-named — `FEATURE_LABEL_PARQUET_SINK_V1` and `SESSION_LABEL_GUARD_FIX_V1` — both
-landed in `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1` (PR #210), which is this
-campaign's substrate.
+```text
+Hypothesis -> AlphaSpec -> StudySpec -> Runtime diagnostics
+  -> cost / session / regime / no-lookahead review
+  -> TrialLedger / RejectedIdeaLedger
+  -> REJECT | INCONCLUSIVE | WATCH | CANDIDATE_RESEARCH
+```
 
-Ralph updates this pointer through reviewed phase commits so the tracked repo
-stays clean after Workflow 2 stops. In `dag_wave` parallel mode this pointer is
-**coordinator-owned** and should not be written by ordinary parallel phase
-branches.
+The final P28 promotion boundary is `4` `REJECT`, `6` `INCONCLUSIVE`, `0`
+`WATCH`, and `0` `CANDIDATE_RESEARCH`. No FactorLibrary-ingestible survivor and
+no Strategy Reference validation candidate is produced by this pilot.
+
+Ralph owns authoritative validation, staged-set audit, review routing, verdict
+parsing, repair routing, PR, CI, merge, and final done-check actions. This
+pointer is updated by `FUTCORE-P30` only because the phase is `must_run_alone`
+and coordinator-owned.
 
 ## Campaign Identity
 
@@ -45,93 +47,49 @@ branches.
 - Workflow: `workflow2`
 - Mode: Ralph-driven strict autonomous loop
 - Project profile: `trading_research` / `research` / `core_alpha_pilot`
-- Phase count: 31 phases (`FUTCORE-P00` … `FUTCORE-P30`)
+- Phase count: 31 phases (`FUTCORE-P00` ... `FUTCORE-P30`)
 - Lane policy: Green/Yellow only; **no Red scope**
+- Final verdict: `COMPLETE_WITH_WARNINGS` (coordinator resolution; autonomous
+  `FUTCORE-P30` recorded `BLOCKED` on a local-only verifier failure)
+- Coordinator resolution:
+  `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT_COORDINATOR_RESOLUTION.md`
+- Closeout audit:
+  `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT.md`
+- Next campaign handoff:
+  `research/futures_core_alpha_pilot_v1/closeout/SUBSTRATE_SCALEOUT_V1_HANDOFF.md`
 
-## Scheduler
+## Closeout Evidence
 
-- `workflow2.scheduler.mode`: `dag_wave`
-- `parallel_execution`: `true`; `max_parallel_phases`: `3`
-- `merge_queue`: `serial` (build in parallel, merge one PR at a time)
-- `update_active_campaign`: `coordinator_only` (phase branches never write this file)
-- Preview: `just frontier-plan ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
-- Mock first: `just frontier-run-parallel-mock ALPHA_FUTURES_CORE_ALPHA_PILOT_V1 3`
-- Live parallel: `just frontier-run-parallel ALPHA_FUTURES_CORE_ALPHA_PILOT_V1 3`
-
-## Model Routing
-
-- Strategy / campaign framing / post-run reasoning: ChatGPT (GPT-5.5 Thinking)
-- Specs / semantic review / done-check: Claude Opus 4.8 xhigh
-- Source map / verifier / mechanical audit: Claude Sonnet 4.6
-- Execution / tests / repair / handoffs: Codex GPT-5.5 high
-- Orchestration / state machine / DAG scheduler / serial merge queue: Ralph
-
-These are **build-time** model roles. They are distinct from the in-product
-agent roster (Research Director, Hypothesis Scout, AlphaSpec Critic, Data
-Contract Auditor, Feature Engineer, Label Engineer, No-Lookahead Auditor,
-Diagnostics Runner, Statistical Reviewer, Librarian), which the Agent Factory
-contracts drive as constrained research workers — not autonomous traders.
-
-## Scheduler Wave Map
-
-```text
-Sequential : FUTCORE-P00 -> P01 -> P02 -> P03 -> P04 -> P05 -> P06
-Parallel   : [FUTCORE-P07 P08 P09] [P10 P11]
-Sequential : FUTCORE-P12 -> P13 -> P14 -> P15
-Parallel   : [FUTCORE-P16 P17 P18] [P19 P20]
-Sequential : FUTCORE-P21 -> ... -> P30
-```
+- Human-facing closeout:
+  `docs/futures_core_alpha_pilot/CLOSEOUT.md`
+- Research closeout summary:
+  `research/futures_core_alpha_pilot_v1/closeout/README.md`
+- Promotion decisions:
+  `research/futures_core_alpha_pilot_v1/promotion/PROMOTION_DECISIONS.md`
+- Downstream handoffs:
+  `docs/futures_core_alpha_pilot/DOWNSTREAM_HANDOFFS.md`
+- Commit-eligible P30 handoff:
+  `handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P30.md`
 
 ## Boundaries
 
-The pilot consumes — never edits — the runtime/governance/agent_factory/research/
-experiments/backtest/data/core primitives. Diagnostics run only through the
-Research Runtime tool surface; inputs resolve only through registry tools and
-`resolve_dataset_version`; research-scale scans use registry-resolved Parquet
-values; every feature has `available_ts`, every label `label_available_ts`. The
-only phase permitted to add `src/alpha_system/features/**` or `labels/**` is
-`FUTCORE-P15`, and only for minimal, justified primitives via FeatureRequest/
-LabelSpec.
+The pilot consumed - and did not broaden - the runtime/governance/
+agent_factory/research/experiments/backtest/data/core primitives. Diagnostics
+ran only through the Research Runtime tool surface; inputs resolved through
+registry tools and `resolve_dataset_version`; research-scale references stayed
+registry-resolved and value-free in committed artifacts.
 
-Out of scope: scaled/autonomous mining, continuous research runner, FactorLibrary
-V1, Strategy Reference Validation, AlphaBook, strategy/backtest/portfolio
-products, ML/DL/RL, L1/L2 event-stream, portfolio construction, paper/live/
-broker/order, external provider calls, and any raw/canonical/feature/label/value
-or local-DB commit. An EvidenceDraft is not a candidate; a candidate is not paper/
-live/capital readiness; the human owns risk/capital/live judgment.
-
-## Preflight Gates (encoded in `FUTCORE-P01`)
-
-- `FEATURE_LABEL_PARQUET_SINK_V1` complete; research-scale values via Parquet.
-- `SESSION_LABEL_GUARD_FIX_V1` complete; point-in-time session-context features OK.
-- Research Runtime real-data smoke status recorded.
-- Agent Factory preflight recorded.
-- Accepted Databento ES/NQ/RTY DatasetVersion + Parquet FeaturePack/LabelPack
-  resolve through registry tools; true forward-looking labels remain blocked.
-
-## Campaign Files
-
-`campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/`: `GOAL.md`, `PHASE_PLAN.md`,
-`campaign.yaml`, `ACCEPTANCE.md`, `RISK_REGISTER.md`, `RUNBOOK.md`. There is no
-campaign-local `ACTIVE_CAMPAIGN.md`; this root pointer is the only one.
-
-## Acceptance Gates
-
-`bootstrap_and_inputs` · `alpha_spec_batches` · `spec_audit_and_packs` ·
-`family_diagnostics` · `consolidation_and_audits` · `evidence_ledger_promotion` ·
-`handoff_and_closeout`. Every one of the 31 phases (`FUTCORE-P00` …
-`FUTCORE-P30`) belongs to exactly one gate. Final verdict ∈ {`COMPLETE`,
-`COMPLETE_WITH_WARNINGS`, `BLOCKED`}.
+Out of scope remains unchanged: scaled/autonomous mining, continuous research
+runner, FactorLibrary V1 promotion, Strategy Reference validation, AlphaBook,
+strategy/backtest/portfolio products, ML/DL/RL, L1/L2 event-stream, portfolio
+construction, paper/live/broker/order, external provider calls, raw/canonical/
+feature/label/value or local-DB commits, and any profitability or tradability
+claim.
 
 ## Stop / Resume
 
 A `runs/<run_id>/STOP` file is an active stop request; Ralph checks it before
 phase selection, execution, checks, review, PR, CI, merge gate, merge,
-done-check, and next-phase. Resume continues from recorded run state. In parallel
-mode a wave builds concurrently in isolated worktrees but merges serially; a STOP
-halts new phase selection and new merges.
-
-Note: `FUTCORE-P00` is scaffolding only: campaign bundle confirmation, pilot
-docs index/overview, value-free research evidence skeleton, and a commit-eligible
-handoff. It performs no alpha research, no diagnostics, no provider call, and no
-data read or committed. Next phase is `FUTCORE-P01` Preflight.
+done-check, and next-phase. Resume continues from recorded run state. In
+parallel mode a wave builds concurrently in isolated worktrees but merges
+serially; a STOP halts new phase selection and new merges.
