@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +26,10 @@ from alpha_system.labels.families.fixed_horizon import (
     supported_fixed_horizon_labels,
 )
 from alpha_system.labels.version import LabelContractError
+
+RESEARCH_ROOT = (
+    Path(__file__).resolve().parents[5] / "research/futures_core_alpha_pilot_v1"
+)
 
 
 def test_all_fixed_horizon_labels_are_governed_versioned_and_label_only() -> None:
@@ -132,6 +138,25 @@ def test_fwd_ret_15m_waits_for_governed_availability_without_session_final_input
     input_fields = definition.contract.inputs.fields
     assert "session_close" not in input_fields
     assert "final_session_aggregate" not in input_fields
+
+
+def test_futcore_p15_fwd_ret_15m_label_spec_file_is_governed_and_labels_only() -> None:
+    spec = LabelSpec.from_mapping(
+        json.loads((RESEARCH_ROOT / "label_specs/fwd_ret_15m.json").read_text())
+    )
+    view = _trade_view(length=16)
+    definition = build_fixed_horizon_label_definition(
+        FixedHorizonLabelName.FWD_RET_15M,
+        spec,
+    )
+
+    records = compute_fixed_horizon_label(definition, view)
+
+    assert spec.label_spec_id == "lspec_8ea5c33463a47d467963d216"
+    assert spec.path_rules["gap_id"] == "P15-G1"
+    assert records[0].label_spec_id == spec.label_spec_id
+    assert records[0].horizon_end_ts == view.rows[15].event_ts
+    assert records[0].label_available_ts == view.rows[15].available_ts
 
 
 def test_midprice_labels_flag_missing_and_quarantined_bbo_without_fill() -> None:

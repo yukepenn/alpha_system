@@ -1,0 +1,65 @@
+{
+  "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+  "approval_status": "APPROVED",
+  "availability_assumptions": {
+    "available_ts_rule": "feature.available_ts = current OHLCV input row available_ts",
+    "final_aggregate_boundary": "completed ETH or anchored context may be consumed only after the relevant segment has completed; active-session final VWAP is forbidden intraday",
+    "lookback_rule": "source rows may contribute only when source.available_ts <= output.available_ts",
+    "session_context": "session_label is consumed as point-in-time metadata and not as a label-derived field"
+  },
+  "data_requirements": {
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "input_views": [
+      "canonical_ohlcv",
+      "dense_grid_ohlcv"
+    ],
+    "required_fields": [
+      "series_id",
+      "event_ts",
+      "bar_start_ts",
+      "bar_end_ts",
+      "available_ts",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "quality_flags",
+      "session_label"
+    ],
+    "universe": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "value_materialization": "not_performed_in_FUTCORE-P15"
+  },
+  "duplicate_or_equivalent_exposure_notes": {
+    "checked": true,
+    "findings": [],
+    "guard": "duplicate_exposure",
+    "registry_entries_checked": 11,
+    "registry_status": "CHECKED",
+    "summary": "P13 locked FeaturePack and LabelPack inventory checked; no locked pack member resolves this P15 gap item."
+  },
+  "feature_request_id": "freq_c2a4bc747eb9a0602327de2d",
+  "formula_sketch": {
+    "accepted_alpha_specs": [
+      "aspec_b40aee52d4399dd5b855a6ed",
+      "aspec_43cd6c154bca2fcc419eee83"
+    ],
+    "gap_id": "P15-G2",
+    "implementation_surface": [
+      "alpha_system.features.families.ohlcv"
+    ],
+    "opening_range_rule": "opening-range context is causal and unavailable before observed opening-window rows carry available_ts",
+    "primitive_group": "vwap_session_featurepack_binding",
+    "running_rule": "running VWAP and distance-to-VWAP update only from completed OHLCV rows at or before output available_ts",
+    "session_rule": "session_label is metadata under the role-aware guard; final current-session aggregates are not used intraday"
+  },
+  "requested_inputs": [
+    "base_ohlcv_vwap",
+    "base_ohlcv_anchored_vwap",
+    "base_ohlcv_distance_to_vwap",
+    "base_ohlcv_opening_range"
+  ]
+}

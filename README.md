@@ -8,24 +8,25 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P14`, Approved StudySpec Pack, in the `spec_audit_and_packs`
-gate. This snapshot records the value-free StudySpec pack that binds the P12
-accepted AlphaSpecs to the P03/P13 locked DatasetVersion, FeaturePack, and
-LabelPack references by id/hash/schema/availability metadata only.
+through `FUTCORE-P15`, Minimal Missing FeatureRequest / LabelSpec Additions, in
+the `spec_audit_and_packs` gate. This snapshot records the bounded P15
+FeatureRequest / LabelSpec additions needed by the P13/P14 gap mapping.
 
-Active / next work: the next phase is `FUTCORE-P15`, Minimal Missing
-FeatureRequest / LabelSpec Additions, If Needed. Ralph continues to own
-authoritative validation, review routing, staging, PR, CI, merge, and done-check
-actions.
+Active / next work: `FUTCORE-P15` is completed from the executor side. The next
+phase wave is `FUTCORE-P16` through `FUTCORE-P20`, the family-diagnostics wave
+under the `family_diagnostics` gate. Ralph continues to own authoritative
+validation, review routing, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P14` snapshot:
+New durable surfaces in this `FUTCORE-P15` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/study_specs/`
-- `docs/futures_core_alpha_pilot/STUDY_SPECS.md`
+- `research/futures_core_alpha_pilot_v1/feature_requests/`
+- `research/futures_core_alpha_pilot_v1/label_specs/fwd_ret_15m.json`
+- `docs/futures_core_alpha_pilot/PRIMITIVE_ADDITIONS.md`
+- `src/alpha_system/labels/families/fixed_horizon/family.py`
 
-`FUTCORE-P14` adds no new modules, commands, source primitives,
-FeatureRequests, LabelSpecs, feature values, label values, data readers, agent
-runners, or broker surfaces.
+`FUTCORE-P15` adds no new commands, data readers, agent runners, feature value
+data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
+or deployment behavior.
 
 ## Source Of Truth
 
