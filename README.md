@@ -7,24 +7,24 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is in the
-`spec_audit_and_packs` gate. This snapshot records `FUTCORE-P13`, which maps
-the P12 accepted AlphaSpecs to the P03 locked DatasetVersion, FeaturePack, and
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
+through `FUTCORE-P14`, Approved StudySpec Pack, in the `spec_audit_and_packs`
+gate. This snapshot records the value-free StudySpec pack that binds the P12
+accepted AlphaSpecs to the P03/P13 locked DatasetVersion, FeaturePack, and
 LabelPack references by id/hash/schema/availability metadata only.
 
-Active / next work: `FUTCORE-P13` is executor-complete pending Ralph-owned
-review, staging, and merge flow. The next phase is `FUTCORE-P14`, Approved
-StudySpec Pack.
-Ralph continues to own authoritative validation, review routing, staging, PR,
-CI, merge, and done-check actions.
+Active / next work: the next phase is `FUTCORE-P15`, Minimal Missing
+FeatureRequest / LabelSpec Additions, If Needed. Ralph continues to own
+authoritative validation, review routing, staging, PR, CI, merge, and done-check
+actions.
 
-New durable surfaces in this `FUTCORE-P13` snapshot:
+New durable surfaces in this `FUTCORE-P14` snapshot:
 
-- `docs/futures_core_alpha_pilot/DATA_CONTRACT_AUDIT.md`
-- `research/futures_core_alpha_pilot_v1/audits/data_contract/`
+- `research/futures_core_alpha_pilot_v1/study_specs/`
+- `docs/futures_core_alpha_pilot/STUDY_SPECS.md`
 
-`FUTCORE-P13` adds no new modules, commands, source primitives, FeatureRequests,
-LabelSpecs, StudySpecs, feature values, label values, data readers, agent
+`FUTCORE-P14` adds no new modules, commands, source primitives,
+FeatureRequests, LabelSpecs, feature values, label values, data readers, agent
 runners, or broker surfaces.
 
 ## Source Of Truth

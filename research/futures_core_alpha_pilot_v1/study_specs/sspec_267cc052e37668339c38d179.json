@@ -1,0 +1,605 @@
+{
+  "study_spec_id": "sspec_267cc052e37668339c38d179",
+  "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+  "label_spec_id": "lspec_cd6523694c850c9943b2067e",
+  "dataset_scope": {
+    "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+    "phase_id": "FUTCORE-P14",
+    "study_pack_status": "approved_binding_pack_value_free_no_diagnostics_run",
+    "schema_ref": "alpha_system.governance.study_spec.StudySpec",
+    "source_alpha_spec": {
+      "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+      "family": "regime",
+      "source_path": "research/futures_core_alpha_pilot_v1/alpha_specs/regime/FUTCORE-P09_regime_01.md",
+      "critique_path": "research/futures_core_alpha_pilot_v1/critiques/regime/FUTCORE-P09_regime_01_critique.md",
+      "accepted_by": "FUTCORE-P12 accept-for-StudySpec decision",
+      "summary": "Trendiness, volatility, and range-compression gate with explicit activation logic.",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "declared_primary_horizon": "5m/10m/15m/30m matrix"
+    },
+    "family_budget_binding": "15% family budget; P12 accepted 1 of 10 seats under integer rounding.",
+    "dataset_version_lock": {
+      "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+      "source": "dsrc_databento_historical",
+      "symbol_universe": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "contract_universe": [
+        "contract_databento_es_v_0_front",
+        "contract_databento_nq_v_0_front",
+        "contract_databento_rty_v_0_front"
+      ],
+      "bar_size": "1 min",
+      "what_to_show": "TRADES",
+      "partition": "development_partition",
+      "time_span": "2024-01-01T00:00:00+00:00 to 2025-01-01T00:00:00+00:00",
+      "manifest_hash": "abbf9ebbecfe97f2c4b31900d9ae44421549e08a65e90ec64e235a958c1d2d31",
+      "code_hash": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
+      "config_hash": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
+      "quality_report_hash": "7e46966bdc6921a0bb338097fa82ec94fcdf401e1913d81b288052bd6c9c66b4",
+      "coverage_report_hash_status": "P03 registry record did not expose coverage_report_hash; symbol-level row coverage remains a downstream diagnostic audit item."
+    },
+    "feature_pack_locks": [
+      {
+        "primitive_ref": "F1",
+        "feature_id": "base_ohlcv_rth_flag",
+        "feature_version_id": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+        "feature_request_id": "freq_67991722245329f35c0fa612",
+        "feature_set": "fset_es_session_ctx_smoke/v1_rth_flag",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:29a64bad4966f696b1c18e72432ef2e5e00fff9ed767b6cd968493a7d4a6fa79",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00"
+      },
+      {
+        "primitive_ref": "F2",
+        "feature_id": "base_ohlcv_session_minute",
+        "feature_version_id": "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+        "feature_request_id": "freq_f7d4e9c2f4c60c5c25f15ce2",
+        "feature_set": "fset_es_session_ctx_smoke/v1_session_minute",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:94430bbd52270daf8a7e043c9a0e1c45b98e1f84b0f9ff0439d7119ddb3ef0ad",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00"
+      },
+      {
+        "primitive_ref": "F3",
+        "feature_id": "base_ohlcv_returns",
+        "feature_version_id": "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "feature_request_id": "freq_7644d195221963a725953a50",
+        "feature_set": "fset_es_ohlcv_session_smoke/v1_returns",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:0a8d29b9284d85e5306d76e0482ce6925c8384e9bb28247dc9564be02360ed90",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00"
+      },
+      {
+        "primitive_ref": "F5",
+        "feature_id": "base_ohlcv_rolling_volatility",
+        "feature_version_id": "fver_18b5841a0d7f2fd7b86e5d650a21742190c1517dacc40dbb90854a1188191147",
+        "feature_request_id": "freq_af690f30c36a7bbd12b6d730",
+        "feature_set": "fset_es_ohlcv_session_smoke/v1_rolling_volatility",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:1ad59e668cbed859460cb3dc672293cfc03f55d600d185477b46cfe1e9c1ec67",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00"
+      },
+      {
+        "primitive_ref": "F6",
+        "feature_id": "base_ohlcv_rolling_range",
+        "feature_version_id": "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169",
+        "feature_request_id": "freq_cd75d0b4aa48ba48c04e970b",
+        "feature_set": "fset_es_ohlcv_session_smoke/v1_rolling_range",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:c9e133ed324b2b2ea168fa2b2672e99050161c91e34ea919f82eae2be2f96077",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00"
+      }
+    ],
+    "label_pack_locks": [
+      {
+        "primitive_ref": "L5",
+        "label_id": "fwd_ret_5m",
+        "label_version_id": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "label_spec_id": "lspec_cd6523694c850c9943b2067e",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+        "value_schema_version": "alpha_system.labels.materialization.v1",
+        "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+      },
+      {
+        "primitive_ref": "L10",
+        "label_id": "fwd_ret_10m",
+        "label_version_id": "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+        "label_spec_id": "lspec_15c26c4368bb432b0b0dc6e9",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+        "value_schema_version": "alpha_system.labels.materialization.v1",
+        "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+      },
+      {
+        "primitive_ref": "L30",
+        "label_id": "fwd_ret_30m",
+        "label_version_id": "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
+        "label_spec_id": "lspec_65ba5b5c9b4fa37e0e42b6ef",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "partition": "development_partition",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock.",
+        "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+        "value_schema_version": "alpha_system.labels.materialization.v1",
+        "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+      }
+    ],
+    "top_level_label_spec_policy": {
+      "label_spec_id": "lspec_cd6523694c850c9943b2067e",
+      "label_horizon": "5m",
+      "policy": "Top-level StudySpec label_spec_id is a locked label anchor required by the governance schema; the complete horizon matrix records locked 5m, 10m, and 30m labels plus pending 15m binding."
+    },
+    "study_input_pack_refs": {
+      "feature_request_ids": [
+        "freq_67991722245329f35c0fa612",
+        "freq_f7d4e9c2f4c60c5c25f15ce2",
+        "freq_7644d195221963a725953a50",
+        "freq_af690f30c36a7bbd12b6d730",
+        "freq_cd75d0b4aa48ba48c04e970b"
+      ],
+      "label_spec_ids": [
+        "lspec_cd6523694c850c9943b2067e",
+        "lspec_15c26c4368bb432b0b0dc6e9",
+        "lspec_65ba5b5c9b4fa37e0e42b6ef"
+      ],
+      "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+      "schema_ref": "alpha_system.governance.study_input_pack.StudyInputPack",
+      "validation_scope": "handle-only pack binding; no registry row, Parquet row, feature value, or label value is embedded"
+    },
+    "p13_data_contract_mapping": {
+      "mapping_status": "MISSING",
+      "available_primitive_refs": [
+        "D1",
+        "F1",
+        "F2",
+        "F3",
+        "F5",
+        "F6",
+        "L5",
+        "L10",
+        "L30"
+      ],
+      "missing_or_deferred_primitive_refs": [
+        "G1",
+        "G4"
+      ],
+      "pending_p15_gap_refs": [
+        {
+          "gap_id": "P15-G1",
+          "deferred_binding": "fwd_ret_15m LabelPack binding"
+        },
+        {
+          "gap_id": "P15-G4",
+          "deferred_binding": "Additional base-OHLCV derived-state FeaturePack binding for trendiness, ATR, fixed prior-range or compression boundaries, sweep flags, breakout flags, and failure-deadline flags"
+        }
+      ],
+      "gap_policy": "Diagnostics requiring a pending label or feature binding must stop until FUTCORE-P15 records an implemented binding or explicit no-op constraint."
+    },
+    "value_free_contract": "This StudySpec contains ids, hashes, schema versions, sessions, horizons, cost-profile names, no-lookahead rules, and variant caps only; it contains no materialized market, feature, label, diagnostic, cost, return, or signal values.",
+    "boundary_contract": "No diagnostics are run by this pack, and no consumed primitive, FeatureRequest, LabelSpec, broker, order, live, paper, deployment, or production behavior is introduced."
+  },
+  "split_protocol": {
+    "split_contract_ref": "research/futures_core_alpha_pilot_v1/scope/scope_contract.md",
+    "required_session_views": [
+      "full_session",
+      "RTH_only",
+      "ETH_only",
+      "ETH_evening",
+      "ETH_overnight",
+      "pre_RTH",
+      "RTH",
+      "post_RTH",
+      "RTH_with_ETH_context"
+    ],
+    "primary_horizons": [
+      "5m",
+      "10m",
+      "15m",
+      "30m"
+    ],
+    "session_horizon_matrix": [
+      {
+        "session_view": "full_session",
+        "session_role": "diagnostic_matrix_view_preserving_active_segment_boundaries",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "RTH_only",
+        "session_role": "primary_or_in_scope_decision_view_with_point_in_time_inputs",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "ETH_only",
+        "session_role": "diagnostic_thin_session_view_with_required_nonzero_cost_penalties",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "ETH_evening",
+        "session_role": "diagnostic_thin_session_view_with_required_nonzero_cost_penalties",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "ETH_overnight",
+        "session_role": "diagnostic_thin_session_view_with_required_nonzero_cost_penalties",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "pre_RTH",
+        "session_role": "diagnostic_thin_session_view_with_required_nonzero_cost_penalties",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "RTH",
+        "session_role": "primary_or_in_scope_decision_view_with_point_in_time_inputs",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "post_RTH",
+        "session_role": "diagnostic_thin_session_view_with_required_nonzero_cost_penalties",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      },
+      {
+        "session_view": "RTH_with_ETH_context",
+        "session_role": "primary_or_in_scope_decision_view_with_point_in_time_inputs",
+        "horizon_bindings": {
+          "5m": {
+            "label_binding": "locked LabelSpec lspec_cd6523694c850c9943b2067e and LabelVersion lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 for fwd_ret_5m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
+            "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "10m": {
+            "label_binding": "locked LabelSpec lspec_15c26c4368bb432b0b0dc6e9 and LabelVersion lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941 for fwd_ret_10m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00"
+          },
+          "15m": {
+            "label_binding": "pending P15-G1 before any diagnostic that consumes the 15m label",
+            "binding_status": "PENDING_FUTCORE_P15_GAP_RESOLUTION",
+            "deferred_gap_ref": "P15-G1"
+          },
+          "30m": {
+            "label_binding": "locked LabelSpec lspec_65ba5b5c9b4fa37e0e42b6ef and LabelVersion lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a for fwd_ret_30m",
+            "binding_status": "LOCKED_BY_FUTCORE_P03_AND_CONFIRMED_BY_FUTCORE_P13",
+            "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+            "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00"
+          }
+        }
+      }
+    ],
+    "fragile_diagnostic_horizons": [
+      {
+        "horizon": "1m",
+        "role": "sampling_only",
+        "continuation_basis_allowed": false,
+        "gate": "stricter spread, liquidity, timestamp, and cost checks required"
+      },
+      {
+        "horizon": "3m",
+        "role": "execution_fragile_diagnostic_only",
+        "continuation_basis_allowed": false,
+        "gate": "stricter spread, liquidity, timestamp, and cost checks required"
+      }
+    ],
+    "extended_intraday_policy": "Extended intraday horizons require stronger sample, overlap, regime, stability, and maintenance-break checks before any later phase may add them.",
+    "maintenance_break_policy": "No modeled holding period may cross the exchange daily maintenance or trade-date break; flat-before-maintenance is required.",
+    "availability_discipline": [
+      "Every feature input must carry available_ts not later than the decision timestamp.",
+      "Every label must be consumed only as a label with label_available_ts after the outcome window and never as a feature.",
+      "Running session aggregates may be used only as running values under available_ts; final-session aggregates are available only after session completion.",
+      "Cross-instrument inputs require the maximum available_ts across all required legs to be no later than the decision timestamp; missing, late, stale, or out-of-order legs are excluded rather than forward-filled."
+    ],
+    "family_no_lookahead_requirements": [
+      "Regime state is activated only from trailing completed windows known at the decision timestamp.",
+      "Inactive, transition, and ambiguous regime states are explicit diagnostic states rather than hidden filters.",
+      "Volatility, range, and trendiness inputs must carry available_ts ordering and cannot use future extrema or final-window statistics.",
+      "Regime gates cannot be selected or widened after diagnostics are observed."
+    ],
+    "diagnostic_focus": "Causal regime-window activation, inactive-state handling, trendiness binding, and 15m label deferral.",
+    "variant_axes": {
+      "gate_window": [
+        "short_predeclared_trailing",
+        "long_predeclared_trailing"
+      ],
+      "gate_mode": [
+        "momentum_active",
+        "reversion_active"
+      ]
+    },
+    "variant_budget_count_rule": "The two declared axes create at most four parameter combinations; sessions, horizons, instruments, and cost profiles are fixed reporting slices and must not be multiplied into additional variant-grid choices."
+  },
+  "metrics": [
+    "coverage_count_by_instrument_session_horizon",
+    "input_missingness_and_exclusion_count_by_required_primitive",
+    "label_available_ts_ordering_audit_count",
+    "cost_profile_sensitivity_summary_by_profile_and_thin_session_view",
+    "variant_budget_observed_count_for_FUTCORE_P24"
+  ],
+  "cost_assumptions": {
+    "cost_model_contract_ref": "research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md",
+    "cost_model_version_id": "cmv_futcore_pilot_three_layer_session_stress_v1",
+    "cost_model_semver": "1.0.0",
+    "profile_set": [
+      {
+        "profile": "zero_cost",
+        "role": "diagnostic_only_contrast",
+        "continuation_basis_allowed": false
+      },
+      {
+        "profile": "base",
+        "role": "central_nonzero_sensitivity",
+        "continuation_basis_allowed": "review_input_only_not_standalone_evidence"
+      },
+      {
+        "profile": "stress_1",
+        "role": "required_nonzero_stress_not_less_conservative_than_base",
+        "continuation_basis_allowed": "review_input_only_not_standalone_evidence"
+      },
+      {
+        "profile": "stress_2",
+        "role": "required_nonzero_stress_not_less_conservative_than_stress_1",
+        "continuation_basis_allowed": "review_input_only_not_standalone_evidence"
+      },
+      {
+        "profile": "double_cost",
+        "role": "upper_nonzero_cost_bound_relative_to_base",
+        "continuation_basis_allowed": "review_input_only_not_standalone_evidence"
+      }
+    ],
+    "layer_set": [
+      "Layer 1 hard transaction cost from reviewed offline descriptors only.",
+      "Layer 2 spread crossing from valid point-in-time BBO where bound, with missing or invalid BBO flagged rather than fabricated.",
+      "Layer 3 slippage and capacity proxy as sensitivity only, never fill-capacity evidence."
+    ],
+    "thin_session_penalty_views": [
+      "ETH_only",
+      "ETH_evening",
+      "ETH_overnight",
+      "pre_RTH",
+      "post_RTH"
+    ],
+    "thin_session_penalty_rule": "Apply stricter spread, slippage, and capacity proxy treatment after every non-zero profile; overlays never reduce modeled cost or relax capacity proxy caps.",
+    "missing_bbo_policy": "When BBO is unavailable or pending P15, diagnostics must mark the approved missing-BBO fallback and cannot invent spread or depth values.",
+    "zero_cost_boundary": "zero_cost is diagnostic-only contrast and cannot support any favorable continuation or survivor basis.",
+    "claim_boundary": "Cost outputs are research diagnostics only and are not profitability, paper/live, broker, production, or capital-allocation evidence."
+  },
+  "variant_budget": 4,
+  "locked_test_policy": {
+    "study_spec_freeze": "P14 freezes pack ids, session-horizon matrix, cost profiles, no-lookahead targets, and variant budget before diagnostics are run.",
+    "OOS_policy": "No locked-test tuning, no repeated OOS selection, and no post-diagnostic variant expansion are allowed.",
+    "diagnostics_dependency": "FUTCORE-P16 through FUTCORE-P20 may consume only this StudySpec plus any FUTCORE-P15 resolved binding; they must not broaden inputs ad hoc.",
+    "result_boundary": "This file contains no diagnostic result and cannot be used as a profitability, paper/live, broker, production, or capital-allocation basis."
+  },
+  "negative_controls": [
+    "timestamp_permutation_control_must_fail_if_available_ts_order_is_ignored",
+    "label_lag_or_sign_flip_control_must_prevent_same_bar_or_label_leakage_interpretation",
+    "zero_cost_only_survival_control_flags_cost_fragility_and_cannot_support_continuation"
+  ],
+  "stopping_rules": [
+    "Stop diagnostics for any row or variant whose feature available_ts is after the decision timestamp.",
+    "Stop diagnostics for any horizon whose LabelPack binding remains pending FUTCORE-P15 resolution.",
+    "Stop diagnostics for any variant that would exceed the declared variant_budget of four combinations.",
+    "Stop diagnostics for any modeled holding interval that crosses the exchange daily maintenance or trade-date break.",
+    "Stop diagnostics for any input that requires final-session aggregate intraday use or same-bar outcome information.",
+    "Stop diagnostics for any accepted AlphaSpec primitive whose required P15 binding remains unresolved."
+  ]
+}
