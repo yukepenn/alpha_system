@@ -18,8 +18,15 @@ routing, serial merge handling, staging, PR, CI, merge, and done-check actions.
 
 New durable surfaces through this `FUTCORE-P17` snapshot:
 
+- `research/futures_core_alpha_pilot_v1/critiques/`
+- `research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md`
+- `docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md`
 - `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
 - `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
+
+The earlier `FUTCORE-P12` checkpoint remains the value-free AlphaSpec critique
+and family-budget audit that carried 10 accepted AlphaSpecs into the P13/P14
+data-contract and StudySpec binding gates.
 
 `FUTCORE-P17` records per-session and session x horizon diagnostics for the
 VWAP/session family. The locked 5m LabelPack resolves; the 10m, 15m, and 30m
