@@ -280,3 +280,66 @@ def test_wait_pr_mergeable_true_when_already_merged(monkeypatch) -> None:
 def test_wait_pr_mergeable_false_on_dirty_conflict(monkeypatch) -> None:
     _patch_mergeable(monkeypatch, state="DIRTY")
     assert github_utils.wait_pr_mergeable(3, initial_delay_seconds=0) is False
+
+
+# --------------------------------------------------------------------------- #
+# GIT_PHASE_BLOCKED self-heal on resume (commit-stage block re-drive)
+# --------------------------------------------------------------------------- #
+
+
+def _git_blocked_scheduler():
+    return ralph_driver.SchedulerSettings(
+        mode="dag_wave",
+        max_parallel_phases=3,
+        merge_queue="serial",
+        update_active_campaign="coordinator_only",
+        parallel_execution=True,
+    )
+
+
+def test_redrive_git_phase_blocked_clears_on_successful_recommit(monkeypatch, tmp_path) -> None:
+    """A resolved commit-stage block (e.g. after an artifact-policy config fix)
+    is re-driven from the build and clears, instead of being orphaned by the
+    PENDING-only wave selector."""
+
+    events: list[str] = []
+    monkeypatch.setattr(ralph_driver, "append_event", lambda rd, st, ev, **k: events.append(ev))
+    monkeypatch.setattr(ralph_driver, "write_state", lambda *a, **k: None)
+
+    phase = {"phase_id": "FUTCORE-P00", "status": ralph_driver.GIT_PHASE_BLOCKED}
+    state = {"phases": [phase]}
+
+    def fake_build(run_dir, st, ph):  # simulate a now-successful re-commit
+        ph["status"] = ralph_driver.MERGE_READY
+        return True
+
+    monkeypatch.setattr(ralph_driver, "_build_wave_phase", fake_build)
+
+    remaining = ralph_driver.redrive_git_phase_blocked_phases(
+        tmp_path, state, _git_blocked_scheduler(), [phase]
+    )
+
+    assert remaining == []
+    assert phase["status"] == ralph_driver.MERGE_READY
+    assert phase["suppress_active_pointer"] is True  # coordinator-owned pointer re-asserted
+    assert "GIT_PHASE_REDRIVE" in events
+
+
+def test_redrive_git_phase_blocked_reports_persistent_block(monkeypatch, tmp_path) -> None:
+    """A still-failing commit-stage block is reported (so the coordinator stops
+    cleanly) rather than looping forever."""
+
+    monkeypatch.setattr(ralph_driver, "append_event", lambda *a, **k: None)
+    monkeypatch.setattr(ralph_driver, "write_state", lambda *a, **k: None)
+
+    phase = {"phase_id": "FUTCORE-P00", "status": ralph_driver.GIT_PHASE_BLOCKED}
+    state = {"phases": [phase]}
+
+    # re-drive leaves it GIT_PHASE_BLOCKED (commit still rejected)
+    monkeypatch.setattr(ralph_driver, "_build_wave_phase", lambda rd, st, ph: False)
+
+    remaining = ralph_driver.redrive_git_phase_blocked_phases(
+        tmp_path, state, _git_blocked_scheduler(), [phase]
+    )
+
+    assert remaining == ["FUTCORE-P00"]
