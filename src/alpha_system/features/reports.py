@@ -1,8 +1,9 @@
 """Feature quality and coverage reports for registered local feature values.
 
 The reports in this module consume FLF-P14 registry records and locally
-materialized FLF-P13 JSONL values. They do not materialize features, read raw
-provider files, or call external providers.
+materialized FLF-P13 feature values (JSONL audit/small tier or the research-scale
+Parquet value store, resolved through the registry handle). They do not
+materialize features, read raw provider files, or call external providers.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from alpha_system.core import value_store as value_store_module
+from alpha_system.core.value_store import DataDependencyError
 from alpha_system.features.contracts import FrozenJsonMapping
 from alpha_system.features.registry import FeatureRegistry, FeatureRegistryRecord
 from alpha_system.features.request_gate import EquivalentFeatureGroup
@@ -852,26 +855,29 @@ def _load_feature_observations(
     )
     blocking = list(path_findings)
     non_blocking: list[FeatureReportFinding] = []
-    if path is None or not path.exists():
-        if path is not None:
-            blocking.append(
-                _blocking(
-                    "MATERIALIZATION_OUTPUT_MISSING",
-                    "The registered materialization output path does not exist.",
-                    {"path": path.as_posix()},
-                )
-            )
+    if path is None:
         return (), tuple(blocking), tuple(non_blocking)
-    if path.suffix != ".jsonl":
-        blocking.append(
-            _blocking(
-                "UNSUPPORTED_MATERIALIZATION_FORMAT",
-                "Feature reports only read local materialized JSONL values.",
-                {"path": path.as_posix(), "suffix": path.suffix},
-            )
-        )
+    value_path, value_format, value_path_findings = _resolve_value_store_path(
+        record,
+        materialization_path=path,
+        alpha_data_root=alpha_data_root,
+        env=env,
+    )
+    blocking.extend(value_path_findings)
+    if value_path is None:
         return (), tuple(blocking), tuple(non_blocking)
+    if value_format == "parquet":
+        observations = _load_parquet_feature_observations(value_path, record, blocking)
+    else:
+        observations = _load_jsonl_feature_observations(value_path, record, blocking)
+    return _sort_observations(observations, record), tuple(blocking), tuple(non_blocking)
 
+
+def _load_jsonl_feature_observations(
+    path: Path,
+    record: FeatureRegistryRecord,
+    blocking: list[FeatureReportFinding],
+) -> list[_FeatureValueObservation]:
     observations: list[_FeatureValueObservation] = []
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -883,7 +889,7 @@ def _load_feature_observations(
                 {"path": path.as_posix(), "error": str(exc)},
             )
         )
-        return (), tuple(blocking), tuple(non_blocking)
+        return observations
 
     for line_number, line in enumerate(lines, start=1):
         if not line.strip():
@@ -932,7 +938,68 @@ def _load_feature_observations(
                 blocking=blocking,
             )
         )
-    observations_tuple = tuple(
+    return observations
+
+
+def _load_parquet_feature_observations(
+    path: Path,
+    record: FeatureRegistryRecord,
+    blocking: list[FeatureReportFinding],
+) -> list[_FeatureValueObservation]:
+    observations: list[_FeatureValueObservation] = []
+    try:
+        rows = value_store_module.load_parquet_values(path)
+    except DataDependencyError as exc:
+        blocking.append(
+            _blocking(
+                "MATERIALIZATION_PARQUET_DEPENDENCY_MISSING",
+                "The registered Parquet value store requires an unavailable dependency.",
+                {"path": path.as_posix(), "error": str(exc)},
+            )
+        )
+        return observations
+    except (OSError, ValueError) as exc:
+        blocking.append(
+            _blocking(
+                "MATERIALIZATION_PARQUET_UNREADABLE",
+                "The registered Parquet value store could not be read.",
+                {"path": path.as_posix(), "error": str(exc)},
+            )
+        )
+        return observations
+    for row_number, value_payload in enumerate(rows, start=1):
+        if not isinstance(value_payload, Mapping):
+            blocking.append(
+                _blocking(
+                    "FEATURE_VALUE_PAYLOAD_INVALID",
+                    "A parquet feature value row is not an object.",
+                    {"line_number": row_number},
+                )
+            )
+            continue
+        row_version_id = str(value_payload.get("feature_version_id", "")).strip()
+        if row_version_id != record.feature_version_id:
+            continue
+        observations.append(
+            _observation_from_payload(
+                line_number=row_number,
+                payload={
+                    "dataset_version_id": record.dataset_version_id,
+                    "partition_id": record.partition_id,
+                },
+                value_payload=value_payload,
+                record=record,
+                blocking=blocking,
+            )
+        )
+    return observations
+
+
+def _sort_observations(
+    observations: list[_FeatureValueObservation],
+    record: FeatureRegistryRecord,
+) -> tuple[_FeatureValueObservation, ...]:
+    return tuple(
         sorted(
             observations,
             key=lambda item: (
@@ -942,7 +1009,6 @@ def _load_feature_observations(
             ),
         )
     )
-    return observations_tuple, tuple(blocking), tuple(non_blocking)
 
 
 def _observation_from_payload(
@@ -1052,8 +1118,21 @@ def _resolve_materialization_path(
     alpha_data_root: str | Path | None,
     env: Mapping[str, str] | None,
 ) -> tuple[Path | None, tuple[FeatureReportFinding, ...]]:
+    return _resolve_materialization_path_text(
+        record.materialization_output_path,
+        alpha_data_root=alpha_data_root,
+        env=env,
+    )
+
+
+def _resolve_materialization_path_text(
+    materialization_output_path: str,
+    *,
+    alpha_data_root: str | Path | None,
+    env: Mapping[str, str] | None,
+) -> tuple[Path | None, tuple[FeatureReportFinding, ...]]:
     findings: list[FeatureReportFinding] = []
-    path = Path(record.materialization_output_path)
+    path = Path(materialization_output_path)
     root_value = alpha_data_root
     if root_value is None:
         source = os.environ if env is None else env
@@ -1065,7 +1144,7 @@ def _resolve_materialization_path(
                 _blocking(
                     "ALPHA_DATA_ROOT_REQUIRED",
                     "A relative materialization output path requires ALPHA_DATA_ROOT.",
-                    {"materialization_output_path": record.materialization_output_path},
+                    {"materialization_output_path": materialization_output_path},
                 )
             )
             return None, tuple(findings)
@@ -1081,6 +1160,64 @@ def _resolve_materialization_path(
         )
         return path, tuple(findings)
     return path, tuple(findings)
+
+
+def _resolve_value_store_path(
+    record: FeatureRegistryRecord,
+    *,
+    materialization_path: Path,
+    alpha_data_root: str | Path | None,
+    env: Mapping[str, str] | None,
+) -> tuple[Path | None, str, tuple[FeatureReportFinding, ...]]:
+    findings: list[FeatureReportFinding] = []
+    if record.parquet_path:
+        parquet_path, parquet_findings = _resolve_materialization_path_text(
+            record.parquet_path,
+            alpha_data_root=alpha_data_root,
+            env=env,
+        )
+        findings.extend(parquet_findings)
+        if parquet_path is None:
+            return None, "", tuple(findings)
+        if not parquet_path.exists():
+            findings.append(
+                _blocking(
+                    "MATERIALIZATION_PARQUET_MISSING",
+                    "The registered Parquet value store path does not exist.",
+                    {"path": parquet_path.as_posix()},
+                )
+            )
+            return None, "", tuple(findings)
+        return parquet_path, "parquet", tuple(findings)
+
+    parquet_sibling = (
+        materialization_path
+        if materialization_path.suffix == ".parquet"
+        else materialization_path.with_name("values.parquet")
+    )
+    if parquet_sibling.exists():
+        return parquet_sibling, "parquet", tuple(findings)
+
+    jsonl_path = (
+        materialization_path
+        if materialization_path.suffix == ".jsonl"
+        else materialization_path.with_name("values.jsonl")
+    )
+    if jsonl_path.exists():
+        return jsonl_path, "jsonl", tuple(findings)
+
+    findings.append(
+        _blocking(
+            "MATERIALIZATION_OUTPUT_MISSING",
+            "No supported materialized value store was found for the registered feature.",
+            {
+                "materialization_output_path": materialization_path.as_posix(),
+                "jsonl_path": jsonl_path.as_posix(),
+                "parquet_path": parquet_sibling.as_posix(),
+            },
+        )
+    )
+    return None, "", tuple(findings)
 
 
 def _registry_consistency_findings(

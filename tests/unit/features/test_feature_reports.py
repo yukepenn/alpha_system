@@ -5,6 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from alpha_system.core.value_store import compute_value_content_hash, write_parquet_values
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -144,6 +147,37 @@ def test_coverage_report_fails_closed_without_documented_symbol_or_session_scope
         "SESSION_COVERAGE_EXPECTATIONS_MISSING",
         "SESSION_COVERAGE_UNRESOLVED",
     }.issubset(_codes(report.blocking))
+
+
+def test_quality_report_reads_parquet_sibling_when_jsonl_missing(tmp_path: Path) -> None:
+    pytest.importorskip("polars")
+    rows = (
+        _row("2024-01-02T14:31:00+00:00", "2024-01-02T14:31:05+00:00", 1.0),
+        _row("2024-01-02T14:32:00+00:00", "2024-01-02T14:32:05+00:00", 2.0),
+    )
+    record = _registry_record(tmp_path, rows=rows)
+    jsonl_path = Path(record.materialization_output_path)
+    parquet_path = jsonl_path.with_name("values.parquet")
+    value_rows = []
+    for row in rows:
+        value = dict(row)
+        value["feature_version_id"] = record.feature_version_id
+        value_rows.append(value)
+    content_hash = compute_value_content_hash(value_rows)
+    write_parquet_values(
+        value_rows,
+        parquet_path,
+        plan_dict={"plan_id": PLAN_ID},
+        content_hash=content_hash,
+        schema_version="schema.v1",
+        value_count=len(value_rows),
+    )
+    jsonl_path.unlink()
+
+    report = FeatureQualityReport.from_registry_record(record, alpha_data_root=tmp_path)
+
+    assert report.record_count == 2
+    assert report.has_blocking_findings is False
 
 
 def _registry_record(

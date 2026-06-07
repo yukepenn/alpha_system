@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from pathlib import Path
 
 import pytest
 
+from alpha_system.core.value_store import ValueStoreFormat
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 
 PROVIDER_CLIENT_MODULES = (
@@ -80,7 +82,72 @@ def test_feature_materialize_defaults_to_dry_run(tmp_path: Path) -> None:
     )
 
     assert args.dry_run is True
+    assert args.value_store == "dual"
     assert args.handler is _feature_cli().run_materialize
+
+
+def test_feature_materialize_rejects_invalid_value_store() -> None:
+    parser = _main_cli().build_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["feature", "materialize", "--value-store", "csv"])
+
+    assert exc_info.value.code == 2
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "expected_format", "expected_summary"),
+    [
+        ([], ValueStoreFormat.DUAL, "dual"),
+        (["--value-store", "parquet"], ValueStoreFormat.PARQUET, "parquet"),
+    ],
+)
+def test_feature_execute_threads_value_store_format(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    extra_args: list[str],
+    expected_format: ValueStoreFormat,
+    expected_summary: str,
+) -> None:
+    feature_cli = _feature_cli()
+    seed_pack = importlib.import_module("alpha_system.cli.seed_pack")
+    captured_kwargs: dict[str, object] = {}
+
+    monkeypatch.setattr(seed_pack, "load_seed_pack_config", lambda _path: object())
+
+    def fake_run_seed_feature_pack(_config: object, **kwargs: object) -> dict[str, object]:
+        captured_kwargs.update(kwargs)
+        return {"pack_kind": "feature", "value_record_count": 1}
+
+    monkeypatch.setattr(seed_pack, "run_seed_feature_pack", fake_run_seed_feature_pack)
+
+    parser = _main_cli().build_parser()
+    args = parser.parse_args(
+        [
+            "feature",
+            "materialize",
+            "--execute",
+            "--seed-config",
+            (tmp_path / "seed.json").as_posix(),
+            "--alpha-data-root",
+            (tmp_path / "alpha_data").as_posix(),
+            "--dataset-registry",
+            (tmp_path / "datasets.sqlite").as_posix(),
+            "--json",
+            *extra_args,
+        ]
+    )
+
+    try:
+        feature_cli._emit_seed_feature_pack(args)
+        payload = json.loads(capsys.readouterr().out)
+
+        assert captured_kwargs["value_store_format"] is expected_format
+        assert payload["value_store"] == expected_summary
+    finally:
+        for module_name in PROVIDER_CLIENT_MODULES:
+            sys.modules.pop(module_name, None)
 
 
 def test_feature_plan_fails_closed_when_feature_set_is_missing(

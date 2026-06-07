@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import alpha_system.labels.engine as label_engine
+from alpha_system.core.value_store import ValueStoreFormat, load_parquet_values
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -39,6 +40,7 @@ from alpha_system.labels.families.path import (
     PathLabelName,
     build_path_label_definition,
 )
+from alpha_system.labels.registry import LabelRegistry
 from alpha_system.labels.version import LabelValueRecord
 
 HASH_0 = "0" * 64
@@ -77,6 +79,87 @@ def test_materializes_supported_label_families_idempotently(tmp_path: Path) -> N
     assert {record.label_version_id for record in first.records} == set(plan.label_version_ids)
     assert all(record.label_available_ts >= record.horizon_end_ts for record in first.records)
     assert all(record.label_spec_id in plan.label_spec_ids for record in first.records)
+    assert first.value_store_handle is not None
+    assert first.value_store_handle.format is ValueStoreFormat.JSONL
+    assert first.value_store_handle.jsonl_path == plan.output_path.as_posix()
+    assert first.value_store_handle.parquet_path is None
+
+
+def test_parquet_label_materialization_writes_registry_metadata_and_round_trips(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("polars")
+    dataset_id = "dsv_synthetic_label_engine_parquet"
+    accepted = _accepted_version(dataset_id)
+    definition = _fixed_definition(dataset_id)
+    plan = build_label_materialization_plan(
+        (definition,),
+        accepted,
+        partition_id="development_partition",
+        instrument_ids=("ES",),
+        alpha_data_root=tmp_path,
+    )
+    inputs = LabelMaterializationInputs(
+        accepted_version=accepted,
+        bar_rows=_bar_rows(dataset_id, length=4),
+    )
+
+    result = materialize_labels(
+        plan,
+        inputs,
+        (definition,),
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    handle = result.value_store_handle
+    assert handle is not None
+    parquet_path = Path(handle.parquet_path or "")
+    assert result.output_path == parquet_path
+    assert parquet_path.name == "values.parquet"
+    assert parquet_path.exists()
+    assert Path(str(parquet_path) + ".manifest.json").exists()
+    assert not plan.output_path.exists()
+    assert load_parquet_values(parquet_path) == [record.to_dict() for record in result.records]
+
+    record = LabelRegistry.from_alpha_data_root(tmp_path).register_materialized_label(
+        result,
+        label_contract=definition.contract,
+        label_version=definition.version,
+    )
+
+    assert record.value_store_format == "parquet"
+    assert record.parquet_path == parquet_path.as_posix()
+    assert record.value_content_hash == handle.content_hash
+    assert record.value_schema_version == handle.schema_version
+
+
+def test_dual_label_materialization_writes_jsonl_and_parquet(tmp_path: Path) -> None:
+    pytest.importorskip("polars")
+    dataset_id = "dsv_synthetic_label_engine_dual"
+    accepted = _accepted_version(dataset_id)
+    definition = _fixed_definition(dataset_id)
+    plan = build_label_materialization_plan(
+        (definition,),
+        accepted,
+        partition_id="development_partition",
+        alpha_data_root=tmp_path,
+    )
+    inputs = LabelMaterializationInputs(
+        accepted_version=accepted,
+        bar_rows=_bar_rows(dataset_id, length=4),
+    )
+
+    result = materialize_labels(
+        plan,
+        inputs,
+        (definition,),
+        value_store_format=ValueStoreFormat.DUAL,
+    )
+
+    assert result.output_path == plan.output_path
+    assert plan.output_path.exists()
+    assert plan.output_path.with_name("values.parquet").exists()
+    assert result.value_store_handle is not None
+    assert result.value_store_handle.format is ValueStoreFormat.DUAL
 
 
 def test_dry_run_plans_without_writing(tmp_path: Path) -> None:

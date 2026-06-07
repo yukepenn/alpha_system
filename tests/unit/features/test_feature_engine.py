@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from alpha_system.core.value_store import ValueStoreFormat, load_parquet_values
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -37,6 +38,7 @@ from alpha_system.features.families.ohlcv import (
     OHLCVFeatureName,
     build_ohlcv_feature_definition,
 )
+from alpha_system.features.store import FeatureStore
 from alpha_system.governance.duplicate_exposure import ExposureCheckResult, ExposureRegistryStatus
 from alpha_system.governance.feature_request import (
     FeatureRequest,
@@ -82,6 +84,124 @@ def test_dry_run_validates_plan_without_writing(tmp_path: Path) -> None:
     assert not plan.output_path.exists()
     assert plan.output_path.is_relative_to(tmp_path)
     assert plan.plan_id == f"fmat_{plan.idempotency_key}"
+
+
+def test_default_materialization_writes_jsonl_value_store(tmp_path: Path) -> None:
+    accepted = _accepted_version("dsv_synthetic_engine_ohlcv_jsonl_v1")
+    definition = _returns_definition(accepted.dataset_version_id)
+    feature_set = FeatureSetSpec(
+        feature_set_id="feature_set_engine_jsonl_fixture",
+        feature_set_version="v1",
+        features=(definition.spec,),
+    )
+    plan = build_feature_materialization_plan(
+        feature_set,
+        accepted,
+        partition_id="development_partition",
+        alpha_data_root=tmp_path,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=accepted,
+        bar_rows=_bar_rows(accepted.dataset_version_id),
+    )
+
+    result = materialize_features(plan, inputs, (definition,))
+    second = materialize_features(plan, inputs, (definition,))
+
+    assert result.wrote_output is True
+    assert second.wrote_output is False
+    assert result.output_path == plan.output_path
+    assert plan.output_path.exists()
+    assert not plan.output_path.with_name("values.parquet").exists()
+    assert result.value_store_handle is not None
+    assert result.value_store_handle.format is ValueStoreFormat.JSONL
+    assert result.value_store_handle.jsonl_path == plan.output_path.as_posix()
+    assert result.value_store_handle.parquet_path is None
+
+
+def test_parquet_materialization_writes_registry_metadata_and_round_trips(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("polars")
+    accepted = _accepted_version("dsv_synthetic_engine_ohlcv_parquet_v1")
+    definition = _returns_definition(accepted.dataset_version_id)
+    feature_set = FeatureSetSpec(
+        feature_set_id="feature_set_engine_parquet_fixture",
+        feature_set_version="v1",
+        features=(definition.spec,),
+    )
+    plan = build_feature_materialization_plan(
+        feature_set,
+        accepted,
+        partition_id="development_partition",
+        alpha_data_root=tmp_path,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=accepted,
+        bar_rows=_bar_rows(accepted.dataset_version_id),
+    )
+
+    result = materialize_features(
+        plan,
+        inputs,
+        (definition,),
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    handle = result.value_store_handle
+    assert handle is not None
+    parquet_path = Path(handle.parquet_path or "")
+    assert result.output_path == parquet_path
+    assert parquet_path.name == "values.parquet"
+    assert parquet_path.exists()
+    assert Path(str(parquet_path) + ".manifest.json").exists()
+    assert not plan.output_path.exists()
+    assert load_parquet_values(parquet_path) == [record.to_dict() for record in result.records]
+
+    record = FeatureStore.from_alpha_data_root(tmp_path).register_materialized_feature(
+        result,
+        feature_spec=definition.spec,
+        feature_version=definition.spec.derive_feature_version(),
+        feature_request=_approved_request(OHLCVFeatureName.RETURNS),
+    )
+
+    assert record.value_store_format == "parquet"
+    assert record.parquet_path == parquet_path.as_posix()
+    assert record.value_content_hash == handle.content_hash
+    assert record.value_schema_version == handle.schema_version
+
+
+def test_dual_materialization_writes_jsonl_and_parquet(tmp_path: Path) -> None:
+    pytest.importorskip("polars")
+    accepted = _accepted_version("dsv_synthetic_engine_ohlcv_dual_v1")
+    definition = _returns_definition(accepted.dataset_version_id)
+    feature_set = FeatureSetSpec(
+        feature_set_id="feature_set_engine_dual_fixture",
+        feature_set_version="v1",
+        features=(definition.spec,),
+    )
+    plan = build_feature_materialization_plan(
+        feature_set,
+        accepted,
+        partition_id="development_partition",
+        alpha_data_root=tmp_path,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=accepted,
+        bar_rows=_bar_rows(accepted.dataset_version_id),
+    )
+
+    result = materialize_features(
+        plan,
+        inputs,
+        (definition,),
+        value_store_format=ValueStoreFormat.DUAL,
+    )
+
+    assert result.output_path == plan.output_path
+    assert plan.output_path.exists()
+    assert plan.output_path.with_name("values.parquet").exists()
+    assert result.value_store_handle is not None
+    assert result.value_store_handle.format is ValueStoreFormat.DUAL
 
 
 def test_plan_refuses_feature_spec_without_approved_request_gate(tmp_path: Path) -> None:

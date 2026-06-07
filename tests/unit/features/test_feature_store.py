@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from alpha_system.core.value_store import ValueStoreFormat, ValueStoreHandle
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -49,6 +51,7 @@ from alpha_system.governance.feature_request import (
     FeatureRequestApprovalStatus,
     create_feature_request,
 )
+from alpha_system.governance.serialization import canonical_serialize
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 HASH_0 = "0" * 64
@@ -188,6 +191,139 @@ def test_successful_registration_resolves_by_version_and_feature_set(
     )
     assert duplicate.feature_version_id == record.feature_version_id
     assert store.registry.count_feature_records() == 1
+
+
+def test_registry_backfills_old_rows_and_persists_parquet_metadata(tmp_path: Path) -> None:
+    request = _feature_request("synthetic_close_return_old_row")
+    old_spec, old_checked_request = _implementation_spec(
+        feature_id="base_ohlcv_close_return_old_row",
+        request=request,
+        registry_reader=EmptyRegistryReader(),
+    )
+    old_store = FeatureStore(FeatureRegistry(tmp_path / "source.sqlite"))
+    old_record = old_store.register_materialized_feature(
+        _materialization_result(tmp_path, old_spec),
+        feature_spec=old_spec,
+        feature_version=old_spec.derive_feature_version(),
+        feature_request=old_checked_request,
+    )
+    old_payload = old_record.to_dict()
+    for key in (
+        "value_store_format",
+        "parquet_path",
+        "value_content_hash",
+        "value_schema_version",
+    ):
+        old_payload["materialization"].pop(key, None)
+
+    registry_path = tmp_path / "old_features.sqlite"
+    with sqlite3.connect(registry_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE feature_registry_records (
+                feature_version_id TEXT PRIMARY KEY,
+                feature_id TEXT NOT NULL,
+                feature_request_id TEXT NOT NULL,
+                lifecycle_state TEXT NOT NULL,
+                materialization_plan_id TEXT NOT NULL,
+                dataset_version_id TEXT NOT NULL,
+                partition_id TEXT NOT NULL,
+                materialization_output_path TEXT NOT NULL,
+                value_record_count INTEGER NOT NULL,
+                first_event_ts TEXT NOT NULL,
+                last_event_ts TEXT NOT NULL,
+                first_available_ts TEXT NOT NULL,
+                last_available_ts TEXT NOT NULL,
+                duplicate_exposure_status TEXT NOT NULL,
+                registered_at TEXT NOT NULL,
+                metadata_json TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO feature_registry_records (
+                feature_version_id,
+                feature_id,
+                feature_request_id,
+                lifecycle_state,
+                materialization_plan_id,
+                dataset_version_id,
+                partition_id,
+                materialization_output_path,
+                value_record_count,
+                first_event_ts,
+                last_event_ts,
+                first_available_ts,
+                last_available_ts,
+                duplicate_exposure_status,
+                registered_at,
+                metadata_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                old_record.feature_version_id,
+                old_record.feature_spec.feature_id,
+                old_record.feature_request_id,
+                old_record.lifecycle_state.value,
+                old_record.materialization_plan_id,
+                old_record.dataset_version_id,
+                old_record.partition_id,
+                old_record.materialization_output_path,
+                old_record.value_record_count,
+                old_record.first_event_ts.isoformat(),
+                old_record.last_event_ts.isoformat(),
+                old_record.first_available_ts.isoformat(),
+                old_record.last_available_ts.isoformat(),
+                old_record.duplicate_exposure_status,
+                old_record.registered_at.isoformat(),
+                canonical_serialize(old_payload),
+            ),
+        )
+
+    registry = FeatureRegistry(registry_path)
+    loaded_old = registry.resolve_feature(old_record.feature_version_id)
+    assert loaded_old is not None
+    assert loaded_old.value_store_format == "jsonl"
+    assert loaded_old.parquet_path is None
+
+    new_request = _feature_request("synthetic_close_return_parquet_row")
+    new_spec, new_checked_request = _implementation_spec(
+        feature_id="base_ohlcv_close_return_parquet_row",
+        request=new_request,
+        registry_reader=registry,
+    )
+    new_result = _materialization_result(tmp_path, new_spec)
+    parquet_path = tmp_path / "features" / "values.parquet"
+    handle = ValueStoreHandle(
+        format=ValueStoreFormat.PARQUET,
+        jsonl_path=None,
+        parquet_path=parquet_path.as_posix(),
+        value_count=new_result.record_count,
+        content_hash="sha256:" + "1" * 64,
+        schema_version="schema.v1",
+        dataset_version_id=new_result.plan.dataset_version_id,
+        set_id=new_result.plan.feature_set.feature_set_id,
+        partition_id=new_result.plan.partition_id,
+        min_event_ts="2024-01-02T14:31:00+00:00",
+        max_event_ts="2024-01-02T14:32:00+00:00",
+        min_available_ts="2024-01-02T14:31:05+00:00",
+        max_available_ts="2024-01-02T14:32:05+00:00",
+    )
+    new_record = FeatureStore(registry).register_materialized_feature(
+        replace(new_result, output_path=parquet_path, value_store_handle=handle),
+        feature_spec=new_spec,
+        feature_version=new_spec.derive_feature_version(),
+        feature_request=new_checked_request,
+    )
+
+    loaded_new = registry.resolve_feature(new_record.feature_version_id)
+    assert loaded_new is not None
+    assert loaded_new.value_store_format == "parquet"
+    assert loaded_new.parquet_path == parquet_path.as_posix()
+    assert loaded_new.value_content_hash == handle.content_hash
+    assert loaded_new.value_schema_version == "schema.v1"
 
 
 def test_duplicate_or_equivalent_exposure_is_not_silently_admitted(

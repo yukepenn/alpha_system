@@ -23,9 +23,18 @@ Post-closeout status:
 - Completed baselines: `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`,
   `ALPHA_RESEARCH_GOVERNANCE_MVP`, `ALPHA_DATA_FOUNDATION_V1`,
   `ALPHA_FEATURE_LABEL_FOUNDATION_V1`, `ALPHA_RESEARCH_RUNTIME_MVP`,
-  `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1`, and
-  `ALPHA_AGENT_FACTORY_MVP`.
-- Latest completed campaign: `ALPHA_AGENT_FACTORY_MVP`
+  `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1`,
+  `ALPHA_AGENT_FACTORY_MVP`, and `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1`.
+- Latest completed campaign (Workflow 1): `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1`
+  (**PASS**) — landed both pre-pilot data-access blockers:
+  `FEATURE_LABEL_PARQUET_SINK_V1` (research-scale Parquet value sink/reader +
+  registry pointer metadata; JSONL preserved as audit/small tier) and
+  `SESSION_LABEL_GUARD_FIX_V1` (role-aware no-lookahead guard;
+  `rth_flag`/`eth_flag`/`session_minute` unblocked as declared `SESSION_METADATA`).
+  Real local Parquet + session-context smoke PASS; Agent Factory preflight
+  PREFLIGHT_PASS on all four gates; `verify.py --all` green; artifact audit clean.
+  Next (separately authorized): `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`.
+- Prior completed campaign: `ALPHA_AGENT_FACTORY_MVP`
   (`COMPLETE_WITH_WARNINGS`, `AGENT-P00` through `AGENT-P25`, `26/26` passing;
   the controlled AI Alpha Research Team contract layer — contracts only, no
   autonomous agent instantiated; live run `2026-06-06T193514Z`, PRs #182–#208).

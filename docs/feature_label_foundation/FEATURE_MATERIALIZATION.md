@@ -71,6 +71,12 @@ synthetic no-trade rows must carry the canonical no-trade signature before they
 are converted to OHLCV input rows, so downstream trade-bar logic still treats
 them as gaps rather than trades.
 
+Session-context features (`rth_flag`, `eth_flag`, `session_minute`) declare
+their canonical `session_label` input as `SESSION_METADATA` through
+`FeatureInputSpec.input_metadata.field_roles`. The runtime no-lookahead guard
+therefore treats `session_label` as point-in-time session metadata, not a label
+input.
+
 ## Storage Tier
 
 The `values.jsonl` output is the **audit/small tier** of the two-tier value

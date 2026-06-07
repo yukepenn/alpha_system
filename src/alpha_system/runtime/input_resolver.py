@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +68,46 @@ LABEL_AS_FEATURE_FIELDS: frozenset[str] = frozenset(
         "label_available_ts",
         "label_value",
         "horizon_end_ts",
+        "target",
+    }
+)
+
+
+class FieldRole(StrEnum):
+    """Declared role for a feature input field."""
+
+    FEATURE = "FEATURE"
+    LABEL_TARGET = "LABEL_TARGET"
+    SESSION_METADATA = "SESSION_METADATA"
+    QUALITY_FLAG = "QUALITY_FLAG"
+    PROVIDER_METADATA = "PROVIDER_METADATA"
+    COST_METADATA = "COST_METADATA"
+
+
+SESSION_METADATA_FIELDS: frozenset[str] = frozenset(
+    {
+        "session_label",
+        "session_segment",
+        "rth_flag",
+        "eth_flag",
+        "session_minute",
+        "minutes_from_rth_open",
+    }
+)
+FORBIDDEN_FUTURE_FIELDS: frozenset[str] = frozenset(
+    {
+        "forward_return",
+        "triple_barrier",
+        "target_before_stop",
+        "future_liquidity_quality",
+        "final_session_high",
+        "final_session_low",
+        "final_session_vwap",
+        "label_value",
+        "label_outcome",
+        "label_available_ts",
+        "horizon_end_ts",
+        "y_true",
         "target",
     }
 )
@@ -1092,8 +1132,19 @@ def _reject_label_as_live_feature(record: object, *, field: str) -> None:
     inputs = getattr(feature_spec, "inputs", None)
     fields = tuple(str(item) for item in getattr(inputs, "fields", ()))
     input_views = tuple(str(item) for item in getattr(inputs, "input_views", ()))
-    suspicious_fields = tuple(item for item in fields if _looks_like_label_feature_field(item))
-    suspicious_views = tuple(item for item in input_views if "label" in _normalize_token(item))
+    field_roles = _field_roles_from_inputs(inputs)
+    suspicious_fields = tuple(
+        item for item in fields if _looks_like_label_feature_field(item, field_roles)
+    )
+    suspicious_views = tuple(
+        item
+        for item in input_views
+        if _is_forbidden_future_field(item)
+        or (
+            "label" in _normalize_token(item)
+            and not _is_exempt_session_field(item, field_roles)
+        )
+    )
     if live and (suspicious_fields or suspicious_views):
         actual = ",".join(suspicious_fields + suspicious_views)
         raise RuntimeInputResolverError(
@@ -1597,13 +1648,76 @@ def _first_present(*values: object) -> object:
     return None
 
 
-def _looks_like_label_feature_field(value: str) -> bool:
+def _looks_like_label_feature_field(
+    value: str,
+    field_roles: Mapping[str, object] | None = None,
+) -> bool:
+    if _is_forbidden_future_field(value):
+        return True
+    if _is_exempt_session_field(value, field_roles):
+        return False
     token = _normalize_token(value)
     return (
         token in LABEL_AS_FEATURE_FIELDS
         or token.startswith("label_")
         or token.endswith("_label")
         or token.startswith("future_label")
+    )
+
+
+def _field_roles_from_inputs(inputs: object) -> Mapping[str, object]:
+    input_metadata = _plain_mapping(getattr(inputs, "input_metadata", {}))
+    field_roles = input_metadata.get("field_roles")
+    if isinstance(field_roles, Mapping):
+        return dict(field_roles)
+    return {}
+
+
+def _plain_mapping(value: object) -> dict[str, object]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        payload = to_dict()
+        if isinstance(payload, Mapping):
+            return dict(payload)
+    return {}
+
+
+def _normalize_role(value: object) -> str:
+    if isinstance(value, Enum):
+        value = value.value
+    return str(value).strip().lower()
+
+
+def _is_exempt_session_field(
+    field: str,
+    field_roles: Mapping[str, object] | None,
+) -> bool:
+    token = _normalize_token(field)
+    if token not in SESSION_METADATA_FIELDS or _is_forbidden_future_field(field):
+        return False
+    if not isinstance(field_roles, Mapping):
+        return False
+    role = field_roles.get(field)
+    if role is None:
+        role = next(
+            (
+                item
+                for key, item in field_roles.items()
+                if _normalize_token(str(key)) == token
+            ),
+            None,
+        )
+    return _normalize_role(role) == _normalize_role(FieldRole.SESSION_METADATA)
+
+
+def _is_forbidden_future_field(field: str) -> bool:
+    token = _normalize_token(field)
+    return (
+        token in FORBIDDEN_FUTURE_FIELDS
+        or token == "fwd_ret"
+        or token.startswith("fwd_ret_")
     )
 
 

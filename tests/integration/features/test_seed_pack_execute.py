@@ -12,6 +12,7 @@ from alpha_system.cli.seed_pack import (
     run_seed_feature_pack,
     run_seed_label_pack,
 )
+from alpha_system.core.value_store import ValueStoreFormat
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -160,6 +161,9 @@ def test_seed_feature_and_label_pack_execute_over_synthetic_rows(tmp_path: Path)
     config = _config()
     rows = _bar_rows()
 
+    # Pin the JSONL audit/small tier: this stdlib synthetic test validates operator
+    # mechanics and the JSONL value store. The dual/Parquet operator default needs the
+    # optional polars dependency and is covered by polars-guarded and real-smoke checks.
     feature_summary = run_seed_feature_pack(
         config,
         alpha_data_root=alpha_data_root,
@@ -167,6 +171,7 @@ def test_seed_feature_and_label_pack_execute_over_synthetic_rows(tmp_path: Path)
         datasets_registry_path=dataset_registry,
         bar_rows=rows,
         quality_coverage_builder=_synthetic_quality_coverage,
+        value_store_format=ValueStoreFormat.JSONL,
     )
     label_summary = run_seed_label_pack(
         config,
@@ -175,6 +180,7 @@ def test_seed_feature_and_label_pack_execute_over_synthetic_rows(tmp_path: Path)
         datasets_registry_path=dataset_registry,
         bar_rows=rows,
         quality_coverage_builder=_synthetic_quality_coverage,
+        value_store_format=ValueStoreFormat.JSONL,
     )
 
     features_registry = alpha_data_root / "registry" / "features.sqlite"

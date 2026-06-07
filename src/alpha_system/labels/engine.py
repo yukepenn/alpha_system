@@ -17,6 +17,13 @@ from tempfile import NamedTemporaryFile
 from time import perf_counter
 from typing import Any
 
+from alpha_system.core.value_store import (
+    ValueStoreFormat,
+    ValueStoreHandle,
+    compute_value_content_hash,
+    parquet_is_current,
+    write_parquet_values,
+)
 from alpha_system.data.foundation.datasets import DatasetPartitionPlan
 from alpha_system.data.foundation.grid import DenseGridBarRecord
 from alpha_system.features import consumption
@@ -230,6 +237,7 @@ class LabelMaterializationResult:
     dry_run: bool
     wrote_output: bool
     output_path: Path | None = None
+    value_store_handle: ValueStoreHandle | None = None
     planned_input_rows: int = 0
     planned_label_count: int = 0
     runtime_seconds: float = 0.0
@@ -255,6 +263,12 @@ class LabelMaterializationResult:
             "planned_label_count": self.planned_label_count,
             "runtime_seconds": self.runtime_seconds,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _ValueStoreWriteResult:
+    wrote_output: bool
+    handle: ValueStoreHandle
 
 
 def resolve_label_materialization_dataset(
@@ -363,12 +377,15 @@ def materialize_labels(
     plan: LabelMaterializationPlan,
     inputs: LabelMaterializationInputs,
     label_definitions: Iterable[SupportedLabelDefinition],
+    *,
+    value_store_format: ValueStoreFormat = ValueStoreFormat.JSONL,
 ) -> LabelMaterializationResult:
     """Execute a label materialization plan, or validate it in dry-run mode."""
 
     started = perf_counter()
     plan = _require_plan(plan)
     inputs = _require_inputs(inputs)
+    store_format = _coerce_value_store_format(value_store_format)
     if inputs.accepted_version.dataset_version_id != plan.dataset_version_id:
         raise LabelMaterializationError(
             "materialization inputs must match the plan DatasetVersion id"
@@ -397,13 +414,18 @@ def materialize_labels(
     views = _build_input_views(plan, inputs)
     records = _compute_records(plan, definitions_by_version, views)
     _validate_materialized_records(plan, records)
-    wrote_output = _write_records_idempotently(plan, records)
+    write_result = _write_records_idempotently(
+        plan,
+        records,
+        value_store_format=store_format,
+    )
     return LabelMaterializationResult(
         plan=plan,
         records=records,
         dry_run=False,
-        wrote_output=wrote_output,
-        output_path=plan.output_path,
+        wrote_output=write_result.wrote_output,
+        output_path=_materialization_output_path_for_format(plan, store_format),
+        value_store_handle=write_result.handle,
         planned_input_rows=inputs.input_row_count,
         planned_label_count=len(plan.label_contracts),
         runtime_seconds=perf_counter() - started,
@@ -580,6 +602,18 @@ def _require_inputs(inputs: object) -> LabelMaterializationInputs:
     return inputs
 
 
+def _coerce_value_store_format(value: object) -> ValueStoreFormat:
+    try:
+        if isinstance(value, ValueStoreFormat):
+            return value
+        if isinstance(value, str):
+            return ValueStoreFormat(value)
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in ValueStoreFormat)
+        raise LabelMaterializationError(f"value_store_format must be one of: {allowed}") from exc
+    raise LabelMaterializationError("value_store_format must be a ValueStoreFormat")
+
+
 @dataclass(frozen=True, slots=True)
 class _LabelInputViews:
     ohlcv: OHLCVInputView
@@ -749,24 +783,63 @@ def _validate_materialized_records(
 def _write_records_idempotently(
     plan: LabelMaterializationPlan,
     records: tuple[LabelValueRecord, ...],
-) -> bool:
+    *,
+    value_store_format: ValueStoreFormat,
+) -> _ValueStoreWriteResult:
     _require_under_root(plan.output_path, plan.alpha_data_root)
-    payload = _render_jsonl(plan, records)
-    existing = plan.output_path.read_text(encoding="utf-8") if plan.output_path.exists() else None
+    store_format = _coerce_value_store_format(value_store_format)
+    record_dicts = [record.to_dict() for record in records]
+    content_hash = compute_value_content_hash(record_dicts)
+    wrote_output = False
+    jsonl_path: Path | None = None
+    parquet_path: Path | None = None
+
+    if store_format in (ValueStoreFormat.JSONL, ValueStoreFormat.DUAL):
+        jsonl_path = plan.output_path
+        wrote_output = _write_jsonl_if_changed(jsonl_path, _render_jsonl(plan, records))
+
+    if store_format in (ValueStoreFormat.PARQUET, ValueStoreFormat.DUAL):
+        parquet_path = _label_parquet_path(plan)
+        if not parquet_is_current(parquet_path, content_hash):
+            write_parquet_values(
+                record_dicts,
+                parquet_path,
+                plan_dict=plan.to_dict(),
+                content_hash=content_hash,
+                schema_version=LABEL_MATERIALIZATION_SCHEMA,
+                value_count=len(record_dicts),
+            )
+            wrote_output = True
+
+    return _ValueStoreWriteResult(
+        wrote_output=wrote_output,
+        handle=_label_value_store_handle(
+            plan,
+            records,
+            value_store_format=store_format,
+            jsonl_path=jsonl_path,
+            parquet_path=parquet_path,
+            content_hash=content_hash,
+        ),
+    )
+
+
+def _write_jsonl_if_changed(path: Path, payload: str) -> bool:
+    existing = path.read_text(encoding="utf-8") if path.exists() else None
     if existing == payload:
         return False
-    plan.output_path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(
         "w",
         encoding="utf-8",
-        dir=plan.output_path.parent,
-        prefix=f".{plan.output_path.name}.",
+        dir=path.parent,
+        prefix=f".{path.name}.",
         suffix=".tmp",
         delete=False,
     ) as handle:
         temp_path = Path(handle.name)
         handle.write(payload)
-    temp_path.replace(plan.output_path)
+    temp_path.replace(path)
     return True
 
 
@@ -831,6 +904,49 @@ def _label_output_path(
     )
     _require_under_root(output_path, alpha_data_root)
     return output_path
+
+
+def _label_parquet_path(plan: LabelMaterializationPlan) -> Path:
+    path = plan.output_path.with_name("values.parquet")
+    _require_under_root(path, plan.alpha_data_root)
+    return path
+
+
+def _materialization_output_path_for_format(
+    plan: LabelMaterializationPlan,
+    value_store_format: ValueStoreFormat,
+) -> Path:
+    if value_store_format is ValueStoreFormat.PARQUET:
+        return _label_parquet_path(plan)
+    return plan.output_path
+
+
+def _label_value_store_handle(
+    plan: LabelMaterializationPlan,
+    records: tuple[LabelValueRecord, ...],
+    *,
+    value_store_format: ValueStoreFormat,
+    jsonl_path: Path | None,
+    parquet_path: Path | None,
+    content_hash: str,
+) -> ValueStoreHandle:
+    event_ts_values = tuple(record.event_ts.isoformat() for record in records)
+    available_ts_values = tuple(record.label_available_ts.isoformat() for record in records)
+    return ValueStoreHandle(
+        format=value_store_format,
+        jsonl_path=jsonl_path.as_posix() if jsonl_path is not None else None,
+        parquet_path=parquet_path.as_posix() if parquet_path is not None else None,
+        value_count=len(records),
+        content_hash=content_hash,
+        schema_version=LABEL_MATERIALIZATION_SCHEMA,
+        dataset_version_id=plan.dataset_version_id,
+        set_id=_label_set_id(plan.label_contracts),
+        partition_id=plan.partition_id,
+        min_event_ts=min(event_ts_values) if event_ts_values else "",
+        max_event_ts=max(event_ts_values) if event_ts_values else "",
+        min_available_ts=min(available_ts_values) if available_ts_values else "",
+        max_available_ts=max(available_ts_values) if available_ts_values else "",
+    )
 
 
 def _label_set_id(label_contracts: tuple[LabelContractSpec, ...]) -> str:
@@ -1043,6 +1159,8 @@ __all__ = [
     "LabelMaterializationPlan",
     "LabelMaterializationResult",
     "SupportedLabelDefinition",
+    "ValueStoreFormat",
+    "ValueStoreHandle",
     "build_label_materialization_plan",
     "materialize_labels",
     "resolve_label_materialization_dataset",

@@ -45,17 +45,25 @@ payloads.
    small seed packs. It is the only tier implemented today and is acceptable for
    those uses. JSONL is **not** the permanent large-scale research store.
 
-2. **Research-scale tier — Parquet (intended, deferred).** Multi-year,
+2. **Research-scale tier — Parquet (implemented).** Multi-year,
    multi-symbol feature/label value matrices intended for repeated columnar
-   scans must be stored as local Parquet under `ALPHA_DATA_ROOT`, read through
-   DuckDB/Polars, consistent with ADR-0001. This tier is **not** implemented in
-   this baseline. It is scoped to a dedicated follow-up,
-   `FEATURE_LABEL_PARQUET_SINK_V1`, which must: write Parquet through the
-   existing optional-dependency pattern; record a `parquet_path` pointer
-   (alongside the optional `jsonl_path`), `value_count`, content hash, and
-   schema version in the registries; generalize the JSONL-only reader gate in
-   `features/reports.py`; and ship synthetic-fixture tests. It should land
-   before any large-scale, value-consuming Agent Factory study.
+   scans are stored as local Parquet under `ALPHA_DATA_ROOT`, read through
+   Polars, consistent with ADR-0001. This tier was **implemented** by
+   `FEATURE_LABEL_PARQUET_SINK_V1` (in `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1`):
+   a shared `core/value_store.py` abstraction (`ValueStoreFormat`
+   = jsonl|parquet|dual, `ValueStoreHandle`, Polars-guarded `write_parquet_values`
+   / `load_parquet_values`, format-agnostic content hash, sidecar
+   `values.parquet.manifest.json` for idempotency) writes Parquet through the
+   existing optional-dependency guard; the `features.sqlite` / `labels.sqlite`
+   registries record `parquet_path`, `value_store_format`, `value_content_hash`,
+   and `value_schema_version` alongside the existing path/count/timestamp
+   metadata (added by idempotent `ALTER TABLE` backfill, backward compatible with
+   old JSONL-only rows); `features/reports.py` resolves Parquet or JSONL through
+   the registry handle and fails closed otherwise; and the operator exposes
+   `feature|label materialize --value-store {jsonl,parquet,dual}` (default
+   `dual`). The low-level `materialize_*` API still defaults to JSONL for the
+   audit/small tier and test substrate. Synthetic-fixture tests
+   (polars-guarded) plus a real local seed smoke cover the sink.
 
 3. **Registry/value boundary (unchanged, restated).** `features.sqlite`,
    `labels.sqlite`, and `datasets.sqlite` are local-only metadata registries.
@@ -84,5 +92,6 @@ becoming the de-facto permanent store and gives the registries a forward-
 compatible place for a `parquet_path` pointer. The dataset-acceptance coupling
 gap is documented so the follow-up is explicit rather than discovered again.
 
-This ADR records policy and follow-ups. It does not, by itself, implement the
-Parquet sink or change the dataset registry schema.
+This ADR records policy and follow-ups. The Parquet sink (item 2) is now
+implemented by `FEATURE_LABEL_PARQUET_SINK_V1`; the dataset-acceptance coupling
+gap (item 4) remains an open follow-up.
