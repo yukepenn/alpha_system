@@ -1,0 +1,155 @@
+{
+  "alpha_spec_id": "aspec_bd439bada940f95f45288535",
+  "hypothesis_id": "hyp_fb6d890680faa487320da2d4",
+  "target_instruments": [
+    "ES",
+    "NQ",
+    "RTY"
+  ],
+  "data_assumptions": {
+    "campaign_scope_ref": "Campaign scope reference is campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/GOAL.md, Alpha Family Priorities section.",
+    "draft_protocol_ref": "Draft protocol reference is research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md.",
+    "queue_task_ref": "Queue task reference is rq.p07.cross_market_drafting for the Hypothesis Scout drafter.",
+    "family": "Family is cross-market relative-value research evidence only.",
+    "sub_theme": "beta-residual cross-market sub-theme",
+    "hypothesis_statement": "Evaluate an ES residual context after a later StudySpec-defined beta relationship to NQ and RTY, with all residual inputs available before the ES decision timestamp.",
+    "construction_summary": "ES is compared with an NQ/RTY basket; beta and residual terms require explicit prior-window definitions and no same-bar target leakage.",
+    "target_universe_policy": "Targets are restricted to ES, NQ, and RTY; no other market, micro, ETF, option, volatility, rate, FX, commodity, or equity input is in scope.",
+    "dataset_version_ref": "Accepted DatasetVersion reference is dsv_databento_ohlcv_05404069799decb0.",
+    "feature_pack_refs": [
+      "FeatureVersion reference fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f supplies the locked RTH flag context.",
+      "FeatureVersion reference fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978 supplies the locked session-minute context."
+    ],
+    "label_pack_refs": [
+      "LabelVersion reference lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395 is the locked label-pack reference."
+    ],
+    "label_plan": {
+      "locked_label_spec_reference": "Locked LabelSpec reference is lspec_cd6523694c850c9943b2067e.",
+      "locked_label_version_reference": "Locked LabelVersion reference is lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395.",
+      "locked_label_horizon": "The locked label horizon is 5m forward return only.",
+      "draft_primary_model_horizon": "10m horizon is the declared primary model horizon requiring label audit before use for this cross-market draft.",
+      "gap_policy": "The locked label pack currently exposes only the 5m label; if this draft's primary model horizon is not 5m, FUTCORE-P13/FUTCORE-P15 must audit or create a valid LabelSpec before any StudySpec or diagnostic can run. This draft does not invent additional LabelSpec ids."
+    },
+    "primary_model_horizon": "10m horizon is the declared primary model horizon requiring label audit before use for this cross-market draft.",
+    "primary_horizon_policy": "Primary pilot horizons are 5m, 10m, 15m, and 30m; this draft uses the declared primary_model_horizon only if matching labels are accepted before diagnostics.",
+    "fragile_diagnostic_horizons": [
+      "1m horizon is sampling-only and execution-fragile diagnostic context for this cross-market draft.",
+      "3m horizon is execution-fragile diagnostic context with strict cost caveats for this cross-market draft."
+    ],
+    "fragile_horizon_policy": "1m and 3m may be sampled only as execution-fragile diagnostics and cannot be a promotion or favorable review basis.",
+    "excluded_horizons": [
+      "60m horizon is excluded from this P07 primary draft and at most a later extended diagnostic for this cross-market draft.",
+      "120m horizon is excluded from this P07 primary draft and at most a later extended diagnostic for this cross-market draft.",
+      "240m horizon is excluded from this P07 primary draft and at most a later extended diagnostic for this cross-market draft.",
+      "session_close horizon is excluded unless a later reviewed phase authorizes completed-session diagnostics for this cross-market draft.",
+      "Any horizon crossing the maintenance or trade-date break is excluded from modeled holding periods."
+    ],
+    "session_views": {
+      "in_scope": [
+        "RTH_only session view is in scope as the primary liquid-session view for this cross-market draft.",
+        "RTH session view is in scope as the canonical regular-session segment for this cross-market draft.",
+        "RTH_with_ETH_context session view is in scope only when ETH context is completed and available for this cross-market draft."
+      ],
+      "diagnostic_only": [
+        "full_session session view is diagnostic-only for combined session coverage checks for this cross-market draft.",
+        "ETH_only session view is diagnostic-only with thin-session cost and missingness caveats for this cross-market draft.",
+        "ETH_evening session view is diagnostic-only with evening ETH thin-session caveats for this cross-market draft.",
+        "ETH_overnight session view is diagnostic-only with overnight ETH thin-session caveats for this cross-market draft.",
+        "pre_RTH session view is diagnostic-only with transition-session cost caveats for this cross-market draft.",
+        "post_RTH session view is diagnostic-only with transition-session cost caveats for this cross-market draft."
+      ],
+      "excluded": [
+        "Any modeled holding period that would cross the exchange daily maintenance or trade-date break is excluded."
+      ]
+    },
+    "cross_market_diagnostics_required": [
+      "Cross-instrument available_ts alignment must be diagnosed for every target and context instrument.",
+      "Bar and session alignment must be diagnosed by exchange_trade_date and session_segment.",
+      "Lead-lag convention must be diagnosed or declared as not applicable for residual and rotation drafts.",
+      "Missingness must be reported by instrument and session view before any later interpretation.",
+      "Asynchronous or stale input handling must be audited so no stale leg is silently carried forward.",
+      "Residual, spread, rank, or confirmation construction must be audited where applicable before diagnostics.",
+      "Duplicate exposure must be audited against all P07 drafts and rejected-idea memory."
+    ],
+    "duplicate_exposure_awareness": "May duplicate broad-market residual drafts 05 and 07 or confirmation draft 16; P12 must compare residual construction and target-instrument exposure.",
+    "known_rejected_idea_awareness": "No campaign RejectedIdeaLedger entry is produced in P07; FUTCORE-P12 and later Librarian phases must still compare this draft to any available rejected-idea records before acceptance.",
+    "value_free_boundary": "This draft records assumptions, ids, and required diagnostics only; it contains no market values, feature values, label values, diagnostic output, or result claim."
+  },
+  "factor_inputs": [
+    "dataset_version:dsv_databento_ohlcv_05404069799decb0:ohlcv_1m_bars_ES_NQ_RTY",
+    "feature_version:fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f:base_ohlcv_rth_flag",
+    "feature_version:fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978:base_ohlcv_session_minute"
+  ],
+  "label_references": [
+    "lspec_cd6523694c850c9943b2067e"
+  ],
+  "exclusion_rules": [
+    "Exclude any observation where a target or context instrument is outside ES, NQ, or RTY.",
+    "Exclude any decision timestamp for which required cross-instrument completed bars do not have available_ts at or before the decision timestamp.",
+    "Exclude missing, late, stale, duplicated, or out-of-order bars by instrument; do not silently forward-fill, backfill, or carry stale cross-market inputs.",
+    "Exclude any construction that uses final-session high, low, VWAP, range, volume, or other final aggregate before the relevant session is complete.",
+    "Exclude same-bar target outcomes, future labels, label_available_ts later than the evaluation point, or any feature derived from the evaluation outcome.",
+    "Exclude modeled holding periods that would cross the exchange daily maintenance or trade-date break.",
+    "Exclude 1m or 3m views from any favorable review criterion; they are execution-fragile diagnostics only.",
+    "Exclude the draft from later acceptance if P12 determines duplicate exposure is not materially distinct from another P07 draft or known rejected idea."
+  ],
+  "timestamp_assumptions": {
+    "decision_timestamp_policy": "Signals are formed only after completed input bars; the decision timestamp is no earlier than the maximum available_ts across every required instrument input.",
+    "available_ts_policy": "Every OHLCV, session-context, residual, spread, rank, or confirmation input must carry available_ts and must be available before use.",
+    "label_available_ts_policy": "Label reference lspec_cd6523694c850c9943b2067e may be evaluated only when label_available_ts is known and later than the decision input point; labels cannot be used as features.",
+    "completed_bar_only": "No during-bar, same-bar-outcome, or later-arriving bar value is eligible as a decision input.",
+    "cross_instrument_alignment": "ES, NQ, and/or RTY joins must align on exchange_trade_date, session segment, bar end, and available_ts; an earlier-timestamp decision cannot use a later-arriving instrument bar.",
+    "lead_lag_convention": "No leader is assumed; residual construction requires synchronized completed bars for ES, NQ, and RTY at or before the decision timestamp.",
+    "missingness_policy": "Any missing NQ or RTY basket component makes the ES residual undefined for that timestamp; incomplete baskets are excluded.",
+    "session_boundary_policy": "Session views are inherited from P02/P05; RTH_with_ETH_context may use completed ETH context only after that context is available, and no modeled horizon crosses maintenance.",
+    "exchange_trade_date_policy": "Every later StudySpec must preserve exchange_trade_date boundaries and make session transitions visible in split diagnostics.",
+    "diagnostics_declared_only": "P07 declares required timestamp and missingness diagnostics only; no diagnostic is run in this phase."
+  },
+  "cost_assumptions": {
+    "cost_model_version_ref": "CostModelVersion cmv_futcore_pilot_three_layer_session_stress_v1 is the only cost model reference for this draft.",
+    "required_profile_name_set": "The required profile names are exactly zero_cost, base, stress_1, stress_2, and double_cost.",
+    "required_profiles_exact": [
+      "zero_cost cost profile is diagnostic-only and never a favorable criterion basis under the pinned ladder.",
+      "base cost profile is the central non-zero sensitivity and not standalone proof under the pinned ladder.",
+      "stress_1 cost profile is a required non-zero stress sensitivity not less conservative than base under the pinned ladder.",
+      "stress_2 cost profile is a required non-zero stress sensitivity not less conservative than stress_1 under the pinned ladder.",
+      "double_cost cost profile is the required upper-bound non-zero cost sensitivity under the pinned ladder."
+    ],
+    "layers": [
+      "Layer 1 hard transaction cost must be bound by reviewed offline descriptors before diagnostics.",
+      "Layer 2 spread crossing may use only valid point-in-time BBO and must flag missing or invalid BBO.",
+      "Layer 3 slippage and capacity proxy remains a sensitivity proxy and not fill-capacity evidence."
+    ],
+    "zero_cost_boundary": "zero_cost is diagnostic-only, promotion_basis_allowed=false, and cannot satisfy any later criterion by itself.",
+    "thin_session_overlay_required_for": [
+      "ETH_only session view is subject to stricter spread, slippage, and capacity proxy overlays for this cross-market draft.",
+      "ETH_evening session view is subject to stricter evening ETH spread and slippage overlays for this cross-market draft.",
+      "ETH_overnight session view is subject to stricter overnight ETH spread and slippage overlays for this cross-market draft.",
+      "pre_RTH session view is subject to stricter transition-session cost overlays for this cross-market draft.",
+      "post_RTH session view is subject to stricter transition-session cost overlays for this cross-market draft."
+    ],
+    "bbo_policy": "Spread crossing may use only valid point-in-time BBO when bound later; missing, stale, crossed, or unavailable BBO must be flagged and cannot be fabricated.",
+    "maintenance_break_policy": "No modeled holding period may cross the exchange daily maintenance or trade-date break.",
+    "claim_boundary": "Cost and capacity outputs are proxy diagnostics only and are not tradability, fill-capacity, paper/live, production, or capital evidence."
+  },
+  "expected_failure_modes": [
+    "Cross-instrument available_ts misalignment could make the idea invalid or require rejection by the no-lookahead audit.",
+    "Instrument-specific missingness, late bars, stale bars, or asynchronous sessions could dominate the usable sample after strict exclusion rules.",
+    "The locked input pack may not provide all target horizon labels or symbol-level feature coverage; P13/P15 must audit gaps before diagnostics.",
+    "Residual, beta, rank, spread, or agreement definitions may be unstable across session views or require unavailable point-in-time primitives.",
+    "The draft may be fragile under base, stress_1, stress_2, or double_cost profiles, especially in ETH, pre_RTH, or post_RTH diagnostic views.",
+    "The hypothesis may duplicate exposure, label, session, horizon, or trigger logic from another P07 draft or a later discovered rejected idea.",
+    "A later StudySpec may overfit by selecting windows, beta definitions, or alignment rules after observing diagnostics; VariantBudget and locked-test controls must prevent that.",
+    "Any apparent support limited to zero_cost, 1m/3m fragile views, or incomplete cross-market rows must be treated as inconclusive or rejected rather than favorable evidence."
+  ],
+  "promotion_criteria": [
+    "For later independent review only: the draft must first pass P12 AlphaSpec critique, family budget audit, and duplicate-exposure review; this P07 draft does not approve itself.",
+    "For later StudySpec consideration only: every cross-market input must be point-in-time under available_ts, and every label must respect label_available_ts with no same-bar or future leakage.",
+    "For later diagnostics only: timestamp-alignment and cross-market missingness reports must make late, missing, stale, and excluded rows visible by instrument and session view.",
+    "For later cost review only: required non-zero profiles base, stress_1, stress_2, and double_cost must be evaluated under the pinned CostModelVersion if diagnostics are authorized.",
+    "zero_cost diagnostics cannot satisfy any criterion, cannot retain a draft that fails required non-zero profiles, and cannot be cited as a favorable review basis.",
+    "No criterion here grants approval, implementation permission, paper/live readiness, broker use, production readiness, tradability, profitability, or capital allocation."
+  ],
+  "created_by": "Hypothesis Scout:rq.p07.cross_market_drafting:cm06",
+  "created_at": "2026-06-07T04:13:43Z"
+}
