@@ -26,6 +26,24 @@ No new commands, modules, runtime behavior, data readers, diagnostics, cost
 calculations, reviews, agent runners, or broker surfaces are added by
 `FUTCORE-P11`. The BBO batch records draft AlphaSpec payloads, assumptions,
 limitations, and diagnostic declarations only.
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active. The
+`bootstrap_and_inputs` gate is complete through `FUTCORE-P06`. `FUTCORE-P10`
+is complete as the Liquidity Sweep / PA AlphaSpec batch and as one
+path-disjoint member of the parallel `alpha_specs` wave.
+
+Active / next work: the remaining `alpha_specs` family batches (`FUTCORE-P07`,
+`FUTCORE-P08`, `FUTCORE-P09`, and `FUTCORE-P11` as applicable) continue under
+Workflow 2 review and serial merge handling, followed by `FUTCORE-P12`
+AlphaSpec Critic and Family Budget Audit.
+
+New durable surfaces in `FUTCORE-P10`:
+
+- `research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/`
+- `docs/futures_core_alpha_pilot/alpha_specs/liquidity_pa.md`
+
+`FUTCORE-P10` adds value-free liquidity/PA AlphaSpec drafts and the family
+index only. It adds no commands, modules, runtime behavior, data readers,
+diagnostics, cost calculations, reviews, agent runners, or broker surfaces.
 
 ## Source Of Truth
 
