@@ -1,0 +1,2609 @@
+campaign_id: ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1
+campaign_name: 'Futures Research Substrate Scaleout V1: turn the existing full-depth Databento ES/NQ/RTY OHLCV+BBO history and existing feature/label/runtime code into a full-window, BBO-aware, roll-guarded, resolver-safe research substrate; re-run the Core Pilot INCONCLUSIVE studies against real materialized inputs.'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: research_substrate_scaleout
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Research-only substrate engineering. This campaign accepts/locks existing
+    DatasetVersions, materializes existing feature/label families over the full
+    available history, adds minimal required guards (roll-splice,
+    maintenance-crossing) and N_eff / walk-forward wiring, produces coverage and
+    quality matrices, proves registry-resolved Parquet values are usable by the
+    runtime, and re-runs the Core Pilot's INCONCLUSIVE StudySpecs against real
+    materialized inputs. It is NOT new alpha ideation, NOT a platform rewrite,
+    NOT FactorLibrary/AlphaBook/Strategy Reference, and NOT paper/live/broker.
+    It makes no profitability or tradability claim.
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop for high-judgment work; available but not the default for this campaign.
+  workflow2:
+    description: Ralph strict autonomous campaign loop with DAG-wave scheduling and a serial merge queue. Materialization phases are serialized by a shared registry resource_class.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  notes:
+  - Build phases in DAG order in isolated worktrees; merge one PR at a time.
+  - Phase branches must never write ACTIVE_CAMPAIGN.md; the coordinator owns it.
+  - Materialization phases (FUTSUB-P06..P13 features, FUTSUB-P16..P20 labels)
+    write the shared local SQLite registry inline via the materialize CLI, so
+    they share resource_class materialization_registry and are NOT parallel_safe;
+    the scheduler serializes them. This keeps the campaign DAG-aware without
+    forcing unsafe parallel registry writes.
+  - Any future deferred-registry-write design may re-enable parallel waves for
+    path-disjoint materialization; until then materialization is serial.
+  - Bootstrap / contract / integration / audit / wiring / rerun / closeout
+    phases are must_run_alone.
+runtime:
+  python: '3.11'
+  package_root: src/alpha_system
+  test_root: tests
+  smoke_command: python tools/verify.py --smoke
+  full_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+  research_venv: ~/.venvs/alpha_system_research
+  data_root_env: ALPHA_DATA_ROOT
+  consumed_primitives:
+  - src/alpha_system/core/value_store.py (dual JSONL+Parquet value sink/reader; content hash; available_ts)
+  - src/alpha_system/features/families (ohlcv, session, bbo, cross_market, structure) and features/engine/materialization.py
+  - src/alpha_system/labels/families (fixed_horizon, cost_adjusted, path, event)
+  - src/alpha_system/data/foundation/rolls.py (RollPolicy / RollCalendarRecord contracts)
+  - src/alpha_system/runtime (input_resolver, tool_results, diagnostics {factor, cross_market, label, splits}, cost, reports)
+  - src/alpha_system/experiments/splits.py (train_validation_split, walk_forward_splits, apply_purge_embargo)
+  - src/alpha_system/governance (StudySpec re-lock and resolver-smoke; consumed via CLI, not edited)
+  - src/alpha_system/cli (feature|label materialize|plan|list, registry, study)
+  editable_in_campaign:
+  - src/alpha_system/data/foundation/rolls.py and a roll-calendar/roll-guard helper (FUTSUB-P03)
+  - src/alpha_system/features/families/** minimal scale repairs (FUTSUB-P06..P13)
+  - src/alpha_system/labels/families/** minimal scale repairs + guard hooks (FUTSUB-P16..P21)
+  - src/alpha_system/core/value_store.py / registry metadata schema additions if needed (FUTSUB-P04)
+  - src/alpha_system/runtime/diagnostics/** for N_eff + walk-forward wiring (FUTSUB-P24..P25)
+  - tools/** and configs/** materialization plans/configs as needed
+models:
+  build_time_roles:
+    strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
+    specs_semantic_review_done_check: Claude Opus 4.8 xhigh
+    source_map_verifier_mechanical_audit: Claude Sonnet 4.6
+    execution_tests_repair_handoffs: Codex GPT-5.5 high
+    orchestration_state_machine_dag_merge_queue: Ralph
+  notes:
+  - Build-time model roles write/review/merge the campaign.
+  - No in-product autonomous agents are instantiated; this is engineering work
+    driven by the strict Workflow 2 loop.
+lane_policy:
+  green: Low-risk automatic work (campaign control docs, indexes, value-free scaffolding).
+  yellow: Material engineering/research work requiring fresh Claude Opus review.
+  red: External, destructive, live, production, costly, or broker-adjacent work; requires scoped authorization.
+  red_authorization_required:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  red_expected_in_campaign: false
+  default_lane: yellow
+state_machine:
+  driver: ralph
+  strict: true
+  stop_checks_before:
+  - provider calls
+  - phase selection
+  - codex execution
+  - validation
+  - review
+  - PR creation
+  - CI waiting
+  - merge gate
+  - merge
+  - done-check
+  - next-phase selection
+  resume: from recorded run state, never regenerating completed work
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - local SQLite registries (datasets/features/labels) and journals/WAL
+  - roll calendar data files
+  - runtime or agent heavy outputs
+  - heavy artifacts (parquet/arrow/feather)
+  - research run logs and caches
+  never_commit_globs:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - registry/*.sqlite
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - '**/*credential*'
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - campaign control files
+  - docs
+  - value-free substrate evidence (markdown/JSON specs, coverage matrices as summaries, reports)
+  - roll-splice / maintenance-crossing guard code + tests
+  - feature/label materialization configs and minimal family-code scale repairs
+  - value-store / registry metadata schema additions (code, not data)
+  - N_eff / walk-forward runtime wiring code + tests
+  - tests
+  - tiny synthetic fixtures
+  - handoffs
+  - reviews
+  - curated summaries
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/futures_substrate_scaleout/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+    - value-free or trivially-small
+  research_evidence_artifacts:
+    note: >-
+      Substrate evidence under research/futures_substrate_scaleout_v1/** is
+      commit-eligible ONLY when value-free: acceptance-lock summaries, coverage
+      and quality matrices (summary statistics/metadata only), resolver-smoke
+      reports, roll-guard audit summaries, N_eff/walk-forward smoke summaries,
+      Core Pilot re-run reports, and downstream handoffs. Raw or per-row
+      feature/label values, Parquet, SQLite registries, roll calendar data, and
+      provider responses remain local-only under runs/** or $ALPHA_DATA_ROOT/**
+      and are never committed.
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_provider_response_commits: true
+    no_local_db_commits: true
+    no_roll_calendar_data_commits: true
+    no_heavy_artifact_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_provider_responses_allowed: false
+  commit_feature_or_label_values_allowed: false
+  commit_roll_calendar_data_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  yellow_requires_fresh_review: true
+  green_review_optional: true
+  red_requires_scoped_authorization: true
+  review_artifacts:
+    commit_eligible: reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/<phase_id>/**
+    run_local: runs/<run_id>/phases/<phase_id>/review.md and verdict.json
+  semantic_done_check_required: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - BLOCKED
+merge_policy:
+  merge_queue: serial
+  auto_merge_for_green: true
+  auto_merge_for_yellow_after_review: true
+  auto_merge_for_red: false
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  protected_branch: main
+  no_force_push: true
+  one_pr_at_a_time: true
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - account trading
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access by agents
+  - direct SQLite registry writes outside sanctioned tool/CLI APIs
+  - new alpha ideation or new broad AlphaSpec batch
+  - parameter optimization beyond original bounded StudySpecs
+  - using newly materialized full history to hunt new alpha
+  - factor library V1 ingestion pipeline
+  - strategy reference validation
+  - AlphaBook construction
+  - research runner
+  - full multiple-testing / false-discovery correction engine
+  - full DSR/PBO/PSR framework
+  - locked-test contamination ledger
+  - portfolio-level walk-forward
+  - IBKR contract resolver
+  - full live roll execution engine
+  - per-contract ESM/NQM/RTYM tradable mapping
+  - complete per-contract back-adjusted continuous construction
+  - L1/L2/L3 event-stream ingestion
+  - ML/DL/RL training
+  - portfolio construction
+  - edits to execution/broker/live/signals/strategies/portfolio/management/l2/backtest/agent_factory
+  - raw data commit
+  - canonical data commit
+  - feature value commit
+  - label value commit
+  - local DB / SQLite registry commit
+  - roll calendar data commit
+  - provider response commit
+  - heavy artifact commit
+  - alpha/profitability/tradability/production/capital-allocation claim
+  - test weakening or gaming
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+substrate_policy:
+  campaign_type: research_substrate_scaleout
+  alpha_ideation_allowed: false
+  strategy_validation_allowed: false
+  factor_library_promotion_allowed: false
+  alpha_book_allowed: false
+  paper_live_allowed: false
+  broker_order_allowed: false
+  reuse_existing_family_code_over_rewrite: true
+  reuse_existing_alpha_and_study_specs: true
+data_policy:
+  existing_databento_dataset_versions_required: true
+  external_provider_calls_forbidden: true
+  raw_provider_access_forbidden_for_agents: true
+  accepted_dataset_version_lock_required: true
+  full_window_scope_required: true
+  symbols:
+  - ES
+  - NQ
+  - RTY
+  schemas_required:
+  - ohlcv_1m
+  - bbo_1m
+  dense_grid_allowed: true
+  universe_deferred:
+  - MES
+  - MNQ
+  - M2K
+  - rates
+  - FX
+  - commodities
+  - vol products
+  - options
+  - equities
+  - per-contract tradable mappings
+  - L1 eventstream
+  - L2/L3
+  required_data_fields:
+  - canonical timestamps
+  - available_ts
+  - exchange_trade_date
+  - session_segment
+  - continuous provenance
+  - roll / approximate roll-boundary metadata
+  - quality/missingness flags
+dataset_acceptance_policy:
+  persist_coverage_verdict_required: true
+  coverage_report_required: true
+  accept_block_warn_states:
+  - ACCEPTED
+  - ACCEPTED_WITH_WARNINGS
+  - BLOCKED
+  no_repull_unless_corrupt: true
+  registered_is_not_accepted: true
+feature_materialization_policy:
+  parquet_values_required: true
+  jsonl_audit_tier_only: true
+  keystone_identity_required: true
+  available_ts_required: true
+  resolver_smoke_required: true
+  full_history_required: true
+  reuse_existing_family_code: true
+  no_feature_zoo_beyond_existing_governed_families: true
+  families:
+  - base_ohlcv
+  - session_calendar_maintenance
+  - vwap_session_auction
+  - regime_volatility_compression
+  - liquidity_sweep_pa_structure
+  - volume_activity
+  - bbo_tradability_top_book
+  - cross_market_alignment
+label_materialization_policy:
+  label_available_ts_required: true
+  roll_splice_guard_required: true
+  maintenance_crossing_guard_required: true
+  horizons_required:
+    diagnostic:
+    - 1m
+    - 3m
+    primary:
+    - 5m
+    - 10m
+    - 15m
+    - 30m
+    extended:
+    - 60m
+    - 120m
+    - 240m
+    session:
+    - session_close
+    - maintenance_flat
+  cost_adjusted_required: true
+  path_labels_where_feasible: true
+  horizon_coverage_report_required: true
+  n_eff_overlap_metadata_required: true
+value_store_policy:
+  parquet_research_scale_required: true
+  sqlite_metadata_only: true
+  local_only_values: true
+  value_commits_forbidden: true
+  local_registry_commits_forbidden: true
+  content_hash_required: true
+  registry_record_fields_required:
+  - value_store_format
+  - parquet_path
+  - value_content_hash
+  - value_schema_version
+  - dataset_version_id
+  - feature_version_id_or_label_version_id
+  materialization_restart_safe_required: true
+roll_guard_policy:
+  roll_splice_guard_required: true
+  approximate_roll_calendar_allowed_if_documented: true
+  provider_exact_roll_not_claimed: true
+  full_execution_roll_engine_forbidden: true
+  ibkr_contract_resolver_forbidden: true
+  per_contract_back_adjusted_construction_forbidden: true
+  roll_policy_id_required: true
+  roll_guard_version_required: true
+  roll_window_split_required: true
+  cross_roll_label_policy:
+  - drop
+  - truncate
+  - flag
+  - invalid
+bbo_policy:
+  bbo_featurepacks_required: true
+  bbo_is_tradability_proxy_not_execution_truth: true
+  passive_fill_claims_forbidden: true
+  queue_priority_claims_forbidden: true
+  intra_minute_impact_claims_forbidden: true
+  time_sampled_forward_filled_semantics: true
+  bbo_quality_matrix_required: true
+cross_market_policy:
+  per_instrument_available_ts_required: true
+  cross_instrument_forward_fill_forbidden: true
+  alignment_matrix_required: true
+walk_forward_policy:
+  runtime_wiring_required_if_existing_primitives_available: true
+  purge_embargo_required_for_overlapping_labels: true
+  family_half_life_protocol_hooks_required: true
+  family_half_life_protocols:
+  - STRUCTURAL
+  - MEDIUM
+  - FAST
+  full_validation_governance_deferred: true
+  minimal_callable_path_plus_handoff_if_refactor_blocked: true
+n_eff_policy:
+  overlap_aware_sample_count_required: true
+  rows_not_independent_samples_warning_required: true
+  horizon_overlap_metadata_required: true
+  session_day_aggregation_hooks_required: true
+runtime_policy:
+  runtime_tools_required: true
+  resolve_dataset_version_only: true
+  runtime_consumed_via_tool_contracts: true
+  runtime_diagnostics_editable_only_for_n_eff_and_walk_forward_wiring: true
+  no_diagnostics_reimplemented_outside_runtime: true
+rerun_policy:
+  core_pilot_studyspec_relock_required_where_resolvable: true
+  core_pilot_studyspec_rerun_required_where_resolvable: true
+  rerun_target_studies:
+  - regime
+  - liquidity_pa
+  - bbo
+  - enriched_cross_market
+  - enriched_vwap_session
+  promotion_states_allowed:
+  - REJECT
+  - INCONCLUSIVE
+  - WATCH
+  - CANDIDATE_RESEARCH
+  profitability_claims_forbidden: true
+  no_new_alpha_spec_batch: true
+  no_parameter_tuning_beyond_original_bounds: true
+  no_human_prior_decides_edge: true
+promotion_boundary_policy:
+  inherited_core_pilot_boundary:
+    reject: 4
+    inconclusive: 6
+    watch: 0
+    candidate_research: 0
+  allowed_states_only: true
+  reviewer_verdict_required_for_watch_or_candidate: true
+  forbidden_states:
+  - VALIDATED_RESEARCH
+  - LIVE_APPROVED
+  - PAPER_APPROVED
+  - PRODUCTION_READY
+  - CAPITAL_ALLOCATED
+  - PROFITABLE
+  - TRADABLE
+  - STRATEGY_READY
+  - PORTFOLIO_READY
+artifact_locality_policy:
+  values_local_only_under_data_root: true
+  registries_local_only: true
+  roll_calendar_data_local_only: true
+  only_value_free_summaries_committed: true
+  git_ls_files_runs_must_be_empty: true
+  git_ls_files_heavy_globs_must_be_empty: true
+phases:
+- id: FUTSUB-P00
+  name: Campaign Bootstrap and Active Pointer
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the campaign contract bundle, the root active pointer, and the substrate scaleout doc/evidence scaffolding so Workflow 2 can plan and schedule.
+  scope:
+  - Confirm the 6-file campaign bundle is present and internally consistent.
+  - Create the substrate scaleout docs index and the value-free evidence directory skeleton.
+  - Update the root ACTIVE_CAMPAIGN.md pointer (coordinator-owned).
+  non_goals:
+  - Any acceptance-lock, materialization, guard implementation, or diagnostics.
+  - Any value or DB writes.
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/GOAL.md
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/campaign.yaml
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/RUNBOOK.md
+  - test '!' -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/ACTIVE_CAMPAIGN.md
+  - test -f handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P00.md
+  - grep -q "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1" ACTIVE_CAMPAIGN.md
+  - python -c "import yaml; yaml.safe_load(open('campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/campaign.yaml'))"
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/**
+  - docs/futures_substrate_scaleout/README.md
+  - docs/futures_substrate_scaleout/OVERVIEW.md
+  - research/futures_substrate_scaleout_v1/README.md
+  - research/futures_substrate_scaleout_v1/.gitkeep
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P00.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/agent_factory/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - registry/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.sqlite'
+  - '**/*.db'
+  artifact_policy:
+    commit_only:
+    - campaign control + overview docs
+    - value-free substrate evidence directory skeleton
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle present and consistent; root pointer selects this campaign; no campaign-local ACTIVE_CAMPAIGN.md; YAML parses; smoke passes; runs/ untracked.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P00.md
+  review: green lane; review optional.
+- id: FUTSUB-P01
+  name: Reality Report Lock and Core Pilot Handoff Ingestion
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Ingest and lock the measured substrate reality and the Core Pilot closeout handoff as the campaign's factual baseline.
+  scope:
+  - Reconcile docs/SUBSTRATE_REALITY_REPORT.md and the Core Pilot closeout / scaleout handoff into a single locked reality baseline.
+  - Record the inherited promotion boundary (4 REJECT / 6 INCONCLUSIVE / 0 WATCH / 0 CANDIDATE_RESEARCH) and the exact gaps to close.
+  - Confirm consumed primitives import and the resolver-smoke discipline is intact.
+  non_goals:
+  - Editing any primitive; materializing any value; running diagnostics.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime, alpha_system.features, alpha_system.labels, alpha_system.experiments.splits, alpha_system.data.foundation.rolls"
+  - python tools/verify.py --smoke
+  - test -f docs/futures_substrate_scaleout/REALITY_LOCK.md
+  - test -f research/futures_substrate_scaleout_v1/preflight/reality_baseline.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_substrate_scaleout/REALITY_LOCK.md
+  - research/futures_substrate_scaleout_v1/preflight/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P01.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - locked reality baseline (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Reality baseline + inherited boundary + gap list recorded; primitives import; smoke passes; no primitive edited; no values touched.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P01.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P02
+  name: DatasetVersion Inventory and Acceptance-Lock Contract
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Inventory the registered Databento DatasetVersions and add a persisted acceptance-lock with coverage verdicts, closing the registered-not-accepted gap.
+  scope:
+  - Inventory the OHLCV-1m, OHLCV-dense, and BBO-1m DatasetVersions (ES/NQ/RTY, 2018->2026) via registry tools.
+  - Add an acceptance-lock that persists ACCEPTED / ACCEPTED_WITH_WARNINGS / BLOCKED plus a coverage report per version (no re-pull unless corrupt).
+  - Commit only the value-free acceptance/coverage summary; persist verdicts in the local registry (local-only).
+  non_goals:
+  - Re-pulling data; external provider calls; materializing features/labels; tradability claims.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/test_dataset_acceptance.py -q
+  - test -f research/futures_substrate_scaleout_v1/dataset_acceptance/acceptance_summary.md
+  - test -f docs/futures_substrate_scaleout/DATASET_ACCEPTANCE.md
+  - git ls-files runs
+  - git ls-files '**/*.sqlite' '**/*.parquet'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/data/foundation/datasets.py
+  - src/alpha_system/cli/registry.py
+  - src/alpha_system/cli/data.py
+  - configs/data/dataset_acceptance/**
+  - research/futures_substrate_scaleout_v1/dataset_acceptance/**
+  - docs/futures_substrate_scaleout/DATASET_ACCEPTANCE.md
+  - tests/unit/futures_substrate_scaleout/test_dataset_acceptance.py
+  - tests/fixtures/futures_substrate_scaleout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P02.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - acceptance-lock code + tests
+    - value-free acceptance/coverage summary
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Every Databento yearly version carries a persisted accept/block/warn + coverage verdict (local registry); summary committed value-free; no re-pull; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P02.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P03
+  name: Continuous Series / Roll Metadata / Roll-Splice Guard Contract
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Compute approximate CME quarterly roll boundaries and add a roll-splice guard primitive (leakage guard, not execution tooling) for forward labels.
+  scope:
+  - Compute the analytic CME equity-index quarterly roll calendar and persist RollCalendarRecords (local-only) using data/foundation/rolls.py contracts.
+  - Add a roll-splice guard helper with roll_policy_id + roll_guard_version and a drop/truncate/flag/invalid cross-roll policy, plus a roll_window split.
+  - Document that boundaries are approximate (provider-internal splice not recoverable); add tests on a known roll week.
+  non_goals:
+  - Full live roll engine; IBKR/per-contract mapping; back-adjusted continuous construction; execution.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/test_roll_guard.py -q
+  - test -f docs/futures_substrate_scaleout/ROLL_GUARD.md
+  - test -f research/futures_substrate_scaleout_v1/roll_guard/roll_guard_contract.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/data/foundation/rolls.py
+  - src/alpha_system/labels/roll_guard.py
+  - configs/data/roll_calendar/**
+  - research/futures_substrate_scaleout_v1/roll_guard/**
+  - docs/futures_substrate_scaleout/ROLL_GUARD.md
+  - tests/unit/futures_substrate_scaleout/test_roll_guard.py
+  - tests/fixtures/futures_substrate_scaleout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P03.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - roll calendar computation + roll-splice guard code + tests
+    - value-free roll-guard contract + docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Roll calendar computed (approximate, documented); guard primitive with roll_policy_id/roll_guard_version + cross-roll policy + roll_window split; tests pass on a known roll week; no calendar data committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P03.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P04
+  name: Value Store / Registry / Keystone Identity Preflight
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Confirm and, if needed, extend the value-store / registry metadata so keystone identity and resolver-smoke hold at full scale.
+  scope:
+  - Verify dry-run identity preview == execute == registry record == lock == resolver on a representative slice.
+  - Add any required registry metadata fields (value_store_format, parquet_path, value_content_hash, value_schema_version, dataset_version_id, version ids) if missing.
+  - Record the keystone-identity preflight as a value-free report.
+  non_goals:
+  - Materializing full-window values; editing runtime diagnostics; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/test_keystone_identity.py -q
+  - test -f research/futures_substrate_scaleout_v1/preflight/keystone_identity_preflight.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - src/alpha_system/core/value_store.py
+  - src/alpha_system/features/engine/materialization.py
+  - research/futures_substrate_scaleout_v1/preflight/**
+  - docs/futures_substrate_scaleout/KEYSTONE_IDENTITY.md
+  - tests/unit/futures_substrate_scaleout/test_keystone_identity.py
+  - tests/fixtures/futures_substrate_scaleout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P04.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - minimal value-store/registry metadata additions + tests
+    - value-free keystone-identity preflight report + docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Keystone identity invariant verified on a representative slice; required registry metadata present; preflight report committed value-free; no full materialization yet.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P04.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P05
+  name: Materialization Budget, Batch Plan, and Resource Guard
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P04
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Pin the bounded, chunked, restart-safe materialization plan (batch units, budgets, checkpoints, resource guard) before any full-window write.
+  scope:
+  - Define per-family / per-symbol / per-year batch units with row/file budgets and checkpoints.
+  - Define the serial registry-write resource guard (materialization_registry) and the restart-safe recovery procedure.
+  - Produce the dry-run identity preview plan (no execute).
+  non_goals:
+  - Executing materialization; alpha work; editing runtime diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/materialization/batch_plan.md
+  - test -f docs/futures_substrate_scaleout/MATERIALIZATION_PLAN.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - configs/features/scaleout/**
+  - configs/labels/scaleout/**
+  - research/futures_substrate_scaleout_v1/materialization/**
+  - docs/futures_substrate_scaleout/MATERIALIZATION_PLAN.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P05.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P05/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - materialization configs + batch plan (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bounded, chunked, restart-safe batch plan with budgets/checkpoints and a serial registry resource guard; dry-run preview only; no execute; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P05.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P06
+  name: Base OHLCV FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window base OHLCV FeaturePack (returns, log-returns, rolling vol/range, range position, volume z-score) for ES/NQ/RTY.
+  scope:
+  - Materialize + register base OHLCV features over the full available window via alpha feature materialize --execute (values local-only).
+  - Enforce available_ts, keystone identity, Parquet values, content hash, and registry metadata.
+  - Commit only the value-free coverage summary + config; minimal family-code scale repair only if needed.
+  non_goals:
+  - New features beyond the existing base OHLCV family; diagnostics; alpha work.
+  checks: &materialization_checks
+  - git status --short
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/ohlcv/**
+  - configs/features/scaleout/base_ohlcv.json
+  - research/futures_substrate_scaleout_v1/feature_packs/base_ohlcv/**
+  - tests/unit/futures_substrate_scaleout/features/test_base_ohlcv_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: &materialization_artifact_policy
+    commit_only:
+    - value-free FeaturePack/LabelPack coverage summary + config
+    - minimal family-code scale repair + tests (only if needed)
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria: &feature_done
+  - Family materialized + registered over the full window with available_ts, keystone identity, Parquet values, content hash, and registry metadata; coverage summary committed value-free; no value/SQLite/heavy artifact committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P07
+  name: Session / Calendar / Maintenance FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window session/calendar/maintenance FeaturePack (RTH/ETH flags, session-minute, maintenance-window flags, holiday/half-day, minutes-to-close/maintenance where available).
+  scope:
+  - Materialize + register the session family over the full window; enforce point-in-time SESSION_METADATA / role-aware guard.
+  - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New session features beyond the existing family; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/session/**
+  - configs/features/scaleout/session_calendar_maintenance.json
+  - research/futures_substrate_scaleout_v1/feature_packs/session_calendar_maintenance/**
+  - tests/unit/futures_substrate_scaleout/features/test_session_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P07.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P07/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *feature_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P07.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P08
+  name: VWAP / Session Auction FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window VWAP / session-auction FeaturePack (running VWAP, anchored/ETH VWAP, distance-to-VWAP, opening/overnight range, RTH-open context).
+  scope:
+  - Materialize + register the VWAP/session-auction features; distinguish running vs final VWAP (no final-session aggregate used intraday).
+  - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New features beyond existing family; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/ohlcv/**
+  - src/alpha_system/features/families/session/**
+  - configs/features/scaleout/vwap_session_auction.json
+  - research/futures_substrate_scaleout_v1/feature_packs/vwap_session_auction/**
+  - tests/unit/futures_substrate_scaleout/features/test_vwap_session_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P08.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P08/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *feature_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P08.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P09
+  name: Regime / Volatility / Compression FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window regime FeaturePack (trendiness, ATR/volatility-regime buckets, range compression/expansion, momentum/reversion state) to unblock the pilot's regime study.
+  scope:
+  - Materialize + register the regime/volatility/compression features over the full window.
+  - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New regime features beyond existing family; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/structure/**
+  - src/alpha_system/features/families/ohlcv/**
+  - configs/features/scaleout/regime_volatility_compression.json
+  - research/futures_substrate_scaleout_v1/feature_packs/regime_volatility_compression/**
+  - tests/unit/futures_substrate_scaleout/features/test_regime_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P09.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P09/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *feature_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P09.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P10
+  name: Liquidity Sweep / PA Structure FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window liquidity-sweep / PA-structure FeaturePack (prior-high/low sweep, close-back-inside, wick rejection, displacement, compression breakout, failed breakout) to unblock the pilot's liquidity/PA study.
+  scope:
+  - Materialize + register objective PA primitives only over the full window.
+  - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - Subjective/discretionary PA; new features beyond existing family; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/structure/**
+  - configs/features/scaleout/liquidity_sweep_pa_structure.json
+  - research/futures_substrate_scaleout_v1/feature_packs/liquidity_sweep_pa_structure/**
+  - tests/unit/futures_substrate_scaleout/features/test_liquidity_pa_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P10.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P10/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *feature_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P10.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P11
+  name: Volume / Activity FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window volume/activity FeaturePack (participation, time-of-day relative volume, volume regime, activity bursts, effort/result proxies) where existing primitives exist.
+  scope:
+  - Materialize + register the volume/activity features over the full window using existing primitives only.
+  - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New volume feature zoo; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/ohlcv/**
+  - src/alpha_system/features/families/structure/**
+  - configs/features/scaleout/volume_activity.json
+  - research/futures_substrate_scaleout_v1/feature_packs/volume_activity/**
+  - tests/unit/futures_substrate_scaleout/features/test_volume_activity_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P11.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P11/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *feature_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P11.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P12
+  name: BBO Tradability / Top-Book FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window BBO tradability / top-book FeaturePack from the existing BBO DatasetVersions to close the pilot's hardest data gap (P20).
+  scope:
+  - Materialize + register BBO top-book features (mid, spread, spread_ticks, spread_zscore, top-book depth/imbalance, missing_bbo/bad_quote/wide_spread/low_depth flags, microprice-ish proxy) over the full window.
+  - Treat BBO-1m as a time-sampled + forward-filled tradability proxy; no execution-truth/passive-fill/queue claims.
+  - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata; commit only the value-free coverage summary + config.
+  non_goals:
+  - Passive-fill / queue / impact / execution claims; new features beyond existing BBO family; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/bbo/**
+  - configs/features/scaleout/bbo_tradability_top_book.json
+  - research/futures_substrate_scaleout_v1/feature_packs/bbo_tradability_top_book/**
+  - tests/unit/futures_substrate_scaleout/features/test_bbo_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P12.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P12/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria:
+  - BBO top-book family materialized + registered over the full window as a tradability proxy (no execution-truth claim) with available_ts/keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P12.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P13
+  name: Cross-Market Alignment FeaturePack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P05
+  - FUTSUB-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize the full-window cross-market alignment FeaturePack (ES/NQ/RTY aligned returns, beta residual, basket residual, relative-strength rank, catch-up/rotation, divergence/agreement, lead-lag) preserving per-instrument available_ts.
+  scope:
+  - Materialize + register cross-market features over the full window with strict per-instrument available_ts (no cross-instrument forward-fill).
+  - Enforce keystone identity, Parquet values, content hash, registry metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - Cross-instrument forward-fill; new features beyond existing family; diagnostics; alpha work.
+  checks: *materialization_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_materialization
+  allowed_paths:
+  - src/alpha_system/features/families/cross_market/**
+  - configs/features/scaleout/cross_market_alignment.json
+  - research/futures_substrate_scaleout_v1/feature_packs/cross_market_alignment/**
+  - tests/unit/futures_substrate_scaleout/features/test_cross_market_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P13.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P13/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria:
+  - Cross-market family materialized + registered over the full window with per-instrument available_ts preserved (no forward-fill across instruments), keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P13.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P14
+  name: FeaturePack Registry Integration, Coverage Audit, and Resolver Smoke
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P06
+  - FUTSUB-P07
+  - FUTSUB-P08
+  - FUTSUB-P09
+  - FUTSUB-P10
+  - FUTSUB-P11
+  - FUTSUB-P12
+  - FUTSUB-P13
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Integrate all FeaturePack registrations, audit registry consistency, and prove a feature resolver-smoke gate (every feature lock resolves to a real Parquet value).
+  scope:
+  - Audit feature registry records for keystone identity, content hash, and registry metadata across all 8 families.
+  - Run a feature resolver-smoke over representative locks (fail closed on stale/unresolvable).
+  - Commit only the value-free integration + resolver-smoke report.
+  non_goals:
+  - Materializing new values; running diagnostics; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: feature_integration
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/feature_packs/**
+  - docs/futures_substrate_scaleout/FEATURE_INTEGRATION.md
+  - tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free feature integration + resolver-smoke report + tests
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - All 8 feature families integrated; registry consistent; feature resolver-smoke PASS (every lock resolves to real Parquet, fail-closed verified); report value-free; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P15
+  name: Feature Coverage Matrix and Quality Report
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P14
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Produce the feature-family coverage matrix (family x symbol x year) and a quality/missingness report as gating inputs for downstream mining.
+  scope:
+  - Produce feature-family x symbol/year coverage and missingness summaries (value-free).
+  - Flag families/instruments/years that do not resolve; record gaps explicitly.
+  non_goals:
+  - Diagnostics; alpha work; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/matrices/feature_family_coverage.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: feature_integration
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/matrices/**
+  - docs/futures_substrate_scaleout/FEATURE_COVERAGE.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P15.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P15/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free coverage/quality matrices
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Feature-family coverage matrix + quality/missingness report produced value-free; gaps explicit and machine-reviewable; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P15.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P16
+  name: 'Fixed-Horizon LabelPack Scaleout: 1m/3m/5m/10m/15m/30m'
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize full-window fixed-horizon LabelPacks (diagnostic 1m/3m + primary 5m/10m/15m/30m) with label_available_ts and roll/maintenance guards applied.
+  scope:
+  - Materialize + register fixed-horizon labels over the full window with the roll-splice + maintenance-crossing guards applied at materialization.
+  - Enforce label_available_ts, horizon coverage report, and N_eff / overlap metadata.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New label families; diagnostics; alpha work; silent cross-roll/maintenance windows.
+  checks: &label_checks
+  - git status --short
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: label_materialization
+  allowed_paths:
+  - src/alpha_system/labels/families/fixed_horizon/**
+  - configs/labels/scaleout/fixed_horizon.json
+  - research/futures_substrate_scaleout_v1/label_packs/fixed_horizon/**
+  - tests/unit/futures_substrate_scaleout/labels/test_fixed_horizon_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: &label_done
+  - LabelPack materialized + registered over the full window with label_available_ts, roll-splice + maintenance-crossing guards applied, horizon coverage + N_eff/overlap metadata; coverage summary value-free; no value/SQLite/heavy artifact committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P17
+  name: 'Extended Intraday LabelPack Scaleout: 60m/120m/240m'
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize full-window extended-horizon LabelPacks (60m/120m/240m) with stronger roll/maintenance guards and overlap-aware N_eff metadata.
+  scope:
+  - Materialize + register extended-horizon labels with roll-splice + maintenance-crossing guards (no silent crossing).
+  - Enforce label_available_ts, horizon coverage report, and overlap-aware N_eff metadata (extended horizons must not overstate N_eff).
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New label families; diagnostics; alpha work; silent cross-roll/maintenance windows; N_eff inflation.
+  checks: *label_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: label_materialization
+  allowed_paths:
+  - src/alpha_system/labels/families/fixed_horizon/**
+  - configs/labels/scaleout/extended_horizon.json
+  - research/futures_substrate_scaleout_v1/label_packs/extended_horizon/**
+  - tests/unit/futures_substrate_scaleout/labels/test_extended_horizon_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *label_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P18
+  name: Session-Close and Maintenance-Flat LabelPack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize full-window session-close and maintenance-flat LabelPacks with close-out semantics that never silently cross a maintenance break.
+  scope:
+  - Materialize + register to-session-close and to-maintenance-flat labels with explicit close-out semantics.
+  - Enforce label_available_ts, the maintenance-crossing guard, and horizon coverage.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New label families; diagnostics; alpha work; positions crossing the maintenance/trade-date break.
+  checks: *label_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: label_materialization
+  allowed_paths:
+  - src/alpha_system/labels/families/fixed_horizon/**
+  - src/alpha_system/labels/families/event/**
+  - configs/labels/scaleout/session_close_maintenance_flat.json
+  - research/futures_substrate_scaleout_v1/label_packs/session_close_maintenance_flat/**
+  - tests/unit/futures_substrate_scaleout/labels/test_session_close_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *label_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P19
+  name: Cost-Adjusted LabelPack Scaleout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P15
+  - FUTSUB-P16
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize full-window cost-adjusted LabelPacks (mid-to-mid, spread crossing, fee-adjusted where a cost model exists, slippage-stress adjusted where supported).
+  scope:
+  - Materialize + register cost-adjusted labels using the existing cost model and BBO spreads as a proxy (not execution truth).
+  - Enforce label_available_ts, roll/maintenance guards, and horizon coverage; document cost/fee/slippage assumptions and versions.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New cost model; execution-truth claims; stale fee/slippage assumptions; diagnostics; alpha work.
+  checks: *label_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: label_materialization
+  allowed_paths:
+  - src/alpha_system/labels/families/cost_adjusted/**
+  - configs/labels/scaleout/cost_adjusted.json
+  - research/futures_substrate_scaleout_v1/label_packs/cost_adjusted/**
+  - tests/unit/futures_substrate_scaleout/labels/test_cost_adjusted_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria:
+  - Cost-adjusted LabelPack materialized + registered with documented cost/fee/slippage versions, BBO treated as proxy, label_available_ts + roll/maintenance guards + horizon coverage; coverage summary value-free; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P20
+  name: 'Path LabelPack Scaleout: MFE/MAE/Target-Before-Stop/Triple-Barrier'
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Materialize full-window path LabelPacks (MFE, MAE, target-before-stop, triple-barrier where feasible) with roll/maintenance guards.
+  scope:
+  - Materialize + register path-dependent labels over the full window where feasible; flag where compute is too expensive/unstable and record the bound.
+  - Enforce label_available_ts, roll/maintenance guards, and horizon coverage.
+  - Commit only the value-free coverage summary + config.
+  non_goals:
+  - New label families; diagnostics; alpha work; silent cross-roll/maintenance windows.
+  checks: *label_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: label_materialization
+  allowed_paths:
+  - src/alpha_system/labels/families/path/**
+  - configs/labels/scaleout/path.json
+  - research/futures_substrate_scaleout_v1/label_packs/path/**
+  - tests/unit/futures_substrate_scaleout/labels/test_path_scaleout.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *materialization_artifact_policy
+  done_criteria: *label_done
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P21
+  name: Roll-Splice and Maintenance-Crossing Label Guard Audit
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P16
+  - FUTSUB-P17
+  - FUTSUB-P18
+  - FUTSUB-P19
+  - FUTSUB-P20
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Audit that every materialized LabelPack correctly applies the roll-splice and maintenance-crossing guards, demonstrated on a known roll week and a maintenance break.
+  scope:
+  - Verify no forward label silently books a contract-to-contract jump or crosses a daily maintenance/trade-date break.
+  - Produce the roll-window coverage matrix and the maintenance-crossing invalidation matrix (value-free).
+  - Demonstrate the guard on a known roll week; record the cross-roll policy applied.
+  non_goals:
+  - Materializing new values; alpha work; full roll execution engine.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - test -f research/futures_substrate_scaleout_v1/matrices/roll_window_coverage.md
+  - test -f research/futures_substrate_scaleout_v1/matrices/maintenance_crossing_invalidation.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_integration
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/matrices/**
+  - research/futures_substrate_scaleout_v1/roll_guard/**
+  - docs/futures_substrate_scaleout/ROLL_GUARD_AUDIT.md
+  - tests/unit/futures_substrate_scaleout/labels/test_roll_maintenance_guard_audit.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P21.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P21/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free roll-window + maintenance-crossing matrices + audit
+    - guard audit tests
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Roll-splice + maintenance-crossing guards verified across all LabelPacks, demonstrated on a known roll week/maintenance break; roll-window + invalidation matrices value-free; canaries pass; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P21.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P22
+  name: LabelPack Registry Integration, Coverage Audit, and Resolver Smoke
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P21
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Integrate all LabelPack registrations, audit registry consistency, and prove a label resolver-smoke gate (every label lock resolves to a real Parquet value).
+  scope:
+  - Audit label registry records for label_available_ts, content hash, registry metadata across all horizon/label families.
+  - Run a label resolver-smoke over representative locks (fail closed).
+  - Commit only the value-free integration + resolver-smoke report.
+  non_goals:
+  - Materializing new values; diagnostics; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/label_packs/label_resolver_smoke.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: label_integration
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/label_packs/**
+  - docs/futures_substrate_scaleout/LABEL_INTEGRATION.md
+  - tests/unit/futures_substrate_scaleout/labels/test_label_resolver_smoke.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P22.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P22/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free label integration + resolver-smoke report + tests
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - All LabelPacks integrated; registry consistent; label resolver-smoke PASS (every lock resolves to real Parquet, fail-closed verified); report value-free; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P22.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P23
+  name: Label Coverage Matrix and Horizon Quality Report
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P22
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Produce the label-family coverage matrix (label family x symbol x horizon x year) and horizon quality report with overlap/N_eff context.
+  scope:
+  - Produce label-family x symbol/horizon/year coverage and quality summaries (value-free).
+  - Record horizon overlap and N_eff context; flag horizons/instruments that do not resolve.
+  non_goals:
+  - Diagnostics; alpha work; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/matrices/label_family_coverage.md
+  - test -f research/futures_substrate_scaleout_v1/matrices/symbol_horizon_coverage.md
+  - test -f research/futures_substrate_scaleout_v1/matrices/session_horizon_coverage.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_integration
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/matrices/**
+  - docs/futures_substrate_scaleout/LABEL_COVERAGE.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P23.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P23/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free coverage/quality matrices
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Label-family + symbol x horizon + session x horizon coverage matrices and horizon quality report produced value-free with overlap/N_eff context; gaps explicit; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P23.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P24
+  name: Purged / Embargo Walk-Forward Runtime Wiring
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Wire the existing walk_forward_splits / apply_purge_embargo primitives into the StudySpec -> runtime diagnostics path with family half-life protocols.
+  scope:
+  - Plumb walk_forward_splits + apply_purge_embargo (purge_gap/embargo_gap) into the runtime diagnostics evaluation path.
+  - Add STRUCTURAL / MEDIUM / FAST family half-life protocol hooks; produce a wiring smoke report.
+  - If a full refactor is required, ship a minimal callable path plus a precise handoff to Validation Governance.
+  non_goals:
+  - Full multiple-testing correction; DSR/PBO/PSR; locked-test contamination ledger; portfolio-level walk-forward; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/test_walk_forward_wiring.py -q
+  - test -f research/futures_substrate_scaleout_v1/wiring/walk_forward_wiring_smoke.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: wiring
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/splits/**
+  - src/alpha_system/runtime/diagnostics/factor/**
+  - src/alpha_system/runtime/diagnostics/contracts.py
+  - research/futures_substrate_scaleout_v1/wiring/**
+  - docs/futures_substrate_scaleout/WALK_FORWARD_WIRING.md
+  - tests/unit/futures_substrate_scaleout/test_walk_forward_wiring.py
+  - tests/fixtures/futures_substrate_scaleout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P24.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P24/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - walk-forward / purge / embargo runtime wiring code + tests
+    - value-free wiring smoke report + docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Purged/embargoed walk-forward wired into the diagnostics path with STRUCTURAL/MEDIUM/FAST hooks (or a minimal callable path + precise handoff); wiring smoke PASS; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P24.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P25
+  name: N_eff / Overlap-Aware Sample Reporting
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P24
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Add overlap-aware effective-sample-size (N_eff) reporting to diagnostics so overlapping intraday/extended labels are not counted as independent samples.
+  scope:
+  - Add N_eff / overlap-aware sample-count reporting with a rows-vs-effective-samples distinction and horizon overlap metadata.
+  - Add session/day-level aggregation hooks; produce an N_eff sample report.
+  - Make N_eff and fold metadata available to Validation Governance.
+  non_goals:
+  - Full multiple-testing correction engine; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/test_n_eff_reporting.py -q
+  - test -f research/futures_substrate_scaleout_v1/wiring/n_eff_sample_report.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: wiring
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/splits/**
+  - src/alpha_system/runtime/diagnostics/label/**
+  - research/futures_substrate_scaleout_v1/wiring/**
+  - docs/futures_substrate_scaleout/N_EFF.md
+  - tests/unit/futures_substrate_scaleout/test_n_eff_reporting.py
+  - tests/fixtures/futures_substrate_scaleout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P25.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P25/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - N_eff / overlap-aware reporting code + tests
+    - value-free N_eff sample report + docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - N_eff / overlap-aware reporting present with rows-vs-effective-samples distinction, horizon overlap + session/day hooks; report value-free; metadata available to Validation Governance; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P25.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P26
+  name: BBO Quality and Cross-Market Alignment Matrices
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Produce the BBO quality matrix and the cross-market alignment matrix as gating inputs, treating BBO as a proxy and preserving per-instrument availability.
+  scope:
+  - Produce the BBO quality matrix (symbol x year x session x spread bucket x missingness x bad-quote x depth x wide-spread regime).
+  - Produce the cross-market alignment matrix (lead-lag / residual states) with per-instrument available_ts preserved.
+  - Value-free summaries only.
+  non_goals:
+  - Execution-truth/passive-fill claims; cross-instrument forward-fill; alpha work; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/matrices/bbo_quality.md
+  - test -f research/futures_substrate_scaleout_v1/matrices/cross_market_alignment.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: wiring
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/matrices/**
+  - docs/futures_substrate_scaleout/BBO_AND_CROSS_MARKET_MATRICES.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P26.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P26/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free BBO quality + cross-market alignment matrices
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - BBO quality matrix (proxy, not execution truth) and cross-market alignment matrix (per-instrument available_ts preserved) produced value-free; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P26.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P27
+  name: Re-lock Core Pilot StudySpecs Against Full Substrate
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P15
+  - FUTSUB-P23
+  - FUTSUB-P25
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Re-lock the Core Pilot accepted StudySpecs against the newly materialized full substrate, proving every lock resolves to a real Parquet value.
+  scope:
+  - Re-lock Core Pilot StudySpecs (feature + label locks) where newly resolvable; run a StudySpec resolver-smoke (fail closed).
+  - Record which previously INCONCLUSIVE studies are now resolvable (regime, liquidity/PA, BBO, enriched cross-market, enriched VWAP/session).
+  - Commit only the value-free re-lock report.
+  non_goals:
+  - New AlphaSpec batch; parameter tuning; promotion; alpha ideation; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/rerun/studyspec_relock.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: rerun
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/rerun/**
+  - docs/futures_substrate_scaleout/CORE_PILOT_RELOCK.md
+  - tests/unit/futures_substrate_scaleout/test_studyspec_relock_smoke.py
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P27.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P27/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free StudySpec re-lock + resolver-smoke report + tests
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Core Pilot StudySpecs re-locked where newly resolvable; StudySpec resolver-smoke PASS (every lock resolves to real Parquet); resolvable-study list recorded value-free; no new specs; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P27.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P28
+  name: Re-run Previously INCONCLUSIVE Core Pilot Studies
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P27
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Re-run the Core Pilot's 6 INCONCLUSIVE studies against the real materialized inputs via the runtime tool surface, with N_eff and walk-forward in the path.
+  scope:
+  - Re-run regime, liquidity/PA, BBO, enriched cross-market, and enriched VWAP/session studies via the runtime tools over locked Parquet packs.
+  - Produce value-free DiagnosticsReports with N_eff/overlap and walk-forward context; no value data committed; no promotion here.
+  non_goals:
+  - New AlphaSpec batch; parameter tuning beyond original bounds; profitability/tradability claims; FactorLibrary promotion; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/rerun/rerun_diagnostics_summary.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: rerun
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/rerun/**
+  - docs/futures_substrate_scaleout/CORE_PILOT_RERUN.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P28.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P28/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free re-run DiagnosticsReports summary
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Previously INCONCLUSIVE studies re-run via runtime tools over locked Parquet with N_eff/walk-forward context; value-free DiagnosticsReports; no new specs; no promotion; no value/SQLite committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P28.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P29
+  name: Honest Verdict Refresh and Scaleout Evidence Summary
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P28
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Re-issue honest REJECT/INCONCLUSIVE/WATCH/CANDIDATE_RESEARCH verdicts for the re-run studies and summarize the scaleout evidence, with reviewer verdicts for any WATCH/CANDIDATE.
+  scope:
+  - Record refreshed verdicts (allowed states only) with an independent reviewer verdict required for any WATCH/CANDIDATE_RESEARCH.
+  - Summarize the updated promotion boundary against the inherited 4 REJECT / 6 INCONCLUSIVE / 0 WATCH / 0 CANDIDATE baseline.
+  - No profitability/tradability claims; no FactorLibrary promotion; promotion stays evidence/cost-gated.
+  non_goals:
+  - New alpha; tuning; Strategy Reference validation; FactorLibrary promotion; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_substrate_scaleout_v1/rerun/verdict_refresh.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: rerun
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/rerun/**
+  - docs/futures_substrate_scaleout/VERDICT_REFRESH.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P29.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P29/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free verdict refresh + scaleout evidence summary
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Refreshed verdicts use only allowed states with reviewer verdicts for any WATCH/CANDIDATE; updated boundary recorded vs inherited baseline; no profitability claim; no promotion; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P29.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P30
+  name: Artifact Audit and Local-Only Value Verification
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P29
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Verify that all materialized values, registries, and roll calendar data remain local-only and that only value-free summaries are committed.
+  scope:
+  - Run the artifact audit: git ls-files runs empty; no parquet/arrow/feather/sqlite/db/dbn/zst staged or tracked.
+  - Confirm registries and roll calendar data stay under ALPHA_DATA_ROOT / local-only.
+  - Record the artifact-audit report.
+  non_goals:
+  - Materializing values; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.arrow' '**/*.feather' '**/*.sqlite' '**/*.db' '**/*.dbn' '**/*.zst'
+  - test -f research/futures_substrate_scaleout_v1/closeout/artifact_audit.md
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/closeout/**
+  - docs/futures_substrate_scaleout/ARTIFACT_AUDIT.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P30.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P30/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free artifact-audit report
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Artifact audit clean; git ls-files runs empty; no heavy/value/DB artifact tracked; registries + roll calendar local-only; verify.py --all + canaries pass (or env-only failures documented).
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P30.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P31
+  name: Validation Governance Handoff
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P30
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Produce the concrete requirement handoff to ALPHA_VALIDATION_GOVERNANCE_V1, carrying the N_eff/fold metadata and the deferred statistical scope.
+  scope:
+  - Specify multiple-testing/false-discovery correction, locked-test policy, contamination ledger, negative controls, promotion eligibility, DSR/PBO/PSR (or alternatives), and the N_eff/fold metadata produced here.
+  - Reference the coverage matrices and walk-forward wiring as inputs.
+  non_goals:
+  - Implementing the governance engine; alpha work; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/VALIDATION_GOVERNANCE_HANDOFF.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/closeout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/VALIDATION_GOVERNANCE_HANDOFF.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P31.md
+  - docs/futures_substrate_scaleout/HANDOFF_VALIDATION_GOVERNANCE.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P31/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free Validation Governance handoff
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Concrete Validation Governance handoff with deferred statistical scope + N_eff/fold metadata + matrix/wiring references; value-free; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P31.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P32
+  name: FactorLibrary / Multi-Horizon Mining Handoff
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P31
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Produce the concrete requirement handoffs to ALPHA_FACTOR_LIBRARY_V1 and ALPHA_FUTURES_MULTI_HORIZON_ALPHA_MINING_V1, exposing the materialized substrate and coverage matrices as the consumable base.
+  scope:
+  - Specify the FactorCard / EvidenceBundle ingestion requirements and the substrate metadata survivors depend on.
+  - Specify the materialized substrate + coverage matrices as the directly consumable mining base; no mining started here.
+  non_goals:
+  - FactorLibrary ingestion implementation; AlphaBook; mining; alpha work; value commits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FACTOR_LIBRARY_HANDOFF.md
+  - test -f handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/MULTI_HORIZON_MINING_HANDOFF.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/futures_substrate_scaleout_v1/closeout/**
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FACTOR_LIBRARY_HANDOFF.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/MULTI_HORIZON_MINING_HANDOFF.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P32.md
+  - docs/futures_substrate_scaleout/HANDOFF_FACTOR_LIBRARY_AND_MINING.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P32/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - value-free FactorLibrary + Multi-Horizon Mining handoffs
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Concrete FactorLibrary + Multi-Horizon Mining handoffs exposing the materialized substrate + matrices as the consumable base; value-free; no mining started; no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P32.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTSUB-P33
+  name: Acceptance Audit and Closeout
+  lane: YELLOW
+  dependencies:
+  - FUTSUB-P32
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run the acceptance audit + semantic done-check, write CLOSEOUT.md with a final verdict, and update the coordinator ACTIVE_CAMPAIGN.md pointer.
+  scope:
+  - Verify every acceptance gate's exit requirement with cited evidence.
+  - Write CLOSEOUT.md ({COMPLETE, COMPLETE_WITH_WARNINGS, BLOCKED}); update the root ACTIVE_CAMPAIGN.md (coordinator-owned).
+  - Run final verify.py --all + canaries.
+  non_goals:
+  - New materialization; alpha work; promotion claims.
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - test -f campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/CLOSEOUT.md
+  - grep -q "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1" ACTIVE_CAMPAIGN.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/CLOSEOUT.md
+  - research/futures_substrate_scaleout_v1/closeout/**
+  - docs/futures_substrate_scaleout/CLOSEOUT.md
+  - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P33.md
+  - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P33/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - CLOSEOUT.md + value-free acceptance evidence
+    - docs
+    - coordinator ACTIVE_CAMPAIGN.md pointer
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Acceptance audit + semantic done-check pass; CLOSEOUT.md records the verdict; coordinator updates ACTIVE_CAMPAIGN.md; verify.py --all + canaries pass (or env-only failures documented); no values committed.
+  handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P33.md
+  review: yellow lane; fresh Opus review required.
+acceptance_gates:
+  bootstrap_and_contract:
+    phases:
+    - FUTSUB-P00
+    - FUTSUB-P01
+    - FUTSUB-P02
+    - FUTSUB-P03
+    - FUTSUB-P04
+    - FUTSUB-P05
+    exit_requirement: Campaign bundle present and consistent; no campaign-local ACTIVE_CAMPAIGN.md; reality baseline + inherited boundary locked; DatasetVersion acceptance-lock persisted with coverage verdicts; roll metadata + roll-splice guard primitive landed (approximate, documented); keystone-identity preflight verified; bounded chunked restart-safe materialization batch plan + serial registry resource guard pinned (dry-run only); artifact audit clean; no external provider calls; no values committed.
+    requires: &gate_requires
+    - campaign_control_files_present
+    - no_campaign_local_active_campaign_file
+    - consumed_primitives_import_and_smoke_pass
+    - reality_baseline_and_inherited_boundary_locked
+    - dataset_acceptance_lock_persisted_with_coverage_verdict
+    - no_repull_unless_corrupt
+    - no_external_provider_calls
+    - no_raw_provider_access_by_agents
+    - registry_resolved_parquet_values_only
+    - jsonl_audit_tier_only
+    - sqlite_metadata_only
+    - keystone_identity_required
+    - feature_resolver_smoke_required
+    - label_resolver_smoke_required
+    - studyspec_resolver_smoke_required_where_rerun
+    - available_ts_and_label_available_ts_required
+    - roll_splice_guard_required
+    - maintenance_crossing_guard_required
+    - approximate_roll_calendar_not_overclaimed
+    - bbo_is_tradability_proxy_not_execution_truth
+    - per_instrument_available_ts_preserved
+    - cross_instrument_forward_fill_forbidden
+    - n_eff_overlap_aware_reporting_required
+    - walk_forward_purge_embargo_wired_or_handed_off
+    - coverage_matrices_required
+    - bbo_quality_matrix_required
+    - cross_market_alignment_matrix_required
+    - materialization_budgeted_chunked_restart_safe
+    - core_pilot_relock_and_rerun_where_resolvable
+    - promotion_boundary_allowed_states_only
+    - reviewer_verdict_required_for_watch_or_candidate
+    - no_new_alpha_ideation_or_alpha_spec_batch
+    - no_parameter_tuning_beyond_original_bounds
+    - no_factor_library_or_strategy_reference_or_alpha_book_scope
+    - no_multiple_testing_engine_premature
+    - no_full_roll_execution_engine_or_ibkr_resolver
+    - no_paper_live_broker_order_scope
+    - no_l2_or_ml_scope
+    - no_alpha_tradability_profitability_production_capital_claims
+    - no_raw_canonical_value_db_or_roll_calendar_artifacts_committed
+    - no_test_weakening_or_gaming
+    - materialization_phases_share_registry_resource_class_and_are_not_parallel_unsafe
+    - serial_merge_queue_respected
+    - phase_branches_do_not_write_active_campaign
+    - phase_handoffs_present
+    - yellow_phase_reviews_present
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+  feature_materialization:
+    phases:
+    - FUTSUB-P06
+    - FUTSUB-P07
+    - FUTSUB-P08
+    - FUTSUB-P09
+    - FUTSUB-P10
+    - FUTSUB-P11
+    - FUTSUB-P12
+    - FUTSUB-P13
+    exit_requirement: All eight FeaturePack families materialized + registered over the full available window with available_ts, keystone identity, Parquet values, content hash, and registry metadata; BBO treated as tradability proxy; cross-market preserves per-instrument available_ts (no forward-fill); coverage summaries committed value-free; no value/SQLite/heavy artifact committed; registry writes serialized.
+    requires: *gate_requires
+  feature_integration:
+    phases:
+    - FUTSUB-P14
+    - FUTSUB-P15
+    exit_requirement: Feature registry integrated and consistent; feature resolver-smoke PASS (every lock resolves to real Parquet, fail-closed); feature-family coverage + quality/missingness matrix produced value-free with explicit gaps.
+    requires: *gate_requires
+  label_materialization:
+    phases:
+    - FUTSUB-P16
+    - FUTSUB-P17
+    - FUTSUB-P18
+    - FUTSUB-P19
+    - FUTSUB-P20
+    exit_requirement: Diagnostic/primary/extended/session-close/maintenance-flat/cost-adjusted/path LabelPacks materialized + registered with label_available_ts, roll-splice + maintenance-crossing guards applied, horizon coverage + N_eff/overlap metadata; cost-adjusted uses documented cost/fee/slippage with BBO as proxy; coverage summaries value-free; no value/SQLite committed; registry writes serialized.
+    requires: *gate_requires
+  label_integration:
+    phases:
+    - FUTSUB-P21
+    - FUTSUB-P22
+    - FUTSUB-P23
+    exit_requirement: Roll-splice + maintenance-crossing guards audited and demonstrated on a known roll week/maintenance break; roll-window coverage + maintenance-crossing invalidation matrices produced; label registry integrated; label resolver-smoke PASS; label-family + symbol x horizon + session x horizon coverage matrices and horizon quality report produced value-free.
+    requires: *gate_requires
+  wiring_and_matrices:
+    phases:
+    - FUTSUB-P24
+    - FUTSUB-P25
+    - FUTSUB-P26
+    exit_requirement: Purged/embargoed walk-forward wired into the runtime diagnostics path (or a minimal callable path + precise handoff) with STRUCTURAL/MEDIUM/FAST hooks; N_eff / overlap-aware sample reporting present with rows-vs-effective-samples distinction; BBO quality + cross-market alignment matrices produced value-free.
+    requires: *gate_requires
+  rerun:
+    phases:
+    - FUTSUB-P27
+    - FUTSUB-P28
+    - FUTSUB-P29
+    exit_requirement: Core Pilot StudySpecs re-locked where newly resolvable with StudySpec resolver-smoke PASS; previously INCONCLUSIVE studies re-run via runtime tools over locked Parquet with N_eff/walk-forward context; honest verdicts refreshed (allowed states only, reviewer verdict for any WATCH/CANDIDATE); no new specs, no tuning, no promotion, no profitability claim; no value data committed.
+    requires: *gate_requires
+  handoff_and_closeout:
+    phases:
+    - FUTSUB-P30
+    - FUTSUB-P31
+    - FUTSUB-P32
+    - FUTSUB-P33
+    exit_requirement: Artifact audit clean (runs/ empty, no heavy/value/DB/roll-calendar artifact tracked); concrete handoffs to Validation Governance, FactorLibrary, and Multi-Horizon Mining produced; acceptance audit + semantic done-check pass; CLOSEOUT.md records the final verdict; coordinator updates ACTIVE_CAMPAIGN.md; verify.py --all + canaries pass.
+    requires: *gate_requires
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  substrate_engineering_not_alpha_ideation:
+    required: true
+    rules:
+      no_new_alpha_ideation: true
+      no_new_alpha_spec_batch: true
+      no_parameter_tuning_beyond_original_bounds: true
+      no_feature_zoo_beyond_existing_governed_families: true
+      reuse_existing_specs_and_family_code: true
+    detection:
+    - scope audit
+    - Claude review
+  dataset_acceptance_persisted:
+    required: true
+    rules:
+      persist_coverage_verdict_required: true
+      registered_is_not_accepted: true
+      no_repull_unless_corrupt: true
+      no_external_provider_calls: true
+    detection:
+    - registry audit
+    - Claude review
+  resolver_and_identity_invariant:
+    required: true
+    rules:
+      keystone_identity_required: true
+      feature_label_studyspec_resolver_smoke_required: true
+      fail_closed_on_stale_or_unresolvable: true
+      no_hand_patched_locks: true
+      no_fuzzy_name_resolver_fallback: true
+    detection:
+    - resolver smoke
+    - source/import audit
+    - Claude review
+  value_locality:
+    required: true
+    rules:
+      parquet_research_scale_required: true
+      jsonl_audit_tier_only: true
+      sqlite_metadata_only: true
+      values_local_only: true
+      registries_local_only: true
+      roll_calendar_data_local_only: true
+      no_value_or_db_or_roll_calendar_committed: true
+    detection:
+    - artifact audit
+    - git ls-files heavy globs
+    - Claude review
+  roll_and_maintenance_guard:
+    required: true
+    rules:
+      roll_splice_guard_required: true
+      maintenance_crossing_guard_required: true
+      approximate_roll_calendar_not_overclaimed: true
+      no_silent_cross_roll_or_maintenance_label: true
+      no_full_roll_execution_engine: true
+      no_ibkr_contract_resolver: true
+    detection:
+    - P21 audit
+    - canary_runner
+    - Claude review
+  bbo_proxy_discipline:
+    required: true
+    rules:
+      bbo_is_tradability_proxy_not_execution_truth: true
+      no_passive_fill_or_queue_or_impact_claims: true
+      bbo_quality_matrix_required: true
+      bbo_missingness_surfaced: true
+    detection:
+    - P12 review
+    - P26 matrix
+    - claims scan
+    - Claude review
+  cross_market_availability:
+    required: true
+    rules:
+      per_instrument_available_ts_required: true
+      cross_instrument_forward_fill_forbidden: true
+      alignment_matrix_required: true
+    detection:
+    - P13 review
+    - no-lookahead audit
+    - Claude review
+  n_eff_and_walk_forward:
+    required: true
+    rules:
+      overlap_aware_n_eff_required: true
+      rows_not_independent_samples_warning_required: true
+      walk_forward_purge_embargo_wired_or_handed_off: true
+      extended_horizons_do_not_overstate_n_eff: true
+    detection:
+    - P24/P25 wiring smoke
+    - Claude review
+  materialization_safety:
+    required: true
+    rules:
+      budgeted_chunked_restart_safe: true
+      serial_registry_writes: true
+      no_unbounded_materialization: true
+    detection:
+    - P05 batch plan
+    - resource_class audit
+    - Claude review
+  scope_creep_controls:
+    required: true
+    rules:
+      no_multiple_testing_engine_premature: true
+      no_factor_library_ingestion_pipeline: true
+      no_strategy_reference_validation: true
+      no_alpha_book: true
+      no_research_runner: true
+      no_l2_or_ml_or_portfolio: true
+      no_paper_live_broker_order: true
+    detection:
+    - scope audit
+    - import audit
+    - Claude review
+  promotion_boundary:
+    required: true
+    rules:
+      allowed_states_only: true
+      reviewer_verdict_required_for_watch_or_candidate: true
+      no_forbidden_state: true
+      no_profitability_or_tradability_claim: true
+      promotion_evidence_and_cost_gated: true
+    detection:
+    - P29 verdicts
+    - claims scan
+    - Claude review
+  dag_and_artifact_discipline:
+    required: true
+    rules:
+      materialization_phases_share_registry_resource_class: true
+      materialization_phases_not_parallel_unsafe: true
+      serial_merge_queue: true
+      phase_branches_do_not_write_active_campaign: true
+      explicit_staging_only: true
+    detection:
+    - frontier-plan
+    - dag_scheduler
+    - artifact audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: new alpha ideation or new AlphaSpec batch introduced
+  condition: a new AlphaSpec batch, broad alpha search, or new-idea ideation appears (beyond re-locking/re-running existing Core Pilot specs)
+  action: block_merge_and_escalate
+- name: parameter tuning beyond original bounds
+  condition: a re-run tunes parameters or optimizes beyond the original bounded StudySpecs
+  action: block_merge_and_rework
+- name: raw provider data read by agents
+  condition: campaign code reads raw Databento/IBKR files (.dbn/.zst/parquet/arrow/feather) directly instead of resolving via registry tools
+  action: block_merge_and_repair
+- name: external provider API call attempted
+  condition: any external Databento/IBKR API call is attempted (no re-pull unless corruption is proven and authorized)
+  action: stop_and_escalate
+- name: materialization without DatasetVersion acceptance-lock
+  condition: features/labels materialized against a DatasetVersion without a persisted acceptance/coverage verdict
+  action: block_merge_and_repair
+- name: registered treated as accepted
+  condition: a DatasetVersion is treated as accepted/locked without a persisted coverage verdict
+  action: block_merge_and_repair
+- name: hand-patched lock or fuzzy resolver fallback
+  condition: a lock is hand-patched, or the resolver falls back on a fuzzy feature/label name instead of failing closed
+  action: block_merge_and_repair
+- name: JSONL used as research-scale store
+  condition: a research-scale value store uses JSONL instead of registry-resolved Parquet
+  action: block_merge_and_repair
+- name: value / SQLite / roll-calendar data committed
+  condition: materialized feature/label values, local SQLite registries, roll calendar data, parquet/arrow/feather, or provider responses are staged or tracked
+  action: block_merge_and_repair
+- name: label crosses roll splice silently
+  condition: a forward label books a contract-to-contract roll jump as a normal return without the roll-splice guard policy applied
+  action: block_merge_and_rework
+- name: label crosses maintenance break silently
+  condition: a forward/extended label silently crosses the exchange daily maintenance / trade-date break
+  action: block_merge_and_rework
+- name: approximate roll calendar overclaimed
+  condition: the analytic roll calendar is presented as provider-exact splice truth
+  action: block_merge_and_rework
+- name: full roll execution engine or IBKR resolver introduced
+  condition: a full live roll execution engine, per-contract ESM/NQM/RTYM mapping, back-adjusted continuous construction, or IBKR contract resolver appears
+  action: block_merge_and_escalate
+- name: BBO proxy overclaimed as execution truth
+  condition: BBO top-book is presented as passive fill, queue priority, intra-minute impact, or execution truth
+  action: block_merge_and_rework
+- name: cross-instrument forward-fill
+  condition: cross-market features forward-fill values across instruments or break per-instrument available_ts
+  action: block_merge_and_rework
+- name: N_eff missing or misleading
+  condition: overlapping intraday/extended labels are reported without overlap-aware N_eff, or extended horizons overstate effective sample size
+  action: block_merge_and_rework
+- name: walk-forward not wired or handed off
+  condition: purge/embargo walk-forward is neither wired into the diagnostics path nor handed off with a minimal callable path
+  action: block_merge_and_repair
+- name: coverage matrices omitted
+  condition: a required coverage/quality matrix is omitted
+  action: block_merge_and_repair
+- name: resolver smoke skipped
+  condition: a feature/label/StudySpec resolver-smoke gate is skipped before downstream use
+  action: block_merge_and_repair
+- name: unbounded or non-restart-safe materialization
+  condition: a materialization runs without budget/chunking/checkpointing or is not restart-safe
+  action: block_merge_and_repair
+- name: parallel registry write conflict
+  condition: two materialization phases sharing resource_class materialization_registry are co-scheduled, risking concurrent SQLite registry corruption
+  action: stop_phase_selection
+- name: multiple-testing engine attempted prematurely
+  condition: a full multiple-testing / false-discovery / DSR/PBO/PSR correction engine is implemented here instead of handed off to Validation Governance
+  action: block_merge_and_escalate
+- name: FactorLibrary / AlphaBook / Strategy Reference scope introduced
+  condition: FactorLibrary ingestion pipeline, AlphaBook allocation, Strategy Reference validation, or a Research Runner appears
+  action: block_merge_and_escalate
+- name: paper/live/broker/order scope introduced
+  condition: paper/live/broker/order/execution code or a capital/live decision appears
+  action: stop_and_escalate
+- name: L2 or ML scope introduced
+  condition: L1/L2/L3 event-stream ingestion or ML/DL/RL training appears
+  action: block_merge_and_escalate
+- name: forbidden promotion state used
+  condition: any of VALIDATED_RESEARCH/LIVE_APPROVED/PAPER_APPROVED/PRODUCTION_READY/CAPITAL_ALLOCATED/PROFITABLE/TRADABLE/STRATEGY_READY/PORTFOLIO_READY is assigned
+  action: block_merge_and_escalate
+- name: alpha/profitability/tradability claim detected
+  condition: an unqualified alpha, tradability, profitability, production-ready, or live-ready claim appears
+  action: block_merge_and_rework
+- name: forbidden module edited
+  condition: a phase edits execution/broker/live/signals/strategies/portfolio/management/l2/backtest/agent_factory
+  action: block_merge_and_repair
+- name: parallel phase lacks allowed_paths
+  condition: a phase marked parallel_safe declares no allowed_paths or declares a global/coordinator path
+  action: block_campaign_execution_until_fixed
+- name: phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  condition: a phase branch writes ACTIVE_CAMPAIGN.md while update_active_campaign is coordinator_only
+  action: block_merge_and_repair
+- name: merge outside serial merge queue
+  condition: a merge is attempted outside the serial merge queue (more than one PR merging at once)
+  action: stop_and_escalate
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, dependencies, or DAG metadata disagree between files
+  action: block_campaign_execution_until_fixed
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, /mnt/d, /mnt/e, OneDrive, Dropbox, Google Drive, or Windows-synced folder
+  action: stop_run_init_or_worktree_create

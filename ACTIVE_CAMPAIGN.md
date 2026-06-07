@@ -2,94 +2,102 @@
 
 Project: `alpha_system`
 
-Campaign: `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
+Campaign: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
 Workflow: `workflow2`
-Run: `workflow2 complete`
-Status: `complete (with warnings)` - all 31 phases done; the autonomous
-`FUTCORE-P30` closeout recorded `BLOCKED` on a local-only `verify.py --all`
-failure, resolved `COMPLETE_WITH_WARNINGS` by coordinator (CI green; failures
-environmental/pre-existing). See
-`campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT_COORDINATOR_RESOLUTION.md`.
+Run: `workflow2 not started` - contract bundle authored; live WF2 run not yet started
+Status: `contract authored (ready to plan/run)` - the 6-file campaign bundle is
+present, YAML parses, gates cover all 34 phases exactly once. No phase has run
+yet. `FUTSUB-P00` (coordinator-owned, `must_run_alone`) will re-confirm this
+pointer at run start.
 
-Current phase: `none` - campaign complete
-Last completed phase: `FUTCORE-P30` - Acceptance Audit and Closeout
-Last completed status: `complete (with warnings) after coordinator resolution`
-Completed phases: `31/31`
+Current phase: `none` - run not started
+Next phase: `FUTSUB-P00` - Campaign Bootstrap and Active Pointer
+Completed phases: `0/34`
 
-Campaign `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` remains the active pointer by
-closeout convention. It is the first bounded, evidence-gated, cost-aware
-ES/NQ/RTY futures alpha research pilot over the completed Data + Feature/Label
-+ Research Runtime + Agent Factory stack. It drove one controlled research
-loop:
+Campaign `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the bridge from the
+smoke/pilot-scale substrate to a **full-window, BBO-aware, roll-guarded,
+resolver-safe research substrate**. It accepts/locks the existing Databento
+ES/NQ/RTY DatasetVersions, materializes the existing feature/label families over
+the full 2018->2026 window, adds the roll-splice + maintenance-crossing guards
+and N_eff / walk-forward wiring, produces coverage and quality matrices, proves
+registry-resolved Parquet values are runtime-usable, and re-runs the Core Pilot's
+INCONCLUSIVE StudySpecs against real materialized inputs. It is **substrate
+engineering, not new alpha ideation** (the AlphaSpecs/StudySpecs already exist
+and are reusable).
 
 ```text
-Hypothesis -> AlphaSpec -> StudySpec -> Runtime diagnostics
-  -> cost / session / regime / no-lookahead review
-  -> TrialLedger / RejectedIdeaLedger
-  -> REJECT | INCONCLUSIVE | WATCH | CANDIDATE_RESEARCH
+accepted DatasetVersions
+  -> full-window FeaturePack materialization
+  -> full-window LabelPack materialization
+  -> roll-splice / maintenance-crossing guards
+  -> N_eff / walk-forward wiring inputs
+  -> resolver smoke
+  -> coverage matrices
+  -> Core Pilot inconclusive StudySpec rerun
+  -> handoff to Validation Governance / FactorLibrary / Multi-Horizon Mining
 ```
 
-The final P28 promotion boundary is `4` `REJECT`, `6` `INCONCLUSIVE`, `0`
-`WATCH`, and `0` `CANDIDATE_RESEARCH`. No FactorLibrary-ingestible survivor and
-no Strategy Reference validation candidate is produced by this pilot.
+Inherited Core Pilot promotion boundary (the baseline this campaign refreshes):
+`4` `REJECT`, `6` `INCONCLUSIVE`, `0` `WATCH`, `0` `CANDIDATE_RESEARCH`. The
+pilot's gaps were a **substrate coverage finding, not an alpha failure**.
 
 Ralph owns authoritative validation, staged-set audit, review routing, verdict
 parsing, repair routing, PR, CI, merge, and final done-check actions. This
-pointer is updated by `FUTCORE-P30` only because the phase is `must_run_alone`
-and coordinator-owned.
+pointer is updated by `FUTSUB-P00` and `FUTSUB-P33` only (coordinator-owned,
+`must_run_alone`).
 
 ## Campaign Identity
 
-- Campaign ID: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
-- Campaign path: `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
+- Campaign ID: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
+- Campaign path: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
 - Repo: `alpha_system`
 - Repo path: `~/projects/alpha_system`
 - Workflow: `workflow2`
-- Mode: Ralph-driven strict autonomous loop
-- Project profile: `trading_research` / `research` / `core_alpha_pilot`
-- Phase count: 31 phases (`FUTCORE-P00` ... `FUTCORE-P30`)
+- Mode: Ralph-driven strict autonomous loop (`dag_wave`; materialization
+  serialized by a shared registry `resource_class`; serial merge queue)
+- Project profile: `trading_research` / `research` / `research_substrate_scaleout`
+- Phase count: 34 phases (`FUTSUB-P00` ... `FUTSUB-P33`)
 - Lane policy: Green/Yellow only; **no Red scope**
-- Final verdict: `COMPLETE_WITH_WARNINGS` (coordinator resolution; autonomous
-  `FUTCORE-P30` recorded `BLOCKED` on a local-only verifier failure)
-- Coordinator resolution:
-  `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT_COORDINATOR_RESOLUTION.md`
-- Closeout audit:
+- Predecessor: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`
+  (`COMPLETE_WITH_WARNINGS`, 31/31) -
   `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT.md`
-- Next campaign handoff:
+- Source handoff:
   `research/futures_core_alpha_pilot_v1/closeout/SUBSTRATE_SCALEOUT_V1_HANDOFF.md`
+- Measured reality: `docs/SUBSTRATE_REALITY_REPORT.md`
 
-## Closeout Evidence
+## Contract Bundle
 
-- Human-facing closeout:
-  `docs/futures_core_alpha_pilot/CLOSEOUT.md`
-- Research closeout summary:
-  `research/futures_core_alpha_pilot_v1/closeout/README.md`
-- Promotion decisions:
-  `research/futures_core_alpha_pilot_v1/promotion/PROMOTION_DECISIONS.md`
-- Downstream handoffs:
-  `docs/futures_core_alpha_pilot/DOWNSTREAM_HANDOFFS.md`
-- Commit-eligible P30 handoff:
-  `handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P30.md`
+- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/GOAL.md`
+- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/PHASE_PLAN.md`
+- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/campaign.yaml`
+- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/ACCEPTANCE.md`
+- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/RISK_REGISTER.md`
+- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/RUNBOOK.md`
 
 ## Boundaries
 
-The pilot consumed - and did not broaden - the runtime/governance/
-agent_factory/research/experiments/backtest/data/core primitives. Diagnostics
-ran only through the Research Runtime tool surface; inputs resolved through
-registry tools and `resolve_dataset_version`; research-scale references stayed
-registry-resolved and value-free in committed artifacts.
+This campaign is aggressive on materialization but bounded on scope. In scope:
+DatasetVersion acceptance-lock; roll-splice + maintenance-crossing guards;
+full-window FeaturePacks (8 families) and LabelPacks (diagnostic/primary/extended/
+session-close/maintenance-flat/cost-adjusted/path); resolver smoke; coverage +
+BBO-quality + cross-market-alignment matrices; N_eff + walk-forward wiring; Core
+Pilot re-lock + rerun.
 
-Out of scope remains unchanged: scaled/autonomous mining, continuous research
-runner, FactorLibrary V1 promotion, Strategy Reference validation, AlphaBook,
-strategy/backtest/portfolio products, ML/DL/RL, L1/L2 event-stream, portfolio
-construction, paper/live/broker/order, external provider calls, raw/canonical/
-feature/label/value or local-DB commits, and any profitability or tradability
-claim.
+Out of scope (handed off or deferred): new alpha ideation / new AlphaSpec batch;
+multiple-testing / DSR/PBO/PSR correction engine; FactorLibrary ingestion
+pipeline; Strategy Reference validation; AlphaBook; Research Runner; full roll
+execution engine / IBKR contract resolver / back-adjusted continuous
+construction; L1/L2 event-stream; ML/DL/RL; portfolio construction;
+paper/live/broker/order; external provider calls; raw/canonical/feature/label/
+value or local-DB / roll-calendar commits; any profitability or tradability
+claim. BBO is a tradability proxy, not execution truth; the roll calendar is
+analytic/approximate, not provider-exact.
 
 ## Stop / Resume
 
 A `runs/<run_id>/STOP` file is an active stop request; Ralph checks it before
 phase selection, execution, checks, review, PR, CI, merge gate, merge,
-done-check, and next-phase. Resume continues from recorded run state. In
-parallel mode a wave builds concurrently in isolated worktrees but merges
-serially; a STOP halts new phase selection and new merges.
+done-check, and next-phase. Resume continues from recorded run state. Because
+materialization phases share `resource_class: materialization_registry` and are
+not `parallel_safe`, registry-writing phases never run concurrently; merges are
+always serial. A STOP halts new phase selection and new merges.
