@@ -398,6 +398,65 @@ def run_seed_feature_pack(
     }
 
 
+def preview_seed_feature_pack(config: SeedPackConfig) -> dict[str, Any]:
+    """Compute the prospective feature_version_id each feature WOULD register.
+
+    This is a pure, write-free round-trip guard for the content-addressing
+    identity. It builds each FeatureSpec via the SAME path as
+    ``run_seed_feature_pack`` (``_build_feature_request`` +
+    ``build_ohlcv_feature_definition``) and reports
+    ``definition.version.feature_version_id``. Because feature identity is now a
+    pure function of the computational contract (see
+    ``FeatureSpec.to_identity_dict``), the previewed ids must equal the ids a
+    real ``--execute`` registers, independent of registry state.
+
+    No registry is read or written. The duplicate-exposure gate is satisfied
+    with an EMPTY exposure note (the registry-state-independent path), exactly
+    as ``_build_feature_request`` does.
+    """
+
+    if config.feature_set is None:
+        raise SeedPackError("seed config does not define a feature_set")
+    # An empty in-memory registry reader (no entries, CHECKED status) admits the
+    # request without reading or writing any on-disk registry. This is the
+    # write-free analogue of seeding into an empty registry. Because identity is
+    # now request-provenance-independent, this preview yields the same
+    # feature_version_id that --execute registers, regardless of registry state.
+    empty_registry_reader: Callable[[], Sequence[Any]] = lambda: ()
+    features: list[dict[str, str]] = []
+    for entry in config.feature_set.features:
+        request = _build_feature_request(config.feature_set, entry.name)
+        definition = build_ohlcv_feature_definition(
+            _coerce_feature_name(entry.name),
+            request,
+            empty_registry_reader,
+            dataset_version_ids=(config.dataset_version_id,),
+            window_length=entry.window_length,
+            horizon=entry.horizon,
+            reset_on_session=False,
+        )
+        features.append(
+            {
+                "name": entry.name,
+                "feature_id": definition.spec.feature_id,
+                "feature_version_id": definition.version.feature_version_id,
+            }
+        )
+    return {
+        "schema": SEED_PACK_SCHEMA,
+        "pack_kind": "feature",
+        "preview": True,
+        "writes_values": False,
+        "dataset_version_id": config.dataset_version_id,
+        "symbol": config.symbol.upper(),
+        "feature_set_id": config.feature_set.feature_set_id,
+        "feature_set_version": config.feature_set.feature_set_version,
+        "feature_count": len(config.feature_set.features),
+        "features": features,
+        "feature_version_ids": [item["feature_version_id"] for item in features],
+    }
+
+
 def run_seed_label_pack(
     config: SeedPackConfig,
     *,
@@ -768,6 +827,7 @@ __all__ = [
     "SeedPackError",
     "load_seed_pack_config",
     "parse_seed_pack_config",
+    "preview_seed_feature_pack",
     "run_seed_feature_pack",
     "run_seed_label_pack",
 ]

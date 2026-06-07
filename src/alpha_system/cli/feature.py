@@ -64,6 +64,8 @@ def run_materialize(args: argparse.Namespace) -> int:
 
     if getattr(args, "execute", False):
         return _run_with_error_handling(lambda: _emit_seed_feature_pack(args))
+    if getattr(args, "seed_config", None):
+        return _run_with_error_handling(lambda: _emit_seed_feature_pack_preview(args))
     return _run_with_error_handling(lambda: _emit_feature_plan(args, dry_run=True))
 
 
@@ -321,6 +323,31 @@ def _emit_seed_feature_pack(args: argparse.Namespace) -> None:
     )
 
 
+def _emit_seed_feature_pack_preview(args: argparse.Namespace) -> None:
+    """Emit prospective feature_version_ids for a seed config without writing.
+
+    This is the write-free identity round-trip guard: it builds each FeatureSpec
+    via the SAME path as --execute and reports the feature_version_id that
+    materialization WOULD register. No registry is read or written.
+    """
+
+    from alpha_system.cli.seed_pack import (
+        SeedPackError,
+        load_seed_pack_config,
+        preview_seed_feature_pack,
+    )
+
+    config = _apply_seed_overrides(load_seed_pack_config(args.seed_config), args)
+    try:
+        summary = preview_seed_feature_pack(config)
+    except SeedPackError as exc:
+        raise FeatureCliError(str(exc)) from exc
+    _emit(
+        {"command": "feature materialize --dry-run --seed-config", **summary},
+        emit_json=args.json,
+    )
+
+
 def _require_seed_alpha_data_root(args: argparse.Namespace) -> str:
     if not args.alpha_data_root:
         raise FeatureCliError("--alpha-data-root is required with --execute")
@@ -565,6 +592,19 @@ def _emit(payload: Mapping[str, Any], *, emit_json: bool) -> None:
         return
     command = payload["command"]
     print(f"Feature command: {command}")
+    if payload.get("preview"):
+        print(f"DatasetVersion: {payload.get('dataset_version_id')}")
+        print(f"Feature set: {payload.get('feature_set_id')} {payload.get('feature_set_version')}")
+        print(f"Features (write-free preview): {payload.get('feature_count')}")
+        print("Writes values: no")
+        preview_features = payload.get("features")
+        if isinstance(preview_features, Sequence) and not isinstance(preview_features, str):
+            for item in preview_features:
+                if isinstance(item, Mapping):
+                    print(
+                        "{name} {feature_id} {feature_version_id}".format(**item)
+                    )
+        return
     if payload.get("pack_kind") == "feature":
         print(f"DatasetVersion: {payload.get('dataset_version_id')}")
         print(f"Feature set: {payload.get('feature_set_id')} {payload.get('feature_set_version')}")
