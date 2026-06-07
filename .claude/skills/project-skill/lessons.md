@@ -157,3 +157,61 @@ Add concise entries only after they are validated by real work.
   (`.claude/settings.local.json`) once, with the user's standing authorization.
   Driver-internal phase merges (armed via `FRONTIER_ALLOW_AUTOMERGE=1`) are
   unaffected — only the coordinator's own out-of-band merges are gated.
+
+## Workflow 2 — keystone re-lock + honest substrate gaps (ALPHA_FUTURES_CORE_ALPHA_PILOT_V1, 31/31 COMPLETE_WITH_WARNINGS)
+
+- **Feature identity must be content-addressed over the computational contract
+  only.** A `feature_version_id` that includes `feature_request_id` (whose freq
+  the duplicate-exposure gate regenerates from live registry population) makes
+  identical features hash differently by registry state/order → committed locks
+  become unreproducible/unresolvable. Fix = `FeatureSpec.to_identity_dict()`
+  (contract minus request-id) in `FeatureVersion.derive` (PR #234). It is
+  backward-INCOMPATIBLE: `FeatureLineageRecord.__post_init__` re-derives and
+  raises on stored old-identity records, so clean + re-materialize the registry
+  after the change. Verify the full round-trip: dry-run identity preview ==
+  execute == registry record == StudySpec lock == runtime resolver.
+
+- **Re-locking after an identity change is BOUNDED, not a full regen.** AlphaSpec
+  `factor_inputs` fvers are pure provenance (never resolved at runtime) BUT are
+  hashed into `alpha_spec_id` — so DO NOT edit alpha_specs in place (it cascades
+  every id). Only re-run the lock-bearing phases: P03 (input_pack_lock) → P13
+  (audit) → P14 (study_specs), which re-resolve against the live registry. The
+  runtime resolver matches feature_version_id STRICTLY (no
+  feature_id/feature_set fallback) and fails closed (`feature_pack_not_found` /
+  INPUTS_BLOCKED) — never substitute.
+
+- **`must_run_alone` + topological order safely serializes two reset phases**
+  without editing the DAG. `dag_scheduler.compute_waves` builds the ready set in
+  phase-list order and gives a non-parallel-safe phase its own wave, so e.g.
+  P03 merges before P13 builds off updated `main` even though P13's only declared
+  dep is P12. Use `resume --max-phases N` to cap a chain and insert a manual gate
+  (e.g. a resolver-smoke) before the next wave.
+
+- **Diagnostics runtime modules are pure functions over caller-supplied
+  `observations`.** The phase executor loads locked feature/label VALUES from
+  `study_specs.dataset_scope.feature_pack_locks` and builds the rows; the runtime
+  only summarizes. So a materialized-but-unlocked feature is invisible, and the
+  governed resolver rejects un-locked features (`feature_pack_not_governed_by_
+  study_input_pack`). Making a blocked family real therefore needs
+  materialize AND re-lock (P03→P14) AND re-run — a full second cascade, not just
+  materialization.
+
+- **Honest INCONCLUSIVE / DEPENDENCY_GAP / DATA_GAP flows through review.** When
+  locked packs lack the derived features a family needs (regime trendiness/
+  compression, liquidity sweep/breakout) or the dataset lacks the modality (BBO
+  on an OHLCV-only DatasetVersion), the executor should load whatever real rows
+  exist, return runtime status INCONCLUSIVE, name the missing inputs, and
+  fabricate nothing. These pass PASS_WITH_WARNINGS — treat substrate gaps as a
+  coverage finding, not an alpha failure, and hand the missing substrate to a
+  follow-up campaign rather than force it inside the pilot.
+
+- **The autonomous closeout will correctly BLOCK on a red required verifier; the
+  accept-vs-fix call is the coordinator's.** A Yellow `must_run_alone` closeout
+  cannot self-grant COMPLETE while `verify.py --all` is red. When the red is
+  local-only (the phase branch is 0 commits ahead of `main` and the campaign's
+  PRs are all CI-green), triage it: `test_cache_policy` fails purely because
+  `ALPHA_DATA_ROOT` is exported (passes unset); duckdb/polars fixtures drift with
+  research-venv library versions; databento canonicalize needs a local offline
+  fixture. Resolve via a coordinator closeout PR that documents the triage,
+  accepts the failures as out-of-scope environmental exceptions, and records
+  COMPLETE_WITH_WARNINGS — do not edit source/tests to force local green.
