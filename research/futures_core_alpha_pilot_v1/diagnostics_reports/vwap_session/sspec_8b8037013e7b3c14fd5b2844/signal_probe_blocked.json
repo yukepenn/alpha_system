@@ -1,0 +1,16 @@
+{
+  "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "locked_feature_pack_count": 2,
+  "locked_label_pack_count": 1,
+  "missing_feature_request_id": "freq_ef650ea8306d52dd9edfb6a3",
+  "non_evidence": true,
+  "phase_id": "FUTCORE-P17",
+  "reason_code": "missing_locked_vwap_feature_pack",
+  "runtime_contract_error": "feature_ref must match a RuntimeInputPack feature pack",
+  "runtime_surface": "alpha_system.runtime.probe.SignalProbeSpec",
+  "same_bar_fill_forbidden": true,
+  "schema": "alpha_system.futcore_p17.signal_probe_blocked.v1",
+  "status": "BLOCKED",
+  "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844"
+}

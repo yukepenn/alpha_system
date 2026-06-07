@@ -8,27 +8,22 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is advancing
-through the `spec_audit` group. `FUTCORE-P15` records the minimal governed
-FeatureRequest / LabelSpec additions needed by the P13 gap list and P14
-StudySpecs.
+through the `family_diagnostics` group. `FUTCORE-P17` records value-free
+VWAP/session diagnostics for the pilot's `vwap_session` StudySpec subset.
 
-Active / next work: after `FUTCORE-P15` merges, the next campaign work is the
-`FUTCORE-P16`...`FUTCORE-P20` family diagnostics wave. Ralph continues to own
-authoritative validation, review routing, serial merge handling, staging, PR,
-CI, merge, and done-check actions.
+Active / next work: after `FUTCORE-P17` merges, Ralph continues the remaining
+family diagnostics, consolidation, review routing, serial merge handling,
+staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces through this `FUTCORE-P15` snapshot:
+New durable surfaces through this `FUTCORE-P17` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/feature_requests/DECISION.md`
-- `research/futures_core_alpha_pilot_v1/feature_requests/p15_g4_causal_ohlcv_derived.json`
-- `research/futures_core_alpha_pilot_v1/feature_requests/p15_g5_bbo_top_book_confirmation.json`
-- `research/futures_core_alpha_pilot_v1/label_specs/`
-- `docs/futures_core_alpha_pilot/PRIMITIVE_ADDITIONS.md`
+- `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
 
-`FUTCORE-P15` adds minimal `fwd_ret_15m` fixed-horizon label support and
-governed records for the 10m, 15m, 30m, derived-OHLCV, and BBO P15 gap items.
-It adds no new commands, diagnostics, feature values, label values, data
-readers, cost calculations, agent runners, or broker surfaces.
+`FUTCORE-P17` adds value-free runtime diagnostics reports and a compact family
+diagnostics doc. It adds no new commands, source primitives, feature values,
+label values, data readers, agent runners, broker surfaces, live/paper behavior,
+or deployment behavior.
 
 ## Source Of Truth
 

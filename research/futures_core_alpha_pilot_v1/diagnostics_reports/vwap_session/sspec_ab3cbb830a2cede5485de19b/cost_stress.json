@@ -1,0 +1,254 @@
+{
+  "bbo_spread_crossing_used": false,
+  "bbo_unavailable_fallback_used": true,
+  "cost_gradient": {
+    "base_to_stress_1_combined_delta": "0",
+    "base_to_stress_1_cost_delta": "0",
+    "base_to_stress_1_slippage_proxy_delta": "0",
+    "double_to_base_combined_ratio": null,
+    "stress_1_to_stress_2_combined_delta": "0",
+    "stress_1_to_stress_2_cost_delta": "0",
+    "stress_1_to_stress_2_slippage_proxy_delta": "0",
+    "stress_2_to_double_cost_combined_delta": "0",
+    "stress_2_to_double_cost_cost_delta": "0",
+    "stress_2_to_double_cost_slippage_proxy_delta": "0"
+  },
+  "cost_model_version": {
+    "bbo_available": false,
+    "content_hash": "510103d6e3582bd34a8607861cce826cd3dbcba5ac3aa191d885df617bd394d9",
+    "cost_model_descriptor": {
+      "components": [
+        {
+          "fixture_only": true,
+          "model": "zero_cost",
+          "purpose": "synthetic fixture correctness only"
+        },
+        {
+          "bps": "1",
+          "minimum_cost": "0",
+          "model": "bps_cost"
+        }
+      ],
+      "fixture_zero_cost": false,
+      "model": "composite",
+      "reference_multiplier": "1",
+      "reference_quantity": "1"
+    },
+    "cost_model_version_id": "cmv_510103d6e3582bd34a860786",
+    "promotion_basis_allowed": false,
+    "schema": "alpha_system.runtime.cost.model_version.v1",
+    "slippage_is_proxy": true,
+    "slippage_model_descriptor": {
+      "components": [
+        {
+          "bps": "0.5",
+          "model": "bps"
+        }
+      ],
+      "fixture_zero_slippage": false,
+      "model": "composite"
+    },
+    "zero_cost_diagnostic_only": true
+  },
+  "coverage_summary": {
+    "bbo_available": false,
+    "bbo_fill_count": 0,
+    "bbo_unavailable_fallback_used": true,
+    "fill_count": 0,
+    "profile_count": 4,
+    "session_count": 0
+  },
+  "descriptive_only": true,
+  "diagnostic_pass_is_alpha_validation": false,
+  "diagnostics_family": "cost",
+  "diagnostics_run_spec_ref": {
+    "content_hash": "45e21cf1c2173a57646cbbabd15496fe0304e9676e684a3b3d5149803c476615",
+    "diagnostics_run_spec_id": "dspec_45e21cf1c2173a57646cbbab"
+  },
+  "double_cost_summary": {
+    "bbo_fill_count": 0,
+    "bbo_spread_crossing_used": false,
+    "bbo_unavailable_fallback_used": true,
+    "combined_cost_slippage_proxy": "0",
+    "cost_multiplier": "2",
+    "cost_total": "0",
+    "fill_count": 0,
+    "profile_name": "double_cost",
+    "promotion_basis_allowed": false,
+    "slippage_multiplier": "2",
+    "slippage_proxy_total": "0",
+    "zero_cost_diagnostic_only": true
+  },
+  "limitations": [
+    "Cost stress is a descriptive sensitivity summary, not realized execution output.",
+    "Slippage is labeled as a proxy and is not a realized fill measurement.",
+    "The double_cost profile is required, but passing it is not a promotion decision.",
+    "BBO spread crossing is used only when supplied BBO context is present; no spread is fabricated.",
+    "BBO context was unavailable or unused, so the bps fallback marker is visible.",
+    "The zero-cost reference is diagnostic-only and cannot be a promotion basis."
+  ],
+  "lineage_refs": {
+    "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+    "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+    "cost_model_version_id": "cmv_510103d6e3582bd34a860786",
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "diagnostics_run_spec_id": "dspec_45e21cf1c2173a57646cbbab",
+    "feature_pack_refs": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f,fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
+    "label_pack_refs": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+    "phase_id": "FUTCORE-P17",
+    "session_penalty_config_id": "futcore_p17_vwap_session_thin_session_nonzero_profiles_v1",
+    "study_spec_id": "sspec_ab3cbb830a2cede5485de19b"
+  },
+  "non_promotional": true,
+  "profile_summaries": [
+    {
+      "bbo_fill_count": 0,
+      "bbo_spread_crossing_used": false,
+      "bbo_unavailable_fallback_used": true,
+      "combined_cost_slippage_proxy": "0",
+      "cost_multiplier": "1",
+      "cost_total": "0",
+      "fill_count": 0,
+      "profile_name": "base",
+      "promotion_basis_allowed": false,
+      "slippage_multiplier": "1",
+      "slippage_proxy_total": "0",
+      "zero_cost_diagnostic_only": true
+    },
+    {
+      "bbo_fill_count": 0,
+      "bbo_spread_crossing_used": false,
+      "bbo_unavailable_fallback_used": true,
+      "combined_cost_slippage_proxy": "0",
+      "cost_multiplier": "1.25",
+      "cost_total": "0",
+      "fill_count": 0,
+      "profile_name": "stress_1",
+      "promotion_basis_allowed": false,
+      "slippage_multiplier": "1.25",
+      "slippage_proxy_total": "0",
+      "zero_cost_diagnostic_only": true
+    },
+    {
+      "bbo_fill_count": 0,
+      "bbo_spread_crossing_used": false,
+      "bbo_unavailable_fallback_used": true,
+      "combined_cost_slippage_proxy": "0",
+      "cost_multiplier": "1.5",
+      "cost_total": "0",
+      "fill_count": 0,
+      "profile_name": "stress_2",
+      "promotion_basis_allowed": false,
+      "slippage_multiplier": "1.5",
+      "slippage_proxy_total": "0",
+      "zero_cost_diagnostic_only": true
+    },
+    {
+      "bbo_fill_count": 0,
+      "bbo_spread_crossing_used": false,
+      "bbo_unavailable_fallback_used": true,
+      "combined_cost_slippage_proxy": "0",
+      "cost_multiplier": "2",
+      "cost_total": "0",
+      "fill_count": 0,
+      "profile_name": "double_cost",
+      "promotion_basis_allowed": false,
+      "slippage_multiplier": "2",
+      "slippage_proxy_total": "0",
+      "zero_cost_diagnostic_only": true
+    }
+  ],
+  "promotion_basis_allowed": false,
+  "quality_gates": [
+    {
+      "gate_id": "cost_sample_gate",
+      "limitations": [
+        "Synthetic and local summaries only."
+      ],
+      "metric_refs": {
+        "fill_count": 0,
+        "min_fill_count": 1
+      },
+      "name": "Cost stress sample gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "INCONCLUSIVE",
+      "summary": "Cost stress input count is visible against the configured minimum."
+    },
+    {
+      "gate_id": "double_cost_gate",
+      "limitations": [],
+      "metric_refs": {
+        "double_cost_combined_cost_slippage_proxy": "0"
+      },
+      "name": "Double cost profile gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "The required double_cost profile is present in the cost-stress summary."
+    },
+    {
+      "gate_id": "cost_fragility_gate",
+      "limitations": [
+        "A favorable gate is not a promotion decision."
+      ],
+      "metric_refs": {
+        "max_double_cost_to_base_ratio": "3"
+      },
+      "name": "Cost fragility gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Double-cost sensitivity is compared with the configured descriptive threshold."
+    },
+    {
+      "gate_id": "slippage_proxy_gate",
+      "limitations": [],
+      "metric_refs": {
+        "slippage_labeled_proxy": true
+      },
+      "name": "Slippage proxy gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Slippage is explicitly labeled as a proxy in the cost model version."
+    }
+  ],
+  "quality_summary": {
+    "base_combined_cost_slippage_proxy": "0",
+    "bbo_spread_crossing_used": false,
+    "bbo_unavailable_fallback_used": true,
+    "diagnostic_complete": false,
+    "double_cost_combined_cost_slippage_proxy": "0",
+    "double_cost_present": true,
+    "double_to_base_combined_ratio": null,
+    "profile_count": 4,
+    "promotion_basis_allowed": false,
+    "rejection_reason_count": 1,
+    "slippage_labeled_proxy": true,
+    "zero_cost_diagnostic_only": true
+  },
+  "raw_or_heavy_data_embedded": false,
+  "rejection_reason_records": [
+    {
+      "code": "low_sample",
+      "message": "Cost stress input count is below the configured descriptive minimum."
+    }
+  ],
+  "report_hash": "ebcebb5ea997751093a42da43076cf6f88fff91c79b8788f6d2433b8c7528e69",
+  "report_id": "dreport_ebcebb5ea997751093a42da4",
+  "report_kind": "cost_sensitivity_report",
+  "report_metadata": {
+    "cost_model_version_id": "cmv_510103d6e3582bd34a860786",
+    "descriptive_tier": "tier_0_cost_stress",
+    "orchestrated_backtest_primitives": "alpha_system.backtest.costs;alpha_system.backtest.slippage",
+    "profile_order": "base;stress_1;stress_2;double_cost",
+    "promotion_basis_allowed": false,
+    "session_penalty_config_id": "futcore_p17_vwap_session_thin_session_nonzero_profiles_v1",
+    "slippage_labeled_proxy": true,
+    "zero_cost_diagnostic_only": true
+  },
+  "report_type": "CostSensitivityReport",
+  "schema": "alpha_system.runtime.diagnostics.report.v1",
+  "session_breakdown": [],
+  "slippage_labeled_proxy": true,
+  "status": "INCONCLUSIVE",
+  "value_free": true,
+  "zero_cost_diagnostic_only": true
+}

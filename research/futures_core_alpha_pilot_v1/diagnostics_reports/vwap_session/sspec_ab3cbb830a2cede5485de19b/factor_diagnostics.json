@@ -1,0 +1,217 @@
+{
+  "record": {
+    "diagnostics_run_record_id": "drecord_c679c53a9cf9cca84a88ad8f",
+    "diagnostics_run_spec_ref": {
+      "content_hash": "38d89038775f0902e8842549c3c989e3f040c88a79bd2f9df835ae83eb11c534",
+      "diagnostics_run_spec_id": "dspec_38d89038775f0902e8842549"
+    },
+    "record_hash": "c679c53a9cf9cca84a88ad8fa457d2868f78a5f70af577ba3cfb0522c5ce94db",
+    "rejection_reason_records": [
+      {
+        "code": "factor_diagnostics_low_coverage",
+        "message": "Usable factor/label pair coverage is below the configured threshold."
+      },
+      {
+        "code": "factor_diagnostics_high_missingness",
+        "message": "Factor diagnostics missingness exceeds the configured threshold."
+      },
+      {
+        "code": "factor_diagnostics_insufficient_sample",
+        "message": "Usable factor/label pairs are below the configured descriptive minimum."
+      }
+    ],
+    "report_ref": {
+      "report_hash": "6d65f80299056ecf4b9bc24929a50cd30e621b4c2d51703a94eb3a3f7520dc68",
+      "report_id": "dreport_6d65f80299056ecf4b9bc249",
+      "report_kind": "factor_diagnostics_summary"
+    },
+    "schema": "alpha_system.runtime.diagnostics.run_record.v1",
+    "status": "DIAGNOSTICS_FAILED",
+    "study_run_record_ref": null,
+    "value_free": true
+  },
+  "report": {
+    "coverage_summary": {
+      "available_ts_missing_count": 0,
+      "coverage_ratio": 0.0,
+      "horizon_count": 0,
+      "input_count": 6862,
+      "label_available_ts_missing_count": 0,
+      "missing_factor_count": 6862,
+      "missing_label_count": 0,
+      "missingness_rate": 1.0,
+      "numeric_factor_count": 0,
+      "outlier_count": 0,
+      "outlier_rate": 0.0,
+      "usable_pair_count": 0
+    },
+    "descriptive_only": true,
+    "diagnostic_pass_is_alpha_validation": false,
+    "diagnostics_family": "factor",
+    "diagnostics_run_spec_ref": {
+      "content_hash": "38d89038775f0902e8842549c3c989e3f040c88a79bd2f9df835ae83eb11c534",
+      "diagnostics_run_spec_id": "dspec_38d89038775f0902e8842549"
+    },
+    "limitations": [
+      "Factor diagnostics are descriptive Tier 0 summaries; a diagnostic PASS is not alpha validation.",
+      "The report stores scalar summaries only and does not embed feature or label observations.",
+      "IC, RankIC, decay, and bucket summaries are delegated to alpha_system.research.ic and alpha_system.research.buckets.",
+      "Decay summary has fewer than two populated horizons."
+    ],
+    "lineage_refs": {
+      "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+      "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+      "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+      "diagnostics_run_spec_id": "dspec_38d89038775f0902e8842549",
+      "feature_pack_refs": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f,fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
+      "label_pack_refs": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+      "phase_id": "FUTCORE-P17",
+      "runtime_plan_id": "rplan_futcore_p17_sspec_ab3cbb830a2cede5485de19b_factor",
+      "study_run_spec_id": "srspec_sspec_ab3cbb830a2cede5485de19b_factor",
+      "study_spec_id": "sspec_ab3cbb830a2cede5485de19b"
+    },
+    "non_promotional": true,
+    "quality_gates": [
+      {
+        "gate_id": "factor_availability_gate",
+        "limitations": [
+          "Full no-lookahead audit remains scoped to a later runtime phase."
+        ],
+        "metric_refs": {
+          "available_ts_missing_count": 0,
+          "label_available_ts_missing_count": 0
+        },
+        "name": "Availability gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "PASS",
+        "summary": "Feature available_ts and label_available_ts presence is summarized."
+      },
+      {
+        "gate_id": "factor_coverage_gate",
+        "limitations": [],
+        "metric_refs": {
+          "coverage_ratio": 0.0,
+          "min_coverage_ratio": 0.8
+        },
+        "name": "Coverage gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "FAIL",
+        "summary": "Usable factor and label pair coverage is summarized."
+      },
+      {
+        "gate_id": "factor_sample_gate",
+        "limitations": [],
+        "metric_refs": {
+          "min_observations": 3,
+          "usable_pair_count": 0
+        },
+        "name": "Sample gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "INCONCLUSIVE",
+        "summary": "Usable sample size is summarized for descriptive diagnostics."
+      },
+      {
+        "gate_id": "factor_outlier_gate",
+        "limitations": [],
+        "metric_refs": {
+          "max_outlier_rate": 0.2,
+          "outlier_rate": 0.0
+        },
+        "name": "Outlier gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "PASS",
+        "summary": "Factor outlier rate is summarized against the configured threshold."
+      },
+      {
+        "gate_id": "factor_ic_gate",
+        "limitations": [],
+        "metric_refs": {
+          "ic_sample_count": 0,
+          "pearson_ic": null,
+          "rank_ic": null
+        },
+        "name": "IC gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "INCONCLUSIVE",
+        "summary": "IC and RankIC scalar summaries are delegated to research.ic."
+      },
+      {
+        "gate_id": "factor_bucket_gate",
+        "limitations": [],
+        "metric_refs": {
+          "bucket_is_monotonic": false,
+          "bucket_populated_count": 0,
+          "min_populated_buckets": 2
+        },
+        "name": "Bucket gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "INCONCLUSIVE",
+        "summary": "Bucket return monotonicity summary is delegated to research.buckets."
+      },
+      {
+        "gate_id": "factor_decay_gate",
+        "limitations": [
+          "Decay slope requires at least two populated horizons."
+        ],
+        "metric_refs": {
+          "decay_horizon_count": 0,
+          "decay_slope_per_second": null
+        },
+        "name": "Decay gate",
+        "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+        "status": "WARN",
+        "summary": "Decay curve scalar summary is delegated to research.ic."
+      }
+    ],
+    "quality_summary": {
+      "bucket_count": 5,
+      "bucket_direction": "insufficient",
+      "bucket_is_monotonic": false,
+      "bucket_populated_count": 0,
+      "bucket_rank_correlation": null,
+      "bucket_sign_changes": null,
+      "decay_first_horizon_seconds": null,
+      "decay_first_pearson_ic": null,
+      "decay_horizon_count": 0,
+      "decay_last_horizon_seconds": null,
+      "decay_last_pearson_ic": null,
+      "decay_slope_per_second": null,
+      "diagnostic_pass": false,
+      "failing_gate_count": 1,
+      "ic_sample_count": 0,
+      "inconclusive_gate_count": 3,
+      "pearson_ic": null,
+      "quality_gate_count": 7,
+      "rank_ic": null,
+      "tail_expectancy": null,
+      "warning_gate_count": 1
+    },
+    "raw_or_heavy_data_embedded": false,
+    "rejection_reason_records": [
+      {
+        "code": "factor_diagnostics_low_coverage",
+        "message": "Usable factor/label pair coverage is below the configured threshold."
+      },
+      {
+        "code": "factor_diagnostics_high_missingness",
+        "message": "Factor diagnostics missingness exceeds the configured threshold."
+      },
+      {
+        "code": "factor_diagnostics_insufficient_sample",
+        "message": "Usable factor/label pairs are below the configured descriptive minimum."
+      }
+    ],
+    "report_hash": "6d65f80299056ecf4b9bc24929a50cd30e621b4c2d51703a94eb3a3f7520dc68",
+    "report_id": "dreport_6d65f80299056ecf4b9bc249",
+    "report_kind": "factor_diagnostics_summary",
+    "report_metadata": {
+      "descriptive_tier": "tier_0_factor_diagnostics",
+      "orchestrated_research_primitives": "alpha_system.research.ic;alpha_system.research.buckets",
+      "threshold_profile": "factor_diagnostics_default_v1"
+    },
+    "report_type": "FactorDiagnosticsReport",
+    "schema": "alpha_system.runtime.diagnostics.report.v1",
+    "status": "DIAGNOSTICS_FAILED",
+    "value_free": true
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "family": "vwap_session",
+  "generated_at": "2026-06-07T04:13:43Z",
+  "locked_pack_summary": {
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "feature_pack_count": 2,
+    "feature_record_counts": {
+      "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978": 6896,
+      "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f": 6896
+    },
+    "joined_5m_observation_count": 6862,
+    "label_pack_count": 1,
+    "label_record_counts": {
+      "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395": 6862
+    },
+    "per_row_payloads_embedded": false
+  },
+  "per_row_payloads_embedded": false,
+  "phase_id": "FUTCORE-P17",
+  "promotion_or_claim_made": false,
+  "report_refs": [
+    {
+      "report_hash": "6d65f80299056ecf4b9bc24929a50cd30e621b4c2d51703a94eb3a3f7520dc68",
+      "report_id": "dreport_6d65f80299056ecf4b9bc249",
+      "report_kind": "factor_diagnostics_summary"
+    },
+    {
+      "report_hash": "be1c2ba2eb096ff81c6ba09196c33cf9229946be6e0ac5eb61d03e772341cebf",
+      "report_id": "dreport_be1c2ba2eb096ff81c6ba091",
+      "report_kind": "label_diagnostics_summary"
+    },
+    {
+      "report_hash": "b21719f5e9f7c83f351c394b44f7deecdf48b333bc8012795262d7da1b361fef",
+      "report_id": "dreport_b21719f5e9f7c83f351c394b",
+      "report_kind": "session_split_diagnostics_summary"
+    },
+    {
+      "report_hash": "ebcebb5ea997751093a42da43076cf6f88fff91c79b8788f6d2433b8c7528e69",
+      "report_id": "dreport_ebcebb5ea997751093a42da4",
+      "report_kind": "cost_sensitivity_report"
+    },
+    {
+      "report_hash": "481b2d1c29679d608c9036daaedf085e435d911e0b3cc004934d92b04d663d81",
+      "report_id": "dreport_481b2d1c29679d608c9036da",
+      "report_kind": "factor_diagnostics_summary"
+    },
+    {
+      "report_hash": "ce2fcf91755390e65a1559fc10da27d19ec89589212c69ebbce894720b51d5c7",
+      "report_id": "dreport_ce2fcf91755390e65a1559fc",
+      "report_kind": "label_diagnostics_summary"
+    },
+    {
+      "report_hash": "e6d15808c8959f1e94db1d05c471728feed1f2fda302318e7d9555aa8ec66714",
+      "report_id": "dreport_e6d15808c8959f1e94db1d05",
+      "report_kind": "session_split_diagnostics_summary"
+    },
+    {
+      "report_hash": "40f1ffcfeedf0a6915d1c24ff7b041767bd22082419dde36777eb8ade96aba61",
+      "report_id": "dreport_40f1ffcfeedf0a6915d1c24f",
+      "report_kind": "cost_sensitivity_report"
+    }
+  ],
+  "running_vs_final_vwap": {
+    "final_session_vwap_boundary": "Final-session VWAP is not used intraday; completed ETH VWAP may be used only after the ETH session completes.",
+    "p17_runtime_outcome": "No locked running or completed VWAP FeaturePack is bound, so VWAP factor and signal-probe diagnostics are blocked rather than approximated.",
+    "running_vwap_basis": "Running VWAP would be admissible only as a point-in-time running aggregate with available_ts not later than the decision timestamp."
+  },
+  "runtime_surfaces": [
+    "RuntimeInputPack resolver",
+    "build_factor_diagnostics_run",
+    "build_label_diagnostics_report",
+    "build_session_split_report",
+    "SignalProbeSpec contract gate",
+    "build_cost_sensitivity_report",
+    "RuntimeToolResult",
+    "RuntimeRunSummary"
+  ],
+  "schema": "alpha_system.futcore_p17.vwap_session_diagnostics_summary.v1",
+  "study_summaries": [
+    {
+      "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+      "cost_status": "INCONCLUSIVE",
+      "factor_status": "DIAGNOSTICS_FAILED",
+      "joined_observation_count_5m": 6862,
+      "label_status": "DIAGNOSTICS_COMPLETE",
+      "missing_primary_horizon_labelpacks": [
+        "10m",
+        "15m",
+        "30m"
+      ],
+      "missing_vwap_feature_pack": true,
+      "report_refs": [
+        {
+          "report_hash": "6d65f80299056ecf4b9bc24929a50cd30e621b4c2d51703a94eb3a3f7520dc68",
+          "report_id": "dreport_6d65f80299056ecf4b9bc249",
+          "report_kind": "factor_diagnostics_summary"
+        },
+        {
+          "report_hash": "be1c2ba2eb096ff81c6ba09196c33cf9229946be6e0ac5eb61d03e772341cebf",
+          "report_id": "dreport_be1c2ba2eb096ff81c6ba091",
+          "report_kind": "label_diagnostics_summary"
+        },
+        {
+          "report_hash": "b21719f5e9f7c83f351c394b44f7deecdf48b333bc8012795262d7da1b361fef",
+          "report_id": "dreport_b21719f5e9f7c83f351c394b",
+          "report_kind": "session_split_diagnostics_summary"
+        },
+        {
+          "report_hash": "ebcebb5ea997751093a42da43076cf6f88fff91c79b8788f6d2433b8c7528e69",
+          "report_id": "dreport_ebcebb5ea997751093a42da4",
+          "report_kind": "cost_sensitivity_report"
+        }
+      ],
+      "runtime_tool_result_status": "BLOCKED",
+      "session_split_status": "INCONCLUSIVE",
+      "signal_probe_status": "BLOCKED",
+      "source_alpha_spec_summary": "RTH reclaim of running VWAP after the opening window using only running, available intraday aggregates.",
+      "study_spec_id": "sspec_ab3cbb830a2cede5485de19b"
+    },
+    {
+      "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+      "cost_status": "INCONCLUSIVE",
+      "factor_status": "DIAGNOSTICS_FAILED",
+      "joined_observation_count_5m": 6862,
+      "label_status": "DIAGNOSTICS_COMPLETE",
+      "missing_primary_horizon_labelpacks": [
+        "10m",
+        "15m",
+        "30m"
+      ],
+      "missing_vwap_feature_pack": true,
+      "report_refs": [
+        {
+          "report_hash": "481b2d1c29679d608c9036daaedf085e435d911e0b3cc004934d92b04d663d81",
+          "report_id": "dreport_481b2d1c29679d608c9036da",
+          "report_kind": "factor_diagnostics_summary"
+        },
+        {
+          "report_hash": "ce2fcf91755390e65a1559fc10da27d19ec89589212c69ebbce894720b51d5c7",
+          "report_id": "dreport_ce2fcf91755390e65a1559fc",
+          "report_kind": "label_diagnostics_summary"
+        },
+        {
+          "report_hash": "e6d15808c8959f1e94db1d05c471728feed1f2fda302318e7d9555aa8ec66714",
+          "report_id": "dreport_e6d15808c8959f1e94db1d05",
+          "report_kind": "session_split_diagnostics_summary"
+        },
+        {
+          "report_hash": "40f1ffcfeedf0a6915d1c24ff7b041767bd22082419dde36777eb8ade96aba61",
+          "report_id": "dreport_40f1ffcfeedf0a6915d1c24f",
+          "report_kind": "cost_sensitivity_report"
+        }
+      ],
+      "runtime_tool_result_status": "BLOCKED",
+      "session_split_status": "INCONCLUSIVE",
+      "signal_probe_status": "BLOCKED",
+      "source_alpha_spec_summary": "RTH open location versus completed ETH VWAP, then first eligible running RTH VWAP relationship.",
+      "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844"
+    }
+  ],
+  "value_free": true,
+  "zero_cost_boundary": "zero_cost is diagnostic-only and is not used as a continuation or evidence basis."
+}

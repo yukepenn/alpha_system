@@ -1,0 +1,268 @@
+{
+  "coverage_summary": {
+    "audit_label_count": 1,
+    "bbo_quarantined_count": 0,
+    "label_pack_count": 1,
+    "missing_bbo_count": 0,
+    "missing_outcome_count": 0,
+    "missing_outcome_rate": 0.0,
+    "partition_overlap_count": 1,
+    "sample_count": 6862,
+    "session_overlap_count": 2,
+    "shared_dataset_ref_count": 1,
+    "shared_partition_ref_count": 1,
+    "symbol_overlap_count": 3,
+    "synthetic_no_trade_count": 0
+  },
+  "descriptive_only": true,
+  "diagnostic_pass_is_alpha_validation": false,
+  "diagnostics_family": "label",
+  "diagnostics_run_record": {
+    "diagnostics_run_record_id": "drecord_b5876a1ab52d0caba9b2f808",
+    "diagnostics_run_spec_ref": {
+      "content_hash": "0d5919dc02ba819a026d8bd851a2fb9a486d18124cecc6c494807c9088623552",
+      "diagnostics_run_spec_id": "dspec_0d5919dc02ba819a026d8bd8"
+    },
+    "record_hash": "b5876a1ab52d0caba9b2f808f97eda33ea03fd30efd720adaa7d001a3aff71da",
+    "rejection_reason_records": [],
+    "report_ref": {
+      "report_hash": "be1c2ba2eb096ff81c6ba09196c33cf9229946be6e0ac5eb61d03e772341cebf",
+      "report_id": "dreport_be1c2ba2eb096ff81c6ba091",
+      "report_kind": "label_diagnostics_summary"
+    },
+    "schema": "alpha_system.runtime.diagnostics.run_record.v1",
+    "status": "DIAGNOSTICS_COMPLETE",
+    "study_run_record_ref": null,
+    "value_free": true
+  },
+  "diagnostics_run_spec_ref": {
+    "content_hash": "0d5919dc02ba819a026d8bd851a2fb9a486d18124cecc6c494807c9088623552",
+    "diagnostics_run_spec_id": "dspec_0d5919dc02ba819a026d8bd8"
+  },
+  "label_available_ts_validity": {
+    "label_as_feature_reference_detected": false,
+    "label_available_ts_missing_count": 0,
+    "label_available_ts_observation_count": 6862,
+    "label_available_ts_valid": true,
+    "label_pack_count": 1
+  },
+  "label_class_balance": {
+    "class_count": 3,
+    "majority_class_count": 3208,
+    "majority_class_share": 0.4675021859516176,
+    "minority_class_count": 700,
+    "minority_class_share": 0.10201107548819587,
+    "observed_outcome_count": 6862
+  },
+  "label_cost_adjustment_sanity": {
+    "cost_adjusted_label_count": 0,
+    "cost_adjustment_sanity": "declared",
+    "cost_model_declared_count": 6863,
+    "cost_warning_count": 0,
+    "profile_count": 1
+  },
+  "label_coverage_missingness": {
+    "audit_label_count": 1,
+    "bbo_quarantined_count": 0,
+    "feature_label_status": "clear",
+    "missing_bbo_count": 0,
+    "missing_outcome_count": 0,
+    "missing_outcome_rate": 0.0,
+    "partition_overlap_count": 1,
+    "session_overlap_count": 2,
+    "shared_dataset_ref_count": 1,
+    "shared_partition_ref_count": 1,
+    "symbol_overlap_count": 3,
+    "synthetic_no_trade_count": 0
+  },
+  "label_distribution_summary": {
+    "class_count": 3,
+    "majority_class_count": 3208,
+    "minority_class_count": 700,
+    "missing_outcome_count": 0,
+    "missing_outcome_rate": 0.0,
+    "negative_outcome_count": 3208,
+    "neutral_outcome_count": 700,
+    "numeric_outcome_count": 6862,
+    "observed_outcome_count": 6862,
+    "positive_outcome_count": 2954,
+    "sample_count": 6862
+  },
+  "label_horizon_coverage": {
+    "horizon_count": 1,
+    "horizon_coverage_ratio": 1.0,
+    "horizon_sample_count": 6862,
+    "max_horizon_sample_count": 6862,
+    "max_horizon_seconds": 300,
+    "min_horizon_sample_count": 6862,
+    "min_horizon_seconds": 300,
+    "missing_horizon_count": 0
+  },
+  "label_mfe_mae_summary": {
+    "event_count": 6862,
+    "mae_sample_count": 0,
+    "mean_mae": null,
+    "mean_mfe": null,
+    "mfe_sample_count": 0
+  },
+  "label_path_ambiguity_summary": {
+    "ambiguous_path_count": 0,
+    "ambiguous_path_rate": 0.0,
+    "path_metric_sample_count": 0,
+    "target_before_stop_event_count": 0,
+    "target_before_stop_probability": null
+  },
+  "limitations": [
+    "Descriptive label diagnostics only; quality gates are not promotion decisions.",
+    "The runtime summarizes supplied diagnostics and references; it does not materialize labels.",
+    "Coverage and leakage results depend on upstream registered label audits and input resolution."
+  ],
+  "lineage_refs": {
+    "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "diagnostics_run_spec_id": "dspec_0d5919dc02ba819a026d8bd8",
+    "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+    "runtime_plan_ref": "bound_by_diagnostics_run_spec",
+    "study_run_spec_id": "bound_by_dspec_0d5919dc02ba819a026d8bd8",
+    "study_spec_ref": "sspec_ab3cbb830a2cede5485de19b"
+  },
+  "non_promotional": true,
+  "quality_gates": [
+    {
+      "gate_id": "label_availability_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "label_available_ts_missing_count": 0,
+        "label_pack_count": 1
+      },
+      "name": "Label availability gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "label_available_ts and label-as-feature checks are summarized."
+    },
+    {
+      "gate_id": "label_distribution_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "missing_outcome_count": 0,
+        "observed_outcome_count": 6862,
+        "sample_count": 6862
+      },
+      "name": "Label distribution gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Label distribution is summarized from scalar diagnostic observations."
+    },
+    {
+      "gate_id": "label_class_balance_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "class_count": 3,
+        "majority_class_share": 0.4675021859516176,
+        "threshold_ref": "label_diagnostics_config.max_majority_class_share"
+      },
+      "name": "Label class balance gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Class balance is summarized without embedding label outcomes."
+    },
+    {
+      "gate_id": "label_horizon_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "horizon_count": 1,
+        "horizon_coverage_ratio": 1.0,
+        "threshold_ref": "label_diagnostics_config.min_horizon_coverage_ratio"
+      },
+      "name": "Label horizon gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Horizon coverage is summarized across supplied diagnostics observations."
+    },
+    {
+      "gate_id": "label_path_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "ambiguous_path_count": 0,
+        "mae_sample_count": 0,
+        "mfe_sample_count": 0
+      },
+      "name": "Label path gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "WARN",
+      "summary": "MFE, MAE, and path ambiguity are summarized through research event helpers."
+    },
+    {
+      "gate_id": "label_cost_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "cost_adjusted_label_count": 0,
+        "cost_model_declared_count": 6863,
+        "cost_warning_count": 0
+      },
+      "name": "Label cost gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Cost-adjustment metadata presence is checked descriptively."
+    },
+    {
+      "gate_id": "label_coverage_missingness_gate",
+      "limitations": [
+        "Scalar summary only; no runtime label outcomes are embedded."
+      ],
+      "metric_refs": {
+        "audit_label_count": 1,
+        "missing_outcome_count": 0,
+        "shared_dataset_ref_count": 1
+      },
+      "name": "Label coverage and missingness gate",
+      "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+      "status": "PASS",
+      "summary": "Feature/label coverage and missingness are delegated to the research primitive."
+    }
+  ],
+  "quality_summary": {
+    "class_count": 3,
+    "cost_model_declared_count": 6863,
+    "diagnostic_complete": true,
+    "failing_gate_count": 0,
+    "gate_count": 7,
+    "horizon_count": 1,
+    "inconclusive_gate_count": 0,
+    "label_available_ts_valid": true,
+    "mae_sample_count": 0,
+    "majority_class_share": 0.4675021859516176,
+    "mfe_sample_count": 0,
+    "observed_outcome_count": 6862,
+    "path_ambiguous_count": 0,
+    "rejection_reason_count": 0,
+    "sample_count": 6862
+  },
+  "raw_or_heavy_data_embedded": false,
+  "rejection_reason_records": [],
+  "report_hash": "be1c2ba2eb096ff81c6ba09196c33cf9229946be6e0ac5eb61d03e772341cebf",
+  "report_id": "dreport_be1c2ba2eb096ff81c6ba091",
+  "report_kind": "label_diagnostics_summary",
+  "report_metadata": {
+    "external_provider_call_performed": false,
+    "label_materialization_performed": false,
+    "uses_research_events_post_event_mfe_mae": true,
+    "uses_research_events_target_before_stop_probability": true,
+    "uses_research_feature_label_diagnostics": true
+  },
+  "schema": "alpha_system.runtime.diagnostics.report.v1",
+  "status": "DIAGNOSTICS_COMPLETE",
+  "value_free": true
+}

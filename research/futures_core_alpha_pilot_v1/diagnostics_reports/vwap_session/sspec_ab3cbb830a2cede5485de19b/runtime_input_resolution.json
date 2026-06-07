@@ -1,0 +1,227 @@
+{
+  "entry_result": {
+    "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
+    "dataset_scope": {
+      "bar_size": "1 min",
+      "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+      "source_family": "databento",
+      "symbols": [
+        "ES",
+        "NQ",
+        "RTY"
+      ]
+    },
+    "reasons": [
+      {
+        "actual": "governed references only",
+        "code": "runtime_entry_references_resolved",
+        "decision_state": "INPUTS_RESOLVED",
+        "expected": "governed references only",
+        "field": "request",
+        "message": "runtime entry references passed contract-level checks; DatasetVersion admissibility resolution remains delegated to the RuntimeInputPack resolver"
+      }
+    ],
+    "status": "INPUTS_RESOLVED",
+    "study_input_pack": {
+      "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+      "dataset_scope": {
+        "bar_size": "1 min",
+        "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+        "source_family": "databento",
+        "symbols": [
+          "ES",
+          "NQ",
+          "RTY"
+        ]
+      },
+      "feature_request_ids": [
+        "freq_67991722245329f35c0fa612",
+        "freq_76147d2e3318292d48004696"
+      ],
+      "label_spec_ids": [
+        "lspec_cd6523694c850c9943b2067e"
+      ]
+    },
+    "study_spec_ref": "sspec_ab3cbb830a2cede5485de19b",
+    "target_dataset_version_id": "dsv_databento_ohlcv_05404069799decb0"
+  },
+  "parquet_rows_not_embedded": true,
+  "resolution_result": {
+    "input_pack": {
+      "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
+      "canonical_input_views": [
+        {
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "record_type": "alpha_system.data.foundation.bars.CanonicalBarRecord",
+          "view_name": "canonical_ohlcv"
+        },
+        {
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "record_type": "alpha_system.data.foundation.quotes.CanonicalBBORecord",
+          "view_name": "canonical_bbo"
+        },
+        {
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "record_type": "alpha_system.data.foundation.grid.DenseGridBarRecord",
+          "view_name": "dense_grid_ohlcv"
+        }
+      ],
+      "dataset_scope": {
+        "bar_size": "1 min",
+        "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+        "source_family": "databento",
+        "symbols": [
+          "ES",
+          "NQ",
+          "RTY"
+        ]
+      },
+      "dataset_version": {
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "lifecycle_state": "VERSIONED",
+        "reproducibility_hashes": {
+          "code_hash": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
+          "config_hash": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
+          "manifest_hash": "abbf9ebbecfe97f2c4b31900d9ae44421549e08a65e90ec64e235a958c1d2d31",
+          "quality_report_hash": "7e46966bdc6921a0bb338097fa82ec94fcdf401e1913d81b288052bd6c9c66b4"
+        },
+        "source": "dsrc_databento_historical"
+      },
+      "feature_packs": [
+        {
+          "available_ts": {
+            "first": "2024-01-02T00:01:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-09T00:00:00+00:00"
+          },
+          "feature_request_id": "freq_67991722245329f35c0fa612",
+          "feature_set_id": "fset_es_session_ctx_smoke",
+          "feature_set_version": "v1_rth_flag",
+          "feature_version_id": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "fmat_7fc558435b563192a8b83f11c56c28f26cbe4b5ba0b8bdd00d153446c1312106",
+          "partition_id": "development_partition"
+        },
+        {
+          "available_ts": {
+            "first": "2024-01-02T00:01:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-09T00:00:00+00:00"
+          },
+          "feature_request_id": "freq_76147d2e3318292d48004696",
+          "feature_set_id": "fset_es_session_ctx_smoke",
+          "feature_set_version": "v1_session_minute",
+          "feature_version_id": "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "fmat_9aa8b9343108c2ce33d181f1457998bc5a36a3eca0397e8af7974b111f465f4d",
+          "partition_id": "development_partition"
+        }
+      ],
+      "governance_metadata": {
+        "contamination_policy": "development_partition_only",
+        "phase_id": "FUTCORE-P17"
+      },
+      "label_packs": [
+        {
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-08T23:55:00+00:00"
+          },
+          "label_available_ts": {
+            "first": "2024-01-02T00:06:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "label_id": "fwd_ret_5m",
+          "label_spec_id": "lspec_cd6523694c850c9943b2067e",
+          "label_version_id": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "lmat_e9fa63fe8a9a5f966f2a157390b1ef265e93048b82767ac96d060d7003725b94",
+          "partition_id": "development_partition"
+        }
+      ],
+      "partition_scope": {
+        "partition_id": "development_partition",
+        "purpose": "family_diagnostics"
+      },
+      "schema": "alpha_system.runtime.input_pack.v1",
+      "session_scope": {
+        "rth": {
+          "end": "16:00",
+          "start": "09:30"
+        },
+        "segment_windows": [
+          {
+            "end": "10:30",
+            "name": "open",
+            "start": "09:30"
+          },
+          {
+            "end": "15:00",
+            "name": "mid",
+            "start": "10:30"
+          },
+          {
+            "end": "16:00",
+            "name": "close",
+            "start": "15:00"
+          }
+        ],
+        "views": [
+          "full_session",
+          "RTH_only",
+          "ETH_only",
+          "ETH_evening",
+          "ETH_overnight",
+          "pre_RTH",
+          "RTH",
+          "post_RTH",
+          "RTH_with_ETH_context"
+        ]
+      },
+      "study_input_pack": {
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+        "dataset_scope": {
+          "bar_size": "1 min",
+          "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+          "source_family": "databento",
+          "symbols": [
+            "ES",
+            "NQ",
+            "RTY"
+          ]
+        },
+        "feature_request_ids": [
+          "freq_67991722245329f35c0fa612",
+          "freq_76147d2e3318292d48004696"
+        ],
+        "label_spec_ids": [
+          "lspec_cd6523694c850c9943b2067e"
+        ]
+      },
+      "study_spec_ref": "sspec_ab3cbb830a2cede5485de19b",
+      "value_free": true
+    },
+    "reasons": [
+      {
+        "actual": "value-free input handles",
+        "code": "runtime_input_pack_resolved",
+        "decision_state": "INPUTS_RESOLVED",
+        "expected": "value-free input handles",
+        "field": "RuntimeInputPack",
+        "message": "runtime input pack resolved accepted DatasetVersion and pack handles"
+      }
+    ],
+    "status": "INPUTS_RESOLVED"
+  },
+  "schema": "alpha_system.futcore_p17.runtime_input_resolution.v1",
+  "value_free": true
+}
