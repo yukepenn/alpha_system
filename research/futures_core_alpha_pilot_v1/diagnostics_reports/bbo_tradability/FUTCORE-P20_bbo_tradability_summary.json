@@ -1,0 +1,327 @@
+{
+  "bbo_missingness_bad_quote_splits": {
+    "bad_quote": {
+      "crossed_or_locked_count": 0,
+      "quarantined_quote_count": 0,
+      "stale_quote_count": 0,
+      "status": "not_observed_without_locked_bbo_featurepack"
+    },
+    "binding_status": "MISSING_LOCKED_BBO_FEATUREPACK",
+    "fabricated_quote_count": 0,
+    "fallback_used": true,
+    "missing_bbo": {
+      "denominator_by_horizon": {
+        "10m": 6832,
+        "15m": 0,
+        "30m": 6712,
+        "5m": 6862
+      },
+      "status": "all_resolved_horizon_rows_require_missing_bbo_fallback_until_bbo_pack_resolves"
+    },
+    "thin_depth": {
+      "observed_count": 0,
+      "status": "not_observed_without_locked_bbo_featurepack"
+    },
+    "valid_bbo": {
+      "observed_count": 0,
+      "status": "not_observed_without_locked_bbo_featurepack"
+    },
+    "wide_spread": {
+      "observed_count": 0,
+      "status": "not_observed_without_locked_bbo_featurepack"
+    }
+  },
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "cost_profiles": [
+    "base",
+    "stress_1",
+    "stress_2",
+    "double_cost"
+  ],
+  "cost_stress": {
+    "all_resolved_horizons_runtime_report_ref": {
+      "report_hash": "d6c3bf1dfb2e8cc185328cd681a720442f15ef4799bdc04b12f3bf86df05b685",
+      "report_id": "dreport_d6c3bf1dfb2e8cc185328cd6",
+      "report_kind": "cost_sensitivity_report"
+    },
+    "bbo_spread_crossing_used": false,
+    "bbo_unavailable_fallback_used": true,
+    "profiles_executed": [
+      "base",
+      "stress_1",
+      "stress_2",
+      "double_cost"
+    ],
+    "session_view_runtime_report_refs_5m": {
+      "ETH_evening": {
+        "report_hash": "01f705b5559a10c09f6323aa6c8337e421e128c7731f2a39e80dd6482166fcd4",
+        "report_id": "dreport_01f705b5559a10c09f6323aa",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "ETH_only": {
+        "report_hash": "4c924616e5fd1508cd1532e4ed00f6097312096c1f0b1689c1914e6f511e8c33",
+        "report_id": "dreport_4c924616e5fd1508cd1532e4",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "ETH_overnight": {
+        "report_hash": "6a44cc8a64933fabaaadd5f16cdec36138e22a38f5ea5fe805c7555a1b448147",
+        "report_id": "dreport_6a44cc8a64933fabaaadd5f1",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "RTH": {
+        "report_hash": "4fc478390d5b69ea8001aa6c775308cfa84a12df943050172bd051414a61d078",
+        "report_id": "dreport_4fc478390d5b69ea8001aa6c",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "RTH_only": {
+        "report_hash": "85c48fa781b41066299b7180517345293a479f48256deec5edff4fa717d421f2",
+        "report_id": "dreport_85c48fa781b41066299b7180",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "RTH_with_ETH_context": {
+        "report_hash": "7a5cd0e9cd6db40fe7b96bff0e9b29ed9411f46fbb496029be6a5b66e78e6a51",
+        "report_id": "dreport_7a5cd0e9cd6db40fe7b96bff",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "full_session": {
+        "report_hash": "126f25952a585ad598ce9cd3aa7beb8aa8a07607d854993cfff8101961c46d07",
+        "report_id": "dreport_126f25952a585ad598ce9cd3",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "post_RTH": {
+        "report_hash": "d600aaa4234442b049290541b3aeddfd8e0bd94ed160beed4a4377a5984a43e7",
+        "report_id": "dreport_d600aaa4234442b049290541",
+        "report_kind": "cost_sensitivity_report"
+      },
+      "pre_RTH": {
+        "report_hash": "cffef48926a3dd5826ae0b4b6972de2cc4e0d2d3909102e3e5b049a745285c4a",
+        "report_id": "dreport_cffef48926a3dd5826ae0b4b",
+        "report_kind": "cost_sensitivity_report"
+      }
+    },
+    "thin_session_penalty_views": [
+      "ETH_evening",
+      "ETH_only",
+      "ETH_overnight",
+      "post_RTH",
+      "pre_RTH"
+    ],
+    "zero_cost": {
+      "profile": "zero_cost",
+      "promotion_basis_allowed": false,
+      "role": "diagnostic_only_contrast"
+    }
+  },
+  "coverage_counts": {
+    "entity_counts_all_resolved_horizons": {
+      "series_databento_es_front_unadjusted": 20406
+    },
+    "instrument_value_coverage": {
+      "ES": 6862,
+      "NQ": 0,
+      "RTY": 0
+    },
+    "joined_observation_count_all_resolved_horizons": 20406,
+    "joined_observation_count_by_horizon": {
+      "10m": 6832,
+      "15m": 0,
+      "30m": 6712,
+      "5m": 6862
+    },
+    "session_segment_counts_by_horizon": {
+      "10m": {
+        "ETH_evening": 1778,
+        "ETH_other": 1950,
+        "ETH_overnight": 2399,
+        "post_RTH": 255,
+        "pre_RTH": 450
+      },
+      "15m": {},
+      "30m": {
+        "ETH_evening": 1758,
+        "ETH_other": 1950,
+        "ETH_overnight": 2399,
+        "post_RTH": 155,
+        "pre_RTH": 450
+      },
+      "5m": {
+        "ETH_evening": 1783,
+        "ETH_other": 1950,
+        "ETH_overnight": 2399,
+        "post_RTH": 280,
+        "pre_RTH": 450
+      }
+    },
+    "session_view_counts_all_resolved_horizons": {
+      "ETH_evening": 5319,
+      "ETH_only": 20406,
+      "ETH_overnight": 7197,
+      "RTH": 0,
+      "RTH_only": 0,
+      "RTH_with_ETH_context": 0,
+      "full_session": 20406,
+      "post_RTH": 690,
+      "pre_RTH": 1350
+    },
+    "session_view_counts_by_horizon": {
+      "10m": {
+        "ETH_evening": 1778,
+        "ETH_only": 6832,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6832,
+        "post_RTH": 255,
+        "pre_RTH": 450
+      },
+      "15m": {
+        "ETH_evening": 0,
+        "ETH_only": 0,
+        "ETH_overnight": 0,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 0,
+        "post_RTH": 0,
+        "pre_RTH": 0
+      },
+      "30m": {
+        "ETH_evening": 1758,
+        "ETH_only": 6712,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6712,
+        "post_RTH": 155,
+        "pre_RTH": 450
+      },
+      "5m": {
+        "ETH_evening": 1783,
+        "ETH_only": 6862,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6862,
+        "post_RTH": 280,
+        "pre_RTH": 450
+      }
+    }
+  },
+  "dataset_source": "dsrc_databento_historical",
+  "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+  "feature_pack_count": 2,
+  "fragile_horizons": [
+    {
+      "horizon": "1m",
+      "promotion_basis_allowed": false,
+      "role": "diagnostic_only",
+      "stricter_spread_liquidity_gate_required": true
+    },
+    {
+      "horizon": "3m",
+      "promotion_basis_allowed": false,
+      "role": "diagnostic_only",
+      "stricter_spread_liquidity_gate_required": true
+    }
+  ],
+  "generated_at_utc": "2026-06-07T18:49:29Z",
+  "label_pack_count": 3,
+  "limitations": [
+    "P15-G5 is governed but not materialized as a locked BBO FeaturePack in this input pack.",
+    "P15-G1 records a governed 15m LabelSpec, but no locked 15m LabelPack is present for runtime diagnostics.",
+    "RTH views are zero-count cells in this locked development partition because the locked RTH flag is false for joined rows.",
+    "BBO confirmation is risk and confirmation evidence only; no standalone edge, promotion, or execution claim is recorded."
+  ],
+  "phase_id": "FUTCORE-P20",
+  "primary_horizons": [
+    "5m",
+    "10m",
+    "15m",
+    "30m"
+  ],
+  "promotion_performed": false,
+  "raw_or_heavy_data_embedded": false,
+  "resolved_primary_horizons": [
+    "5m",
+    "10m",
+    "30m"
+  ],
+  "review_or_verdict_created_by_codex": false,
+  "runtime_tools_only": true,
+  "schema": "alpha_system.research.diagnostics_report.bbo_tradability.summary.v1",
+  "session_views": [
+    "full_session",
+    "RTH_only",
+    "ETH_only",
+    "ETH_evening",
+    "ETH_overnight",
+    "pre_RTH",
+    "RTH",
+    "post_RTH",
+    "RTH_with_ETH_context"
+  ],
+  "studies": [
+    {
+      "alpha_spec_id": "aspec_1284e49b083df11eeb0481ea",
+      "bbo_binding_status": "MISSING_LOCKED_BBO_FEATUREPACK",
+      "cost_report_status": "DIAGNOSTICS_COMPLETE",
+      "factor_report_status": "INCONCLUSIVE",
+      "family": "bbo_confirmation",
+      "label_report_status": "DIAGNOSTICS_FAILED",
+      "observed_variant_count": 4,
+      "promotion_basis_allowed": false,
+      "resolved_primary_horizons": [
+        "5m",
+        "10m",
+        "30m"
+      ],
+      "runtime_tool_status": "INCONCLUSIVE",
+      "signal_probe_status": "BLOCKED_BEFORE_SIGNAL_PROBE_SPEC",
+      "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/bbo_tradability/FUTCORE-P11_bbo_tradability_01.md",
+      "study_spec_id": "sspec_9f6f741192a4b534f06e51c0",
+      "unresolved_primary_horizons": [
+        "15m"
+      ],
+      "variant_budget": 4,
+      "variant_budget_status": "RESPECTED"
+    }
+  ],
+  "study_count": 1,
+  "unresolved_primary_horizons": {
+    "15m": "no_locked_materialized_labelpack_resolves_in_runtime_input_pack"
+  },
+  "variant_budget": {
+    "observed_count": 4,
+    "overrun": false,
+    "overrun_by": 0,
+    "respected": true,
+    "status": "RESPECTED",
+    "variant_budget": 4,
+    "variants_remaining": 0
+  },
+  "variant_cells": [
+    {
+      "depth_gate": "minimum_depth_filter",
+      "spread_zscore_window": "short_predeclared_trailing",
+      "status": "blocked_missing_locked_bbo_featurepack"
+    },
+    {
+      "depth_gate": "low_depth_flag_exclusion",
+      "spread_zscore_window": "short_predeclared_trailing",
+      "status": "blocked_missing_locked_bbo_featurepack"
+    },
+    {
+      "depth_gate": "minimum_depth_filter",
+      "spread_zscore_window": "long_predeclared_trailing",
+      "status": "blocked_missing_locked_bbo_featurepack"
+    },
+    {
+      "depth_gate": "low_depth_flag_exclusion",
+      "spread_zscore_window": "long_predeclared_trailing",
+      "status": "blocked_missing_locked_bbo_featurepack"
+    }
+  ]
+}
