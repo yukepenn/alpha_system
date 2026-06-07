@@ -8,18 +8,25 @@ Status: executor work complete, review and authoritative staging pending Ralph
 
 ## Scope Completed
 
-- Critiqued all 40 AlphaSpec drafts from `FUTCORE-P07` through `FUTCORE-P11`.
-- Wrote one independent critique record per draft under
+- Verified that all 40 AlphaSpec drafts from `FUTCORE-P07` through
+  `FUTCORE-P11` have independent critique decisions.
+- Verified one critique record per draft under
   `research/futures_core_alpha_pilot_v1/critiques/`.
-- Wrote the family budget and quota reconciliation at
+- Verified the family budget and quota reconciliation at
   `research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md`.
-- Wrote the compact docs summary at
+- Verified the compact docs summary at
   `docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md`.
-- Updated `README.md` with a compact `FUTCORE-P12` campaign snapshot.
+- Updated `README.md` additively to retain the existing later `FUTCORE-P17`
+  snapshot while surfacing the `FUTCORE-P12` critique/audit artifacts.
 
 No draft AlphaSpecs were edited. No tests or consumed `src/alpha_system`
 primitives were edited. No diagnostics, broker/live/paper/order, deployment,
 PR, merge, reviewer, or Claude calls were performed by Codex.
+
+Run-local note: `runs/2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/STOP`
+is absent. The prompt's run-local phase directory
+`runs/2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/phases/FUTCORE-P12`
+is not present in this checkout, so Codex did not create run-local artifacts.
 
 ## Staging Status
 
@@ -88,6 +95,28 @@ No `runs/` path is included in this candidate staging list.
 | `bbo_tradability` | 1 | 3 | 0 | 4 |
 | **Total** | **10** | **24** | **6** | **40** |
 
+## Accepted AlphaSpec Set Carried Forward
+
+| Family | AlphaSpec id | Source draft |
+| --- | --- | --- |
+| `cross_market` | `aspec_0ebd90cecfd475607685b445` | `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_01_nq_leads_es_completed_bar_context.json` |
+| `cross_market` | `aspec_8d9e272e4b78eedcd27f0bec` | `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_05_nq_beta_residual_vs_es_rty_basket.json` |
+| `cross_market` | `aspec_a41dcccac5552de945aba825` | `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_10_rty_catchup_rotation_context.json` |
+| `cross_market` | `aspec_fa4895a43a80d4eef0a607a4` | `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_14_nq_es_divergence_context.json` |
+| `vwap_session` | `aspec_b40aee52d4399dd5b855a6ed` | `research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/FUTCORE-P08_vwap_session_01.md` |
+| `vwap_session` | `aspec_43cd6c154bca2fcc419eee83` | `research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/FUTCORE-P08_vwap_session_07.md` |
+| `regime` | `aspec_eb962fc197eaf3955c5e4711` | `research/futures_core_alpha_pilot_v1/alpha_specs/regime/FUTCORE-P09_regime_01.md` |
+| `liquidity_pa` | `aspec_df2d040e45564c259ef3de6d` | `research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/FUTCORE-P10_liquidity_pa_02.md` |
+| `liquidity_pa` | `aspec_39ffc190cfbfa6ba0b1a2a25` | `research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/FUTCORE-P10_liquidity_pa_06.md` |
+| `bbo_tradability` | `aspec_1284e49b083df11eeb0481ea` | `research/futures_core_alpha_pilot_v1/alpha_specs/bbo_tradability/FUTCORE-P11_bbo_tradability_01.md` |
+
+## Separation Of Duties
+
+PASS. Every accepted record has a `drafter_role` beginning with
+`Hypothesis Scout:` and a `critic_role` of `AlphaSpec Critic:FUTCORE-P12`.
+No accepted record has the same drafter and critic role, and no accepted
+record names the critic as drafter.
+
 ## Budget Verdict
 
 - Draft cap: PASS. Found 40 drafts against `max_alpha_spec_drafts: 40`.
@@ -136,21 +165,24 @@ No `runs/` path is included in this candidate staging list.
 
 - `test ! -f runs/2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/STOP`:
   PASS.
-- `PYTHONPATH=src python - <<'PY' ... AlphaSpec parse/schema check ... PY`:
-  PASS. Parsed 40 drafts; all top-level fields matched
-  `ALPHA_SPEC_REQUIRED_FIELDS`; all drafter roles began with `Hypothesis Scout`;
-  all parsed drafts included `available_ts`, `label_available_ts`, and
-  `zero_cost` declarations.
+- `test -d runs/2026-06-07T041343Z_ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/phases/FUTCORE-P12`:
+  FAIL. The prompt's run-local phase directory is absent in this checkout; no
+  run-local artifacts were created.
+- `PYTHONPATH=src python - <<'PY' ... AlphaSpec and critique audit ... PY`:
+  PASS. Parsed 40 drafts through `AlphaSpec.from_mapping`; verified 40
+  critique records; counted 10 `accept-for-StudySpec`, 24 `revise`, and 6
+  `reject` decisions; verified accepted allocation 4/2/1/2/1; verified
+  accepted records have `Hypothesis Scout:` drafters and
+  `AlphaSpec Critic:FUTCORE-P12` critic role.
 - `python tools/verify.py --smoke`: PASS.
-- `test -d research/futures_core_alpha_pilot_v1/critiques && test -f research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md && test -f docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md && test -f handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P12.md`:
+- `test -d research/futures_core_alpha_pilot_v1/critiques`: PASS.
+- `test -f research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md`:
   PASS.
+- `test -f docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md`: PASS.
+- `test -f handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P12.md`: PASS.
 - `git ls-files runs`: PASS, returned empty output.
 - `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.dbn' '**/*.zst'`: PASS,
   returned empty output.
-- `python - <<'PY' ... critique count/field check ... PY`: PASS. Found 16
-  cross-market, 8 VWAP/session, 6 regime, 6 liquidity/PA, and 4 BBO critique
-  files; counted 10 `accept-for-StudySpec`, 24 `revise`, and 6 `reject`
-  decisions; found no missing required critique fields.
 
 Validation intentionally not run by Codex:
 
