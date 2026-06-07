@@ -7,21 +7,20 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is advancing through the
-`assets_and_bridge` gate in Wave 3. `AGENT-P21` Runtime Tool Integration Bridge
-is complete. Active / next work is the Wave 4 closeout sequence beginning with
-`AGENT-P22` Agent Dry-Run Harness.
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is at `AGENT-P20` of the
-26-phase plan, in the Wave 3 `assets` group (`AGENT-P19`, `AGENT-P20`,
-`AGENT-P21`). This phase is `AGENT-P20` Agent Factory Docs and Operator Guide;
-the next campaign movement is the rest of the assets wave and then closeout
-phases `AGENT-P22` through `AGENT-P25`.
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-`agent_roles` wave (`AGENT-P07` through `AGENT-P15`) and the
-`enforcement_and_records` gate through `AGENT-P18` merged. The
-`assets_and_bridge` gate is in progress: `AGENT-P19` adds indexed agent
-prompt/skill templates, with next Wave 3 work covering `AGENT-P20`
-docs/operator guidance and `AGENT-P21` runtime bridge integration.
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed
+`AGENT-P22` Agent Dry-Run Harness and is in the Wave 4 closeout chain. Active /
+next work is `AGENT-P23` Seed-Pack and Synthetic Dry Run.
+
+New durable surfaces from `AGENT-P22`:
+
+- `alpha_system.agent_factory.dry_run.harness`
+- `docs/agent_factory/DRY_RUN.md`
+
+Safety boundaries are unchanged: contracts only; local-only synthetic dry-run;
+no autonomous agent; no continuous research runner; no alpha, tradability, or
+profitability claim; no broker, live, paper, order, or account scope;
+accepted-DatasetVersion-only; runtime consumed through the bridge, not
+bypassed.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -203,6 +202,18 @@ DatasetVersion inputs through `resolve_dataset_version`, admitting only
 `VERSIONED` or `READY_FOR_RESEARCH` states. It returns structured
 `AgentToolResult` ids, refs, summaries, reasons, gates, artifacts, and
 limitations only. No new command is added.
+
+`AGENT-P22` adds the bounded non-alpha Agent Factory dry-run harness:
+
+- `alpha_system.agent_factory.dry_run.harness`
+- `docs/agent_factory/DRY_RUN.md`
+
+The harness routes one synthetic `ResearchTask` through the MVP role order,
+registered tool invocations where available, separation-of-duties checks,
+runtime bridge adaptation, no-lookahead review, statistical `REJECT`, and
+rejection memory records. It is not alpha evidence; an `EvidenceDraft` is not a
+candidate, and a `ReferenceCandidateHandoff` is not Reference validation.
+
 `AGENT-P20` adds the durable Agent Factory operator and readiness docs:
 
 - `docs/agent_factory/GUIDE.md`
