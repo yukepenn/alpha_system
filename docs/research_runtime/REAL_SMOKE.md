@@ -34,8 +34,12 @@ alpha label   materialize --execute --seed-config configs/seed_packs/<file>.json
   --dataset-registry "$ALPHA_DATA_ROOT/registry/datasets.sqlite"
 ```
 
-Reading real Parquet requires the optional `polars`/`pyarrow` dependencies in
-the execution environment. See `configs/seed_packs/README.md` and
+The seed operator defaults to `--value-store dual`, which writes the JSONL
+audit/small tier and the Parquet research tier. Use `--value-store parquet` to
+write only the research tier, or `--value-store jsonl` to write only the
+audit/small tier. Reading canonical Parquet and writing Parquet value stores
+requires the local research environment with optional `polars`/`pyarrow`
+dependencies installed. See `configs/seed_packs/README.md` and
 [ADR-0006](../../decisions/0006-feature-label-value-storage.md) for the storage
 policy and the deferred session-context features.
 

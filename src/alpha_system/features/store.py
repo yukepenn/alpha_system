@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from alpha_system.core.value_store import ValueStoreFormat
 from alpha_system.features.contracts import (
     FeatureLineageRecord,
     FeatureSetSpec,
@@ -93,6 +94,7 @@ class FeatureStore:
             feature_set, ordinal = _feature_set_membership(materialization_result, spec, version)
             summary = _summarize_materialized_values(materialization_result, version)
             output_path = _materialization_output_path(materialization_result)
+            value_store = _value_store_metadata(materialization_result)
             return self.registry.persist_feature(
                 FeatureRegistryRecord(
                     feature_version=version,
@@ -107,6 +109,10 @@ class FeatureStore:
                     dataset_version_id=materialization_result.plan.dataset_version_id,
                     partition_id=materialization_result.plan.partition_id,
                     materialization_output_path=output_path.as_posix(),
+                    value_store_format=value_store["value_store_format"],
+                    parquet_path=value_store["parquet_path"],
+                    value_content_hash=value_store["value_content_hash"],
+                    value_schema_version=value_store["value_schema_version"],
                     value_record_count=summary.count,
                     first_event_ts=summary.first_event_ts,
                     last_event_ts=summary.last_event_ts,
@@ -133,6 +139,7 @@ class FeatureStore:
         feature_set, ordinal = _feature_set_membership(materialization_result, spec, version)
         summary = _summarize_materialized_values(materialization_result, version)
         output_path = _materialization_output_path(materialization_result)
+        value_store = _value_store_metadata(materialization_result)
         record = FeatureRegistryRecord(
             feature_version=version,
             feature_spec=spec,
@@ -146,6 +153,10 @@ class FeatureStore:
             dataset_version_id=materialization_result.plan.dataset_version_id,
             partition_id=materialization_result.plan.partition_id,
             materialization_output_path=output_path.as_posix(),
+            value_store_format=value_store["value_store_format"],
+            parquet_path=value_store["parquet_path"],
+            value_content_hash=value_store["value_content_hash"],
+            value_schema_version=value_store["value_schema_version"],
             value_record_count=summary.count,
             first_event_ts=summary.first_event_ts,
             last_event_ts=summary.last_event_ts,
@@ -355,6 +366,25 @@ def _materialization_output_path(materialization_result: FeatureMaterializationR
     if not path.is_relative_to(root):
         raise FeatureStoreError("materialization output path must stay under ALPHA_DATA_ROOT")
     return path
+
+
+def _value_store_metadata(
+    materialization_result: FeatureMaterializationResult,
+) -> dict[str, str | None]:
+    handle = _require_materialization_result(materialization_result).value_store_handle
+    if handle is None:
+        return {
+            "value_store_format": ValueStoreFormat.JSONL.value,
+            "parquet_path": None,
+            "value_content_hash": None,
+            "value_schema_version": None,
+        }
+    return {
+        "value_store_format": handle.format.value,
+        "parquet_path": handle.parquet_path,
+        "value_content_hash": handle.content_hash,
+        "value_schema_version": handle.schema_version,
+    }
 
 
 def _require_materialization_result(

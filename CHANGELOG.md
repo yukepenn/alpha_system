@@ -2,6 +2,31 @@
 
 All notable changes to `alpha_system` are recorded here.
 
+## Unreleased — PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1
+
+### Added
+
+- `FEATURE_LABEL_PARQUET_SINK_V1`: research-scale Parquet value sink + reader via a shared
+  `core/value_store.py` (`ValueStoreFormat` jsonl/parquet/dual, `ValueStoreHandle`,
+  Polars-guarded `write_parquet_values`/`load_parquet_values`, sidecar manifest +
+  content-hash idempotency). Feature/label materialization and the
+  `alpha feature|label materialize --value-store {jsonl,parquet,dual}` operator (default
+  `dual`) write Parquet alongside the preserved JSONL audit/small tier. Registries record
+  `value_store_format`, `parquet_path`, `value_content_hash`, `value_schema_version`
+  (backward-compatible `ALTER TABLE` backfill); registries stay metadata-only.
+- `SESSION_LABEL_GUARD_FIX_V1`: role-aware no-lookahead/leakage guard
+  (`FieldRole`, `SESSION_METADATA_FIELDS`, `FORBIDDEN_FUTURE_FIELDS`) that exempts canonical
+  point-in-time `session_label`/session-context fields only when declared `SESSION_METADATA`
+  via `FeatureInputSpec.input_metadata.field_roles`; true labels and forward-looking fields
+  stay blocked. OHLCV `rth_flag`/`eth_flag`/`session_minute` now declare that role.
+  See `docs/research_runtime/SESSION_LABEL_GUARD.md`.
+- Real local smoke (local-only) materialized Parquet-backed session-context features +
+  `fwd_ret_5m` label; runtime smoke PASS; Agent Factory preflight PREFLIGHT_PASS on all four
+  gates (`preflight.toml` flags flipped). Horizon/session-segment research policy documented
+  (5–30m primary starting horizon; flat before daily maintenance/trade-date break;
+  ETH/RTH/pre_RTH/post_RTH in-scope with session-segment diagnostics + thin-session cost
+  stress). No values, registries, or Parquet/JSONL committed.
+
 ## Unreleased — POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1
 
 ### Added

@@ -16,6 +16,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+from alpha_system.core.value_store import (
+    ValueStoreFormat,
+    ValueStoreHandle,
+    compute_value_content_hash,
+    parquet_is_current,
+    write_parquet_values,
+)
 from alpha_system.data.foundation.datasets import DatasetPartitionPlan
 from alpha_system.data.foundation.grid import DenseGridBarRecord
 from alpha_system.features import consumption
@@ -196,12 +203,19 @@ class FeatureMaterializationResult:
     dry_run: bool
     wrote_output: bool
     output_path: Path | None = None
+    value_store_handle: ValueStoreHandle | None = None
 
     @property
     def record_count(self) -> int:
         """Return the number of feature values produced."""
 
         return len(self.records)
+
+
+@dataclass(frozen=True, slots=True)
+class _ValueStoreWriteResult:
+    wrote_output: bool
+    handle: ValueStoreHandle
 
 
 def resolve_feature_materialization_dataset(
@@ -286,11 +300,13 @@ def materialize_features(
     feature_definitions: Iterable[SupportedFeatureDefinition],
     *,
     dry_run: bool = False,
+    value_store_format: ValueStoreFormat = ValueStoreFormat.JSONL,
 ) -> FeatureMaterializationResult:
     """Execute a feature materialization plan, or validate it in dry-run mode."""
 
     plan = _require_plan(plan)
     inputs = _require_inputs(inputs)
+    store_format = _coerce_value_store_format(value_store_format)
     definitions_by_feature_id = _definitions_by_feature_id(feature_definitions, plan.feature_set)
     if inputs.accepted_version.dataset_version_id != plan.dataset_version_id:
         raise FeatureMaterializationError(
@@ -315,13 +331,18 @@ def materialize_features(
     views = _build_input_views(plan, inputs)
     records = _compute_records(plan.feature_set, definitions_by_feature_id, views, inputs)
     _validate_materialized_records(plan, records)
-    wrote_output = _write_records_idempotently(plan, records)
+    write_result = _write_records_idempotently(
+        plan,
+        records,
+        value_store_format=store_format,
+    )
     return FeatureMaterializationResult(
         plan=plan,
         records=records,
         dry_run=False,
-        wrote_output=wrote_output,
-        output_path=plan.output_path,
+        wrote_output=write_result.wrote_output,
+        output_path=_materialization_output_path_for_format(plan, store_format),
+        value_store_handle=write_result.handle,
     )
 
 
@@ -367,6 +388,20 @@ def _require_inputs(inputs: object) -> FeatureMaterializationInputs:
     if not isinstance(inputs, FeatureMaterializationInputs):
         raise FeatureMaterializationError("materialize_features requires materialization inputs")
     return inputs
+
+
+def _coerce_value_store_format(value: object) -> ValueStoreFormat:
+    try:
+        if isinstance(value, ValueStoreFormat):
+            return value
+        if isinstance(value, str):
+            return ValueStoreFormat(value)
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in ValueStoreFormat)
+        raise FeatureMaterializationError(
+            f"value_store_format must be one of: {allowed}"
+        ) from exc
+    raise FeatureMaterializationError("value_store_format must be a ValueStoreFormat")
 
 
 def _definitions_by_feature_id(
@@ -596,24 +631,63 @@ def _validate_materialized_records(
 def _write_records_idempotently(
     plan: FeatureMaterializationPlan,
     records: tuple[FeatureValueRecord, ...],
-) -> bool:
+    *,
+    value_store_format: ValueStoreFormat,
+) -> _ValueStoreWriteResult:
     _require_under_root(plan.output_path, plan.alpha_data_root)
-    payload = _render_jsonl(plan, records)
-    existing = plan.output_path.read_text(encoding="utf-8") if plan.output_path.exists() else None
+    store_format = _coerce_value_store_format(value_store_format)
+    record_dicts = [record.to_dict() for record in records]
+    content_hash = compute_value_content_hash(record_dicts)
+    wrote_output = False
+    jsonl_path: Path | None = None
+    parquet_path: Path | None = None
+
+    if store_format in (ValueStoreFormat.JSONL, ValueStoreFormat.DUAL):
+        jsonl_path = plan.output_path
+        wrote_output = _write_jsonl_if_changed(jsonl_path, _render_jsonl(plan, records))
+
+    if store_format in (ValueStoreFormat.PARQUET, ValueStoreFormat.DUAL):
+        parquet_path = _feature_parquet_path(plan)
+        if not parquet_is_current(parquet_path, content_hash):
+            write_parquet_values(
+                record_dicts,
+                parquet_path,
+                plan_dict=plan.to_dict(),
+                content_hash=content_hash,
+                schema_version=FEATURE_MATERIALIZATION_SCHEMA,
+                value_count=len(record_dicts),
+            )
+            wrote_output = True
+
+    return _ValueStoreWriteResult(
+        wrote_output=wrote_output,
+        handle=_feature_value_store_handle(
+            plan,
+            records,
+            value_store_format=store_format,
+            jsonl_path=jsonl_path,
+            parquet_path=parquet_path,
+            content_hash=content_hash,
+        ),
+    )
+
+
+def _write_jsonl_if_changed(path: Path, payload: str) -> bool:
+    existing = path.read_text(encoding="utf-8") if path.exists() else None
     if existing == payload:
         return False
-    plan.output_path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(
         "w",
         encoding="utf-8",
-        dir=plan.output_path.parent,
-        prefix=f".{plan.output_path.name}.",
+        dir=path.parent,
+        prefix=f".{path.name}.",
         suffix=".tmp",
         delete=False,
     ) as handle:
         temp_path = Path(handle.name)
         handle.write(payload)
-    temp_path.replace(plan.output_path)
+    temp_path.replace(path)
     return True
 
 
@@ -679,6 +753,49 @@ def _feature_output_path(
     )
     _require_under_root(output_path, alpha_data_root)
     return output_path
+
+
+def _feature_parquet_path(plan: FeatureMaterializationPlan) -> Path:
+    path = plan.output_path.with_name("values.parquet")
+    _require_under_root(path, plan.alpha_data_root)
+    return path
+
+
+def _materialization_output_path_for_format(
+    plan: FeatureMaterializationPlan,
+    value_store_format: ValueStoreFormat,
+) -> Path:
+    if value_store_format is ValueStoreFormat.PARQUET:
+        return _feature_parquet_path(plan)
+    return plan.output_path
+
+
+def _feature_value_store_handle(
+    plan: FeatureMaterializationPlan,
+    records: tuple[FeatureValueRecord, ...],
+    *,
+    value_store_format: ValueStoreFormat,
+    jsonl_path: Path | None,
+    parquet_path: Path | None,
+    content_hash: str,
+) -> ValueStoreHandle:
+    event_ts_values = tuple(record.event_ts.isoformat() for record in records)
+    available_ts_values = tuple(record.available_ts.isoformat() for record in records)
+    return ValueStoreHandle(
+        format=value_store_format,
+        jsonl_path=jsonl_path.as_posix() if jsonl_path is not None else None,
+        parquet_path=parquet_path.as_posix() if parquet_path is not None else None,
+        value_count=len(records),
+        content_hash=content_hash,
+        schema_version=FEATURE_MATERIALIZATION_SCHEMA,
+        dataset_version_id=plan.dataset_version_id,
+        set_id=plan.feature_set.feature_set_id,
+        partition_id=plan.partition_id,
+        min_event_ts=min(event_ts_values) if event_ts_values else "",
+        max_event_ts=max(event_ts_values) if event_ts_values else "",
+        min_available_ts=min(available_ts_values) if available_ts_values else "",
+        max_available_ts=max(available_ts_values) if available_ts_values else "",
+    )
 
 
 def _plan_content_hash(
@@ -789,6 +906,8 @@ __all__ = [
     "FeatureMaterializationPlan",
     "FeatureMaterializationResult",
     "SupportedFeatureDefinition",
+    "ValueStoreFormat",
+    "ValueStoreHandle",
     "build_feature_materialization_plan",
     "materialize_features",
     "resolve_feature_materialization_dataset",

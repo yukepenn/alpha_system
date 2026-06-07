@@ -125,6 +125,16 @@ _EXPANDING_FEATURES = frozenset(
         OHLCVFeatureName.DISTANCE_TO_VWAP,
     }
 )
+_SESSION_METADATA_INPUT_FIELDS = frozenset(
+    {
+        "session_label",
+        "session_segment",
+        "rth_flag",
+        "eth_flag",
+        "session_minute",
+        "minutes_from_rth_open",
+    }
+)
 _OHLCV_FIELDS_BY_FEATURE: dict[OHLCVFeatureName, tuple[str, ...]] = {
     OHLCVFeatureName.RETURNS: ("close",),
     OHLCVFeatureName.LOG_RETURNS: ("close",),
@@ -345,18 +355,16 @@ def _feature_spec(
         reset_on_session=reset_on_session,
         ddof=ddof,
     )
+    input_fields = _input_fields(name)
     return FeatureSpec(
         feature_id=f"base_ohlcv_{name.value}",
         family=FeatureFamily.BASE_OHLCV,
         feature_request_id=gate_decision.feature_request_id,
         inputs=FeatureInputSpec(
             input_views=("canonical_ohlcv",),
-            fields=_input_fields(name),
+            fields=input_fields,
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata={
-                "consumption_surface": "alpha_system.features.input_views.OHLCVInputView",
-                "trade_semantics": "FLF-P04 no_trade rows are gaps for trade logic",
-            },
+            input_metadata=_input_metadata(input_fields),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -487,6 +495,20 @@ def _input_fields(name: OHLCVFeatureName) -> tuple[str, ...]:
         "quality_flags",
     )
     return tuple(dict.fromkeys((*base, *_OHLCV_FIELDS_BY_FEATURE[name])))
+
+
+def _input_metadata(fields: Sequence[str]) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "consumption_surface": "alpha_system.features.input_views.OHLCVInputView",
+        "trade_semantics": "FLF-P04 no_trade rows are gaps for trade logic",
+    }
+    field_roles = {
+        field: "SESSION_METADATA"
+        for field in sorted(set(fields).intersection(_SESSION_METADATA_INPUT_FIELDS))
+    }
+    if field_roles:
+        metadata["field_roles"] = field_roles
+    return metadata
 
 
 def _coerce_ohlcv_view(input_view: OHLCVInputView | CanonicalInputViews) -> OHLCVInputView:

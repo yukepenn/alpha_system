@@ -14,7 +14,14 @@ from enum import StrEnum
 from typing import Any
 
 from alpha_system.runtime.entry_contract import RuntimeEntryReason, RuntimeEntryStatus
-from alpha_system.runtime.input_resolver import LOCKED_PARTITION_IDS, RuntimeInputPack
+from alpha_system.runtime.input_resolver import (
+    LOCKED_PARTITION_IDS,
+    SESSION_METADATA_FIELDS,
+    FieldRole,
+    RuntimeInputPack,
+    _is_exempt_session_field,
+    _is_forbidden_future_field,
+)
 from alpha_system.runtime.probe.report import SignalProbeReport
 from alpha_system.runtime.probe.spec import SignalProbeSpec
 
@@ -795,6 +802,7 @@ def _same_bar_count(report: SignalProbeReport | Mapping[str, Any] | object) -> i
 
 
 def _feature_label_marker(value: Mapping[str, Any] | object) -> str | None:
+    field_roles = _audit_field_roles(value)
     key_names = (
         "field",
         "fields",
@@ -807,29 +815,63 @@ def _feature_label_marker(value: Mapping[str, Any] | object) -> str | None:
     )
     for key in key_names:
         item = _value(value, key)
-        marker = _first_label_marker(item)
+        marker = _first_label_marker(item, field_roles=field_roles)
         if marker is not None:
             return f"{key}={marker}"
     if isinstance(value, Mapping):
         for key in value:
-            if _contains_label_token(key):
+            key_text = str(key)
+            if _is_forbidden_future_field(key_text):
+                return key_text
+            if _contains_label_token(key) and not _is_exempt_session_field(
+                key_text,
+                field_roles,
+            ):
                 return str(key)
     return None
 
 
-def _first_label_marker(value: object) -> str | None:
-    if _contains_label_token(value):
+def _audit_field_roles(value: Mapping[str, Any] | object) -> Mapping[str, object]:
+    field_roles = _value(value, "field_roles")
+    if not isinstance(field_roles, Mapping):
+        return {}
+    normalized: dict[str, object] = {}
+    for key, item in field_roles.items():
+        key_text = str(key)
+        if _normalize_token(key_text) in SESSION_METADATA_FIELDS and isinstance(item, FieldRole):
+            normalized[key_text] = item.value
+        else:
+            normalized[key_text] = item
+    return normalized
+
+
+def _first_label_marker(
+    value: object,
+    *,
+    field_roles: Mapping[str, object] | None = None,
+) -> str | None:
+    if isinstance(value, str) and _is_forbidden_future_field(value):
+        return value
+    if _contains_label_token(value) and not (
+        isinstance(value, str) and _is_exempt_session_field(value, field_roles)
+    ):
         return str(value)
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if _contains_label_token(key):
+            key_text = str(key)
+            if _is_forbidden_future_field(key_text):
+                return key_text
+            if _contains_label_token(key) and not _is_exempt_session_field(
+                key_text,
+                field_roles,
+            ):
                 return str(key)
-            marker = _first_label_marker(item)
+            marker = _first_label_marker(item, field_roles=field_roles)
             if marker is not None:
                 return marker
     if isinstance(value, Sequence) and not isinstance(value, str):
         for item in value:
-            marker = _first_label_marker(item)
+            marker = _first_label_marker(item, field_roles=field_roles)
             if marker is not None:
                 return marker
     return None

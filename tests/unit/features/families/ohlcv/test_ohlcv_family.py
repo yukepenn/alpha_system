@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -27,6 +28,10 @@ from alpha_system.governance.feature_request import (
     FeatureRequest,
     FeatureRequestApprovalStatus,
     create_feature_request,
+)
+from alpha_system.runtime.input_resolver import (
+    RuntimeInputResolverError,
+    _reject_label_as_live_feature,
 )
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
@@ -173,6 +178,78 @@ def test_future_and_centered_live_windows_fail_closed(window: WindowSpec) -> Non
             EmptyRegistryReader(),
             window=window,
         )
+
+
+@pytest.mark.parametrize(
+    "feature_name",
+    (
+        OHLCVFeatureName.RTH_FLAG,
+        OHLCVFeatureName.ETH_FLAG,
+        OHLCVFeatureName.SESSION_MINUTE,
+    ),
+)
+def test_session_context_features_declare_session_label_as_metadata(
+    feature_name: OHLCVFeatureName,
+) -> None:
+    definition = build_ohlcv_feature_definition(
+        feature_name,
+        _approved_request(feature_name),
+        EmptyRegistryReader(),
+    )
+
+    field_roles = definition.spec.inputs.input_metadata.to_dict()["field_roles"]
+
+    assert field_roles["session_label"] == "SESSION_METADATA"
+    assert set(field_roles) == {"session_label"}
+
+
+def test_non_session_feature_metadata_has_no_field_roles() -> None:
+    definition = build_ohlcv_feature_definition(
+        OHLCVFeatureName.RETURNS,
+        _approved_request(OHLCVFeatureName.RETURNS),
+        EmptyRegistryReader(),
+    )
+
+    input_metadata = definition.spec.inputs.input_metadata.to_dict()
+
+    assert "field_roles" not in input_metadata
+    assert (
+        input_metadata["consumption_surface"]
+        == "alpha_system.features.input_views.OHLCVInputView"
+    )
+    assert (
+        input_metadata["trade_semantics"]
+        == "FLF-P04 no_trade rows are gaps for trade logic"
+    )
+
+
+def test_built_session_context_feature_passes_runtime_label_guard() -> None:
+    definition = build_ohlcv_feature_definition(
+        OHLCVFeatureName.RTH_FLAG,
+        _approved_request(OHLCVFeatureName.RTH_FLAG),
+        EmptyRegistryReader(),
+    )
+
+    _reject_label_as_live_feature(
+        SimpleNamespace(feature_spec=definition.spec),
+        field="feature_pack_refs[0]",
+    )
+
+    forbidden_spec = SimpleNamespace(
+        live=True,
+        inputs=SimpleNamespace(
+            fields=("fwd_ret_5m",),
+            input_views=("canonical_ohlcv",),
+            input_metadata={"field_roles": {"fwd_ret_5m": "SESSION_METADATA"}},
+        ),
+    )
+    with pytest.raises(RuntimeInputResolverError) as exc_info:
+        _reject_label_as_live_feature(
+            SimpleNamespace(feature_spec=forbidden_spec),
+            field="feature_pack_refs[1]",
+        )
+
+    assert exc_info.value.reason.code == "label_as_feature_input"
 
 
 def _fixture_view() -> OHLCVInputView:

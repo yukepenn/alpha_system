@@ -17,9 +17,12 @@ $ALPHA_DATA_ROOT/registry/labels.sqlite
 repository tree. Tests may pass an explicit temporary SQLite path. The registry
 stores label contract metadata, deterministic `LabelVersion` ids, lineage,
 duplicate/equivalent exposure reports, materialization summary timestamps, and
-deprecation records. It does not store `LabelValueRecord.value` payloads,
-materialized label values, raw/canonical data, provider files,
-parquet/arrow/feather files, or broker state.
+deprecation records. Per `FEATURE_LABEL_PARQUET_SINK_V1` it also records the
+value-store pointer metadata — `value_store_format` (jsonl/parquet/dual),
+`parquet_path`, `value_content_hash`, and `value_schema_version` — alongside the
+existing JSONL output-path pointer. It still does not store
+`LabelValueRecord.value` payloads, materialized label values, raw/canonical
+data, provider files, parquet/arrow/feather blobs, or broker state.
 
 ## Registration Contract
 

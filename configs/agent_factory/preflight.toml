@@ -10,9 +10,11 @@ real_dataset_version_smoke_ran = true
 status_source = "POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1"
 
 [future_blockers]
-parquet_sink_landed = false
+# Landed by PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1 (FEATURE_LABEL_PARQUET_SINK_V1).
+parquet_sink_landed = true
 parquet_sink_human_approved = false
-session_label_guard_fixed = false
+# Landed by PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1 (SESSION_LABEL_GUARD_FIX_V1).
+session_label_guard_fixed = true
 session_context_features_explicitly_available = false
 
 [request_scope]

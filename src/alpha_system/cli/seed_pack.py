@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from alpha_system.core.value_store import ValueStoreFormat
 from alpha_system.data.cli_validation import load_cli_config
 from alpha_system.data.databento.coverage import (
     expected_intervals_for_symbols,
@@ -292,6 +293,7 @@ def run_seed_feature_pack(
     bar_row_loader: BarRowLoader = load_canonical_ohlcv_rows,
     quality_coverage_builder: QualityCoverageBuilder | None = None,
     repo_root: str | Path = ".",
+    value_store_format: ValueStoreFormat = ValueStoreFormat.DUAL,
 ) -> dict[str, Any]:
     """Materialize and register a seed FeaturePack from real canonical bars."""
 
@@ -319,6 +321,7 @@ def run_seed_feature_pack(
     registered_feature_version_ids: list[str] = []
     total_value_records = 0
     output_paths: list[str] = []
+    value_store_handles: list[dict[str, str | int | None]] = []
     for entry in config.feature_set.features:
         request = _build_feature_request(config.feature_set, entry.name)
         definition = build_ohlcv_feature_definition(
@@ -348,11 +351,19 @@ def run_seed_feature_pack(
             accepted_version=context.accepted,
             bar_rows=context.bar_rows,
         )
-        result = materialize_features(plan, inputs, (definition,))
+        result = materialize_features(
+            plan,
+            inputs,
+            (definition,),
+            value_store_format=value_store_format,
+        )
         if result.record_count == 0:
             raise SeedPackError(
                 f"feature materialization produced no value records for {entry.name}"
             )
+        value_store_handle = _value_store_handle_summary(result)
+        if value_store_handle is not None:
+            value_store_handles.append(value_store_handle)
         record = store.register_materialized_feature(
             result,
             feature_spec=definition.spec,
@@ -378,6 +389,9 @@ def run_seed_feature_pack(
         "feature_count": len(config.feature_set.features),
         "feature_version_ids": registered_feature_version_ids,
         "value_record_count": total_value_records,
+        "value_store": value_store_format.value,
+        "value_store_handle": value_store_handles[0] if value_store_handles else None,
+        "value_store_handles": value_store_handles,
         "output_path": output_paths[0] if output_paths else "",
         "output_paths": output_paths,
         "registry_path": str(registry_path),
@@ -394,6 +408,7 @@ def run_seed_label_pack(
     bar_row_loader: BarRowLoader = load_canonical_ohlcv_rows,
     quality_coverage_builder: QualityCoverageBuilder | None = None,
     repo_root: str | Path = ".",
+    value_store_format: ValueStoreFormat = ValueStoreFormat.DUAL,
 ) -> dict[str, Any]:
     """Materialize and register a seed LabelPack from real canonical bars."""
 
@@ -434,9 +449,15 @@ def run_seed_label_pack(
         accepted_version=context.accepted,
         bar_rows=context.bar_rows,
     )
-    result = materialize_labels(plan, inputs, definitions)
+    result = materialize_labels(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=value_store_format,
+    )
     if not result.wrote_output and result.record_count == 0:
         raise SeedPackError("label materialization produced no value records")
+    value_store_handle = _value_store_handle_summary(result)
 
     registry_path = Path(alpha_root) / "registry" / "labels.sqlite"
     registry = LabelRegistry(registry_path)
@@ -463,8 +484,23 @@ def run_seed_label_pack(
         "label_count": len(definitions),
         "label_version_ids": registered_label_version_ids,
         "value_record_count": result.record_count,
+        "value_store": value_store_format.value,
+        "value_store_handle": value_store_handle,
         "output_path": str(plan.output_path),
         "registry_path": str(registry_path),
+    }
+
+
+def _value_store_handle_summary(result: Any) -> dict[str, str | int | None] | None:
+    handle = getattr(result, "value_store_handle", None)
+    if handle is None:
+        return None
+    return {
+        "format": handle.format.value,
+        "jsonl_path": handle.jsonl_path,
+        "parquet_path": handle.parquet_path,
+        "content_hash": handle.content_hash,
+        "value_count": handle.value_count,
     }
 
 

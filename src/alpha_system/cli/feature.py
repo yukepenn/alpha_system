@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from alpha_system.core.value_store import ValueStoreFormat
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -226,6 +227,15 @@ def _add_seed_execute_arguments(parser: argparse.ArgumentParser) -> None:
         "--end",
         help="Override the seed-config window end_ts (ISO-8601).",
     )
+    parser.add_argument(
+        "--value-store",
+        choices=["jsonl", "parquet", "dual"],
+        default="dual",
+        help=(
+            "Value storage tier for --execute: jsonl audit/small tier, parquet research tier, "
+            "or dual (default, writes both). Parquet/dual require the local polars dependency."
+        ),
+    )
 
 
 def _run_with_error_handling(callback: Any) -> int:
@@ -294,16 +304,21 @@ def _emit_seed_feature_pack(args: argparse.Namespace) -> None:
     canonical_root = _resolve_canonical_root(args, alpha_data_root)
     dataset_registry = _require_seed_dataset_registry(args)
     config = _apply_seed_overrides(load_seed_pack_config(args.seed_config), args)
+    value_store_format = ValueStoreFormat(args.value_store)
     try:
         summary = run_seed_feature_pack(
             config,
             alpha_data_root=alpha_data_root,
             canonical_root=canonical_root,
             datasets_registry_path=dataset_registry,
+            value_store_format=value_store_format,
         )
     except SeedPackError as exc:
         raise FeatureCliError(str(exc)) from exc
-    _emit({"command": "feature materialize --execute", **summary}, emit_json=args.json)
+    _emit(
+        {"command": "feature materialize --execute", "value_store": args.value_store, **summary},
+        emit_json=args.json,
+    )
 
 
 def _require_seed_alpha_data_root(args: argparse.Namespace) -> str:

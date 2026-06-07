@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -7,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from alpha_system.core.value_store import ValueStoreFormat, ValueStoreHandle
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -16,6 +18,7 @@ from alpha_system.data.foundation.datasets import (
 )
 from alpha_system.features import consumption
 from alpha_system.governance.label_spec import LabelSpec, create_label_spec
+from alpha_system.governance.serialization import canonical_serialize
 from alpha_system.labels.engine import (
     LabelMaterializationInputs,
     LabelMaterializationResult,
@@ -113,6 +116,132 @@ def test_successful_registration_resolves_by_version_and_lineage(
     )
     assert duplicate.label_version_id == record.label_version_id
     assert registry.count_label_records() == 1
+
+
+def test_registry_backfills_old_rows_and_persists_parquet_metadata(tmp_path: Path) -> None:
+    source_registry = LabelRegistry(tmp_path / "source.sqlite")
+    old_result, old_definition = _materialization_result(
+        tmp_path,
+        "dsv_synthetic_label_store_old_row",
+    )
+    old_record = source_registry.register_materialized_label(
+        old_result,
+        label_contract=old_definition.contract,
+        label_version=old_definition.version,
+    )
+    old_payload = old_record.to_dict()
+    for key in (
+        "value_store_format",
+        "parquet_path",
+        "value_content_hash",
+        "value_schema_version",
+    ):
+        old_payload["materialization"].pop(key, None)
+
+    registry_path = tmp_path / "old_labels.sqlite"
+    with sqlite3.connect(registry_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE label_registry_records (
+                label_version_id TEXT PRIMARY KEY,
+                label_id TEXT NOT NULL,
+                label_spec_id TEXT NOT NULL,
+                lifecycle_state TEXT NOT NULL,
+                materialization_plan_id TEXT NOT NULL,
+                dataset_version_id TEXT NOT NULL,
+                partition_id TEXT NOT NULL,
+                materialization_output_path TEXT NOT NULL,
+                value_record_count INTEGER NOT NULL,
+                first_event_ts TEXT NOT NULL,
+                last_event_ts TEXT NOT NULL,
+                first_label_available_ts TEXT NOT NULL,
+                last_label_available_ts TEXT NOT NULL,
+                exposure_status TEXT NOT NULL,
+                registered_at TEXT NOT NULL,
+                metadata_json TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO label_registry_records (
+                label_version_id,
+                label_id,
+                label_spec_id,
+                lifecycle_state,
+                materialization_plan_id,
+                dataset_version_id,
+                partition_id,
+                materialization_output_path,
+                value_record_count,
+                first_event_ts,
+                last_event_ts,
+                first_label_available_ts,
+                last_label_available_ts,
+                exposure_status,
+                registered_at,
+                metadata_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                old_record.label_version_id,
+                old_record.label_id,
+                old_record.label_spec_id,
+                old_record.lifecycle_state.value,
+                old_record.materialization_plan_id,
+                old_record.dataset_version_id,
+                old_record.partition_id,
+                old_record.materialization_output_path,
+                old_record.value_record_count,
+                old_record.first_event_ts.isoformat(),
+                old_record.last_event_ts.isoformat(),
+                old_record.first_label_available_ts.isoformat(),
+                old_record.last_label_available_ts.isoformat(),
+                old_record.exposure_status,
+                old_record.registered_at.isoformat(),
+                canonical_serialize(old_payload),
+            ),
+        )
+
+    registry = LabelRegistry(registry_path)
+    loaded_old = registry.resolve_label(old_record.label_version_id)
+    assert loaded_old is not None
+    assert loaded_old.value_store_format == "jsonl"
+    assert loaded_old.parquet_path is None
+
+    new_result, new_definition = _materialization_result(
+        tmp_path,
+        "dsv_synthetic_label_store_parquet_row",
+    )
+    parquet_path = tmp_path / "labels" / "values.parquet"
+    handle = ValueStoreHandle(
+        format=ValueStoreFormat.PARQUET,
+        jsonl_path=None,
+        parquet_path=parquet_path.as_posix(),
+        value_count=new_result.record_count,
+        content_hash="sha256:" + "2" * 64,
+        schema_version="schema.v1",
+        dataset_version_id=new_result.plan.dataset_version_id,
+        set_id="lset_fixture",
+        partition_id=new_result.plan.partition_id,
+        min_event_ts="2024-01-02T14:31:00+00:00",
+        max_event_ts="2024-01-02T14:33:00+00:00",
+        min_available_ts="2024-01-02T14:32:01+00:00",
+        max_available_ts="2024-01-02T14:34:01+00:00",
+    )
+    new_record = registry.register_materialized_label(
+        replace(new_result, output_path=parquet_path, value_store_handle=handle),
+        label_contract=new_definition.contract,
+        label_version=new_definition.version,
+    )
+
+    loaded_new = registry.resolve_label(new_record.label_version_id)
+    assert loaded_new is not None
+    assert loaded_new.value_store_format == "parquet"
+    assert loaded_new.parquet_path == parquet_path.as_posix()
+    assert loaded_new.value_content_hash == handle.content_hash
+    assert loaded_new.value_schema_version == "schema.v1"
 
 
 def test_duplicate_exposure_is_recorded_and_deprecation_preserves_lineage(

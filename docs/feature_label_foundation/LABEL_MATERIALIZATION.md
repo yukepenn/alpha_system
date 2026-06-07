@@ -93,11 +93,13 @@ promoted candidate.
 The `values.jsonl` output is the **audit/small tier** of the two-tier value
 storage policy in [ADR-0006](../../decisions/0006-feature-label-value-storage.md):
 deterministic JSONL is sanctioned for tiny fixtures, audit/debug output, MVP
-smoke, and small seed packs. JSONL is **not** the permanent large-scale research
-store; research-scale value matrices are intended to move to local Parquet (read
-via DuckDB/Polars) under the deferred follow-up `FEATURE_LABEL_PARQUET_SINK_V1`.
-The LabelRegistry stores only metadata and a value-path pointer, never the
-values.
+smoke, and small seed packs. The **research-scale tier is local Parquet**
+(`values.parquet` + sidecar manifest, read via Polars), now implemented by
+`FEATURE_LABEL_PARQUET_SINK_V1` through `core/value_store.py`. Select the tier
+with `alpha label materialize --execute --value-store {jsonl,parquet,dual}`
+(default `dual` writes both). The LabelRegistry stores only metadata and the
+value-path pointers (`parquet_path`, output path, `value_store_format`,
+`value_content_hash`), never the values.
 
 ## Boundary
 

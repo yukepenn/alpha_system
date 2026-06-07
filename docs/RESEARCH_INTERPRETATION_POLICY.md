@@ -94,6 +94,24 @@ must not silently approve a factor, strategy, model, or portfolio configuration.
 If review is missing, state "review required" or "not reviewed". Do not phrase
 missing review as a warning that can be ignored.
 
+## Horizon And Session-Segment Scope
+
+The primary starting research horizon is the 5–30 minute band; it is a starting
+band, not a hard cap, and only a later authorized campaign may extend it. The one
+hard intraday boundary is that research holdings are flat before the exchange
+daily maintenance / trade-date break and intraday targets resolve on the same
+trade date.
+
+ETH, RTH, pre-RTH, and post-RTH are all research-in-scope, but session-segment
+results must be interpreted with per-segment diagnostics and with stricter cost
+stress in thin sessions (ETH, pre-RTH, post-RTH). Do not generalize a result
+measured in one session segment to another, and do not treat liquid-RTH cost
+assumptions as valid for thin sessions. Session-segment fields such as
+`session_label`, `session_segment`, `rth_flag`, `eth_flag`, and `session_minute`
+are point-in-time session metadata, not labels; see
+[SESSION_LABEL_GUARD_FIX_V1](../decisions/0006-feature-label-value-storage.md)
+context and the no-lookahead guard.
+
 ## L2 And Event-Driven Scope
 
 During this campaign, L2 and event-driven execution are design-readiness or

@@ -18,6 +18,7 @@ from types import MappingProxyType
 from typing import Any
 
 from alpha_system.core.registry import is_local_only_registry_path, resolve_registry_path
+from alpha_system.core.value_store import ValueStoreFormat
 from alpha_system.features.contracts import (
     FEATURE_VERSION_PATTERN,
     FeatureContractError,
@@ -92,6 +93,10 @@ class FeatureRegistryRecord:
     first_available_ts: datetime
     last_available_ts: datetime
     registered_at: datetime
+    value_store_format: str = ValueStoreFormat.JSONL.value
+    parquet_path: str | None = None
+    value_content_hash: str | None = None
+    value_schema_version: str | None = None
     lifecycle_state: FeatureRegistryLifecycleState | str = (
         FeatureRegistryLifecycleState.REGISTERED
     )
@@ -183,6 +188,26 @@ class FeatureRegistryRecord:
             "materialization_output_path",
             _require_text(self.materialization_output_path, "materialization_output_path"),
         )
+        object.__setattr__(
+            self,
+            "value_store_format",
+            _coerce_value_store_format(self.value_store_format).value,
+        )
+        object.__setattr__(
+            self,
+            "parquet_path",
+            _optional_text_or_none(self.parquet_path, "parquet_path"),
+        )
+        object.__setattr__(
+            self,
+            "value_content_hash",
+            _optional_text_or_none(self.value_content_hash, "value_content_hash"),
+        )
+        object.__setattr__(
+            self,
+            "value_schema_version",
+            _optional_text_or_none(self.value_schema_version, "value_schema_version"),
+        )
         object.__setattr__(self, "value_record_count", value_record_count)
         object.__setattr__(self, "first_event_ts", first_event_ts)
         object.__setattr__(self, "last_event_ts", last_event_ts)
@@ -245,6 +270,10 @@ class FeatureRegistryRecord:
                 "dataset_version_id": self.dataset_version_id,
                 "partition_id": self.partition_id,
                 "output_path": self.materialization_output_path,
+                "value_store_format": self.value_store_format,
+                "parquet_path": self.parquet_path,
+                "value_content_hash": self.value_content_hash,
+                "value_schema_version": self.value_schema_version,
                 "value_record_count": self.value_record_count,
                 "first_event_ts": self.first_event_ts.isoformat(),
                 "last_event_ts": self.last_event_ts.isoformat(),
@@ -359,7 +388,7 @@ class FeatureRegistry:
             existing = _fetch_record_row(connection, record.feature_version_id)
             if existing is not None:
                 _insert_feature_set_membership(connection, record)
-                return _record_from_json(str(existing["metadata_json"]))
+                return _record_from_row(existing)
             connection.execute(
                 """
                 INSERT INTO feature_registry_records (
@@ -371,6 +400,10 @@ class FeatureRegistry:
                     dataset_version_id,
                     partition_id,
                     materialization_output_path,
+                    value_store_format,
+                    parquet_path,
+                    value_content_hash,
+                    value_schema_version,
                     value_record_count,
                     first_event_ts,
                     last_event_ts,
@@ -380,7 +413,7 @@ class FeatureRegistry:
                     registered_at,
                     metadata_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.feature_version_id,
@@ -391,6 +424,10 @@ class FeatureRegistry:
                     record.dataset_version_id,
                     record.partition_id,
                     record.materialization_output_path,
+                    record.value_store_format,
+                    record.parquet_path,
+                    record.value_content_hash,
+                    record.value_schema_version,
                     record.value_record_count,
                     record.first_event_ts.isoformat(),
                     record.last_event_ts.isoformat(),
@@ -431,7 +468,7 @@ class FeatureRegistry:
             row = _fetch_record_row(connection, version_id)
         if row is None:
             return None
-        return _record_from_json(str(row["metadata_json"]))
+        return _record_from_row(row)
 
     def resolve_feature_set(self, feature_set: FeatureSetSpec) -> tuple[FeatureRegistryRecord, ...]:
         """Resolve registered records for every member of a FeatureSetSpec."""
@@ -523,7 +560,7 @@ class FeatureRegistry:
             ).fetchone()
             if existing_deprecation is not None:
                 return _deprecation_from_json(str(existing_deprecation["metadata_json"]))
-            record = _record_from_json(str(row["metadata_json"]))
+            record = _record_from_row(row)
             deprecated_record = replace(
                 record,
                 lifecycle_state=FeatureRegistryLifecycleState.DEPRECATED,
@@ -651,6 +688,10 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             dataset_version_id TEXT NOT NULL,
             partition_id TEXT NOT NULL,
             materialization_output_path TEXT NOT NULL,
+            value_store_format TEXT NOT NULL DEFAULT 'jsonl',
+            parquet_path TEXT,
+            value_content_hash TEXT,
+            value_schema_version TEXT,
             value_record_count INTEGER NOT NULL,
             first_event_ts TEXT NOT NULL,
             last_event_ts TEXT NOT NULL,
@@ -661,6 +702,16 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             metadata_json TEXT NOT NULL
         )
         """
+    )
+    _backfill_columns(
+        connection,
+        "feature_registry_records",
+        {
+            "value_store_format": "TEXT NOT NULL DEFAULT 'jsonl'",
+            "parquet_path": "TEXT",
+            "value_content_hash": "TEXT",
+            "value_schema_version": "TEXT",
+        },
     )
     connection.execute(
         """
@@ -705,13 +756,27 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     )
 
 
+def _backfill_columns(
+    connection: sqlite3.Connection,
+    table_name: str,
+    columns: Mapping[str, str],
+) -> None:
+    existing = {
+        str(row["name"] if isinstance(row, sqlite3.Row) else row[1])
+        for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    for column_name, column_spec in columns.items():
+        if column_name not in existing:
+            connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_spec}")
+
+
 def _fetch_record_row(
     connection: sqlite3.Connection,
     feature_version_id: str,
 ) -> sqlite3.Row | None:
     return connection.execute(
         """
-        SELECT metadata_json
+        SELECT *
         FROM feature_registry_records
         WHERE feature_version_id = ?
         """,
@@ -774,6 +839,34 @@ def _membership_json(record: FeatureRegistryRecord) -> str:
 
 def _deprecation_json(record: FeatureDeprecationRecord) -> str:
     return canonical_serialize(record.to_dict())
+
+
+def _record_from_row(row: sqlite3.Row) -> FeatureRegistryRecord:
+    record = _record_from_json(str(row["metadata_json"]))
+    keys = set(row.keys())
+    return replace(
+        record,
+        value_store_format=(
+            row["value_store_format"]
+            if "value_store_format" in keys and row["value_store_format"] is not None
+            else record.value_store_format
+        ),
+        parquet_path=(
+            row["parquet_path"]
+            if "parquet_path" in keys and row["parquet_path"] is not None
+            else record.parquet_path
+        ),
+        value_content_hash=(
+            row["value_content_hash"]
+            if "value_content_hash" in keys and row["value_content_hash"] is not None
+            else record.value_content_hash
+        ),
+        value_schema_version=(
+            row["value_schema_version"]
+            if "value_schema_version" in keys and row["value_schema_version"] is not None
+            else record.value_schema_version
+        ),
+    )
 
 
 def _record_from_json(text: str) -> FeatureRegistryRecord:
@@ -844,6 +937,21 @@ def _record_from_json(text: str) -> FeatureRegistryRecord:
         materialization_output_path=_require_text(
             materialization.get("output_path"),
             "materialization.output_path",
+        ),
+        value_store_format=_coerce_value_store_format(
+            materialization.get("value_store_format", ValueStoreFormat.JSONL.value)
+        ).value,
+        parquet_path=_optional_text_or_none(
+            materialization.get("parquet_path"),
+            "materialization.parquet_path",
+        ),
+        value_content_hash=_optional_text_or_none(
+            materialization.get("value_content_hash"),
+            "materialization.value_content_hash",
+        ),
+        value_schema_version=_optional_text_or_none(
+            materialization.get("value_schema_version"),
+            "materialization.value_schema_version",
         ),
         value_record_count=_require_positive_int(
             materialization.get("value_record_count"),
@@ -1199,6 +1307,16 @@ def _coerce_lifecycle_state(
         raise FeatureRegistryError(f"lifecycle_state must be one of: {allowed}") from exc
 
 
+def _coerce_value_store_format(value: object) -> ValueStoreFormat:
+    try:
+        if isinstance(value, ValueStoreFormat):
+            return value
+        return ValueStoreFormat(_require_text(value, "value_store_format"))
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in ValueStoreFormat)
+        raise FeatureRegistryError(f"value_store_format must be one of: {allowed}") from exc
+
+
 def _freeze_json_mapping(
     value: Mapping[str, Any] | FrozenJsonMapping,
     field_name: str,
@@ -1220,6 +1338,12 @@ def _require_text(value: object, field_name: str) -> str:
     if not text or "\n" in text or "\r" in text:
         raise FeatureRegistryError(f"{field_name} must be a non-empty single-line string")
     return text
+
+
+def _optional_text_or_none(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    return _require_text(value, field_name)
 
 
 def _require_positive_int(value: object, field_name: str) -> int:

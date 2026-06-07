@@ -4,7 +4,20 @@ Project: `alpha_system`
 
 ## Current status
 
-Latest (Workflow 1): `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1` —
+Latest (Workflow 1): `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1` — **COMPLETE (PASS)**.
+The two pre-pilot data-access blockers are landed and verified on real local data:
+`FEATURE_LABEL_PARQUET_SINK_V1` (research-scale Parquet value sink/reader + registry
+pointer metadata via `core/value_store.py`, dual JSONL+Parquet operator, JSONL preserved
+as audit/small tier) and `SESSION_LABEL_GUARD_FIX_V1` (role-aware no-lookahead guard;
+session-context features `rth_flag`/`eth_flag`/`session_minute` now resolve via declared
+`SESSION_METADATA`, true labels still blocked). Real smoke materialized Parquet-backed
+session features + `fwd_ret_5m`; runtime smoke PASS; Agent Factory preflight PREFLIGHT_PASS
+on all four gates. `verify.py --all` = 2806 passed / 7 skipped; canaries PASS; artifact audit
+clean (no values/registries/Parquet committed). See
+`handoffs/PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1.md`. Next campaign (separately authorized):
+`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`.
+
+Previously (Workflow 1): `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1` —
 storage architecture converged (ADR-0006: JSONL audit tier now, Parquet
 research-scale deferred to `FEATURE_LABEL_PARQUET_SINK_V1`), a governed seed
 FeaturePack/LabelPack operator + canonical-Parquet loader were added, and the
