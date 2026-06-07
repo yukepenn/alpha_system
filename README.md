@@ -8,9 +8,29 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed
-`AGENT-P23` of 26 (`AGENT-P00` ... `AGENT-P25`), Seed-Pack and Synthetic Dry
-Run, and is in the Wave 4 closeout chain. Active / next work is `AGENT-P24`
-Workflow 2 DAG Integration and Parallel Plan.
+`AGENT-P24` of 26 (`AGENT-P00` ... `AGENT-P25`), Workflow 2 DAG Integration
+and Parallel Plan, and is in the Wave 4 closeout chain. Active / next work is
+`AGENT-P25` Acceptance Audit and Closeout, the final Wave 4 phase.
+
+New durable surface from `AGENT-P24`:
+
+- `docs/agent_factory/WORKFLOW2_DAG.md`
+
+It records the Workflow 2 DAG scheduler configuration, the W0-W4 wave plan,
+the exact `frontier-plan` wave preview, parallel-safe disjointness, the serial
+merge queue, coordinator-only `ACTIVE_CAMPAIGN.md` ownership, and these
+operator verification commands:
+
+```bash
+just frontier-plan ALPHA_AGENT_FACTORY_MVP
+just frontier-run-parallel-mock ALPHA_AGENT_FACTORY_MVP 3
+```
+
+Safety boundaries are unchanged: contracts only; local-first seed-pack or
+synthetic dry-run; no autonomous agent; no continuous research runner; no
+alpha, tradability, or profitability claim; no broker, live, paper, order, or
+account scope; accepted-DatasetVersion-only consumption; runtime consumed
+through the bridge, not bypassed.
 
 New durable surfaces from `AGENT-P23`:
 
@@ -22,12 +42,6 @@ Reproduce the Agent Factory integration dry run with:
 ```bash
 python -m pytest tests/integration/agent_factory -q
 ```
-
-Safety boundaries are unchanged: contracts only; local-first seed-pack or
-synthetic dry-run; no autonomous agent; no continuous research runner; no
-alpha, tradability, or profitability claim; no broker, live, paper, order, or
-account scope; accepted-DatasetVersion-only consumption; runtime consumed
-through the bridge, not bypassed.
 
 New durable surfaces from `AGENT-P22`:
 
