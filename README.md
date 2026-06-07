@@ -8,29 +8,32 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P03` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
-post-merge snapshot and locks the registry-resolved DatasetVersion, FeaturePack,
-and LabelPack input references for the pilot. The `foundation` merge group /
-`bootstrap_and_inputs` gate remains in progress.
+`FUTCORE-P04` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
+post-merge snapshot and pins the value-free `CostModelVersion` plus
+session-specific cost stress contract for the pilot. The `foundation` merge
+group / `bootstrap_and_inputs` gate remains in progress.
 
-Active / next work: next phase is `FUTCORE-P04` - CostModelVersion and
-Session-Specific Cost Stress Contract.
+Active / next work: next phase is `FUTCORE-P05` - Pilot AlphaSpec Batch
+Protocol.
 
-New durable surfaces through `FUTCORE-P03`:
+New durable surfaces through `FUTCORE-P04`:
 
 - `docs/futures_core_alpha_pilot/README.md`
 - `docs/futures_core_alpha_pilot/OVERVIEW.md`
 - `docs/futures_core_alpha_pilot/PREFLIGHT.md`
 - `docs/futures_core_alpha_pilot/SCOPE.md`
 - `docs/futures_core_alpha_pilot/INPUT_PACK.md`
+- `docs/futures_core_alpha_pilot/COST_MODEL.md`
 - `research/futures_core_alpha_pilot_v1/README.md`
 - `research/futures_core_alpha_pilot_v1/.gitkeep`
 - `research/futures_core_alpha_pilot_v1/preflight/preflight_report.md`
 - `research/futures_core_alpha_pilot_v1/scope/scope_contract.md`
 - `research/futures_core_alpha_pilot_v1/input_pack/input_pack_lock.md`
+- `research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md`
 
-No new commands, modules, runtime behavior, data readers, diagnostics, or broker
-surfaces are added by `FUTCORE-P03`.
+No new commands, modules, runtime behavior, data readers, diagnostics, cost
+calculations, or broker surfaces are added by `FUTCORE-P04`. The `zero_cost`
+profile is diagnostic-only and never a promotion basis.
 
 ## Source Of Truth
 
