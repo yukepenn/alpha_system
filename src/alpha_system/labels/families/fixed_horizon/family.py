@@ -45,6 +45,7 @@ class FixedHorizonLabelName(StrEnum):
     FWD_RET_3M = "fwd_ret_3m"
     FWD_RET_5M = "fwd_ret_5m"
     FWD_RET_10M = "fwd_ret_10m"
+    FWD_RET_15M = "fwd_ret_15m"
     FWD_RET_30M = "fwd_ret_30m"
     MID_FWD_RET_1M = "mid_fwd_ret_1m"
     MID_FWD_RET_3M = "mid_fwd_ret_3m"
@@ -123,6 +124,7 @@ _TRADE_PRICE_LABELS: frozenset[FixedHorizonLabelName] = frozenset(
         FixedHorizonLabelName.FWD_RET_3M,
         FixedHorizonLabelName.FWD_RET_5M,
         FixedHorizonLabelName.FWD_RET_10M,
+        FixedHorizonLabelName.FWD_RET_15M,
         FixedHorizonLabelName.FWD_RET_30M,
     }
 )
@@ -140,6 +142,7 @@ _HORIZON_MINUTES: dict[FixedHorizonLabelName, int] = {
     FixedHorizonLabelName.FWD_RET_3M: 3,
     FixedHorizonLabelName.FWD_RET_5M: 5,
     FixedHorizonLabelName.FWD_RET_10M: 10,
+    FixedHorizonLabelName.FWD_RET_15M: 15,
     FixedHorizonLabelName.FWD_RET_30M: 30,
     FixedHorizonLabelName.MID_FWD_RET_1M: 1,
     FixedHorizonLabelName.MID_FWD_RET_3M: 3,
