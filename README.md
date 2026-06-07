@@ -8,39 +8,23 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P20` of the 31-phase pilot campaign in the
-`family_diagnostics` gate. This snapshot records value-free BBO confirmation
-diagnostics for the approved BBO StudySpec.
+through `FUTCORE-P21` of the 31-phase pilot campaign in the
+`consolidation_and_audits` gate. This snapshot records the value-free cost
+stress and thin-session stress consolidation.
 
-Active / next work: the next phase is `FUTCORE-P21` - Cost Stress and
-Thin-Session Stress Consolidation, once Ralph completes the serial merge of the
-family diagnostics wave. Ralph continues to own authoritative validation, review
-routing, staging, PR, CI, merge, and done-check actions.
+Active / next work: the next phase is `FUTCORE-P22` - Session / Horizon /
+Regime Matrix Consolidation. Ralph continues to own authoritative validation,
+review routing, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P20` snapshot:
+New durable surfaces in this `FUTCORE-P21` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/bbo_tradability/`
-- `docs/futures_core_alpha_pilot/diagnostics/bbo_tradability.md`
+- `research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md`
+- `docs/futures_core_alpha_pilot/COST_SENSITIVITY.md`
 
-`FUTCORE-P20` adds no new commands, data readers, agent runners, feature value
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is at
-`FUTCORE-P19` of the 31-phase pilot campaign in the `family_diagnostics` gate.
-This snapshot records the liquidity-sweep / objective PA diagnostics point in
-the serial diagnostics merge queue.
-
-Active / next work: the next serial diagnostics phase is `FUTCORE-P20` - BBO
-Tradability Diagnostics, followed by the `FUTCORE-P21` consolidation sequence
-after the diagnostics wave completes. Ralph continues to own authoritative
-validation, review routing, staging, PR, CI, merge, and done-check actions.
-
-New durable surfaces in this `FUTCORE-P19` snapshot:
-
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/`
-- `docs/futures_core_alpha_pilot/diagnostics/liquidity_pa.md`
-
-`FUTCORE-P19` adds no new commands, data readers, agent runners, feature value
+`FUTCORE-P21` adds no new commands, data readers, agent runners, feature value
 data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
-or deployment behavior.
+or deployment behavior. `zero_cost` remains diagnostic-only and is never a
+promotion basis.
 
 ## Source Of Truth
 
