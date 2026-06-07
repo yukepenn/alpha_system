@@ -8,23 +8,23 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P25` of the 31-phase pilot campaign in the
-`evidence_ledger_promotion` gate. This snapshot records value-free Statistical
-Reviewer verdict artifacts for the non-rejected consolidation survivors.
+through `FUTCORE-P26` of the 31-phase pilot campaign in the
+`evidence_ledger_promotion` gate. This snapshot records value-free
+TrialLedger and RejectedIdeaLedger evidence artifacts.
 
-Active / next work: `FUTCORE-P25` is done for executor handoff; the next phase
-is `FUTCORE-P26` - TrialLedger / RejectedIdeaLedger Recording. Ralph continues
-to own authoritative validation, review routing, staging, PR, CI, merge, and
-done-check actions.
+Active / next work: `FUTCORE-P26` is done for executor handoff; the next phase
+is `FUTCORE-P27` - EvidenceDraft and ReferenceCandidateHandoff for Survivors.
+Ralph continues to own authoritative validation, review routing, staging, PR,
+CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P25` snapshot:
+New durable surfaces in this `FUTCORE-P26` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/reviewer_verdicts/`
-- `docs/futures_core_alpha_pilot/REVIEWER_VERDICTS.md`
+- `research/futures_core_alpha_pilot_v1/ledgers/`
+- `docs/futures_core_alpha_pilot/LEDGERS.md`
 
-`FUTCORE-P25` adds no new commands, data readers, agent runners, primitives,
+`FUTCORE-P26` adds no new commands, data readers, agent runners, primitives,
 feature value data, label value data, broker surfaces, live surfaces,
-paper-trading surfaces, or deployment behavior. The verdict artifacts assign no
+paper-trading surfaces, or deployment behavior. The ledger artifacts assign no
 PromotionDecision, and `zero_cost` remains diagnostic-only and is never a
 promotion basis.
 
