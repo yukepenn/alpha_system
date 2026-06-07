@@ -5,11 +5,11 @@
 
 ## Scope
 
-Covered StudySpecs:
+Covered canonical P14 StudySpecs:
 
-- `sspec_ab3cbb830a2cede5485de19b` / `aspec_b40aee52d4399dd5b855a6ed`:
+- `sspec_69c22ec5847395ac8e81b5b6` / `aspec_b40aee52d4399dd5b855a6ed`:
   RTH reclaim of running VWAP after the opening window.
-- `sspec_8b8037013e7b3c14fd5b2844` / `aspec_43cd6c154bca2fcc419eee83`:
+- `sspec_aff70fcbc4b7ff226fcc8149` / `aspec_43cd6c154bca2fcc419eee83`:
   RTH open location versus completed ETH VWAP, then first eligible running RTH
   VWAP relationship.
 
@@ -17,8 +17,8 @@ Diagnostics used the Research Runtime tool surface only: runtime entry/input
 resolution, factor diagnostics, label diagnostics, session split diagnostics,
 cost stress diagnostics, `RuntimeToolResult`, and `RuntimeRunSummary`.
 
-The resolved locked inputs are the two P03/P14 session-context FeaturePacks and
-the locked 5m LabelPack. No source primitive, runtime, feature, label, data,
+The resolved locked inputs are six P14 FeaturePacks and three locked LabelPacks
+from the P03/P13/P14 lock. No source primitive, runtime, feature, label, data,
 broker, execution, or CLI code was edited.
 
 ## Reports
@@ -27,15 +27,12 @@ Commit-eligible report artifacts:
 
 - `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/README.md`
 - `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/FUTCORE-P17_vwap_session_summary.json`
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/sspec_ab3cbb830a2cede5485de19b/runtime_reports.json`
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/sspec_8b8037013e7b3c14fd5b2844/runtime_reports.json`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/sspec_69c22ec5847395ac8e81b5b6/runtime_reports.json`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/sspec_aff70fcbc4b7ff226fcc8149/runtime_reports.json`
 
-The joined 5m runtime input surface contains 6,862 observations for the locked
-development partition. In this lock, all joined observations classify outside
-RTH: `full_session` and `ETH_only` each have 6,862 observations; `RTH`,
-`RTH_only`, and `RTH_with_ETH_context` have zero eligible joined observations.
-Those zero-count cells are preserved as diagnostics output rather than filled by
-substitution.
+Stale noncanonical report files from a prior executor attempt were removed from
+the working tree because those ids are not present in the canonical P14
+StudySpec pack.
 
 ## Session And Horizon Matrix
 
@@ -44,10 +41,18 @@ Each report contains the required session views:
 `full_session`, `RTH_only`, `ETH_only`, `ETH_evening`, `ETH_overnight`,
 `pre_RTH`, `RTH`, `post_RTH`, and `RTH_with_ETH_context`.
 
-Each report also records the primary horizon matrix for `5m`, `10m`, `15m`,
-and `30m`. The 5m cells resolve through the locked LabelPack. The `10m`, `15m`,
-and `30m` cells are recorded as unresolved label-pack cells because no locked
-LabelVersion for those horizons resolves in this phase. The `1m` and `3m`
+Joined observations by primary horizon are:
+
+| Horizon | Joined observations | Status |
+| --- | ---: | --- |
+| `5m` | 6,862 | Locked LabelVersion resolved. |
+| `10m` | 6,832 | Locked LabelVersion resolved. |
+| `15m` | 0 | Governed LabelSpec exists, but no locked LabelVersion resolves in this pack. |
+| `30m` | 6,712 | Locked LabelVersion resolved. |
+
+In the locked development partition, all joined observations classify outside
+RTH. `RTH`, `RTH_only`, and `RTH_with_ETH_context` therefore remain zero-count
+diagnostic cells rather than being filled by substitution. The `1m` and `3m`
 horizons are flagged diagnostic-only and are not a promotion basis.
 
 ## VWAP Timing Boundary
@@ -57,11 +62,12 @@ must carry `available_ts`. Final-session VWAP, high, and low are completed
 session context only and are not used intraday before the relevant session has
 ended.
 
-For `sspec_ab3cbb830a2cede5485de19b`, no locked running VWAP or reclaim-event
-FeaturePack resolves. For `sspec_8b8037013e7b3c14fd5b2844`, no locked completed
-ETH VWAP or first-RTH running VWAP FeaturePack resolves. Therefore the
-VWAP-specific signal-probe diagnostics are inconclusive. The runtime reports do
-not substitute session-minute or RTH-flag context as a VWAP signal.
+For `sspec_69c22ec5847395ac8e81b5b6`, no locked running VWAP or reclaim-event
+FeaturePack resolves. For `sspec_aff70fcbc4b7ff226fcc8149`, no locked
+completed ETH VWAP or first-RTH running VWAP FeaturePack resolves. Therefore
+the VWAP-specific signal-probe diagnostics are inconclusive. The runtime
+reports do not substitute session-minute, range-position, or RTH-flag context
+as a VWAP signal.
 
 ## Cost Boundary
 
