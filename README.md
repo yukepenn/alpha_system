@@ -7,52 +7,23 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is advancing
-through the `family_diagnostics` gate. This snapshot records `FUTCORE-P17` of
-the 31-phase campaign: value-free VWAP/session diagnostics for the approved
-P14 StudySpecs using Research Runtime tool results only.
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is in the
+`bootstrap_and_inputs` gate. This snapshot records `FUTCORE-P03`, which locks
+the registry-resolved DatasetVersion, Parquet FeaturePack, and Parquet
+LabelPack references by id/hash/pointer metadata only.
 
-Active / next work: the `FUTCORE-P16`...`FUTCORE-P20` family diagnostics wave
-remains in progress. Ralph continues to own authoritative validation, review
-routing, serial merge handling, staging, PR, CI, merge, and done-check actions.
-
-New durable surfaces through this `FUTCORE-P17` snapshot:
-
-- `research/futures_core_alpha_pilot_v1/critiques/`
-- `research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md`
-- `docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md`
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
-- `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
-
-The earlier `FUTCORE-P12` checkpoint remains the value-free AlphaSpec critique
-and family-budget audit that carried 10 accepted AlphaSpecs into the P13/P14
-data-contract and StudySpec binding gates.
-
-`FUTCORE-P17` records per-session and session x horizon diagnostics for the
-VWAP/session family. The locked 5m LabelPack resolves; the 10m, 15m, and 30m
-horizon cells remain unresolved label-pack cells in this phase. VWAP-specific
-signal-probe diagnostics are inconclusive because no locked running VWAP,
-completed ETH VWAP, or VWAP trigger FeaturePack resolves. No new commands,
-source primitives, feature values, label values, data readers, agent runners,
-or broker surfaces are added.
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has entered the
-`family_diagnostics` gate. `FUTCORE-P16` adds value-free cross-market
-diagnostics reports for the four approved cross-market StudySpecs.
-
-Active / next work: after `FUTCORE-P16` review and merge handling, the remaining
-`FUTCORE-P17`...`FUTCORE-P20` family diagnostics phases continue. Ralph owns
-authoritative validation, review routing, serial merge handling, staging, PR,
+Active / next work: the active phase is `FUTCORE-P03`; the next phase is
+`FUTCORE-P04`, CostModelVersion and session-specific cost stress contract.
+Ralph continues to own authoritative validation, review routing, staging, PR,
 CI, merge, and done-check actions.
 
-New durable surfaces through this `FUTCORE-P16` snapshot:
+New durable surfaces in this `FUTCORE-P03` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/`
-- `docs/futures_core_alpha_pilot/diagnostics/cross_market.md`
+- `docs/futures_core_alpha_pilot/INPUT_PACK.md`
+- `research/futures_core_alpha_pilot_v1/input_pack/`
 
-`FUTCORE-P16` adds no new modules or commands. The reports record runtime
-diagnostic statuses and scalar summaries only; the locked materialized packs
-contained ES observations without NQ/RTY observations, so cross-market alignment
-rejected the runs visibly rather than filling missing instruments.
+`FUTCORE-P03` adds no new modules, commands, source primitives, feature values,
+label values, data readers, agent runners, or broker surfaces.
 
 ## Source Of Truth
 
