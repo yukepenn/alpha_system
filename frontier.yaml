@@ -337,6 +337,7 @@ artifacts:
     - "handoffs/**"
     - "reviews/**"
     - "decisions/**"
+    - "research/**"
     - "docs/**"
     - "evals/**"
     - "src/**"
