@@ -1,0 +1,2505 @@
+campaign_id: ALPHA_FUTURES_CORE_ALPHA_PILOT_V1
+campaign_name: 'Futures Core Alpha Pilot V1: First small-but-real, evidence-gated, cost-aware ES/NQ/RTY alpha research loop over the completed Data + Feature/Label + Runtime + Agent Factory stack'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: core_alpha_pilot
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Research-only, bounded futures alpha pilot. This campaign drives the existing
+    Data, Feature/Label, Research Runtime, and Agent Factory primitives through
+    their sanctioned APIs to test a real controlled research loop on ES/NQ/RTY.
+    It produces research evidence (specs, diagnostics, ledgers, evidence drafts,
+    promotion decisions) only. It is not a backtester, strategy repo, or
+    broker/live/paper system, and it makes no profitability or tradability claim.
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop for high-judgment work; available but not the default for this campaign.
+  workflow2:
+    description: Ralph strict autonomous campaign loop with DAG-wave parallel build and serial merge.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  notes:
+  - Build phases in parallel waves in isolated worktrees; merge one PR at a time.
+  - Phase branches must never write ACTIVE_CAMPAIGN.md; the coordinator owns it.
+  - Parallel waves require disjoint allowed_paths and no shared resource_class.
+  - Ledger/promotion/review/audit/closeout phases are must_run_alone.
+runtime:
+  python: '3.11'
+  package_root: src/alpha_system
+  test_root: tests
+  smoke_command: python tools/verify.py --smoke
+  full_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+  research_venv: ~/.venvs/alpha_system_research
+  consumed_primitives:
+  - src/alpha_system/governance (AlphaSpec, StudySpec, FeatureRequest, LabelSpec, TrialLedger, RejectedIdea, EvidenceBundle, PromotionGate, claims, registry, study_input_pack)
+  - src/alpha_system/runtime (input_resolver, tool_results, diagnostics, cost, grid, probe, evidence, decisions, handoff, reports, smoke, dry_run)
+  - src/alpha_system/agent_factory (roles, permissions, queue, records, memory, separation, tools, dry_run, runtime_bridge, entry_contract)
+  - src/alpha_system/features, src/alpha_system/labels (consumed; minimal additions only in FUTCORE-P15 via FeatureRequest/LabelSpec)
+models:
+  build_time_roles:
+    strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
+    specs_semantic_review_done_check: Claude Opus 4.8 xhigh
+    source_map_verifier_mechanical_audit: Claude Sonnet 4.6
+    execution_tests_repair_handoffs: Codex GPT-5.5 high
+    orchestration_state_machine_dag_merge_queue: Ralph
+  in_product_agent_roster_contracts_only:
+  - Research Director
+  - Hypothesis Scout
+  - AlphaSpec Critic
+  - Data Contract Auditor
+  - Feature Engineer
+  - Label Engineer
+  - No-Lookahead Auditor
+  - Diagnostics Runner
+  - Statistical Reviewer
+  - Librarian
+  notes:
+  - Build-time model roles write/review/merge the campaign.
+  - In-product agent roles are driven from the Agent Factory contracts; they are constrained research workers, not autonomous traders.
+lane_policy:
+  green: Low-risk automatic work (campaign control docs, indexes, value-free scaffolding).
+  yellow: Material research/engineering work requiring fresh Claude Opus review.
+  red: External, destructive, live, production, costly, or broker-adjacent work; requires scoped authorization.
+  red_authorization_required:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  red_expected_in_campaign: false
+  default_lane: yellow
+state_machine:
+  driver: ralph
+  strict: true
+  stop_checks_before:
+  - provider calls
+  - phase selection
+  - codex execution
+  - validation
+  - review
+  - PR creation
+  - CI waiting
+  - merge gate
+  - merge
+  - done-check
+  - next-phase selection
+  resume: from recorded run state, never regenerating completed work
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - runtime or agent heavy outputs
+  - heavy artifacts (parquet/arrow/feather)
+  - local DB/registry files (sqlite/db/wal)
+  - research run logs and caches
+  never_commit_globs:
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.sqlite3
+  - metadata/*.db
+  - metadata/*.db-journal
+  - metadata/*.wal
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.pickle'
+  - '**/*.joblib'
+  - '**/*.onnx'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/temp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.mypy_cache/**'
+  - '**/.ruff_cache/**'
+  - runs/**
+  - artifacts/**/raw_outputs/**
+  - '**/*credential*'
+  - '**/generated_local_only/**'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - campaign control files
+  - docs
+  - value-free research evidence artifacts (markdown/JSON specs, reports, ledgers, decisions)
+  - minimal feature/label primitive code (FUTCORE-P15 only, via FeatureRequest/LabelSpec)
+  - tests
+  - tiny synthetic fixtures
+  - templates and prompt templates
+  - handoffs
+  - reviews
+  - curated summaries
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/futures_core_alpha_pilot/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+    - value-free or trivially-small
+  research_evidence_artifacts:
+    note: >-
+      Pilot research evidence under research/futures_core_alpha_pilot_v1/** is
+      commit-eligible ONLY when value-free: AlphaSpecs, StudySpecs, critiques,
+      diagnostics reports (summary statistics/metadata only), cost/session/regime
+      reports, ledgers, evidence drafts, reviewer verdicts, promotion decisions,
+      and downstream handoffs. Raw or per-row feature/label/diagnostics values,
+      Parquet, SQLite, and provider responses remain local-only under runs/** or
+      $ALPHA_DATA_ROOT/** and are never committed.
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_provider_response_commits: true
+    no_runtime_or_agent_heavy_output_commits: true
+    no_account_info_commits: true
+    no_heavy_artifact_commits: true
+    no_local_db_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_provider_responses_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  yellow_requires_fresh_review: true
+  green_review_optional: true
+  red_requires_scoped_authorization: true
+  review_artifacts:
+    commit_eligible: reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/<phase_id>/**
+    run_local: runs/<run_id>/phases/<phase_id>/review.md and verdict.json
+  semantic_done_check_required: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - BLOCKED
+merge_policy:
+  merge_queue: serial
+  auto_merge_for_green: true
+  auto_merge_for_yellow_after_review: true
+  auto_merge_for_red: false
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  protected_branch: main
+  no_force_push: true
+  one_pr_at_a_time: true
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - account trading
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access from pilot code
+  - direct registry writes outside sanctioned tool APIs
+  - scaled or autonomous alpha mining
+  - continuous unattended research runner
+  - factor library V1 promotion
+  - strategy reference validation
+  - AlphaBook construction
+  - strategy/backtest/portfolio research as a pilot product
+  - ML/DL/RL training
+  - L1/L2 event-stream ingestion
+  - edits to consumed runtime/governance/agent_factory/research/experiments/backtest/data/core primitives
+  - raw data commit
+  - canonical data commit
+  - feature value commit
+  - label value commit
+  - runtime or agent heavy output commit
+  - provider response commit
+  - heavy artifact commit
+  - local DB commit
+  - zero-cost result used as a promotion basis
+  - locked-test tuning
+  - self-review or self-promotion
+  - alpha/profitability/tradability/production/capital-allocation claim
+  - test weakening or gaming
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+pilot_policy:
+  alpha_search_scope: bounded_pilot
+  scaled_mining_allowed: false
+  production_claims_allowed: false
+  paper_live_allowed: false
+  strategy_reference_validation_allowed: false
+  factor_library_v1_allowed: false
+  alpha_book_allowed: false
+  success_definition: >-
+    The real research loop works end-to-end, agents stay constrained, most ideas
+    are rejected for clear reasons, gates hold, diagnostics are reviewable,
+    cost/session/horizon/regime diagnostics exist, TrialLedger and
+    RejectedIdeaLedger are populated, and at most 0-2 ideas reach WATCH or
+    CANDIDATE_RESEARCH. Zero surviving ideas is acceptable if the rejection loop
+    is healthy.
+data_policy:
+  accepted_dataset_version_required: true
+  raw_provider_access_forbidden: true
+  parquet_feature_label_values_required: true
+  jsonl_large_research_scans_forbidden: true
+  external_provider_calls_forbidden: true
+  universe_in_scope:
+  - ES
+  - NQ
+  - RTY
+  universe_deferred:
+  - MES
+  - MNQ
+  - M2K
+  - rates
+  - FX
+  - commodities
+  - vol products
+  - options
+  - equities
+  - L1 eventstream
+  - L2/L3
+  required_data:
+  - OHLCV-1m
+  - BBO-1m
+  - Definition/Statistics/Status metadata as available
+  - canonical timestamps
+  - available_ts
+  - exchange_trade_date
+  - session_segment
+  - contract/continuous provenance
+  - quality/missingness flags where available
+feature_label_policy:
+  feature_request_required_for_new_features: true
+  label_spec_required_for_new_labels: true
+  available_ts_required: true
+  label_available_ts_required: true
+  session_context_allowed_if_point_in_time: true
+  registry_resolved_parquet_packs_required: true
+  primary_label_horizons:
+  - 5m
+  - 10m
+  - 15m
+  - 30m
+  optional_label_horizons:
+  - 60m
+  - 120m
+  - 240m
+  - session_close
+  fragile_label_horizons:
+  - 1m
+  - 3m
+  label_kinds:
+  - mid_price
+  - cost_adjusted
+  - MFE
+  - MAE
+  - target_before_stop
+  - triple_barrier
+  true_forward_looking_labels_blocked: true
+agent_policy:
+  agent_factory_required: true
+  self_review_forbidden: true
+  self_promotion_forbidden: true
+  role_permissions_required: true
+  human_capital_judgment_required: true
+  agents_are_constrained_workers_not_autonomous_traders: true
+  scaled_autonomous_mining_allowed: false
+  continuous_research_runner_allowed: false
+  required_roles:
+  - role: Research Director
+    may_decide: [task scope and budget within queue policy]
+    may_not_decide: [approve its own scoping as evidence, promote any factor or candidate]
+  - role: Hypothesis Scout
+    may_decide: [draft AlphaSpec content]
+    may_not_decide: [approve its own AlphaSpec, implement, run diagnostics, promote]
+  - role: AlphaSpec Critic
+    may_decide: [reject or request revision]
+    may_not_decide: [draft the spec it reviews, implement, promote]
+  - role: Data Contract Auditor
+    may_decide: [inputs available or blocked]
+    may_not_decide: [bypass accepted-DatasetVersion policy, raw provider access, registry writes]
+  - role: Feature Engineer
+    may_decide: [implement an approved FeatureRequest]
+    may_not_decide: [review its own implementation, promote]
+  - role: Label Engineer
+    may_decide: [implement an approved LabelSpec]
+    may_not_decide: [review its own implementation, promote]
+  - role: No-Lookahead Auditor
+    may_decide: [flag lookahead/leakage/same-bar optimism]
+    may_not_decide: [promote, draft the spec it audits]
+  - role: Diagnostics Runner
+    may_decide: [execute a bound StudySpec via runtime tools]
+    may_not_decide: [promote, approve specs]
+  - role: Statistical Reviewer
+    may_decide: [independent reviewer verdict]
+    may_not_decide: [review its own implementation, promote to paper/live]
+  - role: Librarian
+    may_decide: [record ledgers/memory after a reviewer verdict]
+    may_not_decide: [update durable memory or registry without a reviewer verdict]
+  separation_of_duties:
+  - Hypothesis Scout cannot approve.
+  - Feature/Label Engineer cannot review own implementation.
+  - Diagnostics Runner cannot promote.
+  - Statistical Reviewer must be independent of the implementer.
+  - Librarian cannot update durable memory without a reviewer verdict.
+  - Human owns capital/live judgment.
+runtime_policy:
+  runtime_tools_required: true
+  evidence_draft_required: true
+  reference_handoff_not_reference_validation: true
+  fast_path_not_reference_truth: true
+  runtime_consumed_via_tool_contracts_not_bypassed: true
+  resolve_dataset_version_only: true
+  runtime_package_not_edited: true
+cost_policy:
+  base_stress_required: true
+  stress_1_required: true
+  stress_2_required: true
+  double_cost_required: true
+  zero_cost_not_promotion_basis: true
+  thin_session_stress_required: true
+  layers:
+  - hard transaction cost (broker/exchange/regulatory fees, versioned/dated where supported)
+  - spread crossing (BBO bid/ask/mid/spread_ticks)
+  - slippage proxy (bucketed proxy + stress profiles)
+  profiles:
+  - zero_cost
+  - base
+  - stress_1
+  - stress_2
+  - double_cost
+horizon_session_policy:
+  primary_horizons: [5m, 10m, 15m, 30m]
+  fragile_horizons: [1m, 3m]
+  extended_intraday_horizons_allowed: true
+  flat_before_maintenance_break_required: true
+  session_split_required: true
+  session_horizon_matrix_required: true
+  sampling_only_horizon: 1m
+  required_session_views:
+  - full_session
+  - RTH_only
+  - ETH_only
+  - ETH_evening
+  - ETH_overnight
+  - pre_RTH
+  - RTH
+  - post_RTH
+  - RTH_with_ETH_context
+  guardrails:
+  - final_session_high/low/vwap cannot be used intraday before session complete
+  - RTH_with_ETH_context may use completed ETH context
+  - running_session_high_so_far allowed only with correct available_ts
+  - no position crosses exchange daily maintenance / trade-date break
+  - ETH evidence is research-in-scope but not trading-approved
+research_budget_policy:
+  max_alpha_spec_drafts: 40
+  max_approved_alpha_specs: 10
+  max_new_feature_or_label_requests: 5
+  max_diagnostics_survivors: 3
+  max_watch_or_candidate_research: 2
+  variant_budget_required: true
+  family_budget_required: true
+  family_budget:
+    cross_market_relative_value: 0.40
+    vwap_session_auction: 0.20
+    regime_momentum_reversion: 0.15
+    liquidity_sweep_failed_breakout: 0.15
+    bbo_tradability_confirmation: 0.10
+  volume_activity_overlay:
+    standalone_budget_allowed: false
+    existing_primitives_only: true
+anti_overfit_policy:
+  trial_ledger_required: true
+  rejected_ideas_visible: true
+  locked_test_tuning_forbidden: true
+  duplicate_exposure_check_required: true
+  cost_stress_required: true
+  zero_cost_promotion_basis_forbidden: true
+  no_repeated_selection_on_same_oos: true
+  all_failures_recorded: true
+  deferred_to_validation_governance_v1:
+  - full DSR/PBO/PSR
+  - full purged/embargo governance
+  - full locked-test contamination system
+  - full ResearchGraveyard hardening
+promotion_policy:
+  allowed_states:
+  - REJECT
+  - INCONCLUSIVE
+  - WATCH
+  - CANDIDATE_RESEARCH
+  forbidden_states:
+  - VALIDATED_RESEARCH
+  - LIVE_APPROVED
+  - PAPER_APPROVED
+  - PRODUCTION_READY
+  - CAPITAL_ALLOCATED
+  - PROFITABLE
+  - TRADABLE
+  - STRATEGY_READY
+  - PORTFOLIO_READY
+  definitions:
+    WATCH: weak but interesting evidence; not ready for strategy/reference/live.
+    CANDIDATE_RESEARCH: worthy of later FactorLibrary / Strategy Reference review; not paper/live/capital.
+    REJECT: failed with a recorded reason.
+    INCONCLUSIVE: insufficient or unstable evidence.
+  reviewer_verdict_required_for: [WATCH, CANDIDATE_RESEARCH]
+  survivor_outputs_factorlibrary_ready:
+  - FactorCard draft
+  - EvidenceDraft / EvidenceBundle input
+  - TrialLedger refs
+  - ReviewerVerdict
+  - RejectedIdea refs
+  - duplicate exposure group hint
+phases:
+- id: FUTCORE-P00
+  name: Core Alpha Pilot Campaign Bootstrap
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the campaign contract bundle, the root active pointer, and the pilot artifact/doc scaffolding so Workflow 2 can plan and schedule.
+  scope:
+  - Confirm the 6-file campaign bundle is present and internally consistent.
+  - Create the pilot docs index and the value-free research evidence directory skeleton.
+  - Update the root ACTIVE_CAMPAIGN.md pointer (coordinator-owned).
+  non_goals:
+  - Any alpha research, AlphaSpec drafting, or diagnostics.
+  - Any code under src/alpha_system primitives.
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/GOAL.md
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/PHASE_PLAN.md
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/campaign.yaml
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/ACCEPTANCE.md
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/RISK_REGISTER.md
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/RUNBOOK.md
+  - test '!' -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/ACTIVE_CAMPAIGN.md
+  - test -f handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P00.md
+  - grep -q "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/**
+  - docs/futures_core_alpha_pilot/README.md
+  - docs/futures_core_alpha_pilot/OVERVIEW.md
+  - research/futures_core_alpha_pilot_v1/README.md
+  - research/futures_core_alpha_pilot_v1/.gitkeep
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P00.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/runtime/**
+  - src/alpha_system/governance/**
+  - src/alpha_system/agent_factory/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/data/**
+  - src/alpha_system/core/**
+  - src/alpha_system/reports/**
+  - src/alpha_system/factors/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - src/alpha_system/cli/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.sqlite'
+  - '**/*.db'
+  artifact_policy:
+    commit_only:
+    - campaign control + overview docs
+    - value-free research evidence directory skeleton
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle present and consistent; root pointer selects this campaign; no campaign-local ACTIVE_CAMPAIGN.md; smoke passes; runs/ untracked.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P00.md
+  review: green lane; review optional.
+- id: FUTCORE-P01
+  name: 'Preflight: PRE_CORE Hardening, DatasetVersion, Parquet Packs, Runtime, Agent Factory'
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Record the preflight readiness contract proving every entry gate that lets the pilot start.
+  scope:
+  - Verify the consumed primitives import and the runtime real-data smoke status.
+  - Record FEATURE_LABEL_PARQUET_SINK_V1 and SESSION_LABEL_GUARD_FIX_V1 as complete (or block).
+  - Record accepted DatasetVersion / Parquet FeaturePack / LabelPack availability and Agent Factory preflight.
+  non_goals:
+  - Editing the consumed primitives.
+  - Drafting AlphaSpecs or running diagnostics.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance, alpha_system.runtime, alpha_system.agent_factory"
+  - python tools/verify.py --smoke
+  - test -f docs/futures_core_alpha_pilot/PREFLIGHT.md
+  - test -f research/futures_core_alpha_pilot_v1/preflight/preflight_report.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_core_alpha_pilot/PREFLIGHT.md
+  - research/futures_core_alpha_pilot_v1/preflight/**
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P01.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - preflight readiness contract (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Every entry gate recorded with status; blockers escalate rather than proceed; no consumed primitive edited.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P01.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P02
+  name: Pilot Scope, Universe, Sessions, Horizons, and Research Budget
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P01
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Pin the bounded scope contract — universe, session views, horizon policy, family budgets, and finite research budget.
+  scope:
+  - Record ES/NQ/RTY universe and deferred universe.
+  - Record session views, horizon zones, and the family budget split.
+  - Record finite idea/AlphaSpec/variant/survivor budgets.
+  non_goals:
+  - Drafting AlphaSpecs.
+  - Expanding universe or family budget.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f docs/futures_core_alpha_pilot/SCOPE.md
+  - test -f research/futures_core_alpha_pilot_v1/scope/scope_contract.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_core_alpha_pilot/SCOPE.md
+  - research/futures_core_alpha_pilot_v1/scope/**
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P02.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - scope/universe/session/horizon/budget contract (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Scope contract complete, finite, and matches campaign.yaml policy blocks.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P02.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P03
+  name: Data / Feature / Label Input Pack Lock
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Lock the registry-resolved DatasetVersion, Parquet FeaturePack, and LabelPack the pilot will consume, by reference only.
+  scope:
+  - Record accepted DatasetVersion id(s) and Parquet FeaturePack/LabelPack ids via registry tools.
+  - Record value_store_format/parquet_path/value_content_hash/value_schema_version references.
+  non_goals:
+  - Committing any value data, Parquet, or SQLite.
+  - Reading raw provider files.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/input_pack/input_pack_lock.md
+  - test -f docs/futures_core_alpha_pilot/INPUT_PACK.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_core_alpha_pilot/INPUT_PACK.md
+  - research/futures_core_alpha_pilot_v1/input_pack/**
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P03.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - input pack lock by reference (ids/hashes only, value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Pack lock references registry-resolved ids/hashes only; no value data staged.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P03.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P04
+  name: CostModelVersion and Session-Specific Cost Stress Contract
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Pin the three-layer cost model and the cost stress profiles (including thin-session penalties) the pilot will apply.
+  scope:
+  - Record hard transaction cost, spread crossing, and slippage proxy layers.
+  - Record zero_cost/base/stress_1/stress_2/double_cost profiles and thin-session stress rules.
+  non_goals:
+  - Treating zero-cost as a promotion basis.
+  - Running diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md
+  - test -f docs/futures_core_alpha_pilot/COST_MODEL.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_core_alpha_pilot/COST_MODEL.md
+  - research/futures_core_alpha_pilot_v1/cost_model/**
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P04.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - cost model + stress profile contract (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - All cost layers and stress profiles defined; zero-cost flagged diagnostic-only.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P04.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P05
+  name: Pilot AlphaSpec Batch Protocol
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P04
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Define the AlphaSpec drafting protocol, schema usage, and per-family quotas so batches are uniform and bounded.
+  scope:
+  - Record the AlphaSpec template, required fields, and per-family draft quotas honoring the family budget.
+  - Record the critique/independence rules drafts must satisfy.
+  non_goals:
+  - Drafting the actual family AlphaSpecs (P07-P11).
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance.alpha_spec"
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md
+  - test -f docs/futures_core_alpha_pilot/ALPHASPEC_PROTOCOL.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_core_alpha_pilot/ALPHASPEC_PROTOCOL.md
+  - research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md
+  - research/futures_core_alpha_pilot_v1/alpha_specs/README.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P05.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P05/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - AlphaSpec batch protocol (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Protocol pins schema, per-family quotas, and independence rules consistent with the family budget.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P05.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P06
+  name: Research Queue and Agent Assignment Setup
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P05
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Seed the bounded research queue and the role assignment / separation-of-duties map for the pilot via Agent Factory contracts.
+  scope:
+  - Record the ResearchTask queue entries and per-task role assignments.
+  - Record separation-of-duties bindings (drafter != critic != reviewer != promoter).
+  non_goals:
+  - Instantiating autonomous agents or running a continuous runner.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.agent_factory.queue.models"
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/queue/research_queue.md
+  - test -f docs/futures_core_alpha_pilot/RESEARCH_QUEUE.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: foundation
+  allowed_paths:
+  - docs/futures_core_alpha_pilot/RESEARCH_QUEUE.md
+  - research/futures_core_alpha_pilot_v1/queue/**
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P06.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P06/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - research queue + role assignment map (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Queue is finite, roles assigned, separation-of-duties encoded; no agent instantiated.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P06.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P07
+  name: Cross-Market AlphaSpec Batch
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Draft the cross-market / relative-value AlphaSpecs (40% budget) using the P05 protocol.
+  scope:
+  - Draft ES/NQ/RTY lead-lag, beta-residual, rotation, and confirmation/divergence AlphaSpecs.
+  - Each AlphaSpec must declare timestamp-alignment and cross-market missingness diagnostics.
+  non_goals:
+  - Approving or implementing the specs; running diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/alpha_specs/cross_market
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: alpha_specs
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/**
+  - docs/futures_core_alpha_pilot/alpha_specs/cross_market.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P07.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P07/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - cross-market AlphaSpec drafts (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Family AlphaSpec drafts within quota; alignment/missingness diagnostics declared.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P07.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P08
+  name: VWAP / Session AlphaSpec Batch
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Draft the VWAP / session-auction AlphaSpecs (20% budget) using the P05 protocol.
+  scope:
+  - Draft VWAP reclaim/reject, distance-to-VWAP, opening range, overnight high/low, gap, and RTH-open-vs-ETH AlphaSpecs.
+  - Each spec must distinguish running point-in-time VWAP from final-session VWAP.
+  non_goals:
+  - Approving or implementing the specs; running diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: alpha_specs
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/**
+  - docs/futures_core_alpha_pilot/alpha_specs/vwap_session.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P08.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P08/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - VWAP/session AlphaSpec drafts (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Family AlphaSpec drafts within quota; running-vs-final VWAP distinction declared.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P08.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P09
+  name: Regime Momentum/Reversion AlphaSpec Batch
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Draft the regime-gated momentum-vs-reversion AlphaSpecs (15% budget) using the P05 protocol.
+  scope:
+  - Draft trendiness/volatility/range-compression regime AlphaSpecs that gate momentum vs reversion.
+  - Each spec must state which regime activates momentum vs reversion, not a global choice.
+  non_goals:
+  - Approving or implementing the specs; running diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/alpha_specs/regime
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: alpha_specs
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/alpha_specs/regime/**
+  - docs/futures_core_alpha_pilot/alpha_specs/regime.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P09.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P09/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - regime AlphaSpec drafts (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Family AlphaSpec drafts within quota; regime activation logic declared.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P09.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P10
+  name: Liquidity Sweep / PA AlphaSpec Batch
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Draft the liquidity-sweep / failed-breakout / objective price-action AlphaSpecs (15% budget) using the P05 protocol.
+  scope:
+  - Draft prior high/low sweep, close-back-inside, wick rejection, displacement, compression breakout, and failed-breakout AlphaSpecs.
+  - All definitions must be objective and computable; vague PA language must be translated into explicit rules.
+  non_goals:
+  - Approving or implementing the specs; running diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: alpha_specs
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/**
+  - docs/futures_core_alpha_pilot/alpha_specs/liquidity_pa.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P10.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P10/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - liquidity/PA AlphaSpec drafts (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Family AlphaSpec drafts within quota; all PA definitions objective and computable.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P10.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P11
+  name: BBO Tradability AlphaSpec Batch
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P06
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Draft the BBO tradability / top-book confirmation AlphaSpecs (10% budget) using the P05 protocol.
+  scope:
+  - Draft spread_zscore, microprice_minus_mid, top_book_imbalance/depth, bad_quote/missing_bbo, and spread/depth filter AlphaSpecs.
+  - Frame this family primarily as tradability/risk/confirmation evidence, not executable edge proof.
+  non_goals:
+  - Approving or implementing the specs; running diagnostics.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/alpha_specs/bbo_tradability
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: alpha_specs
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/alpha_specs/bbo_tradability/**
+  - docs/futures_core_alpha_pilot/alpha_specs/bbo_tradability.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P11.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P11/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - BBO tradability AlphaSpec drafts (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Family AlphaSpec drafts within quota; framed as tradability/confirmation evidence.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P11.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P12
+  name: AlphaSpec Critic and Family Budget Audit
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P07
+  - FUTCORE-P08
+  - FUTCORE-P09
+  - FUTCORE-P10
+  - FUTCORE-P11
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Critique all family AlphaSpec drafts independently and audit them against the family budget and finite quotas.
+  scope:
+  - Record AlphaSpec critique decisions (reject / revise / accept-for-StudySpec) by an independent critic.
+  - Audit family budget adherence and total approved count against the budget caps.
+  non_goals:
+  - Self-approving any spec the critic drafted; implementing or promoting.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/critiques
+  - test -f research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: spec_audit
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/critiques/**
+  - research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md
+  - docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P12.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P12/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - AlphaSpec critique records + budget audit (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Every draft critiqued by an independent critic; family budget and quota caps respected.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P12.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P13
+  name: Data Contract / FeaturePack / LabelPack Audit
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P12
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Audit that every accepted AlphaSpec's required features/labels exist in the locked Parquet packs with valid available_ts, flagging gaps for P15.
+  scope:
+  - Map each accepted AlphaSpec to required feature/label primitives and confirm availability via registry tools.
+  - Produce a minimal gap list (only truly missing primitives) for P15.
+  non_goals:
+  - Implementing primitives (that is P15); reading raw provider data.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance.study_input_pack"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/audits/data_contract
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: spec_audit
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/audits/data_contract/**
+  - docs/futures_core_alpha_pilot/DATA_CONTRACT_AUDIT.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P13.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P13/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - data contract / pack audit + gap list (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Each accepted AlphaSpec mapped to available primitives; minimal gap list produced; available_ts validity confirmed.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P13.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P14
+  name: Approved StudySpec Pack
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P13
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Bind accepted AlphaSpecs to runnable StudySpecs (inputs, horizons, sessions, cost profiles, variant budget) by reference only.
+  scope:
+  - Author one StudySpec per accepted AlphaSpec using governance StudySpec schema.
+  - Bind locked packs, session/horizon matrix, cost profiles, and finite variant budgets.
+  non_goals:
+  - Running diagnostics; editing runtime/governance code.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance.study_spec"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/study_specs
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: spec_audit
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/study_specs/**
+  - docs/futures_core_alpha_pilot/STUDY_SPECS.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P14.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P14/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - approved StudySpec pack (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - One StudySpec per accepted AlphaSpec, each binding packs/sessions/horizons/cost/variant-budget.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P14.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P15
+  name: Minimal Missing FeatureRequest / LabelSpec Additions, If Needed
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P14
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Add only the minimal, justified missing feature/label primitives the P13 gap list demands, each via FeatureRequest/LabelSpec.
+  scope:
+  - For each gap, record a FeatureRequest or LabelSpec and add the minimal point-in-time primitive with available_ts/label_available_ts.
+  - If no gaps exist, record a no-op decision (preferred outcome).
+  non_goals:
+  - Building a feature zoo; committing any value data; editing runtime/governance/agent_factory code.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - test -f research/futures_core_alpha_pilot_v1/feature_requests/DECISION.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: spec_audit
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/feature_requests/**
+  - research/futures_core_alpha_pilot_v1/label_specs/**
+  - src/alpha_system/features/**
+  - src/alpha_system/labels/**
+  - tests/unit/features/**
+  - tests/unit/labels/**
+  - docs/futures_core_alpha_pilot/PRIMITIVE_ADDITIONS.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P15.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P15/**
+  - runs/**
+  forbidden_paths: &forbidden_paths_p15
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/runtime/**
+  - src/alpha_system/governance/**
+  - src/alpha_system/agent_factory/**
+  - src/alpha_system/experiments/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/research/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/data/**
+  - src/alpha_system/core/**
+  - src/alpha_system/reports/**
+  - src/alpha_system/factors/**
+  - src/alpha_system/cli/**
+  - data/raw/**
+  - data/canonical/**
+  - data/factors/**
+  - data/labels/**
+  - data/cache/**
+  - metadata/*.sqlite
+  - metadata/*.db
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.sqlite'
+  - '**/*.db'
+  artifact_policy:
+    commit_only:
+    - minimal feature/label primitive code with FeatureRequest/LabelSpec records
+    - tests
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Either a no-op decision recorded, or <=5 minimal primitives added with records, tests, available_ts; verify.py --all and canaries pass.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P15.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P16
+  name: Cross-Market Diagnostics
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P14
+  - FUTCORE-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run cross-market StudySpec diagnostics via the runtime tool surface and record value-free reports.
+  scope:
+  - Run factor/label/signal-probe/cost diagnostics for cross-market StudySpecs through runtime tools over locked Parquet packs.
+  - Record summary RuntimeRunSummary/DiagnosticsReport including timestamp-alignment and cross-market missingness splits.
+  non_goals:
+  - Promoting any idea; editing runtime; committing value data.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.tool_results"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market
+  - git ls-files runs
+  - git ls-files '**/*.parquet'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/**
+  - docs/futures_core_alpha_pilot/diagnostics/cross_market.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P16.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P16/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - cross-market diagnostics reports (summary statistics/metadata only, value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Diagnostics run via runtime tools; reports value-free; alignment/missingness splits present.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P16.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P17
+  name: VWAP / Session Diagnostics
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P14
+  - FUTCORE-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run VWAP/session StudySpec diagnostics via the runtime tool surface and record value-free reports.
+  scope:
+  - Run factor/label/signal-probe/cost diagnostics for VWAP/session StudySpecs through runtime tools.
+  - Record per-session and session-x-horizon splits; distinguish running vs final VWAP.
+  non_goals:
+  - Promoting any idea; editing runtime; committing value data.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.tool_results"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session
+  - git ls-files runs
+  - git ls-files '**/*.parquet'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/**
+  - docs/futures_core_alpha_pilot/diagnostics/vwap_session.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P17.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P17/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - VWAP/session diagnostics reports (summary statistics/metadata only, value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Diagnostics run via runtime tools; session splits present; running-vs-final VWAP respected.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P17.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P18
+  name: Regime Momentum/Reversion Diagnostics
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P14
+  - FUTCORE-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run regime momentum/reversion StudySpec diagnostics via the runtime tool surface and record value-free reports.
+  scope:
+  - Run factor/label/signal-probe/cost diagnostics for regime StudySpecs through runtime tools.
+  - Record regime splits and parameter-neighborhood stability.
+  non_goals:
+  - Promoting any idea; editing runtime; committing value data.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.tool_results"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/diagnostics_reports/regime
+  - git ls-files runs
+  - git ls-files '**/*.parquet'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/diagnostics_reports/regime/**
+  - docs/futures_core_alpha_pilot/diagnostics/regime.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P18.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P18/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - regime diagnostics reports (summary statistics/metadata only, value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Diagnostics run via runtime tools; regime splits and stability present.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P18.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P19
+  name: Liquidity Sweep / PA Diagnostics
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P14
+  - FUTCORE-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run liquidity-sweep / PA StudySpec diagnostics via the runtime tool surface and record value-free reports.
+  scope:
+  - Run factor/label/signal-probe/cost diagnostics for liquidity/PA StudySpecs through runtime tools.
+  - Record spread/liquidity splits and objective-rule trigger counts.
+  non_goals:
+  - Promoting any idea; editing runtime; committing value data.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.tool_results"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa
+  - git ls-files runs
+  - git ls-files '**/*.parquet'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/**
+  - docs/futures_core_alpha_pilot/diagnostics/liquidity_pa.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P19.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P19/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - liquidity/PA diagnostics reports (summary statistics/metadata only, value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Diagnostics run via runtime tools; spread/liquidity splits present; objective triggers counted.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P19.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P20
+  name: BBO Tradability Diagnostics
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P14
+  - FUTCORE-P15
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run BBO tradability StudySpec diagnostics via the runtime tool surface and record value-free reports.
+  scope:
+  - Run factor/label/signal-probe/cost diagnostics for BBO StudySpecs through runtime tools.
+  - Record BBO missingness / bad-quote splits and confirmation value rather than standalone edge.
+  non_goals:
+  - Promoting any idea; editing runtime; committing value data.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.tool_results"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/diagnostics_reports/bbo_tradability
+  - git ls-files runs
+  - git ls-files '**/*.parquet'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/diagnostics_reports/bbo_tradability/**
+  - docs/futures_core_alpha_pilot/diagnostics/bbo_tradability.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P20.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P20/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - BBO tradability diagnostics reports (summary statistics/metadata only, value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Diagnostics run via runtime tools; BBO missingness/bad-quote splits present.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P20.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P21
+  name: Cost Stress and Thin-Session Stress Consolidation
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P16
+  - FUTCORE-P17
+  - FUTCORE-P18
+  - FUTCORE-P19
+  - FUTCORE-P20
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Consolidate cost-stress and thin-session-stress results across all families into a single CostSensitivityReport.
+  scope:
+  - Aggregate zero_cost/base/stress_1/stress_2/double_cost outcomes per idea.
+  - Flag ideas surviving only under zero/under-stressed cost and thin-session fragility.
+  non_goals:
+  - Promoting any idea on a zero-cost basis.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: consolidation
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/cost/**
+  - docs/futures_core_alpha_pilot/COST_SENSITIVITY.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P21.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P21/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - cost sensitivity + thin-session report (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - All cost profiles consolidated; zero-cost-only and thin-session-fragile survivors flagged.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P21.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P22
+  name: Session / Horizon / Regime Matrix Consolidation
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P21
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Consolidate the session x horizon x regime stability matrix across all families.
+  scope:
+  - Build the session-x-horizon matrix and regime-split summary per surviving idea.
+  - Flag ideas stable only in a narrow session/horizon/regime cell.
+  non_goals:
+  - Promoting any idea.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: consolidation
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/matrix/**
+  - docs/futures_core_alpha_pilot/MATRIX.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P22.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P22/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - session/horizon/regime matrix (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Matrix complete; narrow-cell-only survivors flagged.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P22.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P23
+  name: No-Lookahead / Label Leakage / Same-Bar Optimism Audit
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P22
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Independently audit surviving ideas for lookahead, label leakage, same-bar optimism, and cross-instrument availability.
+  scope:
+  - Verify available_ts / label_available_ts validity and no use of final-session aggregates intraday.
+  - Verify cross-instrument availability for cross-market ideas and flag any leakage.
+  non_goals:
+  - Promoting any idea; weakening audits.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - test -f research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: consolidation
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/audits/no_lookahead/**
+  - docs/futures_core_alpha_pilot/NO_LOOKAHEAD_AUDIT.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P23.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P23/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - no-lookahead / leakage / same-bar audit (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Audit covers every surviving idea; leakage/same-bar/cross-instrument issues flagged; canaries pass.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P23.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P24
+  name: Bounded Grid / Variant Budget Audit
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P23
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Audit that every study honored its finite variant budget with no locked-test tuning and no repeated OOS selection.
+  scope:
+  - Reconcile actual variant/grid counts against the declared VariantBudget per study.
+  - Confirm no locked-test tuning and no repeated selection on the same OOS.
+  non_goals:
+  - Promoting any idea.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: consolidation
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/audits/variant_budget/**
+  - docs/futures_core_alpha_pilot/VARIANT_BUDGET_AUDIT.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P24.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P24/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - variant budget audit (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Every study reconciled against its variant budget; no locked-test tuning or repeated OOS selection.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P24.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P25
+  name: Statistical Reviewer Verdicts
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P24
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Produce independent Statistical Reviewer verdicts per surviving idea, independent of the implementer.
+  scope:
+  - Record ReviewerVerdict per idea citing diagnostics, cost stress, stability, and audits.
+  - Enforce reviewer independence from the drafter/implementer/runner.
+  non_goals:
+  - Self-review; promoting to paper/live.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/reviewer_verdicts
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: evidence
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/reviewer_verdicts/**
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/statistical/**
+  - docs/futures_core_alpha_pilot/REVIEWER_VERDICTS.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P25.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P25/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - independent statistical reviewer verdicts (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - One independent verdict per surviving idea, citing evidence; reviewer independence enforced.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P25.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P26
+  name: TrialLedger / RejectedIdeaLedger Recording
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P25
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Record every run in the TrialLedger and every rejection in the RejectedIdeaLedger so failures are visible.
+  scope:
+  - Populate TrialLedger records for all studies and RejectedIdea records for all rejections with reasons.
+  - Record duplicate-exposure group hints.
+  non_goals:
+  - Hiding failed ideas; promoting.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.governance.trial_ledger, alpha_system.governance.rejected_idea"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/ledgers
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: evidence
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/ledgers/**
+  - docs/futures_core_alpha_pilot/LEDGERS.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P26.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P26/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - TrialLedger + RejectedIdeaLedger records (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - All runs and rejections recorded with reasons; duplicate-exposure hints present.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P26.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P27
+  name: EvidenceDraft and ReferenceCandidateHandoff for Survivors
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P26
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Assemble EvidenceDrafts and FactorLibrary-ready ReferenceCandidateHandoffs for survivors only.
+  scope:
+  - Build EvidenceDraft per survivor (refs to diagnostics, cost, stability, audits, verdict, rejected-idea links).
+  - Build FactorCard draft + ReferenceCandidateHandoff for survivors; none if zero survivors.
+  non_goals:
+  - Treating an EvidenceDraft as a candidate or Reference validation.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.evidence.draft, alpha_system.runtime.handoff.reference"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/evidence
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: evidence
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/evidence/**
+  - docs/futures_core_alpha_pilot/EVIDENCE.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P27.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P27/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - EvidenceDraft + FactorCard draft + ReferenceCandidateHandoff for survivors (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - EvidenceDrafts complete and FactorLibrary-ready for survivors only; clearly not candidates/Reference validation.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P27.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P28
+  name: 'PromotionDecision: Reject / Inconclusive / Watch / CandidateResearch'
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P27
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Record the bounded PromotionDecision per idea using only the allowed states and only with a reviewer verdict for WATCH/CANDIDATE_RESEARCH.
+  scope:
+  - Assign REJECT / INCONCLUSIVE / WATCH / CANDIDATE_RESEARCH per idea with rationale.
+  - Enforce <=2 WATCH/CANDIDATE_RESEARCH and reviewer-verdict prerequisite.
+  non_goals:
+  - Any forbidden promotion state or capital/live decision.
+  checks:
+  - git status --short
+  - python -c "import alpha_system.runtime.decisions.states, alpha_system.governance.promotion_gate"
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/promotion
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: evidence
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/promotion/**
+  - docs/futures_core_alpha_pilot/PROMOTION_DECISIONS.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P28.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P28/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - PromotionDecision records (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Every idea has an allowed-state decision; WATCH/CANDIDATE require a reviewer verdict; <=2 survivors; no forbidden state.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P28.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P29
+  name: Failure-Mode Handoff for Validation Governance / FactorLibrary / Strategy Reference
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P28
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Distill concrete failure modes and survivor handoffs into requirements for the next campaigns.
+  scope:
+  - Write failure-mode handoffs to ALPHA_VALIDATION_GOVERNANCE_V1, ALPHA_FACTOR_LIBRARY_V1, ALPHA_STRATEGY_REFERENCE_VALIDATION_V1.
+  - Translate observed failure modes into concrete next-campaign requirements.
+  non_goals:
+  - Implementing any next campaign; promoting.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -d research/futures_core_alpha_pilot_v1/downstream_handoffs
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/futures_core_alpha_pilot_v1/downstream_handoffs/**
+  - docs/futures_core_alpha_pilot/DOWNSTREAM_HANDOFFS.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P29.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P29/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - downstream failure-mode handoffs (value-free)
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Concrete failure-mode handoffs for the three next campaigns produced.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P29.md
+  review: yellow lane; fresh Opus review required.
+- id: FUTCORE-P30
+  name: Acceptance Audit and Closeout
+  lane: YELLOW
+  dependencies:
+  - FUTCORE-P29
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run the acceptance audit and semantic done-check, record the final verdict, and update the coordinator pointer.
+  scope:
+  - Verify every acceptance gate, artifact policy, and promotion boundary.
+  - Write CLOSEOUT.md with the final verdict and update ACTIVE_CAMPAIGN.md (coordinator).
+  non_goals:
+  - Any new research; any forbidden claim.
+  checks:
+  - git status --short
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - test -f campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT.md
+  - grep -q "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1" ACTIVE_CAMPAIGN.md
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/CLOSEOUT.md
+  - research/futures_core_alpha_pilot_v1/closeout/**
+  - docs/futures_core_alpha_pilot/CLOSEOUT.md
+  - handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P30.md
+  - reviews/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P30/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - closeout + final verdict + coordinator pointer update
+    - docs
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Acceptance audit + semantic done-check pass; final verdict recorded; pointer updated; verify.py --all and canaries pass.
+  handoff: handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/FUTCORE-P30.md
+  review: yellow lane; fresh Opus review required.
+acceptance_gates:
+  bootstrap_and_inputs:
+    phases:
+    - FUTCORE-P00
+    - FUTCORE-P01
+    - FUTCORE-P02
+    - FUTCORE-P03
+    - FUTCORE-P04
+    - FUTCORE-P05
+    - FUTCORE-P06
+    exit_requirement: Campaign bundle present; no campaign-local ACTIVE_CAMPAIGN.md; preflight gates recorded; scope/universe/session/horizon/budget contract pinned; input pack locked by reference; cost model + stress profiles pinned; AlphaSpec batch protocol and bounded research queue/role assignment set; artifact audit clean; no forbidden scope or claims.
+    requires: &gate_requires
+    - campaign_control_files_present
+    - no_campaign_local_active_campaign_file
+    - consumed_primitives_import_and_smoke_pass
+    - preflight_gates_recorded
+    - accepted_dataset_version_required
+    - parquet_feature_label_values_required
+    - jsonl_large_research_scans_forbidden
+    - no_raw_provider_access
+    - no_external_provider_calls
+    - runtime_consumed_via_tool_contracts_not_bypassed
+    - resolve_dataset_version_only
+    - available_ts_and_label_available_ts_required
+    - session_context_only_if_point_in_time
+    - family_budget_respected
+    - variant_budget_required
+    - finite_research_budget_respected
+    - cost_stress_profiles_required
+    - zero_cost_not_promotion_basis
+    - thin_session_stress_required
+    - session_split_and_session_horizon_matrix_required
+    - no_lookahead_and_leakage_audit_required
+    - trial_ledger_and_rejected_idea_ledger_required
+    - reviewer_verdict_required_for_watch_or_candidate
+    - independent_reviewer_no_self_review_no_self_promotion
+    - promotion_boundary_respected_allowed_states_only
+    - no_scaled_or_autonomous_mining
+    - no_factor_library_v1_or_strategy_reference_or_alpha_book_scope
+    - no_strategy_backtest_portfolio_product
+    - no_paper_live_broker_order_scope
+    - no_raw_canonical_heavy_or_db_artifacts_committed
+    - no_alpha_tradability_profitability_production_capital_claims
+    - no_test_weakening_or_gaming
+    - dag_parallel_phases_have_disjoint_allowed_paths
+    - serial_merge_queue_respected
+    - phase_branches_do_not_write_active_campaign
+    - phase_handoffs_present
+    - yellow_phase_reviews_present_for_yellow_phases
+    - review_verdicts_PASS_or_PASS_WITH_WARNINGS_for_merged_phases
+    - artifact_audit_pass
+  alpha_spec_batches:
+    phases:
+    - FUTCORE-P07
+    - FUTCORE-P08
+    - FUTCORE-P09
+    - FUTCORE-P10
+    - FUTCORE-P11
+    exit_requirement: All five family AlphaSpec batches drafted within per-family quotas using the P05 protocol, each declaring its family-specific diagnostics requirements; drafts are value-free; no spec self-approved, implemented, or run.
+    requires: *gate_requires
+  spec_audit_and_packs:
+    phases:
+    - FUTCORE-P12
+    - FUTCORE-P13
+    - FUTCORE-P14
+    - FUTCORE-P15
+    exit_requirement: Independent AlphaSpec critique + family budget audit complete; data-contract/FeaturePack/LabelPack audit maps each accepted spec to available primitives with a minimal gap list; approved StudySpec pack binds packs/sessions/horizons/cost/variant-budget; minimal missing primitives (or a no-op) recorded via FeatureRequest/LabelSpec with tests and available_ts.
+    requires: *gate_requires
+  family_diagnostics:
+    phases:
+    - FUTCORE-P16
+    - FUTCORE-P17
+    - FUTCORE-P18
+    - FUTCORE-P19
+    - FUTCORE-P20
+    exit_requirement: All five family diagnostics run via the runtime tool surface over locked Parquet packs; each produces value-free DiagnosticsReports with the required factor/label/signal-probe/cost outputs and family-specific splits; no value data committed; no promotion.
+    requires: *gate_requires
+  consolidation_and_audits:
+    phases:
+    - FUTCORE-P21
+    - FUTCORE-P22
+    - FUTCORE-P23
+    - FUTCORE-P24
+    exit_requirement: Cost-stress + thin-session consolidation, session/horizon/regime matrix, no-lookahead/leakage/same-bar audit, and bounded-grid/variant-budget audit complete; fragile survivors flagged; no zero-cost promotion basis; no locked-test tuning.
+    requires: *gate_requires
+  evidence_ledger_promotion:
+    phases:
+    - FUTCORE-P25
+    - FUTCORE-P26
+    - FUTCORE-P27
+    - FUTCORE-P28
+    exit_requirement: Independent statistical reviewer verdicts recorded; TrialLedger and RejectedIdeaLedger populated with reasons and duplicate-exposure hints; EvidenceDrafts + FactorLibrary-ready handoffs for survivors only; PromotionDecisions use only allowed states with reviewer verdicts for WATCH/CANDIDATE and <=2 survivors.
+    requires: *gate_requires
+  handoff_and_closeout:
+    phases:
+    - FUTCORE-P29
+    - FUTCORE-P30
+    exit_requirement: Concrete failure-mode handoffs to Validation Governance / FactorLibrary / Strategy Reference produced; acceptance audit + semantic done-check pass; CLOSEOUT.md records the final verdict; coordinator updates ACTIVE_CAMPAIGN.md; verify.py --all and canaries pass.
+    requires: *gate_requires
+    allowed_final_verdicts:
+    - COMPLETE
+    - COMPLETE_WITH_WARNINGS
+    - BLOCKED
+risk_controls:
+  bounded_pilot_not_scaled_mining:
+    required: true
+    rules:
+      finite_idea_alpha_spec_variant_survivor_budgets: true
+      no_broad_alpha_discovery: true
+      no_continuous_autonomous_runner: true
+      no_factor_promotion_or_factor_library_v1: true
+    detection:
+    - scope audit
+    - budget audit
+    - Claude review
+  runtime_consumed_not_bypassed:
+    required: true
+    rules:
+      diagnostics_via_runtime_tool_surface: true
+      resolve_dataset_version_only: true
+      runtime_package_not_edited: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  no_raw_provider_access:
+    required: true
+    rules:
+      raw_provider_files_not_read_by_pilot_code: true
+      registry_resolved_parquet_values_only: true
+      no_external_provider_calls: true
+    detection:
+    - source path audit
+    - import audit
+    - Claude review
+  parquet_values_required:
+    required: true
+    rules:
+      research_scale_scans_use_parquet: true
+      jsonl_only_for_audit_smoke_small: true
+      no_value_data_committed: true
+    detection:
+    - artifact audit
+    - git ls-files heavy globs
+    - Claude review
+  session_label_guard_not_regressed:
+    required: true
+    rules:
+      session_context_features_point_in_time_only: true
+      role_aware_guard_respected: true
+    detection:
+    - canary_runner
+    - Claude review
+  no_lookahead_and_leakage:
+    required: true
+    rules:
+      available_ts_and_label_available_ts_valid: true
+      no_final_session_aggregate_intraday: true
+      cross_instrument_availability_enforced: true
+      no_same_bar_optimism: true
+    detection:
+    - P23 audit
+    - canary_runner
+    - Claude review
+  cost_stress_required:
+    required: true
+    rules:
+      base_stress_1_stress_2_double_cost_required: true
+      zero_cost_not_promotion_basis: true
+      thin_session_stress_required: true
+    detection:
+    - P21 consolidation
+    - Claude review
+  overfit_controls:
+    required: true
+    rules:
+      variant_budget_required: true
+      no_locked_test_tuning: true
+      no_repeated_oos_selection: true
+      duplicate_exposure_check: true
+      all_failures_recorded: true
+    detection:
+    - P24 audit
+    - P26 ledgers
+    - Claude review
+  promotion_boundary:
+    required: true
+    rules:
+      allowed_states_only: true
+      reviewer_verdict_required_for_watch_or_candidate: true
+      max_two_survivors: true
+      no_forbidden_state: true
+      candidate_not_capital_or_live: true
+    detection:
+    - P25 verdicts
+    - P28 promotion
+    - Claude review
+  agent_separation_of_duties:
+    required: true
+    rules:
+      no_self_review: true
+      no_self_promotion: true
+      role_permissions_enforced: true
+      human_owns_capital_live: true
+    detection:
+    - role/permission audit
+    - Claude review
+  no_strategy_paper_live_scope:
+    required: true
+    rules:
+      no_strategy_backtest_portfolio_product: true
+      no_paper_live_broker_order_code: true
+      no_capital_allocation: true
+    detection:
+    - scope audit
+    - import audit
+    - Claude review
+  no_claims:
+    required: true
+    rules:
+      no_alpha_tradability_profitability_production_capital_claim: true
+      research_interpretation_policy_respected: true
+    detection:
+    - claims scan
+    - Claude review
+  dag_and_artifact_discipline:
+    required: true
+    rules:
+      parallel_phases_disjoint_allowed_paths: true
+      no_global_path_in_parallel_phase: true
+      serial_merge_queue: true
+      phase_branches_do_not_write_active_campaign: true
+      explicit_staging_only: true
+    detection:
+    - frontier-plan
+    - dag_scheduler
+    - artifact audit
+stop_conditions:
+- name: STOP file active
+  condition: runs/<run_id>/STOP indicates active stop
+  action: stop_before_new_phase_or_merge
+- name: scaled or autonomous alpha mining introduced
+  condition: broad alpha search, scaled mining, or a continuous autonomous research runner appears
+  action: block_merge_and_escalate
+- name: raw provider data read by pilot code
+  condition: pilot code reads raw Databento/IBKR files (.dbn/.zst/parquet/arrow/feather) directly
+  action: block_merge_and_repair
+- name: accepted DatasetVersion bypassed
+  condition: study inputs produced without resolving an admissible DatasetVersion via resolve_dataset_version
+  action: block_merge_and_repair
+- name: external Databento or IBKR API call attempted
+  condition: any external provider API call is attempted in this campaign
+  action: stop_and_escalate
+- name: runtime bypassed
+  condition: pilot code performs diagnostics directly instead of calling the runtime tool surface (RuntimeToolResult/RuntimeRunSummary / alpha runtime CLI)
+  action: block_merge_and_repair
+- name: consumed primitive edited
+  condition: a phase edits src/alpha_system/runtime|governance|agent_factory|research|experiments|backtest|data|core instead of consuming it (features/labels only in FUTCORE-P15)
+  action: block_merge_and_repair
+- name: AlphaSpec or StudySpec bypassed
+  condition: a diagnostics request is routed without a bound AlphaSpec and StudySpec
+  action: block_merge_and_repair
+- name: new feature without FeatureRequest or new label without LabelSpec
+  condition: a feature/label primitive is added without a FeatureRequest/LabelSpec record
+  action: block_merge_and_repair
+- name: parquet values not used for research-scale scans
+  condition: a research-scale scan reads JSONL or hand-read arbitrary paths instead of registry-resolved Parquet values
+  action: block_merge_and_repair
+- name: session_label guard regressed
+  condition: session-context features are used without point-in-time SESSION_METADATA / role-aware guard
+  action: block_merge_and_rework
+- name: same-bar optimism or label leakage
+  condition: a study uses same-bar optimism, invalid available_ts/label_available_ts, or final-session aggregates intraday
+  action: block_merge_and_rework
+- name: weak or missing cost stress
+  condition: a survivor lacks base/stress_1/stress_2/double_cost stress or relies on a zero-cost promotion basis
+  action: block_merge_and_rework
+- name: fragile horizon or ETH overclaimed
+  condition: a 1-3m fragile horizon or thin-session ETH result is presented as robust without stricter gates
+  action: block_merge_and_rework
+- name: variant budget exceeded
+  condition: a study exceeds its declared VariantBudget or performs locked-test tuning or repeated OOS selection
+  action: block_merge_and_repair
+- name: rejected idea hidden
+  condition: a failed or rejected idea is hidden instead of recorded with a RejectedIdea/RejectionReason record
+  action: block_merge_and_repair
+- name: self-review or self-promotion
+  condition: a generator approves its own AlphaSpec, an implementer reviews its own work, a diagnostics runner promotes, or a reviewer is the implementer
+  action: block_merge_and_rework
+- name: librarian writes registry/memory without verdict
+  condition: the Librarian updates a registry or durable memory without a reviewer verdict
+  action: block_merge_and_rework
+- name: forbidden promotion state used
+  condition: any of VALIDATED_RESEARCH/LIVE_APPROVED/PAPER_APPROVED/PRODUCTION_READY/CAPITAL_ALLOCATED/PROFITABLE/TRADABLE/STRATEGY_READY/PORTFOLIO_READY is assigned
+  action: block_merge_and_escalate
+- name: too many survivors
+  condition: more than two ideas reach WATCH or CANDIDATE_RESEARCH
+  action: block_merge_and_rework
+- name: EvidenceDraft treated as candidate or candidate treated as live/paper readiness
+  condition: an EvidenceDraft is presented as a candidate, or a candidate is treated as paper/live/capital readiness
+  action: block_merge_and_rework
+- name: ReferenceCandidateHandoff treated as Reference validation
+  condition: a ReferenceCandidateHandoff is presented as completed Reference validation
+  action: block_merge_and_rework
+- name: strategy/backtest/portfolio or factor-library/strategy-reference/alpha-book scope introduced
+  condition: strategy optimization, backtest-as-product, portfolio allocation, FactorLibrary V1 promotion, Strategy Reference validation, or AlphaBook scope appears
+  action: block_merge_and_escalate
+- name: capital or live judgment automated
+  condition: an agent makes a risk/capital/live decision reserved for the human, or creates paper/live/broker/order code
+  action: stop_and_escalate
+- name: alpha/profitability/tradability claim detected
+  condition: an unqualified alpha, tradability, profitability, market-beating, production-ready, live-ready, or broker-ready claim appears
+  action: block_merge_and_rework
+- name: raw or heavy data artifact staged
+  condition: raw/canonical/feature/label/runtime/agent values, parquet/arrow/feather, provider responses, or local DB files staged
+  action: block_merge_and_repair
+- name: parallel phase lacks allowed_paths
+  condition: a phase marked parallel_safe declares no allowed_paths or declares a global/coordinator path
+  action: block_campaign_execution_until_fixed
+- name: parallel wave has path/resource conflict
+  condition: two phases scheduled in the same wave have overlapping allowed_paths or a shared resource_class
+  action: stop_phase_selection
+- name: phase branch writes ACTIVE_CAMPAIGN.md in parallel mode
+  condition: a phase branch writes ACTIVE_CAMPAIGN.md while update_active_campaign is coordinator_only
+  action: block_merge_and_repair
+- name: merge outside serial merge queue
+  condition: a merge is attempted outside the serial merge queue (more than one PR merging at once)
+  action: stop_and_escalate
+- name: campaign YAML invalid
+  condition: campaign.yaml fails YAML parse
+  action: block_campaign_execution_until_fixed
+- name: phase dependency missing
+  condition: selected phase dependencies are incomplete or blocked
+  action: stop_phase_selection
+- name: acceptance gates missing phases
+  condition: acceptance_gates do not cover every phase exactly once
+  action: block_campaign_execution_until_fixed
+- name: PHASE_PLAN / campaign.yaml mismatch
+  condition: phase ids, names, lanes, dependencies, or DAG metadata disagree between files
+  action: block_campaign_execution_until_fixed
+- name: Claude review BLOCKED
+  condition: review verdict is BLOCKED
+  action: blocked_handoff_and_stop
+- name: repair attempts exceeded
+  condition: repair loop exceeds configured max attempts
+  action: blocked_handoff_and_stop
+- name: active repo/worktree under forbidden Windows path
+  condition: active worktree under /mnt/c, OneDrive, Dropbox, Google Drive, or Windows-synced folder
+  action: stop_run_init_or_worktree_create
