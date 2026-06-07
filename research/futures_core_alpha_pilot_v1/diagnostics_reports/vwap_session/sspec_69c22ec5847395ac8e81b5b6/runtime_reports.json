@@ -1,5 +1,6 @@
 {
   "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "consumed_primitive_edits_performed": false,
   "cost_profiles": {
     "applied_profiles": [
       "base",
@@ -24,6 +25,15 @@
       "series_databento_es_front_unadjusted": 6862
     },
     "joined_observation_count": 6862,
+    "joined_observation_count_by_horizon": {
+      "10m": 6832,
+      "15m": 0,
+      "30m": 6712,
+      "5m": 6862
+    },
+    "resolved_label_pack_count": 3,
+    "resolved_session_context_feature_pack_count": 2,
+    "resolved_vwap_feature_pack_count": 0,
     "session_segment_counts": {
       "ETH_evening": 1783,
       "ETH_other": 1950,
@@ -41,7 +51,54 @@
       "full_session": 6862,
       "post_RTH": 280,
       "pre_RTH": 450
-    }
+    },
+    "session_view_counts_by_horizon": {
+      "10m": {
+        "ETH_evening": 1778,
+        "ETH_only": 6832,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6832,
+        "post_RTH": 255,
+        "pre_RTH": 450
+      },
+      "15m": {
+        "ETH_evening": 0,
+        "ETH_only": 0,
+        "ETH_overnight": 0,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 0,
+        "post_RTH": 0,
+        "pre_RTH": 0
+      },
+      "30m": {
+        "ETH_evening": 1758,
+        "ETH_only": 6712,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6712,
+        "post_RTH": 155,
+        "pre_RTH": 450
+      },
+      "5m": {
+        "ETH_evening": 1783,
+        "ETH_only": 6862,
+        "ETH_overnight": 2399,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 6862,
+        "post_RTH": 280,
+        "pre_RTH": 450
+      }
+    },
+    "unresolved_label_pack_count": 1
   },
   "diagnostics_reports": {
     "cost": {
@@ -103,8 +160,8 @@
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "cost",
       "diagnostics_run_spec_ref": {
-        "content_hash": "7591154816923e2d429099d3910c3637c80970aefb88b07fea7cd9d07bc067ad",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_cost"
+        "content_hash": "d376d09eeff73e0273e28c541c28b5ff8fc5979c4cc1fb9733566a957ede483c",
+        "diagnostics_run_spec_id": "dspec_d376d09eeff73e0273e28c54"
       },
       "double_cost_summary": {
         "bbo_fill_count": 0,
@@ -128,19 +185,20 @@
         "BBO context was unavailable or unused, so the bps fallback marker is visible."
       ],
       "lineage_refs": {
-        "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
         "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
         "cost_fill_basis": "representative_session_view_unit_fill",
         "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_cost",
-        "feature_pack_ref": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f,fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
-        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "diagnostics_run_spec_id": "dspec_d376d09eeff73e0273e28c54",
+        "feature_pack_ref": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9,fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858,fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a,fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169,fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d,fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395,lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941,lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
+        "p04_cost_model_contract_id": "cmv_futcore_pilot_three_layer_session_stress_v1",
         "phase_id": "FUTCORE-P17",
-        "primary_resolved_horizon": "5m",
+        "primary_resolved_horizons": "5m,10m,30m",
+        "primary_unresolved_horizons": "15m",
         "session_penalty_config_id": "runtime_cost_stress_default_v1",
-        "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844",
-        "thin_session_mapping": "ETH_and_ILLIQUID_runtime_penalties"
+        "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "profile_summaries": [
@@ -269,8 +327,8 @@
       },
       "raw_or_heavy_data_embedded": false,
       "rejection_reason_records": [],
-      "report_hash": "fbef101f1d2c7f4ccc28f45085f800f669a553bda5d970d07fb364ed3971a517",
-      "report_id": "dreport_fbef101f1d2c7f4ccc28f450",
+      "report_hash": "f8344cf7fd0b8e7b262402f23e86a2cdee19ddc756f7e04acacf7b1aa4e6725b",
+      "report_id": "dreport_f8344cf7fd0b8e7b262402f2",
       "report_kind": "cost_sensitivity_report",
       "report_metadata": {
         "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
@@ -411,27 +469,27 @@
       "value_free": true,
       "zero_cost_diagnostic_only": false
     },
-    "factor_rth_flag": {
+    "factor_range_position": {
       "coverage_summary": {
         "available_ts_missing_count": 0,
-        "coverage_ratio": 1.0,
+        "coverage_ratio": 0.9666278053045759,
         "horizon_count": 1,
         "input_count": 6862,
         "label_available_ts_missing_count": 0,
-        "missing_factor_count": 0,
+        "missing_factor_count": 229,
         "missing_label_count": 0,
-        "missingness_rate": 0.0,
-        "numeric_factor_count": 6862,
+        "missingness_rate": 0.03337219469542407,
+        "numeric_factor_count": 6633,
         "outlier_count": 0,
         "outlier_rate": 0.0,
-        "usable_pair_count": 6862
+        "usable_pair_count": 6633
       },
       "descriptive_only": true,
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "factor",
       "diagnostics_run_spec_ref": {
-        "content_hash": "72c71883a5b580545d69e8a086873659630a29e84cac881e609571e67ecf229a",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_factor_rth_flag"
+        "content_hash": "f64c47f6c4f6ea1954b4cc28c23068fbb0819f01c6fcedb25baae2f73931c82f",
+        "diagnostics_run_spec_id": "dspec_f64c47f6c4f6ea1954b4cc28"
       },
       "limitations": [
         "Factor diagnostics are descriptive Tier 0 summaries; a diagnostic PASS is not alpha validation.",
@@ -440,16 +498,19 @@
         "Decay summary has fewer than two populated horizons."
       ],
       "lineage_refs": {
-        "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
         "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_factor_rth_flag",
-        "feature_pack_ref": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
-        "feature_role": "rth_flag",
-        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "diagnostics_run_spec_id": "dspec_f64c47f6c4f6ea1954b4cc28",
+        "factor_feature_id": "base_ohlcv_range_position",
+        "feature_pack_ref": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9,fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858,fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a,fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169,fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d,fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395,lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941,lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
         "phase_id": "FUTCORE-P17",
-        "primary_resolved_horizon": "5m",
-        "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844"
+        "primary_resolved_horizons": "5m,10m,30m",
+        "primary_unresolved_horizons": "15m",
+        "runtime_plan_id": "rplan_futcore_p17_8e81b5b6",
+        "study_run_spec_id": "srspec_futcore_p17_8e81b5b6",
+        "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "quality_gates": [
@@ -471,8 +532,8 @@
           "gate_id": "factor_coverage_gate",
           "limitations": [],
           "metric_refs": {
-            "coverage_ratio": 1.0,
-            "min_coverage_ratio": 0.0
+            "coverage_ratio": 0.9666278053045759,
+            "min_coverage_ratio": 0.8
           },
           "name": "Coverage gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -483,8 +544,8 @@
           "gate_id": "factor_sample_gate",
           "limitations": [],
           "metric_refs": {
-            "min_observations": 1,
-            "usable_pair_count": 6862
+            "min_observations": 3,
+            "usable_pair_count": 6633
           },
           "name": "Sample gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -495,7 +556,7 @@
           "gate_id": "factor_outlier_gate",
           "limitations": [],
           "metric_refs": {
-            "max_outlier_rate": 1.0,
+            "max_outlier_rate": 0.2,
             "outlier_rate": 0.0
           },
           "name": "Outlier gate",
@@ -507,13 +568,13 @@
           "gate_id": "factor_ic_gate",
           "limitations": [],
           "metric_refs": {
-            "ic_sample_count": 6862,
-            "pearson_ic": null,
-            "rank_ic": null
+            "ic_sample_count": 6633,
+            "pearson_ic": -0.015395796845047048,
+            "rank_ic": -0.04294308879592063
           },
           "name": "IC gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
-          "status": "INCONCLUSIVE",
+          "status": "PASS",
           "summary": "IC and RankIC scalar summaries are delegated to research.ic."
         },
         {
@@ -522,7 +583,7 @@
           "metric_refs": {
             "bucket_is_monotonic": false,
             "bucket_populated_count": 5,
-            "min_populated_buckets": 1
+            "min_populated_buckets": 2
           },
           "name": "Bucket gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -535,7 +596,7 @@
             "Decay slope requires at least two populated horizons."
           ],
           "metric_refs": {
-            "decay_horizon_count": 0,
+            "decay_horizon_count": 1,
             "decay_slope_per_second": null
           },
           "name": "Decay gate",
@@ -549,33 +610,28 @@
         "bucket_direction": "mixed",
         "bucket_is_monotonic": false,
         "bucket_populated_count": 5,
-        "bucket_rank_correlation": 0.9008083051001438,
-        "bucket_sign_changes": 1,
-        "decay_first_horizon_seconds": null,
-        "decay_first_pearson_ic": null,
-        "decay_horizon_count": 0,
-        "decay_last_horizon_seconds": null,
-        "decay_last_pearson_ic": null,
+        "bucket_rank_correlation": -0.3599812865064391,
+        "bucket_sign_changes": 2,
+        "decay_first_horizon_seconds": 300,
+        "decay_first_pearson_ic": -0.015395796845047048,
+        "decay_horizon_count": 1,
+        "decay_last_horizon_seconds": 300,
+        "decay_last_pearson_ic": -0.015395796845047048,
         "decay_slope_per_second": null,
-        "diagnostic_pass": false,
+        "diagnostic_pass": true,
         "failing_gate_count": 0,
-        "ic_sample_count": 6862,
-        "inconclusive_gate_count": 1,
-        "pearson_ic": null,
+        "ic_sample_count": 6633,
+        "inconclusive_gate_count": 0,
+        "pearson_ic": -0.015395796845047048,
         "quality_gate_count": 7,
-        "rank_ic": null,
-        "tail_expectancy": 7.058473358553977e-05,
+        "rank_ic": -0.04294308879592063,
+        "tail_expectancy": -2.5100855322652453e-06,
         "warning_gate_count": 1
       },
       "raw_or_heavy_data_embedded": false,
-      "rejection_reason_records": [
-        {
-          "code": "factor_diagnostics_ic_unavailable",
-          "message": "IC or RankIC could not be summarized from the usable pairs."
-        }
-      ],
-      "report_hash": "cf89292e715778d346ca8fa4526955664b8dbde4229d87162ad39849eb32305b",
-      "report_id": "dreport_cf89292e715778d346ca8fa4",
+      "rejection_reason_records": [],
+      "report_hash": "d4e6825429274fce7000bf7f99e88db6320ff33c0998eaad9a900a9dc77cc7b2",
+      "report_id": "dreport_d4e6825429274fce7000bf7f",
       "report_kind": "factor_diagnostics_summary",
       "report_metadata": {
         "descriptive_tier": "tier_0_factor_diagnostics",
@@ -584,7 +640,7 @@
       },
       "report_type": "FactorDiagnosticsReport",
       "schema": "alpha_system.runtime.diagnostics.report.v1",
-      "status": "INCONCLUSIVE",
+      "status": "DIAGNOSTICS_COMPLETE",
       "value_free": true
     },
     "factor_session_minute": {
@@ -606,8 +662,8 @@
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "factor",
       "diagnostics_run_spec_ref": {
-        "content_hash": "eaf9579681df2a9120e28898b4dcd7b61f90cf5502e031781547922df39c221d",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_factor_session_minute"
+        "content_hash": "d049477ec9f799d581ec1bc67e1aefcdee531952e35b2176d9160f6c42a11207",
+        "diagnostics_run_spec_id": "dspec_d049477ec9f799d581ec1bc6"
       },
       "limitations": [
         "Factor diagnostics are descriptive Tier 0 summaries; a diagnostic PASS is not alpha validation.",
@@ -616,16 +672,19 @@
         "Decay summary has fewer than two populated horizons."
       ],
       "lineage_refs": {
-        "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
         "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_factor_session_minute",
-        "feature_pack_ref": "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
-        "feature_role": "session_minute",
-        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "diagnostics_run_spec_id": "dspec_d049477ec9f799d581ec1bc6",
+        "factor_feature_id": "base_ohlcv_session_minute",
+        "feature_pack_ref": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9,fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858,fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a,fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169,fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d,fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395,lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941,lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
         "phase_id": "FUTCORE-P17",
-        "primary_resolved_horizon": "5m",
-        "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844"
+        "primary_resolved_horizons": "5m,10m,30m",
+        "primary_unresolved_horizons": "15m",
+        "runtime_plan_id": "rplan_futcore_p17_8e81b5b6",
+        "study_run_spec_id": "srspec_futcore_p17_8e81b5b6",
+        "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "quality_gates": [
@@ -648,7 +707,7 @@
           "limitations": [],
           "metric_refs": {
             "coverage_ratio": 1.0,
-            "min_coverage_ratio": 0.0
+            "min_coverage_ratio": 0.8
           },
           "name": "Coverage gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -659,7 +718,7 @@
           "gate_id": "factor_sample_gate",
           "limitations": [],
           "metric_refs": {
-            "min_observations": 1,
+            "min_observations": 3,
             "usable_pair_count": 6862
           },
           "name": "Sample gate",
@@ -671,7 +730,7 @@
           "gate_id": "factor_outlier_gate",
           "limitations": [],
           "metric_refs": {
-            "max_outlier_rate": 1.0,
+            "max_outlier_rate": 0.2,
             "outlier_rate": 0.0
           },
           "name": "Outlier gate",
@@ -698,7 +757,7 @@
           "metric_refs": {
             "bucket_is_monotonic": false,
             "bucket_populated_count": 5,
-            "min_populated_buckets": 1
+            "min_populated_buckets": 2
           },
           "name": "Bucket gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -745,8 +804,8 @@
       },
       "raw_or_heavy_data_embedded": false,
       "rejection_reason_records": [],
-      "report_hash": "079c6af7d70f31601e2b8880cf2bca6c1ce20eeb14f9135d0c87e0dfc4e18713",
-      "report_id": "dreport_079c6af7d70f31601e2b8880",
+      "report_hash": "9d265fb97179d8ed562a1419684be90c4d8edd740a0613557d84f69e6a16cd1a",
+      "report_id": "dreport_9d265fb97179d8ed562a1419",
       "report_kind": "factor_diagnostics_summary",
       "report_metadata": {
         "descriptive_tier": "tier_0_factor_diagnostics",
@@ -760,115 +819,106 @@
     },
     "label": {
       "coverage_summary": {
-        "audit_label_count": 1,
+        "audit_label_count": 3,
         "bbo_quarantined_count": 0,
-        "label_pack_count": 1,
+        "label_pack_count": 3,
         "missing_bbo_count": 0,
         "missing_outcome_count": 0,
         "missing_outcome_rate": 0.0,
         "partition_overlap_count": 1,
-        "sample_count": 6862,
-        "session_overlap_count": 0,
+        "sample_count": 20406,
+        "session_overlap_count": 1,
         "shared_dataset_ref_count": 1,
         "shared_partition_ref_count": 1,
-        "symbol_overlap_count": 0,
+        "symbol_overlap_count": 1,
         "synthetic_no_trade_count": 0
       },
       "descriptive_only": true,
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "label",
       "diagnostics_run_record": {
-        "diagnostics_run_record_id": "drecord_f64a40ca51977c99a7896533",
+        "diagnostics_run_record_id": "drecord_98a351dadcee834d3d8bebb3",
         "diagnostics_run_spec_ref": {
-          "content_hash": "7d2ade635d02a88099ab60f364f5dfa37b37162d2a130022d88d31fd3c3c5fde",
-          "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_label"
+          "content_hash": "9643c2017fff786993e09af1124026800a76847dc5b3bbcb47e3c5f05b5a4e3c",
+          "diagnostics_run_spec_id": "dspec_9643c2017fff786993e09af1"
         },
-        "record_hash": "f64a40ca51977c99a7896533f738f2465ed89f525f0c6a16c3bb6494e29012c0",
-        "rejection_reason_records": [
-          {
-            "code": "weak_diagnostics",
-            "message": "Feature/label coverage overlap diagnostics reported blocking findings."
-          },
-          {
-            "code": "weak_diagnostics",
-            "message": "Label diagnostics require declared cost-adjustment metadata."
-          }
-        ],
+        "record_hash": "98a351dadcee834d3d8bebb30135e328eb2783206e3a82d2537625f506410d32",
+        "rejection_reason_records": [],
         "report_ref": {
-          "report_hash": "c7594d21b2a00992d51c17d21b0baae59ba603c9029f290dbfe90594de0b6d8b",
-          "report_id": "dreport_c7594d21b2a00992d51c17d2",
+          "report_hash": "a4991f3d775e0ed967ea0bfccd955aafa008dbb82c94742f2d7adaee71429770",
+          "report_id": "dreport_a4991f3d775e0ed967ea0bfc",
           "report_kind": "label_diagnostics_summary"
         },
         "schema": "alpha_system.runtime.diagnostics.run_record.v1",
-        "status": "DIAGNOSTICS_FAILED",
+        "status": "DIAGNOSTICS_COMPLETE",
         "study_run_record_ref": null,
         "value_free": true
       },
       "diagnostics_run_spec_ref": {
-        "content_hash": "7d2ade635d02a88099ab60f364f5dfa37b37162d2a130022d88d31fd3c3c5fde",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_label"
+        "content_hash": "9643c2017fff786993e09af1124026800a76847dc5b3bbcb47e3c5f05b5a4e3c",
+        "diagnostics_run_spec_id": "dspec_9643c2017fff786993e09af1"
       },
       "label_available_ts_validity": {
         "label_as_feature_reference_detected": false,
         "label_available_ts_missing_count": 0,
-        "label_available_ts_observation_count": 6862,
+        "label_available_ts_observation_count": 20406,
         "label_available_ts_valid": true,
-        "label_pack_count": 1
+        "label_pack_count": 3
       },
       "label_class_balance": {
         "class_count": 3,
-        "majority_class_count": 3208,
-        "majority_class_share": 0.4675021859516176,
-        "minority_class_count": 700,
-        "minority_class_share": 0.10201107548819587,
-        "observed_outcome_count": 6862
+        "majority_class_count": 9910,
+        "majority_class_share": 0.4856414779966676,
+        "minority_class_count": 1476,
+        "minority_class_share": 0.07233166715671861,
+        "observed_outcome_count": 20406
       },
       "label_cost_adjustment_sanity": {
-        "cost_adjusted_label_count": 4,
-        "cost_adjustment_sanity": "missing",
-        "cost_model_declared_count": 0,
+        "cost_adjusted_label_count": 0,
+        "cost_adjustment_sanity": "declared",
+        "cost_model_declared_count": 20409,
         "cost_warning_count": 0,
-        "profile_count": 4
+        "profile_count": 3
       },
       "label_coverage_missingness": {
-        "audit_label_count": 1,
+        "audit_label_count": 3,
         "bbo_quarantined_count": 0,
-        "feature_label_status": "blocked",
+        "feature_label_status": "clear",
         "missing_bbo_count": 0,
         "missing_outcome_count": 0,
         "missing_outcome_rate": 0.0,
         "partition_overlap_count": 1,
-        "session_overlap_count": 0,
+        "session_overlap_count": 1,
         "shared_dataset_ref_count": 1,
         "shared_partition_ref_count": 1,
-        "symbol_overlap_count": 0,
+        "symbol_overlap_count": 1,
         "synthetic_no_trade_count": 0
       },
       "label_distribution_summary": {
         "class_count": 3,
-        "majority_class_count": 3208,
-        "minority_class_count": 700,
+        "majority_class_count": 9910,
+        "minority_class_count": 1476,
         "missing_outcome_count": 0,
         "missing_outcome_rate": 0.0,
-        "negative_outcome_count": 3208,
-        "neutral_outcome_count": 700,
-        "numeric_outcome_count": 6862,
-        "observed_outcome_count": 6862,
-        "positive_outcome_count": 2954,
-        "sample_count": 6862
+        "negative_outcome_count": 9910,
+        "neutral_outcome_count": 1476,
+        "numeric_outcome_count": 20406,
+        "observed_outcome_count": 20406,
+        "positive_outcome_count": 9020,
+        "sample_count": 20406
       },
       "label_horizon_coverage": {
-        "horizon_count": 1,
-        "horizon_coverage_ratio": 1.0,
-        "horizon_sample_count": 6862,
+        "horizon_count": 3,
+        "horizon_coverage_ratio": 0.978140483823958,
+        "horizon_sample_count": 20406,
         "max_horizon_sample_count": 6862,
-        "max_horizon_seconds": 300,
-        "min_horizon_sample_count": 6862,
+        "max_horizon_seconds": 1800,
+        "min_horizon_sample_count": 6712,
         "min_horizon_seconds": 300,
         "missing_horizon_count": 0
       },
       "label_mfe_mae_summary": {
-        "event_count": 6862,
+        "event_count": 20406,
         "mae_sample_count": 0,
         "mean_mae": null,
         "mean_mfe": null,
@@ -887,13 +937,13 @@
         "Coverage and leakage results depend on upstream registered label audits and input resolution."
       ],
       "lineage_refs": {
-        "alpha_spec_ref": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_label",
+        "diagnostics_run_spec_id": "dspec_9643c2017fff786993e09af1",
         "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
         "runtime_plan_ref": "bound_by_diagnostics_run_spec",
-        "study_run_spec_id": "bound_by_dspec_futcore_p17_fd5b2844_label",
-        "study_spec_ref": "sspec_8b8037013e7b3c14fd5b2844"
+        "study_run_spec_id": "bound_by_dspec_9643c2017fff786993e09af1",
+        "study_spec_ref": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "quality_gates": [
@@ -904,7 +954,7 @@
           ],
           "metric_refs": {
             "label_available_ts_missing_count": 0,
-            "label_pack_count": 1
+            "label_pack_count": 3
           },
           "name": "Label availability gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -918,8 +968,8 @@
           ],
           "metric_refs": {
             "missing_outcome_count": 0,
-            "observed_outcome_count": 6862,
-            "sample_count": 6862
+            "observed_outcome_count": 20406,
+            "sample_count": 20406
           },
           "name": "Label distribution gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
@@ -933,7 +983,7 @@
           ],
           "metric_refs": {
             "class_count": 3,
-            "majority_class_share": 0.4675021859516176,
+            "majority_class_share": 0.4856414779966676,
             "threshold_ref": "label_diagnostics_config.max_majority_class_share"
           },
           "name": "Label class balance gate",
@@ -947,8 +997,8 @@
             "Scalar summary only; no runtime label outcomes are embedded."
           ],
           "metric_refs": {
-            "horizon_count": 1,
-            "horizon_coverage_ratio": 1.0,
+            "horizon_count": 3,
+            "horizon_coverage_ratio": 0.978140483823958,
             "threshold_ref": "label_diagnostics_config.min_horizon_coverage_ratio"
           },
           "name": "Label horizon gate",
@@ -977,13 +1027,13 @@
             "Scalar summary only; no runtime label outcomes are embedded."
           ],
           "metric_refs": {
-            "cost_adjusted_label_count": 4,
-            "cost_model_declared_count": 0,
+            "cost_adjusted_label_count": 0,
+            "cost_model_declared_count": 20409,
             "cost_warning_count": 0
           },
           "name": "Label cost gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
-          "status": "FAIL",
+          "status": "PASS",
           "summary": "Cost-adjustment metadata presence is checked descriptively."
         },
         {
@@ -992,46 +1042,37 @@
             "Scalar summary only; no runtime label outcomes are embedded."
           ],
           "metric_refs": {
-            "audit_label_count": 1,
+            "audit_label_count": 3,
             "missing_outcome_count": 0,
             "shared_dataset_ref_count": 1
           },
           "name": "Label coverage and missingness gate",
           "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
-          "status": "FAIL",
+          "status": "PASS",
           "summary": "Feature/label coverage and missingness are delegated to the research primitive."
         }
       ],
       "quality_summary": {
         "class_count": 3,
-        "cost_model_declared_count": 0,
-        "diagnostic_complete": false,
-        "failing_gate_count": 2,
+        "cost_model_declared_count": 20409,
+        "diagnostic_complete": true,
+        "failing_gate_count": 0,
         "gate_count": 7,
-        "horizon_count": 1,
+        "horizon_count": 3,
         "inconclusive_gate_count": 0,
         "label_available_ts_valid": true,
         "mae_sample_count": 0,
-        "majority_class_share": 0.4675021859516176,
+        "majority_class_share": 0.4856414779966676,
         "mfe_sample_count": 0,
-        "observed_outcome_count": 6862,
+        "observed_outcome_count": 20406,
         "path_ambiguous_count": 0,
-        "rejection_reason_count": 2,
-        "sample_count": 6862
+        "rejection_reason_count": 0,
+        "sample_count": 20406
       },
       "raw_or_heavy_data_embedded": false,
-      "rejection_reason_records": [
-        {
-          "code": "weak_diagnostics",
-          "message": "Feature/label coverage overlap diagnostics reported blocking findings."
-        },
-        {
-          "code": "weak_diagnostics",
-          "message": "Label diagnostics require declared cost-adjustment metadata."
-        }
-      ],
-      "report_hash": "c7594d21b2a00992d51c17d21b0baae59ba603c9029f290dbfe90594de0b6d8b",
-      "report_id": "dreport_c7594d21b2a00992d51c17d2",
+      "rejection_reason_records": [],
+      "report_hash": "a4991f3d775e0ed967ea0bfccd955aafa008dbb82c94742f2d7adaee71429770",
+      "report_id": "dreport_a4991f3d775e0ed967ea0bfc",
       "report_kind": "label_diagnostics_summary",
       "report_metadata": {
         "external_provider_call_performed": false,
@@ -1041,13 +1082,13 @@
         "uses_research_feature_label_diagnostics": true
       },
       "schema": "alpha_system.runtime.diagnostics.report.v1",
-      "status": "DIAGNOSTICS_FAILED",
+      "status": "DIAGNOSTICS_COMPLETE",
       "value_free": true
     },
     "signal_probe_input_gap": {
       "coverage_summary": {
         "blocked_probe_count": 1,
-        "resolved_label_pack_count": 1,
+        "resolved_label_pack_count": 3,
         "resolved_signal_feature_pack_count": 0,
         "substitute_probe_count": 0
       },
@@ -1055,22 +1096,23 @@
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "factor",
       "diagnostics_run_spec_ref": {
-        "content_hash": "791db83155a4df83b62402364aea18e38c6ee65699f33b4617c8d8c9e58f1618",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_signal_probe_gap"
+        "content_hash": "90bf6d620311ba4f84b69f94e9729d60c8291d5e0a47f2b0abdd5e3fd845f1ca",
+        "diagnostics_run_spec_id": "dspec_90bf6d620311ba4f84b69f94"
       },
       "limitations": [
         "Signal-probe runtime was not executed because no locked VWAP trigger FeaturePack resolved.",
-        "Session-minute and RTH-flag context reports are not substitutes for a VWAP trigger signal."
+        "Session-minute, range-position, and RTH-flag context reports are not substitutes for a VWAP trigger signal."
       ],
       "lineage_refs": {
-        "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
         "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "feature_pack_ref": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f,fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
-        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "feature_pack_ref": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9,fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858,fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a,fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169,fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d,fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395,lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941,lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
         "phase_id": "FUTCORE-P17",
-        "primary_resolved_horizon": "5m",
-        "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844"
+        "primary_resolved_horizons": "5m,10m,30m",
+        "primary_unresolved_horizons": "15m",
+        "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "quality_gates": [],
@@ -1087,12 +1129,12 @@
           "message": "No locked VWAP trigger FeaturePack resolved for signal-probe diagnostics."
         }
       ],
-      "report_hash": "f9de1b66f1a7ea9d7d8715cc49676c44cb7ac11d2d32c268f5aa2c3fa9b9e0d0",
-      "report_id": "dreport_f9de1b66f1a7ea9d7d8715cc",
+      "report_hash": "fc13c017b6fa9cf86f5decb5f8c4e9844e3a5fcfd143a5a16af6aa881a693d93",
+      "report_id": "dreport_fc13c017b6fa9cf86f5decb5",
       "report_kind": "signal_probe_input_gap_summary",
       "report_metadata": {
         "external_provider_call_performed": false,
-        "runtime_tool_surface": "RuntimeToolResult"
+        "runtime_tool_surface": "alpha_system.runtime.probe.runner"
       },
       "schema": "alpha_system.runtime.diagnostics.report.v1",
       "status": "INCONCLUSIVE",
@@ -1102,7 +1144,7 @@
       "coverage_summary": {
         "coverage_ratio": 1.0,
         "eligible_observation_count": 6862,
-        "minimum_split_sample_count": 1,
+        "minimum_split_sample_count": 2,
         "missingness_rate": 0.0,
         "sample_count": 18636,
         "total_observation_count": 6862
@@ -1111,8 +1153,8 @@
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "splits",
       "diagnostics_run_spec_ref": {
-        "content_hash": "4313f416cc8e5f1f2d8c4fbd47eacb5c7f98c42f6e5d198f52ae41a6a5f1290e",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_splits"
+        "content_hash": "be446d94918ef4c561e4a90d321cc6932142319c0d1382eca9bedc545b8c9b8a",
+        "diagnostics_run_spec_id": "dspec_be446d94918ef4c561e4a90d"
       },
       "limitations": [
         "Split diagnostics are descriptive summaries of heterogeneity only.",
@@ -1121,12 +1163,12 @@
         "Split assignment uses available_ts metadata and label_available_ts is only an outcome guard."
       ],
       "lineage_refs": {
-        "alpha_spec_ref": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_splits",
-        "feature_pack_ref": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f,fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
-        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
-        "study_spec_ref": "sspec_8b8037013e7b3c14fd5b2844"
+        "diagnostics_run_spec_id": "dspec_be446d94918ef4c561e4a90d",
+        "feature_pack_ref": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9,fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858,fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a,fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169,fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d,fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395,lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941,lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
+        "study_spec_ref": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "quality_gates": [
@@ -1140,7 +1182,7 @@
           ],
           "metric_refs": {
             "failed_split_count": 3,
-            "minimum_split_sample_count": 1,
+            "minimum_split_sample_count": 2,
             "reported_split_count": 6,
             "split_count": 9
           },
@@ -1162,19 +1204,19 @@
       "rejection_reason_records": [
         {
           "code": "low_sample",
-          "message": "session_view:RTH_only has 0 observations below the configured minimum of 1."
+          "message": "session_view:RTH_only has 0 observations below the configured minimum of 2."
         },
         {
           "code": "low_sample",
-          "message": "session_view:RTH has 0 observations below the configured minimum of 1."
+          "message": "session_view:RTH has 0 observations below the configured minimum of 2."
         },
         {
           "code": "low_sample",
-          "message": "session_view:RTH_with_ETH_context has 0 observations below the configured minimum of 1."
+          "message": "session_view:RTH_with_ETH_context has 0 observations below the configured minimum of 2."
         }
       ],
-      "report_hash": "b65cb6e3aae838d467aaa003119524b58eb16f0aedd4ef1bf00e1c51dfd959c1",
-      "report_id": "dreport_b65cb6e3aae838d467aaa003",
+      "report_hash": "d29ca34235ac019c119f2d23140191d81e0a7d6fbb966d522e8928c9ae9f5504",
+      "report_id": "dreport_d29ca34235ac019c119f2d23",
       "report_kind": "session_split_diagnostics_summary",
       "report_metadata": {
         "conditioning_time_reference": "available_ts",
@@ -1185,13 +1227,13 @@
       "schema": "alpha_system.runtime.diagnostics.report.v1",
       "split_summaries": [
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": 0.0,
           "conditional_mean_delta": 0.0,
-          "conditioning_field": "view_full_session",
+          "conditioning_field": "session_view_full_session",
           "coverage_ratio": 1.0,
           "false_rejection_rate": 0.0,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 6862,
           "primitive_total_count": 6862,
@@ -1206,20 +1248,20 @@
           "uplift": null
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": null,
           "conditional_mean_delta": null,
-          "conditioning_field": "view_RTH_only",
+          "conditioning_field": "session_view_RTH_only",
           "coverage_ratio": 0.0,
           "false_rejection_rate": 1.0,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 0,
           "primitive_total_count": 6862,
           "primitive_with_filter_count": 0,
           "primitive_without_filter_count": 6862,
           "rejection_reason_code": "low_sample",
-          "rejection_reason_message": "session_view:RTH_only has 0 observations below the configured minimum of 1.",
+          "rejection_reason_message": "session_view:RTH_only has 0 observations below the configured minimum of 2.",
           "sample_count": 0,
           "split_id": "session_view:RTH_only",
           "status": "inconclusive",
@@ -1227,13 +1269,13 @@
           "uplift": null
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": 0.0,
           "conditional_mean_delta": 0.0,
-          "conditioning_field": "view_ETH_only",
+          "conditioning_field": "session_view_ETH_only",
           "coverage_ratio": 1.0,
           "false_rejection_rate": 0.0,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 6862,
           "primitive_total_count": 6862,
@@ -1248,13 +1290,13 @@
           "uplift": null
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": -0.043498516462598225,
           "conditional_mean_delta": -4.63934188565478e-06,
-          "conditioning_field": "view_ETH_evening",
+          "conditioning_field": "session_view_ETH_evening",
           "coverage_ratio": 0.2598367822792189,
           "false_rejection_rate": 0.7664184157075152,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 1783,
           "primitive_total_count": 6862,
@@ -1269,13 +1311,13 @@
           "uplift": -6.267998428699173e-06
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": -0.014896909464730101,
           "conditional_mean_delta": -2.6057046687430755e-05,
-          "conditioning_field": "view_ETH_overnight",
+          "conditioning_field": "session_view_ETH_overnight",
           "coverage_ratio": 0.34960652870883124,
           "false_rejection_rate": 0.6624915368991199,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 2399,
           "primitive_total_count": 6862,
@@ -1290,13 +1332,13 @@
           "uplift": -4.006351207016577e-05
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": 0.07173548366203569,
           "conditional_mean_delta": 4.750255055556085e-05,
-          "conditioning_field": "view_pre_RTH",
+          "conditioning_field": "session_view_pre_RTH",
           "coverage_ratio": 0.0655785485281259,
           "false_rejection_rate": 0.923493568043331,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 450,
           "primitive_total_count": 6862,
@@ -1311,20 +1353,20 @@
           "uplift": 5.0836322818505704e-05
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": null,
           "conditional_mean_delta": null,
-          "conditioning_field": "view_RTH",
+          "conditioning_field": "session_view_RTH",
           "coverage_ratio": 0.0,
           "false_rejection_rate": 1.0,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 0,
           "primitive_total_count": 6862,
           "primitive_with_filter_count": 0,
           "primitive_without_filter_count": 6862,
           "rejection_reason_code": "low_sample",
-          "rejection_reason_message": "session_view:RTH has 0 observations below the configured minimum of 1.",
+          "rejection_reason_message": "session_view:RTH has 0 observations below the configured minimum of 2.",
           "sample_count": 0,
           "split_id": "session_view:RTH",
           "status": "inconclusive",
@@ -1332,13 +1374,13 @@
           "uplift": null
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": -0.019772452845900845,
           "conditional_mean_delta": 1.5604065184920207e-05,
-          "conditioning_field": "view_post_RTH",
+          "conditioning_field": "session_view_post_RTH",
           "coverage_ratio": 0.040804430195278345,
           "false_rejection_rate": 0.9610697359512526,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 280,
           "primitive_total_count": 6862,
@@ -1353,20 +1395,20 @@
           "uplift": 1.6267866195521494e-05
         },
         {
-          "bucket": "yes",
+          "bucket": "1",
           "conditional_hit_rate_delta": null,
           "conditional_mean_delta": null,
-          "conditioning_field": "view_RTH_with_ETH_context",
+          "conditioning_field": "session_view_RTH_with_ETH_context",
           "coverage_ratio": 0.0,
           "false_rejection_rate": 1.0,
-          "family": "vwap_session_view",
+          "family": "session_view",
           "missingness_rate": 0.0,
           "primitive_retained_count": 0,
           "primitive_total_count": 6862,
           "primitive_with_filter_count": 0,
           "primitive_without_filter_count": 6862,
           "rejection_reason_code": "low_sample",
-          "rejection_reason_message": "session_view:RTH_with_ETH_context has 0 observations below the configured minimum of 1.",
+          "rejection_reason_message": "session_view:RTH_with_ETH_context has 0 observations below the configured minimum of 2.",
           "sample_count": 0,
           "split_id": "session_view:RTH_with_ETH_context",
           "status": "inconclusive",
@@ -1380,34 +1422,36 @@
     },
     "vwap_input_gap": {
       "coverage_summary": {
-        "resolved_label_pack_count": 1,
-        "resolved_primary_horizon_count": 1,
+        "resolved_label_pack_count": 3,
+        "resolved_primary_horizon_count": 3,
         "resolved_session_context_feature_pack_count": 2,
         "resolved_vwap_feature_pack_count": 0,
         "session_view_count": 9,
-        "unresolved_primary_horizon_count": 3
+        "unresolved_primary_horizon_count": 1
       },
       "descriptive_only": true,
       "diagnostic_pass_is_alpha_validation": false,
       "diagnostics_family": "factor",
       "diagnostics_run_spec_ref": {
-        "content_hash": "fbc2f72ce11cf24dbc81d987617406b8ea3f7a827f3089c1cacab606d47628b5",
-        "diagnostics_run_spec_id": "dspec_futcore_p17_fd5b2844_vwap_input_gap"
+        "content_hash": "310c3132ee7cebdc382a086e3aa3fa341b49da814ce49a00777f4c12f41ed202",
+        "diagnostics_run_spec_id": "dspec_310c3132ee7cebdc382a086e"
       },
       "limitations": [
-        "No locked completed ETH VWAP or first-RTH running VWAP FeaturePack resolves in the P03/P15 registry state.",
-        "Session-context diagnostics use available_ts only; no final current-session aggregate is used before session completion.",
-        "Only the 5m LabelPack resolves; 10m, 15m, and 30m cells are recorded as unresolved pack cells."
+        "No substitute factor or signal-probe input was used.",
+        "Session-context diagnostics use available_ts only.",
+        "Final current-session VWAP, high, and low are not used intraday.",
+        "The 15m horizon has a governed LabelSpec but no locked LabelVersion in this pack."
       ],
       "lineage_refs": {
-        "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
         "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
-        "feature_pack_ref": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f,fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
-        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "feature_pack_ref": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9,fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858,fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a,fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169,fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d,fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395,lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941,lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
         "phase_id": "FUTCORE-P17",
-        "primary_resolved_horizon": "5m",
-        "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844"
+        "primary_resolved_horizons": "5m,10m,30m",
+        "primary_unresolved_horizons": "15m",
+        "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6"
       },
       "non_promotional": true,
       "quality_gates": [
@@ -1417,7 +1461,7 @@
             "No substitute factor or signal-probe input was used."
           ],
           "metric_refs": {
-            "resolved_primary_horizon_count": 1,
+            "resolved_primary_horizon_count": 3,
             "resolved_vwap_feature_pack_count": 0
           },
           "name": "VWAP input resolution gate",
@@ -1427,61 +1471,59 @@
         }
       ],
       "quality_summary": {
+        "completed_eth_vwap_pack_resolved": false,
         "final_session_context_used_intraday": false,
-        "final_session_vwap_pack_resolved": false,
         "promotion_basis_allowed": false,
         "running_vwap_pack_resolved": false,
-        "signal_probe_executable": false
+        "substitute_signal_used": false
       },
       "raw_or_heavy_data_embedded": false,
       "rejection_reason_records": [
         {
           "code": "data_unavailable",
-          "message": "No locked completed ETH VWAP or first-RTH running VWAP FeaturePack resolves in the P03/P15 registry state."
+          "message": "No locked running VWAP, completed ETH VWAP, distance-to-VWAP, or VWAP trigger FeaturePack resolved for this StudySpec."
         }
       ],
-      "report_hash": "515a9315ef3c26182f683de0a8aec94e206397ca951033d209e6c837297f2a10",
-      "report_id": "dreport_515a9315ef3c26182f683de0",
+      "report_hash": "9120f9ec9c60d53abbb1a8517650744be6654b2a6ef3dba7f148e28a5fa87eef",
+      "report_id": "dreport_9120f9ec9c60d53abbb1a851",
       "report_kind": "vwap_session_input_gap_summary",
       "report_metadata": {
         "external_provider_call_performed": false,
-        "runtime_tools_only": true,
-        "signal_probe_run": false,
-        "substitute_signal_used": false
+        "runtime_tool_surface": "alpha_system.runtime.diagnostics.report"
       },
       "schema": "alpha_system.runtime.diagnostics.report.v1",
       "status": "INCONCLUSIVE",
       "value_free": true
     }
   },
+  "external_provider_call_performed": false,
   "fragile_horizons": [
     {
       "horizon": "1m",
-      "label_pack_status": "not_locked_for_p17",
       "promotion_basis_allowed": false,
-      "role": "diagnostic_only",
-      "stricter_cost_and_timestamp_checks_required": true
+      "role": "diagnostic_only"
     },
     {
       "horizon": "3m",
-      "label_pack_status": "not_locked_for_p17",
       "promotion_basis_allowed": false,
-      "role": "diagnostic_only",
-      "stricter_cost_and_timestamp_checks_required": true
+      "role": "diagnostic_only"
     }
   ],
   "non_promotional": true,
   "phase_id": "FUTCORE-P17",
+  "promotion_performed": false,
   "raw_or_heavy_data_embedded": false,
   "running_vs_final_vwap_treatment": {
+    "completed_context_policy": "not_applicable",
     "final_current_session_aggregate_used_intraday": false,
     "final_session_vwap_feature_pack_resolved": false,
+    "rth_with_eth_context_rule": "completed ETH context only; no active-session final VWAP/high/low before session completion",
     "running_point_in_time_vwap_feature_pack_resolved": false,
     "session_context_available_ts_checked": true,
-    "study_treatment": "completed_eth_context_after_eth_close_plus_running_rth_vwap_required"
+    "study_treatment": "running_point_in_time_vwap_required"
   },
   "runtime_entry_result": {
-    "alpha_spec_ref": "aspec_43cd6c154bca2fcc419eee83",
+    "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
     "dataset_scope": {
       "bar_size": "1 min",
       "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
@@ -1506,7 +1548,7 @@
     ],
     "status": "INPUTS_RESOLVED",
     "study_input_pack": {
-      "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+      "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
       "dataset_scope": {
         "bar_size": "1 min",
         "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
@@ -1521,18 +1563,24 @@
       },
       "feature_request_ids": [
         "freq_67991722245329f35c0fa612",
-        "freq_76147d2e3318292d48004696"
+        "freq_f7d4e9c2f4c60c5c25f15ce2",
+        "freq_7644d195221963a725953a50",
+        "freq_cd75d0b4aa48ba48c04e970b",
+        "freq_e44777a9b6c5685aed764c32",
+        "freq_c74b47e119cb7095e86dc709"
       ],
       "label_spec_ids": [
-        "lspec_cd6523694c850c9943b2067e"
+        "lspec_cd6523694c850c9943b2067e",
+        "lspec_15c26c4368bb432b0b0dc6e9",
+        "lspec_65ba5b5c9b4fa37e0e42b6ef"
       ]
     },
-    "study_spec_ref": "sspec_8b8037013e7b3c14fd5b2844",
+    "study_spec_ref": "sspec_69c22ec5847395ac8e81b5b6",
     "target_dataset_version_id": "dsv_databento_ohlcv_05404069799decb0"
   },
   "runtime_input_resolution": {
     "input_pack": {
-      "alpha_spec_ref": "aspec_43cd6c154bca2fcc419eee83",
+      "alpha_spec_ref": "aspec_b40aee52d4399dd5b855a6ed",
       "canonical_input_views": [
         {
           "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
@@ -1587,9 +1635,9 @@
           "feature_request_id": "freq_67991722245329f35c0fa612",
           "feature_set_id": "fset_es_session_ctx_smoke",
           "feature_set_version": "v1_rth_flag",
-          "feature_version_id": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
+          "feature_version_id": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
           "lifecycle_state": "REGISTERED",
-          "materialization_plan_id": "fmat_7fc558435b563192a8b83f11c56c28f26cbe4b5ba0b8bdd00d153446c1312106",
+          "materialization_plan_id": "fmat_da18877497262c0ac7d33c744029214ab3f715fb89b38e101365de991158310a",
           "partition_id": "development_partition"
         },
         {
@@ -1602,12 +1650,84 @@
             "first": "2024-01-02T00:01:00+00:00",
             "last": "2024-01-09T00:00:00+00:00"
           },
-          "feature_request_id": "freq_76147d2e3318292d48004696",
+          "feature_request_id": "freq_f7d4e9c2f4c60c5c25f15ce2",
           "feature_set_id": "fset_es_session_ctx_smoke",
           "feature_set_version": "v1_session_minute",
-          "feature_version_id": "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
+          "feature_version_id": "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
           "lifecycle_state": "REGISTERED",
-          "materialization_plan_id": "fmat_9aa8b9343108c2ce33d181f1457998bc5a36a3eca0397e8af7974b111f465f4d",
+          "materialization_plan_id": "fmat_a6ad8dc7369ed3a36fedb29ac0ce4bb63370c9cf540d78490cc9ff8e4fb53e20",
+          "partition_id": "development_partition"
+        },
+        {
+          "available_ts": {
+            "first": "2024-01-02T00:01:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-09T00:00:00+00:00"
+          },
+          "feature_request_id": "freq_7644d195221963a725953a50",
+          "feature_set_id": "fset_es_ohlcv_session_smoke",
+          "feature_set_version": "v1_returns",
+          "feature_version_id": "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "fmat_ad16acddd211782555dfea0215f4e391c2ecffa443d41a1303006a7fb745b0ac",
+          "partition_id": "development_partition"
+        },
+        {
+          "available_ts": {
+            "first": "2024-01-02T00:01:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-09T00:00:00+00:00"
+          },
+          "feature_request_id": "freq_cd75d0b4aa48ba48c04e970b",
+          "feature_set_id": "fset_es_ohlcv_session_smoke",
+          "feature_set_version": "v1_rolling_range",
+          "feature_version_id": "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "fmat_c548138c1da279f401996416e4e634e91ebcff71bb329ac0836924e44294f7d2",
+          "partition_id": "development_partition"
+        },
+        {
+          "available_ts": {
+            "first": "2024-01-02T00:01:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-09T00:00:00+00:00"
+          },
+          "feature_request_id": "freq_e44777a9b6c5685aed764c32",
+          "feature_set_id": "fset_es_ohlcv_session_smoke",
+          "feature_set_version": "v1_range_position",
+          "feature_version_id": "fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "fmat_6a15e7af1d5f0f41ba8d7c04f400d5af1aa39f44816008911a5c90f64583d0be",
+          "partition_id": "development_partition"
+        },
+        {
+          "available_ts": {
+            "first": "2024-01-02T00:01:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-09T00:00:00+00:00"
+          },
+          "feature_request_id": "freq_c74b47e119cb7095e86dc709",
+          "feature_set_id": "fset_es_ohlcv_session_smoke",
+          "feature_set_version": "v1_volume_zscore",
+          "feature_version_id": "fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "fmat_099685c34d16e36c5049dfb5ff5c769ecb7ca841855be03e07bf4555bb822862",
           "partition_id": "development_partition"
         }
       ],
@@ -1634,59 +1754,65 @@
           "lifecycle_state": "REGISTERED",
           "materialization_plan_id": "lmat_e9fa63fe8a9a5f966f2a157390b1ef265e93048b82767ac96d060d7003725b94",
           "partition_id": "development_partition"
+        },
+        {
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-08T23:50:00+00:00"
+          },
+          "label_available_ts": {
+            "first": "2024-01-02T00:11:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "label_id": "fwd_ret_10m",
+          "label_spec_id": "lspec_15c26c4368bb432b0b0dc6e9",
+          "label_version_id": "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "lmat_5414f37fcd79928e69e8fcf53c4208f3dc07136c50002e50cab1124446ebed8e",
+          "partition_id": "development_partition"
+        },
+        {
+          "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+          "event_ts": {
+            "first": "2024-01-02T00:01:00+00:00",
+            "last": "2024-01-08T23:30:00+00:00"
+          },
+          "label_available_ts": {
+            "first": "2024-01-02T00:31:05+00:00",
+            "last": "2024-01-09T00:00:05+00:00"
+          },
+          "label_id": "fwd_ret_30m",
+          "label_spec_id": "lspec_65ba5b5c9b4fa37e0e42b6ef",
+          "label_version_id": "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
+          "lifecycle_state": "REGISTERED",
+          "materialization_plan_id": "lmat_5414f37fcd79928e69e8fcf53c4208f3dc07136c50002e50cab1124446ebed8e",
+          "partition_id": "development_partition"
         }
       ],
       "partition_scope": {
         "partition_id": "development_partition",
-        "role": "development"
+        "partition_role": "family_diagnostics_development_partition"
       },
       "schema": "alpha_system.runtime.input_pack.v1",
       "session_scope": {
-        "rth": {
-          "end": "16:00:00",
-          "start": "09:30:00"
-        },
-        "segments": [
-          {
-            "end": "10:30:00",
-            "name": "RTH_open",
-            "start": "09:30:00"
-          },
-          {
-            "end": "15:00:00",
-            "name": "RTH_mid",
-            "start": "10:30:00"
-          },
-          {
-            "end": "16:00:00",
-            "name": "RTH_close",
-            "start": "15:00:00"
-          },
-          {
-            "end": "18:00:00",
-            "name": "post_RTH",
-            "start": "16:00:00"
-          },
-          {
-            "end": "23:59:59",
-            "name": "ETH_evening",
-            "start": "18:00:00"
-          },
-          {
-            "end": "08:00:00",
-            "name": "ETH_overnight",
-            "start": "00:00:00"
-          },
-          {
-            "end": "09:30:00",
-            "name": "pre_RTH",
-            "start": "08:00:00"
-          }
+        "eth_context_rule": "RTH_with_ETH_context uses completed ETH context only",
+        "rth_window": "09:30-16:00",
+        "session_views": [
+          "full_session",
+          "RTH_only",
+          "ETH_only",
+          "ETH_evening",
+          "ETH_overnight",
+          "pre_RTH",
+          "RTH",
+          "post_RTH",
+          "RTH_with_ETH_context"
         ],
         "timezone": "America/New_York"
       },
       "study_input_pack": {
-        "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+        "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
         "dataset_scope": {
           "bar_size": "1 min",
           "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
@@ -1701,13 +1827,19 @@
         },
         "feature_request_ids": [
           "freq_67991722245329f35c0fa612",
-          "freq_76147d2e3318292d48004696"
+          "freq_f7d4e9c2f4c60c5c25f15ce2",
+          "freq_7644d195221963a725953a50",
+          "freq_cd75d0b4aa48ba48c04e970b",
+          "freq_e44777a9b6c5685aed764c32",
+          "freq_c74b47e119cb7095e86dc709"
         ],
         "label_spec_ids": [
-          "lspec_cd6523694c850c9943b2067e"
+          "lspec_cd6523694c850c9943b2067e",
+          "lspec_15c26c4368bb432b0b0dc6e9",
+          "lspec_65ba5b5c9b4fa37e0e42b6ef"
         ]
       },
-      "study_spec_ref": "sspec_8b8037013e7b3c14fd5b2844",
+      "study_spec_ref": "sspec_69c22ec5847395ac8e81b5b6",
       "value_free": true
     },
     "reasons": [
@@ -1729,8 +1861,8 @@
       "bbo_unavailable_fallback_used": true,
       "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
       "diagnostics_report_ref": {
-        "report_hash": "fbef101f1d2c7f4ccc28f45085f800f669a553bda5d970d07fb364ed3971a517",
-        "report_id": "dreport_fbef101f1d2c7f4ccc28f450",
+        "report_hash": "f8344cf7fd0b8e7b262402f23e86a2cdee19ddc756f7e04acacf7b1aa4e6725b",
+        "report_id": "dreport_f8344cf7fd0b8e7b262402f2",
         "report_kind": "cost_sensitivity_report"
       },
       "double_cost_combined_cost_slippage_proxy": "0.00375",
@@ -1752,42 +1884,42 @@
         "cost_sensitivity_report_rejection_reason_count": 0,
         "cost_sensitivity_report_status": "DIAGNOSTICS_COMPLETE",
         "factor_diagnostics_summary_coverage_available_ts_missing_count": 0,
-        "factor_diagnostics_summary_coverage_coverage_ratio": 1.0,
+        "factor_diagnostics_summary_coverage_coverage_ratio": 0.9666278053045759,
         "factor_diagnostics_summary_coverage_horizon_count": 1,
         "factor_diagnostics_summary_coverage_input_count": 6862,
         "factor_diagnostics_summary_coverage_label_available_ts_missing_count": 0,
-        "factor_diagnostics_summary_coverage_missing_factor_count": 0,
+        "factor_diagnostics_summary_coverage_missing_factor_count": 229,
         "factor_diagnostics_summary_coverage_missing_label_count": 0,
-        "factor_diagnostics_summary_coverage_missingness_rate": 0.0,
-        "factor_diagnostics_summary_coverage_numeric_factor_count": 6862,
+        "factor_diagnostics_summary_coverage_missingness_rate": 0.03337219469542407,
+        "factor_diagnostics_summary_coverage_numeric_factor_count": 6633,
         "factor_diagnostics_summary_coverage_outlier_count": 0,
         "factor_diagnostics_summary_coverage_outlier_rate": 0.0,
-        "factor_diagnostics_summary_coverage_usable_pair_count": 6862,
+        "factor_diagnostics_summary_coverage_usable_pair_count": 6633,
         "factor_diagnostics_summary_diagnostics_family": "factor",
         "factor_diagnostics_summary_quality_gate_count": 7,
-        "factor_diagnostics_summary_rejection_reason_count": 1,
-        "factor_diagnostics_summary_status": "INCONCLUSIVE",
-        "label_diagnostics_summary_coverage_audit_label_count": 1,
+        "factor_diagnostics_summary_rejection_reason_count": 0,
+        "factor_diagnostics_summary_status": "DIAGNOSTICS_COMPLETE",
+        "label_diagnostics_summary_coverage_audit_label_count": 3,
         "label_diagnostics_summary_coverage_bbo_quarantined_count": 0,
-        "label_diagnostics_summary_coverage_label_pack_count": 1,
+        "label_diagnostics_summary_coverage_label_pack_count": 3,
         "label_diagnostics_summary_coverage_missing_bbo_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_rate": 0.0,
         "label_diagnostics_summary_coverage_partition_overlap_count": 1,
-        "label_diagnostics_summary_coverage_sample_count": 6862,
-        "label_diagnostics_summary_coverage_session_overlap_count": 0,
+        "label_diagnostics_summary_coverage_sample_count": 20406,
+        "label_diagnostics_summary_coverage_session_overlap_count": 1,
         "label_diagnostics_summary_coverage_shared_dataset_ref_count": 1,
         "label_diagnostics_summary_coverage_shared_partition_ref_count": 1,
-        "label_diagnostics_summary_coverage_symbol_overlap_count": 0,
+        "label_diagnostics_summary_coverage_symbol_overlap_count": 1,
         "label_diagnostics_summary_coverage_synthetic_no_trade_count": 0,
         "label_diagnostics_summary_diagnostics_family": "label",
         "label_diagnostics_summary_quality_gate_count": 7,
-        "label_diagnostics_summary_rejection_reason_count": 2,
-        "label_diagnostics_summary_status": "DIAGNOSTICS_FAILED",
+        "label_diagnostics_summary_rejection_reason_count": 0,
+        "label_diagnostics_summary_status": "DIAGNOSTICS_COMPLETE",
         "report_count": 7,
         "session_split_diagnostics_summary_coverage_coverage_ratio": 1.0,
         "session_split_diagnostics_summary_coverage_eligible_observation_count": 6862,
-        "session_split_diagnostics_summary_coverage_minimum_split_sample_count": 1,
+        "session_split_diagnostics_summary_coverage_minimum_split_sample_count": 2,
         "session_split_diagnostics_summary_coverage_missingness_rate": 0.0,
         "session_split_diagnostics_summary_coverage_sample_count": 18636,
         "session_split_diagnostics_summary_coverage_total_observation_count": 6862,
@@ -1796,19 +1928,19 @@
         "session_split_diagnostics_summary_rejection_reason_count": 3,
         "session_split_diagnostics_summary_status": "INCONCLUSIVE",
         "signal_probe_input_gap_summary_coverage_blocked_probe_count": 1,
-        "signal_probe_input_gap_summary_coverage_resolved_label_pack_count": 1,
+        "signal_probe_input_gap_summary_coverage_resolved_label_pack_count": 3,
         "signal_probe_input_gap_summary_coverage_resolved_signal_feature_pack_count": 0,
         "signal_probe_input_gap_summary_coverage_substitute_probe_count": 0,
         "signal_probe_input_gap_summary_diagnostics_family": "factor",
         "signal_probe_input_gap_summary_quality_gate_count": 0,
         "signal_probe_input_gap_summary_rejection_reason_count": 1,
         "signal_probe_input_gap_summary_status": "INCONCLUSIVE",
-        "vwap_session_input_gap_summary_coverage_resolved_label_pack_count": 1,
-        "vwap_session_input_gap_summary_coverage_resolved_primary_horizon_count": 1,
+        "vwap_session_input_gap_summary_coverage_resolved_label_pack_count": 3,
+        "vwap_session_input_gap_summary_coverage_resolved_primary_horizon_count": 3,
         "vwap_session_input_gap_summary_coverage_resolved_session_context_feature_pack_count": 2,
         "vwap_session_input_gap_summary_coverage_resolved_vwap_feature_pack_count": 0,
         "vwap_session_input_gap_summary_coverage_session_view_count": 9,
-        "vwap_session_input_gap_summary_coverage_unresolved_primary_horizon_count": 3,
+        "vwap_session_input_gap_summary_coverage_unresolved_primary_horizon_count": 1,
         "vwap_session_input_gap_summary_diagnostics_family": "factor",
         "vwap_session_input_gap_summary_quality_gate_count": 1,
         "vwap_session_input_gap_summary_rejection_reason_count": 1,
@@ -1835,11 +1967,12 @@
         "The double_cost profile is required, but passing it is not a promotion decision.",
         "BBO spread crossing is used only when supplied BBO context is present; no spread is fabricated.",
         "BBO context was unavailable or unused, so the bps fallback marker is visible.",
-        "No locked completed ETH VWAP or first-RTH running VWAP FeaturePack resolves in the P03/P15 registry state.",
-        "Session-context diagnostics use available_ts only; no final current-session aggregate is used before session completion.",
-        "Only the 5m LabelPack resolves; 10m, 15m, and 30m cells are recorded as unresolved pack cells.",
+        "No substitute factor or signal-probe input was used.",
+        "Session-context diagnostics use available_ts only.",
+        "Final current-session VWAP, high, and low are not used intraday.",
+        "The 15m horizon has a governed LabelSpec but no locked LabelVersion in this pack.",
         "Signal-probe runtime was not executed because no locked VWAP trigger FeaturePack resolved.",
-        "Session-minute and RTH-flag context reports are not substitutes for a VWAP trigger signal."
+        "Session-minute, range-position, and RTH-flag context reports are not substitutes for a VWAP trigger signal."
       ],
       "quality_summary": {
         "cost_sensitivity_report_quality_base_combined_cost_slippage_proxy": "0.001875",
@@ -1858,38 +1991,38 @@
         "factor_diagnostics_summary_quality_bucket_direction": "mixed",
         "factor_diagnostics_summary_quality_bucket_is_monotonic": false,
         "factor_diagnostics_summary_quality_bucket_populated_count": 5,
-        "factor_diagnostics_summary_quality_bucket_rank_correlation": 0.9008083051001438,
-        "factor_diagnostics_summary_quality_bucket_sign_changes": 1,
-        "factor_diagnostics_summary_quality_decay_first_horizon_seconds": null,
-        "factor_diagnostics_summary_quality_decay_first_pearson_ic": null,
-        "factor_diagnostics_summary_quality_decay_horizon_count": 0,
-        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": null,
-        "factor_diagnostics_summary_quality_decay_last_pearson_ic": null,
+        "factor_diagnostics_summary_quality_bucket_rank_correlation": -0.3599812865064391,
+        "factor_diagnostics_summary_quality_bucket_sign_changes": 2,
+        "factor_diagnostics_summary_quality_decay_first_horizon_seconds": 300,
+        "factor_diagnostics_summary_quality_decay_first_pearson_ic": -0.015395796845047048,
+        "factor_diagnostics_summary_quality_decay_horizon_count": 1,
+        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": 300,
+        "factor_diagnostics_summary_quality_decay_last_pearson_ic": -0.015395796845047048,
         "factor_diagnostics_summary_quality_decay_slope_per_second": null,
-        "factor_diagnostics_summary_quality_diagnostic_pass": false,
+        "factor_diagnostics_summary_quality_diagnostic_pass": true,
         "factor_diagnostics_summary_quality_failing_gate_count": 0,
-        "factor_diagnostics_summary_quality_ic_sample_count": 6862,
-        "factor_diagnostics_summary_quality_inconclusive_gate_count": 1,
-        "factor_diagnostics_summary_quality_pearson_ic": null,
+        "factor_diagnostics_summary_quality_ic_sample_count": 6633,
+        "factor_diagnostics_summary_quality_inconclusive_gate_count": 0,
+        "factor_diagnostics_summary_quality_pearson_ic": -0.015395796845047048,
         "factor_diagnostics_summary_quality_quality_gate_count": 7,
-        "factor_diagnostics_summary_quality_rank_ic": null,
-        "factor_diagnostics_summary_quality_tail_expectancy": 7.058473358553977e-05,
+        "factor_diagnostics_summary_quality_rank_ic": -0.04294308879592063,
+        "factor_diagnostics_summary_quality_tail_expectancy": -2.5100855322652453e-06,
         "factor_diagnostics_summary_quality_warning_gate_count": 1,
         "label_diagnostics_summary_quality_class_count": 3,
-        "label_diagnostics_summary_quality_cost_model_declared_count": 0,
-        "label_diagnostics_summary_quality_diagnostic_complete": false,
-        "label_diagnostics_summary_quality_failing_gate_count": 2,
+        "label_diagnostics_summary_quality_cost_model_declared_count": 20409,
+        "label_diagnostics_summary_quality_diagnostic_complete": true,
+        "label_diagnostics_summary_quality_failing_gate_count": 0,
         "label_diagnostics_summary_quality_gate_count": 7,
-        "label_diagnostics_summary_quality_horizon_count": 1,
+        "label_diagnostics_summary_quality_horizon_count": 3,
         "label_diagnostics_summary_quality_inconclusive_gate_count": 0,
         "label_diagnostics_summary_quality_label_available_ts_valid": true,
         "label_diagnostics_summary_quality_mae_sample_count": 0,
-        "label_diagnostics_summary_quality_majority_class_share": 0.4675021859516176,
+        "label_diagnostics_summary_quality_majority_class_share": 0.4856414779966676,
         "label_diagnostics_summary_quality_mfe_sample_count": 0,
-        "label_diagnostics_summary_quality_observed_outcome_count": 6862,
+        "label_diagnostics_summary_quality_observed_outcome_count": 20406,
         "label_diagnostics_summary_quality_path_ambiguous_count": 0,
-        "label_diagnostics_summary_quality_rejection_reason_count": 2,
-        "label_diagnostics_summary_quality_sample_count": 6862,
+        "label_diagnostics_summary_quality_rejection_reason_count": 0,
+        "label_diagnostics_summary_quality_sample_count": 20406,
         "report_count": 7,
         "session_split_diagnostics_summary_quality_descriptive_only": true,
         "session_split_diagnostics_summary_quality_failed_split_count": 3,
@@ -1901,73 +2034,79 @@
         "signal_probe_input_gap_summary_quality_promotion_basis_allowed": false,
         "signal_probe_input_gap_summary_quality_same_bar_optimism_allowed": false,
         "signal_probe_input_gap_summary_quality_substitute_signal_used": false,
+        "vwap_session_input_gap_summary_quality_completed_eth_vwap_pack_resolved": false,
         "vwap_session_input_gap_summary_quality_final_session_context_used_intraday": false,
-        "vwap_session_input_gap_summary_quality_final_session_vwap_pack_resolved": false,
         "vwap_session_input_gap_summary_quality_promotion_basis_allowed": false,
         "vwap_session_input_gap_summary_quality_running_vwap_pack_resolved": false,
-        "vwap_session_input_gap_summary_quality_signal_probe_executable": false
+        "vwap_session_input_gap_summary_quality_substitute_signal_used": false
       },
       "report_refs": [
         {
-          "report_hash": "079c6af7d70f31601e2b8880cf2bca6c1ce20eeb14f9135d0c87e0dfc4e18713",
-          "report_id": "dreport_079c6af7d70f31601e2b8880",
+          "report_hash": "9d265fb97179d8ed562a1419684be90c4d8edd740a0613557d84f69e6a16cd1a",
+          "report_id": "dreport_9d265fb97179d8ed562a1419",
           "report_kind": "factor_diagnostics_summary"
         },
         {
-          "report_hash": "cf89292e715778d346ca8fa4526955664b8dbde4229d87162ad39849eb32305b",
-          "report_id": "dreport_cf89292e715778d346ca8fa4",
+          "report_hash": "d4e6825429274fce7000bf7f99e88db6320ff33c0998eaad9a900a9dc77cc7b2",
+          "report_id": "dreport_d4e6825429274fce7000bf7f",
           "report_kind": "factor_diagnostics_summary"
         },
         {
-          "report_hash": "c7594d21b2a00992d51c17d21b0baae59ba603c9029f290dbfe90594de0b6d8b",
-          "report_id": "dreport_c7594d21b2a00992d51c17d2",
+          "report_hash": "a4991f3d775e0ed967ea0bfccd955aafa008dbb82c94742f2d7adaee71429770",
+          "report_id": "dreport_a4991f3d775e0ed967ea0bfc",
           "report_kind": "label_diagnostics_summary"
         },
         {
-          "report_hash": "b65cb6e3aae838d467aaa003119524b58eb16f0aedd4ef1bf00e1c51dfd959c1",
-          "report_id": "dreport_b65cb6e3aae838d467aaa003",
+          "report_hash": "d29ca34235ac019c119f2d23140191d81e0a7d6fbb966d522e8928c9ae9f5504",
+          "report_id": "dreport_d29ca34235ac019c119f2d23",
           "report_kind": "session_split_diagnostics_summary"
         },
         {
-          "report_hash": "fbef101f1d2c7f4ccc28f45085f800f669a553bda5d970d07fb364ed3971a517",
-          "report_id": "dreport_fbef101f1d2c7f4ccc28f450",
+          "report_hash": "f8344cf7fd0b8e7b262402f23e86a2cdee19ddc756f7e04acacf7b1aa4e6725b",
+          "report_id": "dreport_f8344cf7fd0b8e7b262402f2",
           "report_kind": "cost_sensitivity_report"
         },
         {
-          "report_hash": "515a9315ef3c26182f683de0a8aec94e206397ca951033d209e6c837297f2a10",
-          "report_id": "dreport_515a9315ef3c26182f683de0",
+          "report_hash": "9120f9ec9c60d53abbb1a8517650744be6654b2a6ef3dba7f148e28a5fa87eef",
+          "report_id": "dreport_9120f9ec9c60d53abbb1a851",
           "report_kind": "vwap_session_input_gap_summary"
         },
         {
-          "report_hash": "f9de1b66f1a7ea9d7d8715cc49676c44cb7ac11d2d32c268f5aa2c3fa9b9e0d0",
-          "report_id": "dreport_f9de1b66f1a7ea9d7d8715cc",
+          "report_hash": "fc13c017b6fa9cf86f5decb5f8c4e9844e3a5fcfd143a5a16af6aa881a693d93",
+          "report_id": "dreport_fc13c017b6fa9cf86f5decb5",
           "report_kind": "signal_probe_input_gap_summary"
         }
       ]
     },
-    "next_required_gate": "fresh_yellow_lane_review_before_merge",
+    "next_required_gate": "fresh_yellow_lane_review",
     "rejection_reasons": [
       {
         "code": "data_unavailable",
         "decision_state": "INCONCLUSIVE",
-        "message": "VWAP signal diagnostics and 10m 15m 30m cells are inconclusive because required locked packs do not resolve.",
-        "source_code": "missing_vwap_or_horizon_pack",
-        "source_id": "sspec_8b8037013e7b3c14fd5b2844",
+        "message": "VWAP signal-probe diagnostics are inconclusive because no locked running/completed VWAP FeaturePack resolved; 15m remains without a locked LabelVersion.",
+        "source_code": "missing_vwap_feature_pack",
+        "source_id": "sspec_69c22ec5847395ac8e81b5b6",
         "stage": "diagnostics"
       }
     ],
-    "run_id": "FUTCORE-P17_sspec_8b8037013e7b3c14fd5b2844",
+    "run_id": "FUTCORE-P17_sspec_69c22ec5847395ac8e81b5b6",
     "status": "INCONCLUSIVE",
     "version_ids": {
       "code_version": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
-      "config_version": "cmv_futcore_pilot_three_layer_session_stress_v1",
+      "config_version": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
       "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
       "feature_pack_ids": [
-        "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
-        "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978"
+        "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+        "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+        "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169",
+        "fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d",
+        "fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91"
       ],
       "label_pack_ids": [
-        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395"
+        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+        "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a"
       ]
     }
   },
@@ -1978,8 +2117,8 @@
       "bbo_unavailable_fallback_used": true,
       "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
       "diagnostics_report_ref": {
-        "report_hash": "fbef101f1d2c7f4ccc28f45085f800f669a553bda5d970d07fb364ed3971a517",
-        "report_id": "dreport_fbef101f1d2c7f4ccc28f450",
+        "report_hash": "f8344cf7fd0b8e7b262402f23e86a2cdee19ddc756f7e04acacf7b1aa4e6725b",
+        "report_id": "dreport_f8344cf7fd0b8e7b262402f2",
         "report_kind": "cost_sensitivity_report"
       },
       "double_cost_combined_cost_slippage_proxy": "0.00375",
@@ -2001,42 +2140,42 @@
         "cost_sensitivity_report_rejection_reason_count": 0,
         "cost_sensitivity_report_status": "DIAGNOSTICS_COMPLETE",
         "factor_diagnostics_summary_coverage_available_ts_missing_count": 0,
-        "factor_diagnostics_summary_coverage_coverage_ratio": 1.0,
+        "factor_diagnostics_summary_coverage_coverage_ratio": 0.9666278053045759,
         "factor_diagnostics_summary_coverage_horizon_count": 1,
         "factor_diagnostics_summary_coverage_input_count": 6862,
         "factor_diagnostics_summary_coverage_label_available_ts_missing_count": 0,
-        "factor_diagnostics_summary_coverage_missing_factor_count": 0,
+        "factor_diagnostics_summary_coverage_missing_factor_count": 229,
         "factor_diagnostics_summary_coverage_missing_label_count": 0,
-        "factor_diagnostics_summary_coverage_missingness_rate": 0.0,
-        "factor_diagnostics_summary_coverage_numeric_factor_count": 6862,
+        "factor_diagnostics_summary_coverage_missingness_rate": 0.03337219469542407,
+        "factor_diagnostics_summary_coverage_numeric_factor_count": 6633,
         "factor_diagnostics_summary_coverage_outlier_count": 0,
         "factor_diagnostics_summary_coverage_outlier_rate": 0.0,
-        "factor_diagnostics_summary_coverage_usable_pair_count": 6862,
+        "factor_diagnostics_summary_coverage_usable_pair_count": 6633,
         "factor_diagnostics_summary_diagnostics_family": "factor",
         "factor_diagnostics_summary_quality_gate_count": 7,
-        "factor_diagnostics_summary_rejection_reason_count": 1,
-        "factor_diagnostics_summary_status": "INCONCLUSIVE",
-        "label_diagnostics_summary_coverage_audit_label_count": 1,
+        "factor_diagnostics_summary_rejection_reason_count": 0,
+        "factor_diagnostics_summary_status": "DIAGNOSTICS_COMPLETE",
+        "label_diagnostics_summary_coverage_audit_label_count": 3,
         "label_diagnostics_summary_coverage_bbo_quarantined_count": 0,
-        "label_diagnostics_summary_coverage_label_pack_count": 1,
+        "label_diagnostics_summary_coverage_label_pack_count": 3,
         "label_diagnostics_summary_coverage_missing_bbo_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_rate": 0.0,
         "label_diagnostics_summary_coverage_partition_overlap_count": 1,
-        "label_diagnostics_summary_coverage_sample_count": 6862,
-        "label_diagnostics_summary_coverage_session_overlap_count": 0,
+        "label_diagnostics_summary_coverage_sample_count": 20406,
+        "label_diagnostics_summary_coverage_session_overlap_count": 1,
         "label_diagnostics_summary_coverage_shared_dataset_ref_count": 1,
         "label_diagnostics_summary_coverage_shared_partition_ref_count": 1,
-        "label_diagnostics_summary_coverage_symbol_overlap_count": 0,
+        "label_diagnostics_summary_coverage_symbol_overlap_count": 1,
         "label_diagnostics_summary_coverage_synthetic_no_trade_count": 0,
         "label_diagnostics_summary_diagnostics_family": "label",
         "label_diagnostics_summary_quality_gate_count": 7,
-        "label_diagnostics_summary_rejection_reason_count": 2,
-        "label_diagnostics_summary_status": "DIAGNOSTICS_FAILED",
+        "label_diagnostics_summary_rejection_reason_count": 0,
+        "label_diagnostics_summary_status": "DIAGNOSTICS_COMPLETE",
         "report_count": 7,
         "session_split_diagnostics_summary_coverage_coverage_ratio": 1.0,
         "session_split_diagnostics_summary_coverage_eligible_observation_count": 6862,
-        "session_split_diagnostics_summary_coverage_minimum_split_sample_count": 1,
+        "session_split_diagnostics_summary_coverage_minimum_split_sample_count": 2,
         "session_split_diagnostics_summary_coverage_missingness_rate": 0.0,
         "session_split_diagnostics_summary_coverage_sample_count": 18636,
         "session_split_diagnostics_summary_coverage_total_observation_count": 6862,
@@ -2045,19 +2184,19 @@
         "session_split_diagnostics_summary_rejection_reason_count": 3,
         "session_split_diagnostics_summary_status": "INCONCLUSIVE",
         "signal_probe_input_gap_summary_coverage_blocked_probe_count": 1,
-        "signal_probe_input_gap_summary_coverage_resolved_label_pack_count": 1,
+        "signal_probe_input_gap_summary_coverage_resolved_label_pack_count": 3,
         "signal_probe_input_gap_summary_coverage_resolved_signal_feature_pack_count": 0,
         "signal_probe_input_gap_summary_coverage_substitute_probe_count": 0,
         "signal_probe_input_gap_summary_diagnostics_family": "factor",
         "signal_probe_input_gap_summary_quality_gate_count": 0,
         "signal_probe_input_gap_summary_rejection_reason_count": 1,
         "signal_probe_input_gap_summary_status": "INCONCLUSIVE",
-        "vwap_session_input_gap_summary_coverage_resolved_label_pack_count": 1,
-        "vwap_session_input_gap_summary_coverage_resolved_primary_horizon_count": 1,
+        "vwap_session_input_gap_summary_coverage_resolved_label_pack_count": 3,
+        "vwap_session_input_gap_summary_coverage_resolved_primary_horizon_count": 3,
         "vwap_session_input_gap_summary_coverage_resolved_session_context_feature_pack_count": 2,
         "vwap_session_input_gap_summary_coverage_resolved_vwap_feature_pack_count": 0,
         "vwap_session_input_gap_summary_coverage_session_view_count": 9,
-        "vwap_session_input_gap_summary_coverage_unresolved_primary_horizon_count": 3,
+        "vwap_session_input_gap_summary_coverage_unresolved_primary_horizon_count": 1,
         "vwap_session_input_gap_summary_diagnostics_family": "factor",
         "vwap_session_input_gap_summary_quality_gate_count": 1,
         "vwap_session_input_gap_summary_rejection_reason_count": 1,
@@ -2084,11 +2223,12 @@
         "The double_cost profile is required, but passing it is not a promotion decision.",
         "BBO spread crossing is used only when supplied BBO context is present; no spread is fabricated.",
         "BBO context was unavailable or unused, so the bps fallback marker is visible.",
-        "No locked completed ETH VWAP or first-RTH running VWAP FeaturePack resolves in the P03/P15 registry state.",
-        "Session-context diagnostics use available_ts only; no final current-session aggregate is used before session completion.",
-        "Only the 5m LabelPack resolves; 10m, 15m, and 30m cells are recorded as unresolved pack cells.",
+        "No substitute factor or signal-probe input was used.",
+        "Session-context diagnostics use available_ts only.",
+        "Final current-session VWAP, high, and low are not used intraday.",
+        "The 15m horizon has a governed LabelSpec but no locked LabelVersion in this pack.",
         "Signal-probe runtime was not executed because no locked VWAP trigger FeaturePack resolved.",
-        "Session-minute and RTH-flag context reports are not substitutes for a VWAP trigger signal."
+        "Session-minute, range-position, and RTH-flag context reports are not substitutes for a VWAP trigger signal."
       ],
       "quality_summary": {
         "cost_sensitivity_report_quality_base_combined_cost_slippage_proxy": "0.001875",
@@ -2107,38 +2247,38 @@
         "factor_diagnostics_summary_quality_bucket_direction": "mixed",
         "factor_diagnostics_summary_quality_bucket_is_monotonic": false,
         "factor_diagnostics_summary_quality_bucket_populated_count": 5,
-        "factor_diagnostics_summary_quality_bucket_rank_correlation": 0.9008083051001438,
-        "factor_diagnostics_summary_quality_bucket_sign_changes": 1,
-        "factor_diagnostics_summary_quality_decay_first_horizon_seconds": null,
-        "factor_diagnostics_summary_quality_decay_first_pearson_ic": null,
-        "factor_diagnostics_summary_quality_decay_horizon_count": 0,
-        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": null,
-        "factor_diagnostics_summary_quality_decay_last_pearson_ic": null,
+        "factor_diagnostics_summary_quality_bucket_rank_correlation": -0.3599812865064391,
+        "factor_diagnostics_summary_quality_bucket_sign_changes": 2,
+        "factor_diagnostics_summary_quality_decay_first_horizon_seconds": 300,
+        "factor_diagnostics_summary_quality_decay_first_pearson_ic": -0.015395796845047048,
+        "factor_diagnostics_summary_quality_decay_horizon_count": 1,
+        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": 300,
+        "factor_diagnostics_summary_quality_decay_last_pearson_ic": -0.015395796845047048,
         "factor_diagnostics_summary_quality_decay_slope_per_second": null,
-        "factor_diagnostics_summary_quality_diagnostic_pass": false,
+        "factor_diagnostics_summary_quality_diagnostic_pass": true,
         "factor_diagnostics_summary_quality_failing_gate_count": 0,
-        "factor_diagnostics_summary_quality_ic_sample_count": 6862,
-        "factor_diagnostics_summary_quality_inconclusive_gate_count": 1,
-        "factor_diagnostics_summary_quality_pearson_ic": null,
+        "factor_diagnostics_summary_quality_ic_sample_count": 6633,
+        "factor_diagnostics_summary_quality_inconclusive_gate_count": 0,
+        "factor_diagnostics_summary_quality_pearson_ic": -0.015395796845047048,
         "factor_diagnostics_summary_quality_quality_gate_count": 7,
-        "factor_diagnostics_summary_quality_rank_ic": null,
-        "factor_diagnostics_summary_quality_tail_expectancy": 7.058473358553977e-05,
+        "factor_diagnostics_summary_quality_rank_ic": -0.04294308879592063,
+        "factor_diagnostics_summary_quality_tail_expectancy": -2.5100855322652453e-06,
         "factor_diagnostics_summary_quality_warning_gate_count": 1,
         "label_diagnostics_summary_quality_class_count": 3,
-        "label_diagnostics_summary_quality_cost_model_declared_count": 0,
-        "label_diagnostics_summary_quality_diagnostic_complete": false,
-        "label_diagnostics_summary_quality_failing_gate_count": 2,
+        "label_diagnostics_summary_quality_cost_model_declared_count": 20409,
+        "label_diagnostics_summary_quality_diagnostic_complete": true,
+        "label_diagnostics_summary_quality_failing_gate_count": 0,
         "label_diagnostics_summary_quality_gate_count": 7,
-        "label_diagnostics_summary_quality_horizon_count": 1,
+        "label_diagnostics_summary_quality_horizon_count": 3,
         "label_diagnostics_summary_quality_inconclusive_gate_count": 0,
         "label_diagnostics_summary_quality_label_available_ts_valid": true,
         "label_diagnostics_summary_quality_mae_sample_count": 0,
-        "label_diagnostics_summary_quality_majority_class_share": 0.4675021859516176,
+        "label_diagnostics_summary_quality_majority_class_share": 0.4856414779966676,
         "label_diagnostics_summary_quality_mfe_sample_count": 0,
-        "label_diagnostics_summary_quality_observed_outcome_count": 6862,
+        "label_diagnostics_summary_quality_observed_outcome_count": 20406,
         "label_diagnostics_summary_quality_path_ambiguous_count": 0,
-        "label_diagnostics_summary_quality_rejection_reason_count": 2,
-        "label_diagnostics_summary_quality_sample_count": 6862,
+        "label_diagnostics_summary_quality_rejection_reason_count": 0,
+        "label_diagnostics_summary_quality_sample_count": 20406,
         "report_count": 7,
         "session_split_diagnostics_summary_quality_descriptive_only": true,
         "session_split_diagnostics_summary_quality_failed_split_count": 3,
@@ -2150,77 +2290,83 @@
         "signal_probe_input_gap_summary_quality_promotion_basis_allowed": false,
         "signal_probe_input_gap_summary_quality_same_bar_optimism_allowed": false,
         "signal_probe_input_gap_summary_quality_substitute_signal_used": false,
+        "vwap_session_input_gap_summary_quality_completed_eth_vwap_pack_resolved": false,
         "vwap_session_input_gap_summary_quality_final_session_context_used_intraday": false,
-        "vwap_session_input_gap_summary_quality_final_session_vwap_pack_resolved": false,
         "vwap_session_input_gap_summary_quality_promotion_basis_allowed": false,
         "vwap_session_input_gap_summary_quality_running_vwap_pack_resolved": false,
-        "vwap_session_input_gap_summary_quality_signal_probe_executable": false
+        "vwap_session_input_gap_summary_quality_substitute_signal_used": false
       },
       "report_refs": [
         {
-          "report_hash": "079c6af7d70f31601e2b8880cf2bca6c1ce20eeb14f9135d0c87e0dfc4e18713",
-          "report_id": "dreport_079c6af7d70f31601e2b8880",
+          "report_hash": "9d265fb97179d8ed562a1419684be90c4d8edd740a0613557d84f69e6a16cd1a",
+          "report_id": "dreport_9d265fb97179d8ed562a1419",
           "report_kind": "factor_diagnostics_summary"
         },
         {
-          "report_hash": "cf89292e715778d346ca8fa4526955664b8dbde4229d87162ad39849eb32305b",
-          "report_id": "dreport_cf89292e715778d346ca8fa4",
+          "report_hash": "d4e6825429274fce7000bf7f99e88db6320ff33c0998eaad9a900a9dc77cc7b2",
+          "report_id": "dreport_d4e6825429274fce7000bf7f",
           "report_kind": "factor_diagnostics_summary"
         },
         {
-          "report_hash": "c7594d21b2a00992d51c17d21b0baae59ba603c9029f290dbfe90594de0b6d8b",
-          "report_id": "dreport_c7594d21b2a00992d51c17d2",
+          "report_hash": "a4991f3d775e0ed967ea0bfccd955aafa008dbb82c94742f2d7adaee71429770",
+          "report_id": "dreport_a4991f3d775e0ed967ea0bfc",
           "report_kind": "label_diagnostics_summary"
         },
         {
-          "report_hash": "b65cb6e3aae838d467aaa003119524b58eb16f0aedd4ef1bf00e1c51dfd959c1",
-          "report_id": "dreport_b65cb6e3aae838d467aaa003",
+          "report_hash": "d29ca34235ac019c119f2d23140191d81e0a7d6fbb966d522e8928c9ae9f5504",
+          "report_id": "dreport_d29ca34235ac019c119f2d23",
           "report_kind": "session_split_diagnostics_summary"
         },
         {
-          "report_hash": "fbef101f1d2c7f4ccc28f45085f800f669a553bda5d970d07fb364ed3971a517",
-          "report_id": "dreport_fbef101f1d2c7f4ccc28f450",
+          "report_hash": "f8344cf7fd0b8e7b262402f23e86a2cdee19ddc756f7e04acacf7b1aa4e6725b",
+          "report_id": "dreport_f8344cf7fd0b8e7b262402f2",
           "report_kind": "cost_sensitivity_report"
         },
         {
-          "report_hash": "515a9315ef3c26182f683de0a8aec94e206397ca951033d209e6c837297f2a10",
-          "report_id": "dreport_515a9315ef3c26182f683de0",
+          "report_hash": "9120f9ec9c60d53abbb1a8517650744be6654b2a6ef3dba7f148e28a5fa87eef",
+          "report_id": "dreport_9120f9ec9c60d53abbb1a851",
           "report_kind": "vwap_session_input_gap_summary"
         },
         {
-          "report_hash": "f9de1b66f1a7ea9d7d8715cc49676c44cb7ac11d2d32c268f5aa2c3fa9b9e0d0",
-          "report_id": "dreport_f9de1b66f1a7ea9d7d8715cc",
+          "report_hash": "fc13c017b6fa9cf86f5decb5f8c4e9844e3a5fcfd143a5a16af6aa881a693d93",
+          "report_id": "dreport_fc13c017b6fa9cf86f5decb5",
           "report_kind": "signal_probe_input_gap_summary"
         }
       ]
     },
-    "next_required_gate": "fresh_yellow_lane_review_before_merge",
+    "next_required_gate": "fresh_yellow_lane_review",
     "rejection_reasons": [
       {
         "code": "data_unavailable",
         "decision_state": "INCONCLUSIVE",
-        "message": "VWAP signal diagnostics and 10m 15m 30m cells are inconclusive because required locked packs do not resolve.",
-        "source_code": "missing_vwap_or_horizon_pack",
-        "source_id": "sspec_8b8037013e7b3c14fd5b2844",
+        "message": "VWAP signal-probe diagnostics are inconclusive because no locked running/completed VWAP FeaturePack resolved; 15m remains without a locked LabelVersion.",
+        "source_code": "missing_vwap_feature_pack",
+        "source_id": "sspec_69c22ec5847395ac8e81b5b6",
         "stage": "diagnostics"
       }
     ],
-    "run_id": "FUTCORE-P17_sspec_8b8037013e7b3c14fd5b2844",
+    "run_id": "FUTCORE-P17_sspec_69c22ec5847395ac8e81b5b6",
     "status": "INCONCLUSIVE",
     "version_ids": {
       "code_version": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
-      "config_version": "cmv_futcore_pilot_three_layer_session_stress_v1",
+      "config_version": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
       "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
       "feature_pack_ids": [
-        "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
-        "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978"
+        "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+        "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+        "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "fver_74ba4d642ce7b24dbdc06bc5bd16ce9c05bae3def8052056c439b3b6cdbc9169",
+        "fver_862f9b2d36e10b58d362afffe69c72cfc4231e562d96e1cb923aca649c1b2f5d",
+        "fver_759ee1b9da77fefb78aa5440b3de66dd217922ac576241858960cf1e8cef8a91"
       ],
       "label_pack_ids": [
-        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395"
+        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+        "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a"
       ]
     }
   },
-  "schema": "alpha_system.research.diagnostics_report.vwap_session.v1",
+  "schema": "alpha_system.research.diagnostics_report.vwap_session.study.v1",
   "session_horizon_matrix": [
     {
       "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
@@ -2228,38 +2374,27 @@
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "full_session",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 6832,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "full_session",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
-      "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
-      "session_view": "full_session",
-      "zero_cost_promotion_basis_allowed": false
-    },
-    {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
-      "final_session_current_context_used_intraday": false,
-      "horizon": "30m",
       "horizon_role": "primary",
       "label_pack_status": "unresolved_label_pack",
       "running_context_available_ts_checked": false,
@@ -2268,28 +2403,39 @@
     },
     {
       "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 6712,
+      "final_session_current_context_used_intraday": false,
+      "horizon": "30m",
+      "horizon_role": "primary",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
+      "session_view": "full_session",
+      "zero_cost_promotion_basis_allowed": false
+    },
+    {
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "RTH_only",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "RTH_only",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2300,13 +2446,13 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "RTH_only",
       "zero_cost_promotion_basis_allowed": false
     },
@@ -2316,24 +2462,24 @@
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "ETH_only",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 6832,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "ETH_only",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2344,13 +2490,13 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 6712,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "ETH_only",
       "zero_cost_promotion_basis_allowed": false
     },
@@ -2360,24 +2506,24 @@
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "ETH_evening",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 1778,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "ETH_evening",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2388,13 +2534,13 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 1758,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "ETH_evening",
       "zero_cost_promotion_basis_allowed": false
     },
@@ -2404,24 +2550,24 @@
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "ETH_overnight",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 2399,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "ETH_overnight",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2432,13 +2578,13 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 2399,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "ETH_overnight",
       "zero_cost_promotion_basis_allowed": false
     },
@@ -2448,38 +2594,27 @@
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "pre_RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 450,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "pre_RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
-      "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
-      "session_view": "pre_RTH",
-      "zero_cost_promotion_basis_allowed": false
-    },
-    {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
-      "final_session_current_context_used_intraday": false,
-      "horizon": "30m",
       "horizon_role": "primary",
       "label_pack_status": "unresolved_label_pack",
       "running_context_available_ts_checked": false,
@@ -2488,28 +2623,39 @@
     },
     {
       "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 450,
+      "final_session_current_context_used_intraday": false,
+      "horizon": "30m",
+      "horizon_role": "primary",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
+      "session_view": "pre_RTH",
+      "zero_cost_promotion_basis_allowed": false
+    },
+    {
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2520,13 +2666,13 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "RTH",
       "zero_cost_promotion_basis_allowed": false
     },
@@ -2536,24 +2682,24 @@
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "post_RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 255,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "post_RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2564,40 +2710,40 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack",
-      "eligible_join_count": 0,
+      "diagnostic_status": "session_context_resolved_vwap_signal_inconclusive",
+      "eligible_join_count": 155,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "post_RTH",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "completed_eth_context_feature_pack_unresolved",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "5m",
       "horizon_role": "primary",
-      "label_pack_status": "resolved",
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
       "running_context_available_ts_checked": true,
       "session_view": "RTH_with_ETH_context",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack_and_completed_eth_context_feature_pack",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "10m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "RTH_with_ETH_context",
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack_and_completed_eth_context_feature_pack",
+      "diagnostic_status": "INCONCLUSIVE",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "15m",
@@ -2608,23 +2754,23 @@
       "zero_cost_promotion_basis_allowed": false
     },
     {
-      "diagnostic_status": "unresolved_label_pack_and_completed_eth_context_feature_pack",
+      "diagnostic_status": "resolved_label_no_session_observations",
       "eligible_join_count": 0,
       "final_session_current_context_used_intraday": false,
       "horizon": "30m",
       "horizon_role": "primary",
-      "label_pack_status": "unresolved_label_pack",
-      "running_context_available_ts_checked": false,
+      "label_pack_status": "resolved_parquet_filtered_by_label_version",
+      "running_context_available_ts_checked": true,
       "session_view": "RTH_with_ETH_context",
       "zero_cost_promotion_basis_allowed": false
     }
   ],
   "study": {
-    "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
-    "missing_binding": "No locked completed ETH VWAP or first-RTH running VWAP FeaturePack resolves in the P03/P15 registry state.",
-    "source_alpha_spec": "FUTCORE-P08_vwap_session_07",
-    "study_spec_id": "sspec_8b8037013e7b3c14fd5b2844",
-    "summary": "RTH open location versus completed ETH VWAP, then first eligible running RTH VWAP relationship.",
-    "vwap_treatment": "completed_eth_context_after_eth_close_plus_running_rth_vwap_required"
+    "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+    "family": "vwap_session",
+    "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/FUTCORE-P08_vwap_session_01.md",
+    "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6",
+    "summary": "RTH running-VWAP reclaim with opening-window context and fixed horizon label matrix.",
+    "variant_budget": 4
   }
 }
