@@ -8,42 +8,26 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P11` records the value-free BBO tradability / top-book confirmation
-AlphaSpec draft batch and completes the five-family AlphaSpec batch wave
-(`FUTCORE-P07` through `FUTCORE-P11`) for downstream independent critique.
+`FUTCORE-P12` records the independent AlphaSpec critique and family budget audit
+for the five-family draft wave (`FUTCORE-P07` through `FUTCORE-P11`). The phase
+critiques 40 drafts and selects 10 as `accept-for-StudySpec` candidates under
+the family budget and finite campaign caps.
 
-Active / next work: `FUTCORE-P12` is the next phase and owns AlphaSpec Critic
-review plus the family budget audit. Ralph continues to own authoritative
-validation, review routing, serial merge handling, staging, PR, CI, merge, and
-done-check actions.
+Active / next work: `FUTCORE-P13` is next and owns the Data Contract /
+FeaturePack / LabelPack Audit. Ralph continues to own authoritative validation,
+review routing, serial merge handling, staging, PR, CI, merge, and done-check
+actions.
 
-New durable surfaces through this `FUTCORE-P11` snapshot:
+New durable surfaces through this `FUTCORE-P12` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/alpha_specs/bbo_tradability/`
-- `docs/futures_core_alpha_pilot/alpha_specs/bbo_tradability.md`
+- `research/futures_core_alpha_pilot_v1/critiques/`
+- `research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md`
+- `docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, reviews, agent runners, or broker surfaces are added by
-`FUTCORE-P11`. The BBO batch records draft AlphaSpec payloads, assumptions,
-limitations, and diagnostic declarations only.
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active. The
-`bootstrap_and_inputs` gate is complete through `FUTCORE-P06`. `FUTCORE-P10`
-is complete as the Liquidity Sweep / PA AlphaSpec batch and as one
-path-disjoint member of the parallel `alpha_specs` wave.
-
-Active / next work: the remaining `alpha_specs` family batches (`FUTCORE-P07`,
-`FUTCORE-P08`, `FUTCORE-P09`, and `FUTCORE-P11` as applicable) continue under
-Workflow 2 review and serial merge handling, followed by `FUTCORE-P12`
-AlphaSpec Critic and Family Budget Audit.
-
-New durable surfaces in `FUTCORE-P10`:
-
-- `research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/`
-- `docs/futures_core_alpha_pilot/alpha_specs/liquidity_pa.md`
-
-`FUTCORE-P10` adds value-free liquidity/PA AlphaSpec drafts and the family
-index only. It adds no commands, modules, runtime behavior, data readers,
-diagnostics, cost calculations, reviews, agent runners, or broker surfaces.
+calculations, agent runners, or broker surfaces are added by `FUTCORE-P12`. The
+phase records value-free critique decisions, duplicate-exposure hints,
+no-lookahead routing flags, and budget verdicts only.
 
 ## Source Of Truth
 
