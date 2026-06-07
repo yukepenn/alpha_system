@@ -9,9 +9,10 @@ which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
 `agent_roles` wave (`AGENT-P07` through `AGENT-P15`) and the
-`enforcement_and_records` gate through `AGENT-P18` merged. Active / next work
-is `AGENT-P19` Agent Prompt and Skill Assets, beginning Wave 3
-(`AGENT-P19`, `AGENT-P20`, `AGENT-P21`).
+`enforcement_and_records` gate through `AGENT-P18` merged. The
+`assets_and_bridge` gate is in progress: `AGENT-P19` adds indexed agent
+prompt/skill templates, with next Wave 3 work covering `AGENT-P20`
+docs/operator guidance and `AGENT-P21` runtime bridge integration.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -183,23 +184,38 @@ in-memory duplicate-idea avoidance plus prior-rejection surfacing. They keep
 failed and rejected ideas visible by ids, refs, statuses, summaries, rejection
 reasons, and next gates only. No new command is added.
 
+`AGENT-P19` adds indexed prompt/skill template assets for the ten-role MVP
+roster:
+
+- `templates/agent_factory/prompts/**`
+- `templates/agent_factory/prompts/README.md`
+
+The prompt index is the source of truth for role operating prompts and mirrors
+the `AgentRole` contract fields: purpose, readable inputs, callable tools,
+producible value-free `AgentToolResult` outputs, allowed and forbidden
+decisions, handoff format, reviewer-independence rules, and failure modes. No
+new command is added.
+
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
 contracts-only at this point: no autonomous agent is instantiated, no continuous
 research runner is started, no alpha search is performed, no factor is promoted,
 and no strategy is validated. It consumes existing runtime, governance, and
 registry primitives; it does not edit or duplicate them, and it accesses no raw
-or provider data. The memory layer is not a FactorLibrary or AlphaBook and never
-promotes, writes a registry, or creates candidate/strategy scope.
+or provider data. The prompt assets are templates only, not registered agents.
+The memory layer is not a FactorLibrary or AlphaBook and never promotes, writes
+a registry, or creates candidate/strategy scope.
 
 Safety boundaries are unchanged: contracts only; local-first execution;
 default-deny and fail-closed permissions; accepted DatasetVersion-only
-consumption through sanctioned APIs; no autonomous agent; no raw-provider
-access; no external provider calls; no broker, live, paper, order, or account
-scope; no alpha, tradability, profitability, strategy, backtest, portfolio,
-deployment, or production-readiness claim; no raw/canonical/feature/label/
-runtime/agent values, heavy artifacts, provider responses, local DBs, logs, or
-caches committed.
+consumption through `resolve_dataset_version` and sanctioned APIs; runtime,
+governance, and registry primitives are consumed, not edited; no autonomous
+agent; no continuous research runner; no raw-provider access; no external
+provider calls; no broker, live, paper, order, or account scope; no alpha,
+tradability, profitability, strategy, backtest, portfolio, deployment, or
+production-readiness claim; no raw/canonical/feature/label/runtime/agent
+values, heavy artifacts, provider responses, local DBs, logs, or caches
+committed.
 
 The predecessor `ALPHA_RESEARCH_RUNTIME_MVP` is complete
 (`COMPLETE_WITH_WARNINGS`). Its durable runtime modules include
