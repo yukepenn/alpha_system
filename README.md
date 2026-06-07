@@ -28,6 +28,24 @@ signal-probe diagnostics are inconclusive because no locked running VWAP,
 completed ETH VWAP, or VWAP trigger FeaturePack resolves. No new commands,
 source primitives, feature values, label values, data readers, agent runners,
 or broker surfaces are added.
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has entered the
+`family_diagnostics` gate. `FUTCORE-P16` adds value-free cross-market
+diagnostics reports for the four approved cross-market StudySpecs.
+
+Active / next work: after `FUTCORE-P16` review and merge handling, the remaining
+`FUTCORE-P17`...`FUTCORE-P20` family diagnostics phases continue. Ralph owns
+authoritative validation, review routing, serial merge handling, staging, PR,
+CI, merge, and done-check actions.
+
+New durable surfaces through this `FUTCORE-P16` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/`
+- `docs/futures_core_alpha_pilot/diagnostics/cross_market.md`
+
+`FUTCORE-P16` adds no new modules or commands. The reports record runtime
+diagnostic statuses and scalar summaries only; the locked materialized packs
+contained ES observations without NQ/RTY observations, so cross-market alignment
+rejected the runs visibly rather than filling missing instruments.
 
 ## Source Of Truth
 
