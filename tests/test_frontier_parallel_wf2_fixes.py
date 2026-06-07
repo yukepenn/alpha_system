@@ -70,7 +70,34 @@ def test_codex_adapter_wires_service_tier_into_exec(tmp_path, monkeypatch) -> No
     config = load_provider_config(tmp_path)
 
     command = CodexProviderAdapter(config).build_command("prompt")
-    assert command == ["codex", "exec", "-c", "service_tier=flex", "--sandbox", "workspace-write", "-"]
+    assert command == [
+        "codex", "exec",
+        "-c", "service_tier=flex",
+        "-c", "shell_environment_policy.inherit=all",
+        "--sandbox", "workspace-write", "-",
+    ]
+
+
+def test_codex_adapter_passes_run_environment_to_executor(tmp_path, monkeypatch) -> None:
+    """Data-dependent phases run their runtime via model-executed commands; Codex
+    sandboxes that env by default, so the executor must inherit the run
+    environment (ALPHA_DATA_ROOT, an activated venv's PATH). Default = 'all'."""
+    from tools.frontier.provider_adapters import CodexProviderAdapter
+
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.delenv("FRONTIER_CODEX_SHELL_ENV_INHERIT", raising=False)
+    monkeypatch.setenv("FRONTIER_CODEX_CMD", "codex")
+    config = load_provider_config(tmp_path)
+    assert config.codex_shell_environment_inherit == "all"
+    command = CodexProviderAdapter(config).build_command("prompt")
+    assert "-c" in command and "shell_environment_policy.inherit=all" in command
+
+    # narrowable to codex's minimal set; invalid values are rejected
+    monkeypatch.setenv("FRONTIER_CODEX_SHELL_ENV_INHERIT", "core")
+    assert load_provider_config(tmp_path).codex_shell_environment_inherit == "core"
+    monkeypatch.setenv("FRONTIER_CODEX_SHELL_ENV_INHERIT", "bogus")
+    with pytest.raises(ProviderConfigError):
+        load_provider_config(tmp_path)
 
 
 # --------------------------------------------------------------------------- #
