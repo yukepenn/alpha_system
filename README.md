@@ -7,27 +7,25 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P12` records the independent AlphaSpec critique and family budget audit
-for the five-family draft wave (`FUTCORE-P07` through `FUTCORE-P11`). The phase
-critiques 40 drafts and selects 10 as `accept-for-StudySpec` candidates under
-the family budget and finite campaign caps.
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is advancing
+through the `spec_audit` group. `FUTCORE-P13` records the Data Contract /
+FeaturePack / LabelPack Audit for the 10 accepted AlphaSpecs from the P12
+critique and budget audit.
 
-Active / next work: `FUTCORE-P13` is next and owns the Data Contract /
-FeaturePack / LabelPack Audit. Ralph continues to own authoritative validation,
-review routing, serial merge handling, staging, PR, CI, merge, and done-check
-actions.
+Active / next work: after `FUTCORE-P13` merges, `FUTCORE-P14` owns the Approved
+StudySpec Pack. Ralph continues to own authoritative validation, review
+routing, serial merge handling, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces through this `FUTCORE-P12` snapshot:
+New durable surfaces through this `FUTCORE-P13` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/critiques/`
-- `research/futures_core_alpha_pilot_v1/alpha_specs/BUDGET_AUDIT.md`
-- `docs/futures_core_alpha_pilot/CRITIQUE_AND_BUDGET.md`
+- `research/futures_core_alpha_pilot_v1/audits/data_contract/`
+- `docs/futures_core_alpha_pilot/DATA_CONTRACT_AUDIT.md`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, agent runners, or broker surfaces are added by `FUTCORE-P12`. The
-phase records value-free critique decisions, duplicate-exposure hints,
-no-lookahead routing flags, and budget verdicts only.
+calculations, agent runners, primitives, FeatureRequests, LabelSpecs, or broker
+surfaces are added by `FUTCORE-P13`. The phase records value-free pack mappings,
+point-in-time availability references, duplicate-exposure notes, and a bounded
+gap list only.
 
 ## Source Of Truth
 
