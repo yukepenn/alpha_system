@@ -8,15 +8,15 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P05` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
-post-merge snapshot and pins the value-free AlphaSpec Batch Protocol for the
-pilot. The `foundation` merge group / `bootstrap_and_inputs` gate remains in
-progress.
+`FUTCORE-P06` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
+post-merge snapshot and pins the bounded research queue plus role-assignment
+map. The `foundation` merge group / `bootstrap_and_inputs` gate is complete
+through `FUTCORE-P06`.
 
-Active / next work: next phase is `FUTCORE-P06` - Research Queue and Agent
-Assignment Setup.
+Active / next work: `FUTCORE-P06` is done. The next work is the
+`FUTCORE-P07` through `FUTCORE-P11` parallel AlphaSpec batch wave.
 
-New durable surfaces through `FUTCORE-P05`:
+New durable surfaces through `FUTCORE-P06`:
 
 - `docs/futures_core_alpha_pilot/README.md`
 - `docs/futures_core_alpha_pilot/OVERVIEW.md`
@@ -25,6 +25,7 @@ New durable surfaces through `FUTCORE-P05`:
 - `docs/futures_core_alpha_pilot/INPUT_PACK.md`
 - `docs/futures_core_alpha_pilot/COST_MODEL.md`
 - `docs/futures_core_alpha_pilot/ALPHASPEC_PROTOCOL.md`
+- `docs/futures_core_alpha_pilot/RESEARCH_QUEUE.md`
 - `research/futures_core_alpha_pilot_v1/README.md`
 - `research/futures_core_alpha_pilot_v1/.gitkeep`
 - `research/futures_core_alpha_pilot_v1/preflight/preflight_report.md`
@@ -33,11 +34,12 @@ New durable surfaces through `FUTCORE-P05`:
 - `research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/README.md`
+- `research/futures_core_alpha_pilot_v1/queue/`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, AlphaSpec drafts, reviews, or broker surfaces are added by
-`FUTCORE-P05`. The protocol keeps `zero_cost` diagnostic-only and never a
-promotion basis.
+calculations, AlphaSpec drafts, reviews, agent runners, or broker surfaces are
+added by `FUTCORE-P06`. The queue records task ownership, finite budget
+references, and separation-of-duties constraints only.
 
 ## Source Of Truth
 
