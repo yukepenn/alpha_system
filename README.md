@@ -8,6 +8,16 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
+`FUTCORE-P09` records the regime-family AlphaSpec batch for the
+`FUTCORE-P07` through `FUTCORE-P11` parallel AlphaSpec wave. The
+`alpha_spec_batches` gate remains bounded by the serial review and merge queue
+for the family batches.
+
+Active / next work: Ralph owns authoritative validation, review routing, and
+serial merge handling for `FUTCORE-P09`; the remaining AlphaSpec batch wave and
+downstream `FUTCORE-P12` critique stay under Workflow 2 control.
+
+New durable surfaces through `FUTCORE-P09`:
 `FUTCORE-P08` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
 post-merge snapshot as the VWAP / session-auction AlphaSpec draft batch. The
 foundation merge group is complete through `FUTCORE-P06`; `FUTCORE-P08` is one
@@ -38,6 +48,7 @@ New durable surfaces through `FUTCORE-P07`:
 - `docs/futures_core_alpha_pilot/COST_MODEL.md`
 - `docs/futures_core_alpha_pilot/ALPHASPEC_PROTOCOL.md`
 - `docs/futures_core_alpha_pilot/RESEARCH_QUEUE.md`
+- `docs/futures_core_alpha_pilot/alpha_specs/regime.md`
 - `research/futures_core_alpha_pilot_v1/README.md`
 - `research/futures_core_alpha_pilot_v1/.gitkeep`
 - `research/futures_core_alpha_pilot_v1/preflight/preflight_report.md`
@@ -46,10 +57,14 @@ New durable surfaces through `FUTCORE-P07`:
 - `research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/README.md`
+- `research/futures_core_alpha_pilot_v1/alpha_specs/regime/`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/vwap_session/`
 - `research/futures_core_alpha_pilot_v1/queue/`
 - `docs/futures_core_alpha_pilot/alpha_specs/vwap_session.md`
 
+`FUTCORE-P09` adds value-free regime AlphaSpec drafts and the regime family
+index only. It adds no commands, modules, runtime behavior, data readers,
+diagnostics, cost calculations, reviews, agent runners, or broker surfaces.
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
 calculations, reviews, agent runners, or broker surfaces are added by
 `FUTCORE-P08`. The VWAP/session batch records draft AlphaSpec payloads,
