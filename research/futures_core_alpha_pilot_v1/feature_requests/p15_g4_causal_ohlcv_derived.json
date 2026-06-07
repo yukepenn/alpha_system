@@ -1,0 +1,72 @@
+{
+  "alpha_spec_id": "aspec_8d9e272e4b78eedcd27f0bec",
+  "approval_status": "APPROVED",
+  "availability_assumptions": {
+    "available_ts_rule": "feature.available_ts = current input row available_ts",
+    "dense_grid_rule": "no_trade rows are gaps for trade-derived calculations",
+    "lookback_rule": "source rows may contribute only when source.available_ts <= output.available_ts",
+    "session_context": "session labels are metadata roles and remain point-in-time under the existing guard"
+  },
+  "data_requirements": {
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "input_views": [
+      "canonical_ohlcv",
+      "dense_grid_ohlcv"
+    ],
+    "required_fields": [
+      "series_id",
+      "event_ts",
+      "bar_start_ts",
+      "bar_end_ts",
+      "available_ts",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "quality_flags",
+      "session_label"
+    ],
+    "universe": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "value_materialization": "not_performed_in_FUTCORE-P15"
+  },
+  "duplicate_or_equivalent_exposure_notes": {
+    "checked": true,
+    "findings": [],
+    "guard": "duplicate_exposure",
+    "registry_entries_checked": 2,
+    "registry_status": "CHECKED",
+    "summary": "P13 locked FeaturePack inventory checked; no locked derived feature binding covers this P15 gap item."
+  },
+  "feature_request_id": "freq_ef650ea8306d52dd9edfb6a3",
+  "formula_sketch": {
+    "gap_id": "P15-G4",
+    "implementation_surface": [
+      "alpha_system.features.families.ohlcv",
+      "alpha_system.features.families.structure"
+    ],
+    "primitive_group": "causal_ohlcv_derived_featurepack_binding",
+    "session_rule": "running VWAP and opening-range state reset by point-in-time session metadata; no final-session aggregate is used intraday",
+    "window_rule": "causal rolling or expanding windows over completed canonical OHLCV rows only"
+  },
+  "requested_inputs": [
+    "base_ohlcv_vwap",
+    "base_ohlcv_anchored_vwap",
+    "base_ohlcv_distance_to_vwap",
+    "base_ohlcv_opening_range",
+    "base_ohlcv_returns",
+    "base_ohlcv_rolling_volatility",
+    "base_ohlcv_rolling_range",
+    "base_ohlcv_atr",
+    "base_ohlcv_range_position",
+    "base_ohlcv_trendiness",
+    "base_ohlcv_volume_zscore",
+    "liquidity_structure_prior_high_distance",
+    "liquidity_structure_prior_low_distance",
+    "liquidity_structure_range_contraction"
+  ]
+}

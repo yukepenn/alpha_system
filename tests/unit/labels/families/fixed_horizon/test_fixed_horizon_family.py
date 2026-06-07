@@ -90,6 +90,50 @@ def test_trade_price_labels_do_not_treat_no_trade_rows_as_trade_bars() -> None:
     assert records[3].value == pytest.approx(104 / 103 - 1)
 
 
+def test_fwd_ret_15m_uses_exact_terminal_row_without_same_bar_optimism() -> None:
+    view = _trade_view(length=17)
+    definition = build_fixed_horizon_label_definition(
+        FixedHorizonLabelName.FWD_RET_15M,
+        _label_spec(FixedHorizonLabelName.FWD_RET_15M),
+    )
+
+    records = compute_fixed_horizon_label(definition, view)
+
+    assert len(records) == 2
+    first = records[0]
+    source = view.rows[0]
+    same_bar = view.rows[0]
+    one_minute = view.rows[1]
+    terminal = view.rows[15]
+    assert first.horizon_end_ts == terminal.event_ts
+    assert first.value == pytest.approx(115 / 100 - 1)
+    assert first.value != pytest.approx(float(same_bar.close / source.close - 1))
+    assert first.value != pytest.approx(float(one_minute.close / source.close - 1))
+    assert first.label_available_ts == terminal.available_ts
+    assert all(record.label_available_ts >= record.horizon_end_ts for record in records)
+
+
+def test_fwd_ret_15m_waits_for_governed_availability_without_session_final_inputs() -> None:
+    view = _trade_view(length=16)
+    governed_available = view.rows[15].available_ts + timedelta(minutes=5)
+    definition = build_fixed_horizon_label_definition(
+        FixedHorizonLabelName.FWD_RET_15M,
+        _label_spec(
+            FixedHorizonLabelName.FWD_RET_15M,
+            availability_time=governed_available.isoformat(),
+        ),
+    )
+
+    records = compute_fixed_horizon_label(definition, view)
+
+    assert len(records) == 1
+    assert records[0].label_available_ts == governed_available
+    assert records[0].label_available_ts > records[0].horizon_end_ts
+    input_fields = definition.contract.inputs.fields
+    assert "session_close" not in input_fields
+    assert "final_session_aggregate" not in input_fields
+
+
 def test_midprice_labels_flag_missing_and_quarantined_bbo_without_fill() -> None:
     view = _bbo_view(length=5, missing_indices={1}, quarantined_indices={2})
     definition = build_fixed_horizon_label_definition(
@@ -170,7 +214,11 @@ def test_wrong_input_view_for_label_kind_fails_closed() -> None:
         compute_fixed_horizon_label(trade_definition, _bbo_view(length=3))
 
 
-def _label_spec(name: FixedHorizonLabelName) -> LabelSpec:
+def _label_spec(
+    name: FixedHorizonLabelName,
+    *,
+    availability_time: str = "2024-01-02T14:00:00+00:00",
+) -> LabelSpec:
     horizon = _horizon_minutes(name)
     path = (
         "midprice_forward_return"
@@ -192,7 +240,7 @@ def _label_spec(name: FixedHorizonLabelName) -> LabelSpec:
             "target_rule": "not_used_for_fixed_horizon_return",
             "stop_rule": "not_used_for_fixed_horizon_return",
         },
-        availability_time="2024-01-02T14:00:00+00:00",
+        availability_time=availability_time,
         forbidden_feature_overlap={
             "label_ids": [name.value],
             "aliases": [name.value.replace("_ret_", "_return_")],

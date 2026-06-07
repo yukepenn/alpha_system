@@ -1,0 +1,65 @@
+{
+  "alpha_spec_id": "aspec_1284e49b083df11eeb0481ea",
+  "approval_status": "APPROVED",
+  "availability_assumptions": {
+    "available_ts_rule": "feature.available_ts = current BBO input row available_ts",
+    "lookback_rule": "spread zscore uses only BBO rows with available_ts <= output.available_ts",
+    "missingness_rule": "missing_bbo and bbo_quarantined rows are not forward-filled or interpolated",
+    "point_in_time_rule": "quality flags are evaluated at the exact output available_ts"
+  },
+  "data_requirements": {
+    "dataset_scope": "requires a future accepted BBO DatasetVersion or canonical BBO input view before materialization",
+    "input_views": [
+      "canonical_bbo"
+    ],
+    "required_fields": [
+      "series_id",
+      "event_ts",
+      "bar_start_ts",
+      "bar_end_ts",
+      "available_ts",
+      "bid",
+      "ask",
+      "bid_size",
+      "ask_size",
+      "mid",
+      "spread",
+      "quality_flags",
+      "session_label"
+    ],
+    "universe": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "value_materialization": "not_performed_in_FUTCORE-P15"
+  },
+  "duplicate_or_equivalent_exposure_notes": {
+    "checked": true,
+    "findings": [],
+    "guard": "duplicate_exposure",
+    "registry_entries_checked": 2,
+    "registry_status": "CHECKED",
+    "summary": "P13 locked FeaturePack inventory checked; no locked BBO FeaturePack member or BBO DatasetVersion binding covers this P15 gap item."
+  },
+  "feature_request_id": "freq_5ed19554444f449b7c2da377",
+  "formula_sketch": {
+    "gap_id": "P15-G5",
+    "implementation_surface": [
+      "alpha_system.features.families.bbo"
+    ],
+    "primitive_group": "bbo_top_book_confirmation_featurepack_binding",
+    "quote_rule": "use canonical BBO top-book rows only; missing and quarantined quotes are flags or gaps, never filled",
+    "usage_boundary": "confirmation and risk-control context only; no tradability or execution claim"
+  },
+  "requested_inputs": [
+    "bbo_tradability_spread",
+    "bbo_tradability_spread_ticks",
+    "bbo_tradability_spread_zscore",
+    "bbo_tradability_top_book_depth",
+    "bbo_tradability_wide_spread_flag",
+    "bbo_tradability_low_depth_flag",
+    "bbo_tradability_missing_bbo_flag",
+    "bbo_tradability_bad_quote_flag"
+  ]
+}

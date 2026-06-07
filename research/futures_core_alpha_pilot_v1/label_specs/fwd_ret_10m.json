@@ -1,0 +1,51 @@
+{
+  "availability_time": "2024-01-02T00:00:00+00:00",
+  "cost_model": {
+    "cost_adjustment": "none_in_label_primitive",
+    "cost_profiles_applied_later": "diagnostics apply FUTCORE-P04 cost profiles outside this LabelSpec",
+    "model": "gross_unadjusted_forward_return"
+  },
+  "forbidden_feature_overlap": {
+    "aliases": [
+      "fwd_return_10m",
+      "forward_return_10m"
+    ],
+    "availability_references": [
+      "label_available_ts",
+      "horizon_end_ts"
+    ],
+    "label_ids": [
+      "fwd_ret_10m"
+    ],
+    "transforms": [
+      "label(fwd_ret_10m)",
+      "future_return(close,10m)"
+    ]
+  },
+  "horizon": "10m",
+  "label_spec_id": "lspec_297ba9c00b50043020a1945e",
+  "leakage_checks": [
+    "label_as_feature",
+    "availability_time",
+    "terminal_available_ts_after_horizon_end",
+    "no_same_bar_terminal",
+    "no_final_session_aggregate"
+  ],
+  "path_rules": {
+    "future_data_boundary": "future observations are legal only inside the offline label horizon and never as live features",
+    "gap_id": "P15-G1",
+    "horizon_minutes": 10,
+    "label_available_ts_rule": "label_available_ts = max(terminal.available_ts, LabelSpec.availability_time)",
+    "label_id": "fwd_ret_10m",
+    "label_kind": "mid_price",
+    "label_kind_note": "campaign-permitted price-path label kind; this fixed-horizon label uses canonical close as the price basis and remains labels-only",
+    "path": "trade_price_forward_return",
+    "price_basis": "close",
+    "terminal_rule": "exact event_ts row at fixed forward horizon; rows without an exact terminal row are excluded"
+  },
+  "target_stop_rules": {
+    "barrier_priority": "not_applicable_to_fixed_horizon_return",
+    "stop_rule": "not_used_for_fixed_horizon_return",
+    "target_rule": "not_used_for_fixed_horizon_return"
+  }
+}
