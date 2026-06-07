@@ -1,0 +1,68 @@
+{
+  "schema": "alpha_system.futures_core_alpha_pilot.statistical_reviewer_verdict.v1",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "phase_id": "FUTCORE-P25",
+  "timestamp": "2026-06-07T20:28:26Z",
+  "reviewer_verdict_ref": "reviewer_verdict:futcore_p25:sspec_267cc052e37668339c38d179",
+  "reviewer": {
+    "role_id": "statistical_reviewer",
+    "reviewer_id": "statistical_reviewer_futcore_p25",
+    "independence_basis": [
+      "P06 assigns AlphaSpec drafting to hypothesis_scout and critique to alpha_spec_critic, not statistical_reviewer.",
+      "P15 feature and label additions are owned by feature_engineer and label_engineer, not statistical_reviewer.",
+      "P16-P22 diagnostics and consolidations are owned by diagnostics_runner, not statistical_reviewer.",
+      "P23 no-lookahead audit is owned by no_lookahead_auditor and P24 variant-budget audit by research_director.",
+      "P26-P28 ledger, evidence, and allowed research-state recording are owned by librarian after verdict references exist."
+    ]
+  },
+  "idea": {
+    "study_spec_id": "sspec_267cc052e37668339c38d179",
+    "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+    "family": "regime",
+    "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/regime/FUTCORE-P09_regime_01.md",
+    "study_spec": "research/futures_core_alpha_pilot_v1/study_specs/sspec_267cc052e37668339c38d179.json",
+    "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+    "feature_refs": ["F1", "F2", "F3", "F5", "F6"],
+    "label_refs": ["L5", "L10", "L30"]
+  },
+  "judgement": {
+    "statistical_reviewer_judgement": "INCONCLUSIVE",
+    "watch_or_candidate_budget_impact": 0,
+    "promotion_decision_assigned": false,
+    "basis": "Runtime diagnostics and consolidation evidence remain unresolved by reference: locked trendiness and activation binding are missing, both source probe arms are rejected in P22 context, and the no-lookahead audit carries timing and label flags."
+  },
+  "evidence_paths": {
+    "diagnostics": [
+      "research/futures_core_alpha_pilot_v1/diagnostics_reports/regime/INDEX.md",
+      "research/futures_core_alpha_pilot_v1/diagnostics_reports/regime/sspec_267cc052e37668339c38d179/runtime_reports.json"
+    ],
+    "cost_stress_and_thin_session": "research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md",
+    "session_horizon_regime_matrix": "research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md",
+    "no_lookahead_audit": "research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md",
+    "variant_budget_audit": "research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md",
+    "separation_of_duties": [
+      "research/futures_core_alpha_pilot_v1/queue/separation_of_duties.md",
+      "research/futures_core_alpha_pilot_v1/queue/role_assignment_map.md"
+    ]
+  },
+  "evidence_summary": {
+    "diagnostics_status": "INCONCLUSIVE",
+    "nonzero_cost_profiles_present": ["base", "stress_1", "stress_2", "double_cost"],
+    "cost_and_proxy_flags": ["MATERIAL_COST_STRESS_GRADIENT", "THIN_SESSION_ONLY_COST_BREAKDOWN", "BBO_PROXY_FALLBACK"],
+    "fragility_flags": [
+      "1m_and_3m_fragile_horizon_diagnostics_only",
+      "ETH_pre_RTH_post_RTH_research_only",
+      "15m_label_pack_unresolved",
+      "narrow_cell_only_not_supported",
+      "proxy_only_cost_and_capacity_support"
+    ],
+    "temporal_audit_flags": ["LOOKAHEAD", "LABEL_LEAKAGE"],
+    "variant_budget_note": "P24 records declared variant budget respected with no locked-test tuning or repeated OOS selection."
+  },
+  "limitations": [
+    "This verdict is an evidence-quality judgement only.",
+    "No watch, candidacy, promotion, profitability, tradability, paper, live, broker, deployment, or capital-allocation claim is made.",
+    "Zero-cost context is not used as a favorable-evidence basis.",
+    "No raw provider data, feature values, label values, runtime values, or heavy artifacts were read or embedded."
+  ]
+}
