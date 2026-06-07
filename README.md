@@ -7,6 +7,25 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
+`FUTCORE-P11` records the value-free BBO tradability / top-book confirmation
+AlphaSpec draft batch and completes the five-family AlphaSpec batch wave
+(`FUTCORE-P07` through `FUTCORE-P11`) for downstream independent critique.
+
+Active / next work: `FUTCORE-P12` is the next phase and owns AlphaSpec Critic
+review plus the family budget audit. Ralph continues to own authoritative
+validation, review routing, serial merge handling, staging, PR, CI, merge, and
+done-check actions.
+
+New durable surfaces through this `FUTCORE-P11` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/alpha_specs/bbo_tradability/`
+- `docs/futures_core_alpha_pilot/alpha_specs/bbo_tradability.md`
+
+No new commands, modules, runtime behavior, data readers, diagnostics, cost
+calculations, reviews, agent runners, or broker surfaces are added by
+`FUTCORE-P11`. The BBO batch records draft AlphaSpec payloads, assumptions,
+limitations, and diagnostic declarations only.
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active. The
 `bootstrap_and_inputs` gate is complete through `FUTCORE-P06`. `FUTCORE-P10`
 is complete as the Liquidity Sweep / PA AlphaSpec batch and as one
