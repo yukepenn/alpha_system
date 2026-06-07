@@ -1,0 +1,48 @@
+{
+  "schema": "alpha_system.futures_core_alpha_pilot.promotion_decision.v1",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "phase_id": "FUTCORE-P28",
+  "promotion_decision_id": "pdec_futcore_p28_sspec_27bf1262b0bd23d27191cc86",
+  "idea": {
+    "study_spec_id": "sspec_27bf1262b0bd23d27191cc86",
+    "alpha_spec_id": "aspec_df2d040e45564c259ef3de6d",
+    "family": "liquidity_pa",
+    "source_study_spec": "research/futures_core_alpha_pilot_v1/study_specs/sspec_27bf1262b0bd23d27191cc86.json",
+    "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/liquidity_pa/FUTCORE-P10_liquidity_pa_02.md"
+  },
+  "assigned_state": "INCONCLUSIVE",
+  "rationale": "P25 records an INCONCLUSIVE statistical reviewer judgement. Objective trigger counts remain unresolved without a locked structure FeaturePack, thin-session subsegments remain unresolved in the matrix, and P23 timing and label flags remain carried by reference.",
+  "provenance": {
+    "p25_reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_27bf1262b0bd23d27191cc86.json",
+    "p25_reviewer_verdict_id": "reviewer_verdict:futcore_p25:sspec_27bf1262b0bd23d27191cc86",
+    "p26_trial_ledger_refs": [
+      "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_666433ac863d5adb1368a3d1.json"
+    ],
+    "p26_rejected_idea_ledger_refs": [],
+    "p27_evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_27bf1262b0bd23d27191cc86.json",
+    "p27_factor_card_ref": "research/futures_core_alpha_pilot_v1/evidence/factor_cards/factor_card_sspec_27bf1262b0bd23d27191cc86.json",
+    "p27_reference_handoff_ref": "research/futures_core_alpha_pilot_v1/evidence/reference_handoffs/reference_candidate_handoff_sspec_27bf1262b0bd23d27191cc86.json",
+    "supporting_consolidation_refs": [
+      "research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md",
+      "research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md",
+      "research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md",
+      "research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md"
+    ]
+  },
+  "duplicate_exposure_group_hint": "pa-sweep-closeback",
+  "gating": {
+    "state_is_allowed_by_campaign_policy": true,
+    "reviewer_verdict_required_for_state": false,
+    "independent_p25_verdict_supports_watch_or_candidate_research": false,
+    "watch_or_candidate_research_budget_impact": 0,
+    "decider_role": "librarian",
+    "independent_reviewer_role": "statistical_reviewer",
+    "self_promotion": false
+  },
+  "non_claims": [
+    "This decision is research evidence only.",
+    "This decision is not Reference validation.",
+    "This decision is not a paper, live, broker, production, or capital decision.",
+    "This decision does not make a tradability or return claim."
+  ]
+}

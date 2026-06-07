@@ -1,0 +1,184 @@
+{
+  "schema": "alpha_system.futures_core_alpha_pilot.promotion_decision_index.v1",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "phase_id": "FUTCORE-P28",
+  "artifact_type": "value_free_promotion_decision_index",
+  "allowed_states": [
+    "REJECT",
+    "INCONCLUSIVE",
+    "WATCH",
+    "CANDIDATE_RESEARCH"
+  ],
+  "state_policy_refs": [
+    "campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/campaign.yaml#promotion_policy",
+    "alpha_system.runtime.decisions.states",
+    "alpha_system.governance.promotion_gate",
+    "alpha_system.governance.promotion"
+  ],
+  "decision_universe": {
+    "source": "accepted StudySpec set carried through P25-P27 evidence work",
+    "study_spec_count": 10,
+    "p27_survivor_count": 6,
+    "rejected_before_p25_count": 4
+  },
+  "gating_summary": {
+    "REJECT": 4,
+    "INCONCLUSIVE": 6,
+    "WATCH": 0,
+    "CANDIDATE_RESEARCH": 0,
+    "watch_plus_candidate_research_count": 0,
+    "max_watch_or_candidate_research": 2,
+    "watch_or_candidate_research_requires_independent_p25_support": true,
+    "self_promotion_count": 0,
+    "forbidden_state_count": 0
+  },
+  "non_claims": [
+    "PromotionDecision records are research evidence only.",
+    "No record performs Reference validation.",
+    "No record makes a paper, live, broker, production, or capital decision.",
+    "No record makes a tradability or return claim."
+  ],
+  "decision_records": [
+    {
+      "study_spec_id": "sspec_dde3e64667fe158f9bad527d",
+      "alpha_spec_id": "aspec_0ebd90cecfd475607685b445",
+      "family": "cross_market",
+      "assigned_state": "REJECT",
+      "reviewer_verdict_ref": null,
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_b4e25da7c409809fc1cb54b7.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/records/rej_c27b447c282967db390ff10d.json"
+      ],
+      "evidence_draft_ref": null,
+      "duplicate_exposure_group_hint": "cm-lead-lag-pair",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_dde3e64667fe158f9bad527d.json"
+    },
+    {
+      "study_spec_id": "sspec_c671fbeeb143512cbc03bc5b",
+      "alpha_spec_id": "aspec_8d9e272e4b78eedcd27f0bec",
+      "family": "cross_market",
+      "assigned_state": "REJECT",
+      "reviewer_verdict_ref": null,
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_587d6da288aa8ff2ca25fa37.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/records/rej_9ed40aaf995f1f70f5f94cdf.json"
+      ],
+      "evidence_draft_ref": null,
+      "duplicate_exposure_group_hint": "cm-beta-residual",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_c671fbeeb143512cbc03bc5b.json"
+    },
+    {
+      "study_spec_id": "sspec_90b28233d828128664588a9a",
+      "alpha_spec_id": "aspec_a41dcccac5552de945aba825",
+      "family": "cross_market",
+      "assigned_state": "REJECT",
+      "reviewer_verdict_ref": null,
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_bdbfa08dcf63fe1fe8e5921d.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/records/rej_20d88b59ce09f47d364fd529.json"
+      ],
+      "evidence_draft_ref": null,
+      "duplicate_exposure_group_hint": "cm-rty-rotation",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_90b28233d828128664588a9a.json"
+    },
+    {
+      "study_spec_id": "sspec_7c8fb13628843890c171b122",
+      "alpha_spec_id": "aspec_fa4895a43a80d4eef0a607a4",
+      "family": "cross_market",
+      "assigned_state": "REJECT",
+      "reviewer_verdict_ref": null,
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_1fc87c34cf31d8055d3d224d.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/records/rej_fa471f1ddeaa066dc4a95feb.json"
+      ],
+      "evidence_draft_ref": null,
+      "duplicate_exposure_group_hint": "cm-pair-divergence",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_7c8fb13628843890c171b122.json"
+    },
+    {
+      "study_spec_id": "sspec_69c22ec5847395ac8e81b5b6",
+      "alpha_spec_id": "aspec_b40aee52d4399dd5b855a6ed",
+      "family": "vwap_session",
+      "assigned_state": "INCONCLUSIVE",
+      "reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_69c22ec5847395ac8e81b5b6.json",
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_fffbb48dc4111caeabcc55c9.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/records/rej_7107e99008c6a7aaf7d2d5b4.json"
+      ],
+      "evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_69c22ec5847395ac8e81b5b6.json",
+      "duplicate_exposure_group_hint": "vwap-reclaim-reject",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_69c22ec5847395ac8e81b5b6.json"
+    },
+    {
+      "study_spec_id": "sspec_aff70fcbc4b7ff226fcc8149",
+      "alpha_spec_id": "aspec_43cd6c154bca2fcc419eee83",
+      "family": "vwap_session",
+      "assigned_state": "INCONCLUSIVE",
+      "reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_aff70fcbc4b7ff226fcc8149.json",
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_3b8f60dd0f4793288360159e.json"
+      ],
+      "evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_aff70fcbc4b7ff226fcc8149.json",
+      "duplicate_exposure_group_hint": "vwap-rth-open-eth",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_aff70fcbc4b7ff226fcc8149.json"
+    },
+    {
+      "study_spec_id": "sspec_267cc052e37668339c38d179",
+      "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+      "family": "regime",
+      "assigned_state": "INCONCLUSIVE",
+      "reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_267cc052e37668339c38d179.json",
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_94781614f100a2aa0878aae4.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_13c98257a704ce5641a51626.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_58fdb5456d910efccdd95b7b.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_fce335815b1bda26eb898aed.json"
+      ],
+      "evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_267cc052e37668339c38d179.json",
+      "duplicate_exposure_group_hint": "regime-trend-vol-range",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_267cc052e37668339c38d179.json"
+    },
+    {
+      "study_spec_id": "sspec_27bf1262b0bd23d27191cc86",
+      "alpha_spec_id": "aspec_df2d040e45564c259ef3de6d",
+      "family": "liquidity_pa",
+      "assigned_state": "INCONCLUSIVE",
+      "reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_27bf1262b0bd23d27191cc86.json",
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_666433ac863d5adb1368a3d1.json"
+      ],
+      "evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_27bf1262b0bd23d27191cc86.json",
+      "duplicate_exposure_group_hint": "pa-sweep-closeback",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_27bf1262b0bd23d27191cc86.json"
+    },
+    {
+      "study_spec_id": "sspec_02c400a561891171a33c0c66",
+      "alpha_spec_id": "aspec_39ffc190cfbfa6ba0b1a2a25",
+      "family": "liquidity_pa",
+      "assigned_state": "INCONCLUSIVE",
+      "reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_02c400a561891171a33c0c66.json",
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_45df4e0c5999da63a57ff9b2.json"
+      ],
+      "evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_02c400a561891171a33c0c66.json",
+      "duplicate_exposure_group_hint": "pa-failed-breakout",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_02c400a561891171a33c0c66.json"
+    },
+    {
+      "study_spec_id": "sspec_9f6f741192a4b534f06e51c0",
+      "alpha_spec_id": "aspec_1284e49b083df11eeb0481ea",
+      "family": "bbo_tradability",
+      "assigned_state": "INCONCLUSIVE",
+      "reviewer_verdict_ref": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_9f6f741192a4b534f06e51c0.json",
+      "ledger_refs": [
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_2ae03a839098b6ff741b2f84.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_4ee4909066d85d4abcdfaa42.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_3a61fa6378614054674171ec.json",
+        "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_2c32c84a140e6e99f67f5aa8.json"
+      ],
+      "evidence_draft_ref": "research/futures_core_alpha_pilot_v1/evidence/evidence_drafts/evidence_draft_sspec_9f6f741192a4b534f06e51c0.json",
+      "duplicate_exposure_group_hint": "bbo-spread-depth-confirmation",
+      "decision_record_ref": "research/futures_core_alpha_pilot_v1/promotion/decisions/promotion_decision_sspec_9f6f741192a4b534f06e51c0.json"
+    }
+  ]
+}
