@@ -1,0 +1,28 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**Contracts-only posture:** No autonomous agent, no continuous runner, no new agent_factory source contracts. Only an integration test + docs. \u2705",
+    "**Runtime via bridge / `resolve_dataset_version`:** Test asserts exactly one bridge call routed by `diagnostics_runner`, and the resolver wired to the bridge is a wrapper (`is not resolve_dataset_version`), while the real `resolve_dataset_version` is still invoked against a synthetic registry path. No raw provider/network access (boundary grep clean). \u2705",
+    "**No promotion / not-alpha-evidence:** Test asserts forward state stops at `REFERENCE_HANDOFF_RECORDED`; `STATISTICAL_REVIEW_PASS` and `LIBRARIAN_MEMORY_RECORDED` not reachable; no `promotion.*` tools; rejections recorded via `RejectedIdeaMemoryRecord`/`ResearchMemoryRecord`; results value-free (`FORBIDDEN_RESULT_MARKERS`/`HEAVY_SUFFIXES` asserted). \u2705",
+    "**Honest degradation:** Synthetic fallback on absent `ALPHA_DATA_ROOT`, records `PASS_WITH_WARNINGS` with explicit warnings \u2014 no silent skip, no hard crash, no external call. \u2705",
+    "**Results doc & README no-claims language:** Both carry explicit \"not alpha evidence / `EvidenceDraft` is not a candidate / `ReferenceCandidateHandoff` is not Reference validation\"; no profitability/tradability/broker/live/paper claims; single reproduce command; no run-specific artifact paths. \u2705",
+    "**Handoff truthfulness:** Accurately discloses that `git status` was skipped per executor prompt, that the synthetic path was taken, and that review/verdict remain required. No overstated PASS. \u2705",
+    "**`must_run_alone` / staging discipline:** Nothing staged by executor; no `git add .`; no `runs/` in the proposed staging list. \u2705"
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-07T00:58:49Z",
+  "phase_id": "AGENT-P23",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P23/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "**Honest degradation:** Synthetic fallback on absent `ALPHA_DATA_ROOT`, records `PASS_WITH_WARNINGS` with explicit warnings \u2014 no silent skip, no hard crash, no external call. \u2705"
+  ]
+}

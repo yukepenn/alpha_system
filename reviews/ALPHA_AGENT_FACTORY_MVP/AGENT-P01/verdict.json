@@ -1,0 +1,39 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**No agent instantiated, no runner, no loop.** `entry_contract.py` only evaluates declarative flags and checks marker-file *existence*. No `runtime.*` / `governance.*` / `features.*` / `labels.*` / `data.*` import appears anywhere.",
+    "**Four gates present and identified** (`entry_contract.py:43-49`): `SEED_PACKS`, `RUNTIME_REAL_SMOKE`, `FEATURE_LABEL_PARQUET_SINK_V1`, `SESSION_LABEL_GUARD_FIX_V1`. All four are always represented in the result (`evaluate`, lines 278-284).",
+    "**Fails closed** (the core requirement):",
+    "Runtime smoke `false` \u2192 `PREFLIGHT_BLOCKED` (lines 351-362).",
+    "Malformed/unparseable marker \u2192 `BLOCKED` (lines 364-375).",
+    "Parquet-sink not landed **and** large-scale value-consuming study requested without human approval \u2192 `BLOCKED` (lines 405-420).",
+    "Session-guard not fixed **and** a session-context feature requested \u2192 `BLOCKED` (lines 454-466).",
+    "**Truthful degrade, not crash**: absent `ALPHA_DATA_ROOT` or missing registry markers \u2192 `PREFLIGHT_WARN` with an explicit `limitations` note (lines 288-338). No exception path.",
+    "**Never reads values**: the seed gate is existence-only and never opens the SQLite files. Notably, the runtime-smoke marker reader **refuses to read** any path with a forbidden raw/heavy suffix (`.dbn/.zst/.parquet/.arrow/.feather`) and fails closed instead (lines 535-541, `FORBIDDEN_MARKER_SOURCE_SUFFIXES`) \u2014 a defensive measure beyond what the spec required.",
+    "**Deterministic / injectable**: `AgentFactoryPreflightConfig` allows full input override; no absolute machine path is hard-coded (root resolves via env/config). Default config path is derived relative to the module.",
+    "Result `to_dict()` (lines 117-128) emits only gate names, status strings, reasons, scope blockers, and follow-up identifiers \u2014 no DB rows, raw data, or provider payloads. The test `test_result_is_structured_and_value_free` asserts the absence of `raw_payload`/`provider_payload`/`db_rows` and of the tmp path.",
+    "`PREFLIGHT_GATES.md` and the README section use no-claims language: explicit statements that entry implies no agent ran, no diagnostic passed, no alpha exists, and never opens raw provider data or external calls. No alpha/tradability/profitability/strategy/paper/live/broker wording.",
+    "10 hermetic tests on synthetic fixtures using `tmp_path`/monkeypatched `ALPHA_DATA_ROOT`. They assert genuine behavior: all four gates represented, fail-closed on unsatisfied smoke, truthful WARN on absent registries, PASS on all-satisfied, value-free results, both scope blockers, and the forbidden-suffix fail-closed path. No `skip`/`xfail`, no visible test-only branch in source, no assertion relaxation.",
+    "Executor reports `git ls-files runs` empty; validation canary `forbidden_local_artifacts` and `forbidden_raw_data_commit` both PASS. No `runs/` path appears in the handoff's commit-eligible list.",
+    "Config is `configs/agent_factory/preflight.toml` \u2014 value-free, declarative, no secrets/data (spec permitted `.toml`).",
+    "Handoff at `handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P01.md` lists exactly the spec's Allowed Paths and nothing else. No `ACTIVE_CAMPAIGN.md` write. No forbidden path created.",
+    "README snapshot is factual and compact; correctly states AGENT-P01 complete, next phase AGENT-P02, boundaries unchanged."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T20:00:31Z",
+  "phase_id": "AGENT-P01",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P01/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "**Truthful degrade, not crash**: absent `ALPHA_DATA_ROOT` or missing registry markers \u2192 `PREFLIGHT_WARN` with an explicit `limitations` note (lines 288-338). No exception path.",
+    "10 hermetic tests on synthetic fixtures using `tmp_path`/monkeypatched `ALPHA_DATA_ROOT`. They assert genuine behavior: all four gates represented, fail-closed on unsatisfied smoke, truthful WARN on absent registries, PASS on all-satisfied, value-free results, both scope blockers, and the forbidden-suffix fail-closed path. No `skip`/`xfail`, no visible test-only branch in source, no assertion relaxation."
+  ]
+}

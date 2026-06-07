@@ -1,0 +1,31 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**`roles/research_director.py`** \u2014 constructs one `AgentRole(role_id=\"research_director\")` and registers it at import via the P03 discovery registry. No agent instantiation, no loop, no runner, no alpha search, no diagnostics, no I/O.",
+    "**Permission matrix (`permissions/matrix.py:83-87`)** \u2014 `research_director` is granted exactly `(\"queue.scope_task\", \"queue.assign_roles\", \"queue.set_budget\")`. The role module derives `callable_tools` directly from `permission_for(ROLE_ID).tool.allowed_tool_ids`, so the matrix remains the single source of truth and drift is impossible.",
+    "**Contract model (`roles/contracts.py`)** \u2014 fails closed on empty fields, payload markers, and heavy suffixes; the contract populates every field with value-free declarative strings.",
+    "**Registry (`roles/registry.py`)** \u2014 rejects duplicate ids; the module's `_register_once` guards against re-registration on reload.",
+    "**Git state** \u2014 nothing staged; only the 6 allowed paths are modified/untracked (`README.md`, role module, test, doc, template, commit-eligible handoff). `git ls-files runs` is **empty**. No edits to `roles/__init__.py`, `roles/registry.py`, `permissions/**`, `queue/**`, `tools/**`, or `ACTIVE_CAMPAIGN.md` (confirmed via targeted `git status`).",
+    "**Run-local handoff** lives under `runs/.../phases/AGENT-P07/handoff.md` and is correctly excluded from the staging list.",
+    "**Contracts-only:** confirmed. No autonomous agent, no continuous runner, no promotion, no review verdict, no diagnostics.",
+    "**Separation of duties:** `forbidden_decisions` and `reviewer_independence` explicitly bar self-approval, promotion, review verdicts, implementation, AlphaSpec drafting/critique, looping/batching, queue/budget bypass, raw-provider reads, external-provider calls, and capital/risk/live decisions. Tests assert these fragments are present.",
+    "**No broker/live/paper/order scope; no raw/heavy/db artifacts; no alpha/tradability claims** \u2014 doc uses explicit no-claims language; canary `forbidden_scope_drift`, `forbidden_raw_data_commit`, and `forbidden_boundary_import` all PASS.",
+    "**DAG parallel-safety:** disjoint phase-owned files; role self-registers via discovery (no shared-file edit)."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T21:36:49Z",
+  "phase_id": "AGENT-P07",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P07/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

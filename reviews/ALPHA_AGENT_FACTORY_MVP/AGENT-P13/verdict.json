@@ -1,0 +1,32 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/agent_factory/roles/diagnostics_runner.py`",
+    "`tests/unit/agent_factory/roles/test_diagnostics_runner.py`",
+    "`docs/agent_factory/roles/diagnostics_runner.md`",
+    "`templates/agent_factory/roles/diagnostics_runner.md`",
+    "`handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P13.md`",
+    "**Runtime-only tool surface, fully backed.** I confirmed all 8 declared `runtime.*` tools list `diagnostics_runner` as an `allowed_callers` entry in `configs/agent_factory/tools/registry.toml`, and each tool's `permission_matrix_refs` (the six native `runtime.*` refs + `runtime.summarize` for `build_evidence_draft`/`build_reference_handoff`) is granted by the P04 matrix entry for `diagnostics_runner`. The module's import-time `_validated_runtime_tool_ids()` fails closed otherwise, and import succeeds.",
+    "**Default-deny respected.** Matrix entry grants only `runtime_request.record` write scope, `accepted_dataset_version_ref` data scope; no promotion, no verdict, no raw-provider, no direct-registry-write. The contract holds no `PromotionPermission` and the role deliberately stays narrower than even what the registry pre-grants (it does not list the `evidence.build_bundle` promotion-group tool it is technically an allowed caller for).",
+    "**Fail-closed `no StudySpec \u2192 no diagnostics`** is encoded in `readable_inputs`, `failure_modes`, and the `blocked_missing_study_spec_result` helper (status `BLOCKED`, `rejection_reasons=(\"missing_bound_study_spec\",)`).",
+    "**Consumed-not-edited / no re-implementation.** The module imports `RuntimeToolResult`, `RuntimeRunSummary`, and the `cli.runtime` command functions by reference; no provider/file readers (`.dbn`, `.zst`, `read_parquet`, `databento`, `ib_insync`, etc.), confirmed by the spec heuristic. Value-free `AgentToolResult` outputs only.",
+    "**Reviewer independence** (`runner \u2260 promoter`, `runner \u2260 statistical_reviewer`, no self-review, cross-refs AGENT-P16) declared in both code and doc.",
+    "`git ls-files runs` \u2192 empty (artifact policy clean; no `runs/` staged).",
+    "`just frontier-doctor` \u2192 passed; `just verify-canaries` \u2192 all 16 canaries PASS (incl. `forbidden_scope_drift`, `forbidden_boundary_import`, `forbidden_test_tamper`, `forbidden_local_artifacts`).",
+    "Executor reports `10 passed` on the targeted unit test and `verify.py --smoke` green; the test file contains exactly 10 well-formed assertions with no skips/xfails/weakening."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T22:20:10Z",
+  "phase_id": "AGENT-P13",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P13/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "none",
+  "source": "review",
+  "verdict": "PASS",
+  "warnings": []
+}

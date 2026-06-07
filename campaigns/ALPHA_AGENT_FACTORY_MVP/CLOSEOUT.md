@@ -85,3 +85,58 @@ The next campaign must restate and satisfy its own governance, data
 admissibility, evidence, review, artifact, and human authorization gates before
 any pilot work starts. The human retains risk, capital, paper/live, broker,
 order, deployment, promotion, strategy, portfolio, and production judgment.
+
+## Coordinator Closeout Addendum
+
+This section is written by the coordinator after the full Workflow 2 live run,
+to record run mechanics and the one supervisor intervention that the
+`AGENT-P25`-authored sections above could not capture.
+
+### Live run
+
+- Run id: `2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP` (provider-wired, external
+  providers, `dag_wave` parallel, `max_parallel = 3`, serial merge queue,
+  worktree mode). 18 waves, all 26 phases (`AGENT-P00`–`AGENT-P25`) merged.
+- Final phase tally: **10 `PASS`, 16 `PASS_WITH_WARNINGS`, 0 `BLOCKED`** →
+  `RUN_COMPLETE`, final campaign done-check `PASS_WITH_WARNINGS`.
+- Phase PRs **#182–#208** (squash-merged to `main` through the protected-branch
+  PR/CI path). No external provider, broker, paper/live, order, or deployment
+  scope was exercised; `git ls-files runs` is empty.
+- Closeout validation on clean `main` after all merges: `python tools/verify.py
+  --all` → **2773 passed, 1 skipped**; `canary_runner` all PASS. (The single
+  transient failure during closeout was `test_no_l2_db_or_columnar_artifacts_are_present`
+  catching two operator-created `runs/*.log` console captures — not a campaign
+  artifact; the logs were removed and the suite is green.)
+- The 26 Opus review records were promoted run-local →
+  `reviews/ALPHA_AGENT_FACTORY_MVP/AGENT-P00..P25/` (`just frontier-promote-reviews`).
+
+### Supervisor intervention — `AGENT-P16` done-check parser false-negative
+
+`AGENT-P16` (Separation-of-Duties and No-Self-Review Enforcement) **passed**
+review (`PASS_WITH_WARNINGS`) and every check (24 tests, ruff, smoke, canaries,
+`frontier-doctor`), but the run stopped because the **verdict parser** mis-read a
+**Markdown-bold** done-check line. The Claude done-check rendered
+`**DONE_CHECK: PASS_WITH_WARNINGS**`; `tools/frontier/verdict.py`'s
+`DONE_CHECK_RE` required the verdict to be the *entire* line, so the leading and
+trailing `**` produced zero matches and the parser defaulted to `BLOCKED`
+("missing or ambiguous"). The dag_wave coordinator did the right thing — it
+isolated the phase, merged nothing broken, wrote a STOP, and exited at 16/26.
+
+Resolution (supervisor, not a phase):
+
+1. Relaxed `VERDICT_RE` and `DONE_CHECK_RE` to tolerate leading Markdown
+   decoration and emphasis/backtick padding while staying anchored to a single
+   line (prose can't false-match); added 3 regression tests. Shipped as **PR
+   #198** (`f66a1b2`, CI green) so every remaining done-check and the final
+   campaign done-check were protected.
+2. Re-running `AGENT-P16` from `done_check` revealed a second-order detail: the
+   resume **reuses a fresh `done_check.json` without re-parsing the markdown**,
+   so the stale `BLOCKED` json shadowed the fix. Regenerated `done_check.json`
+   from the real (correct) `done_check.md` with the fixed parser →
+   `PASS_WITH_WARNINGS`, then resumed; `AGENT-P16` merged as **PR #199** (CI
+   green, base-synced against the fixed `main`). The parallel run then resumed
+   and drove `AGENT-P17`–`AGENT-P25` to completion with no further stops.
+
+This was a harness parsing bug, not a contract defect: the separation-of-duties
+layer itself was correct and is now merged. No test was weakened and no phase was
+marked PASS without its required fresh review.
