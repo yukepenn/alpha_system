@@ -7,24 +7,24 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P15`, Minimal Missing FeatureRequest / LabelSpec Additions, in
-the `spec_audit_and_packs` gate. This snapshot records the bounded P15
-FeatureRequest / LabelSpec additions needed by the P13/P14 gap mapping.
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is at
+`FUTCORE-P18` of the 31-phase pilot campaign in the `family_diagnostics` gate.
+This snapshot records the regime momentum/reversion diagnostics point in the
+serial diagnostics merge queue.
 
-Active / next work: `FUTCORE-P15` is completed from the executor side. The next
-phase wave is `FUTCORE-P16` through `FUTCORE-P20`, the family-diagnostics wave
-under the `family_diagnostics` gate. Ralph continues to own authoritative
-validation, review routing, staging, PR, CI, merge, and done-check actions.
+Active / next work: the active phase is `FUTCORE-P18` - Regime
+Momentum/Reversion Diagnostics. The next serial diagnostics phase is
+`FUTCORE-P19` - Liquidity Sweep / PA Diagnostics, with `FUTCORE-P21`
+consolidation after the diagnostics wave completes. Ralph continues to own
+authoritative validation, review routing, staging, PR, CI, merge, and done-check
+actions.
 
-New durable surfaces in this `FUTCORE-P15` snapshot:
+New durable surfaces in this `FUTCORE-P18` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/feature_requests/`
-- `research/futures_core_alpha_pilot_v1/label_specs/fwd_ret_15m.json`
-- `docs/futures_core_alpha_pilot/PRIMITIVE_ADDITIONS.md`
-- `src/alpha_system/labels/families/fixed_horizon/family.py`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/regime/`
+- `docs/futures_core_alpha_pilot/diagnostics/regime.md`
 
-`FUTCORE-P15` adds no new commands, data readers, agent runners, feature value
+`FUTCORE-P18` adds no new commands, data readers, agent runners, feature value
 data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
 or deployment behavior.
 
@@ -45,9 +45,10 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-Artifact discipline is unchanged: explicit staging only; `runs/**` is
-local-only and never committed; raw/canonical data, feature or label values,
-provider responses, heavy artifacts, local databases, logs, caches, secrets, and
+Artifact discipline is unchanged: runtime-tool-surface-only diagnostics,
+explicit staging only, and value-free evidence; `runs/**` is local-only and
+never committed; raw/canonical data, feature or label values, provider
+responses, heavy artifacts, local databases, logs, caches, secrets, and
 credentials are never committed.
 
 The pilot makes no profitability or tradability claim. Research outputs are
