@@ -8,24 +8,25 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is advancing
-through the `spec_audit` group. `FUTCORE-P13` records the Data Contract /
-FeaturePack / LabelPack Audit for the 10 accepted AlphaSpecs from the P12
-critique and budget audit.
+through the `spec_audit` group. `FUTCORE-P14` records the Approved StudySpec
+Pack for the 10 accepted AlphaSpecs from the P12 critique and the P13 data
+contract audit.
 
-Active / next work: after `FUTCORE-P13` merges, `FUTCORE-P14` owns the Approved
-StudySpec Pack. Ralph continues to own authoritative validation, review
+Active / next work: after `FUTCORE-P14` merges, `FUTCORE-P15` owns the minimal
+missing FeatureRequest / LabelSpec additions if needed. Ralph continues to own
+authoritative validation, review
 routing, serial merge handling, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces through this `FUTCORE-P13` snapshot:
+New durable surfaces through this `FUTCORE-P14` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/audits/data_contract/`
-- `docs/futures_core_alpha_pilot/DATA_CONTRACT_AUDIT.md`
+- `research/futures_core_alpha_pilot_v1/study_specs/`
+- `docs/futures_core_alpha_pilot/STUDY_SPECS.md`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
 calculations, agent runners, primitives, FeatureRequests, LabelSpecs, or broker
-surfaces are added by `FUTCORE-P13`. The phase records value-free pack mappings,
-point-in-time availability references, duplicate-exposure notes, and a bounded
-gap list only.
+surfaces are added by `FUTCORE-P14`. The phase records value-free StudySpec
+bindings, session/horizon/cost profile matrices, and finite per-study variant
+budgets only.
 
 ## Source Of Truth
 
