@@ -4997,6 +4997,48 @@ def drain_gate_blocked_phases(run_dir: Path, state: dict[str, Any], max_rounds: 
     return [p["phase_id"] for p in state.get("phases", []) if p.get("status") in GATE_BLOCKED_STATUSES]
 
 
+def redrive_git_phase_blocked_phases(
+    run_dir: Path,
+    state: dict[str, Any],
+    scheduler: SchedulerSettings,
+    blocked: list[dict[str, Any]],
+) -> list[str]:
+    """Self-heal: re-drive phases left at GIT_PHASE_BLOCKED.
+
+    GIT_PHASE_BLOCKED is the artifact-policy block at the git *commit* stage,
+    distinct from the post-commit GATE_BLOCKED_STATUSES (PUSH/PR/CI/MERGE) that
+    ``drain_gate_blocked_phases`` retries from ``ci`` (those already have a PR).
+    A commit-stage block has no commit/push/PR yet, so it needs a re-drive from
+    the build instead.
+
+    ``execute_provider_phase`` is stage-driven by ``phase['status']``: a
+    GIT_PHASE_BLOCKED phase skips every already-completed stage (reusing the
+    cached spec/executor/validation/review/done-check artifacts — no provider
+    re-call) and re-runs only the git/commit + PR + CI step via
+    ``post_phase_git_github``. This lets a resume retry the commit after the
+    blocking condition is resolved (e.g. an artifact-policy config fix) instead
+    of orphaning the phase and its dependents behind the PENDING-only wave
+    selector (the commit-stage analogue of the "resume silent stall").
+
+    Runs only in the coordinator/main thread between waves, so no worker threads
+    touch the run state concurrently. Returns phase_ids still GIT_PHASE_BLOCKED.
+    """
+
+    for phase in blocked:
+        if (run_dir / "STOP").exists():
+            break
+        # Re-assert coordinator-owned pointer policy (mirrors run_wave_build) so a
+        # re-driven phase branch still never writes ACTIVE_CAMPAIGN.md.
+        if scheduler.update_active_campaign == "coordinator_only":
+            phase["suppress_active_pointer"] = True
+        append_event(
+            run_dir, state, "GIT_PHASE_REDRIVE", phase_id=phase["phase_id"], status=phase.get("status")
+        )
+        _build_wave_phase(run_dir, state, phase)
+    write_state(run_dir, state)
+    return [p["phase_id"] for p in state.get("phases", []) if p.get("status") == GIT_PHASE_BLOCKED]
+
+
 def run_dag_wave_parallel(
     run_dir: Path,
     state: dict[str, Any],
@@ -5078,6 +5120,34 @@ def run_dag_wave_parallel(
                 write_state(run_dir, state)
                 write_provider_summary(run_dir, state, reason)
                 print(f"Stopped (persistent gate-block) at {run_dir.relative_to(ROOT)}")
+                return 0
+
+            # Self-heal on resume: re-drive any phase left at GIT_PHASE_BLOCKED
+            # (artifact-policy block at the git-commit stage) before scheduling
+            # new work. Unlike the post-commit GATE_BLOCKED_STATUSES above, a
+            # commit-stage block has no PR yet, so it is re-driven from the build
+            # (reusing cached artifacts, no provider re-call) rather than from CI.
+            # Without this, a resolved commit-stage block (e.g. after an
+            # artifact-policy config fix) would be orphaned by the PENDING-only
+            # wave selector and dead-lock its dependents.
+            if any(p.get("status") == GIT_PHASE_BLOCKED for p in state["phases"]):
+                git_blocked = [p for p in state["phases"] if p.get("status") == GIT_PHASE_BLOCKED]
+                remaining_git_blocked = redrive_git_phase_blocked_phases(
+                    run_dir, state, scheduler, git_blocked
+                )
+                if not remaining_git_blocked:
+                    continue
+                reason = (
+                    "GIT_PHASE_BLOCKED phase(s) could not be auto-retried: "
+                    f"{', '.join(remaining_git_blocked)}. Resolve the artifact-policy "
+                    "or commit condition and resume."
+                )
+                state["status"] = "STOPPED"
+                state["stop_requested"] = True
+                write_provider_stop(run_dir, state, reason)
+                write_state(run_dir, state)
+                write_provider_summary(run_dir, state, reason)
+                print(f"Stopped (persistent commit-block) at {run_dir.relative_to(ROOT)}")
                 return 0
 
             wave = ready_wave_phases(state, scheduler)
