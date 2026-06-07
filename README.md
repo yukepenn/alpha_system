@@ -8,26 +8,26 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P27` of the 31-phase pilot campaign in the
+through `FUTCORE-P28` of the 31-phase pilot campaign in the
 `evidence_ledger_promotion` gate. This snapshot records value-free
-EvidenceDraft, FactorCard draft, and ReferenceCandidateHandoff artifacts for
-P25/P26 survivors.
+PromotionDecision records for the accepted StudySpec evidence-stage set.
 
-Active / next work: `FUTCORE-P27` is done for executor handoff; the next phase
-is `FUTCORE-P28` - PromotionDecision.
+Active / next work: `FUTCORE-P28` is ready for Ralph-owned validation and
+review; the next phase is `FUTCORE-P29` - failure-mode downstream handoffs.
 Ralph continues to own authoritative validation, review routing, staging, PR,
 CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P27` snapshot:
+New durable surfaces in this `FUTCORE-P28` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/evidence/`
-- `docs/futures_core_alpha_pilot/EVIDENCE.md`
+- `research/futures_core_alpha_pilot_v1/promotion/`
+- `docs/futures_core_alpha_pilot/PROMOTION_DECISIONS.md`
 
-`FUTCORE-P27` adds no new commands, data readers, agent runners, primitives,
+`FUTCORE-P28` adds no new commands, data readers, agent runners, primitives,
 feature value data, label value data, broker surfaces, live surfaces,
-paper-trading surfaces, or deployment behavior. The evidence artifacts assign
-no PromotionDecision, perform no Reference validation, and preserve the P25
-`INCONCLUSIVE` verdicts.
+paper-trading surfaces, or deployment behavior. Promotion decisions remain
+limited to `REJECT | INCONCLUSIVE | WATCH | CANDIDATE_RESEARCH`; this snapshot
+records 4 `REJECT`, 6 `INCONCLUSIVE`, and 0 `WATCH` /
+`CANDIDATE_RESEARCH` outcomes.
 
 ## Source Of Truth
 

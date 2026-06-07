@@ -1,0 +1,52 @@
+{
+  "schema": "alpha_system.futures_core_alpha_pilot.promotion_decision.v1",
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "phase_id": "FUTCORE-P28",
+  "promotion_decision_id": "pdec_futcore_p28_sspec_c671fbeeb143512cbc03bc5b",
+  "idea": {
+    "study_spec_id": "sspec_c671fbeeb143512cbc03bc5b",
+    "alpha_spec_id": "aspec_8d9e272e4b78eedcd27f0bec",
+    "family": "cross_market",
+    "source_study_spec": "research/futures_core_alpha_pilot_v1/study_specs/sspec_c671fbeeb143512cbc03bc5b.json",
+    "source_alpha_spec": "research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_05_nq_beta_residual_vs_es_rty_basket.json"
+  },
+  "assigned_state": "REJECT",
+  "rationale": "P16 rejected the cross-market diagnostic source before explicit variant-grid execution because required NQ and RTY legs were missing in the committed diagnostics view. P22 retained it only as rejected-source context, and P26 recorded the failed-diagnostics rejection.",
+  "provenance": {
+    "p25_reviewer_verdict_ref": null,
+    "p25_reviewer_verdict_note": "Not in the P25 verdict set because this accepted StudySpec was rejected before P25.",
+    "p26_trial_ledger_refs": [
+      "research/futures_core_alpha_pilot_v1/ledgers/trial_ledger/records/trial_587d6da288aa8ff2ca25fa37.json"
+    ],
+    "p26_rejected_idea_ledger_refs": [
+      "research/futures_core_alpha_pilot_v1/ledgers/rejected_idea_ledger/records/rej_9ed40aaf995f1f70f5f94cdf.json"
+    ],
+    "p27_evidence_draft_ref": null,
+    "p27_factor_card_ref": null,
+    "p27_reference_handoff_ref": null,
+    "supporting_consolidation_refs": [
+      "research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/sspec_c671fbeeb143512cbc03bc5b.json",
+      "research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/INDEX.md",
+      "research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md",
+      "research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md",
+      "research/futures_core_alpha_pilot_v1/audits/no_lookahead/no_lookahead_audit.md",
+      "research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md"
+    ]
+  },
+  "duplicate_exposure_group_hint": "cm-beta-residual",
+  "gating": {
+    "state_is_allowed_by_campaign_policy": true,
+    "reviewer_verdict_required_for_state": false,
+    "independent_p25_verdict_supports_watch_or_candidate_research": false,
+    "watch_or_candidate_research_budget_impact": 0,
+    "decider_role": "librarian",
+    "independent_reviewer_role": "not_applicable_pre_p25_rejection",
+    "self_promotion": false
+  },
+  "non_claims": [
+    "This decision is research evidence only.",
+    "This decision is not Reference validation.",
+    "This decision is not a paper, live, broker, production, or capital decision.",
+    "This decision does not make a tradability or return claim."
+  ]
+}
