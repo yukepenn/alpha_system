@@ -8,24 +8,25 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P24` of the 31-phase pilot campaign in the
-`consolidation_and_audits` gate. This snapshot records the value-free Bounded
-Grid / Variant Budget audit.
+through `FUTCORE-P25` of the 31-phase pilot campaign in the
+`evidence_ledger_promotion` gate. This snapshot records value-free Statistical
+Reviewer verdict artifacts for the non-rejected consolidation survivors.
 
-Active / next work: `FUTCORE-P24` is done for executor handoff; the next phase
-is `FUTCORE-P25` - Statistical Reviewer Verdicts. Ralph continues to own
-authoritative validation, review routing, staging, PR, CI, merge, and done-check
-actions.
+Active / next work: `FUTCORE-P25` is done for executor handoff; the next phase
+is `FUTCORE-P26` - TrialLedger / RejectedIdeaLedger Recording. Ralph continues
+to own authoritative validation, review routing, staging, PR, CI, merge, and
+done-check actions.
 
-New durable surfaces in this `FUTCORE-P24` snapshot:
+New durable surfaces in this `FUTCORE-P25` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/audits/variant_budget/variant_budget_audit.md`
-- `docs/futures_core_alpha_pilot/VARIANT_BUDGET_AUDIT.md`
+- `research/futures_core_alpha_pilot_v1/reviewer_verdicts/`
+- `docs/futures_core_alpha_pilot/REVIEWER_VERDICTS.md`
 
-`FUTCORE-P24` adds no new commands, data readers, agent runners, primitives,
+`FUTCORE-P25` adds no new commands, data readers, agent runners, primitives,
 feature value data, label value data, broker surfaces, live surfaces,
-paper-trading surfaces, or deployment behavior. `zero_cost` remains
-diagnostic-only and is never a promotion basis.
+paper-trading surfaces, or deployment behavior. The verdict artifacts assign no
+PromotionDecision, and `zero_cost` remains diagnostic-only and is never a
+promotion basis.
 
 ## Source Of Truth
 
