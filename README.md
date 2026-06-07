@@ -8,27 +8,26 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is advancing
-through the `spec_audit` group. `FUTCORE-P15` records the minimal governed
-FeatureRequest / LabelSpec additions needed by the P13 gap list and P14
-StudySpecs.
+through the `family_diagnostics` gate. This snapshot records `FUTCORE-P17` of
+the 31-phase campaign: value-free VWAP/session diagnostics for the approved
+P14 StudySpecs using Research Runtime tool results only.
 
-Active / next work: after `FUTCORE-P15` merges, the next campaign work is the
-`FUTCORE-P16`...`FUTCORE-P20` family diagnostics wave. Ralph continues to own
-authoritative validation, review routing, serial merge handling, staging, PR,
-CI, merge, and done-check actions.
+Active / next work: the `FUTCORE-P16`...`FUTCORE-P20` family diagnostics wave
+remains in progress. Ralph continues to own authoritative validation, review
+routing, serial merge handling, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces through this `FUTCORE-P15` snapshot:
+New durable surfaces through this `FUTCORE-P17` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/feature_requests/DECISION.md`
-- `research/futures_core_alpha_pilot_v1/feature_requests/p15_g4_causal_ohlcv_derived.json`
-- `research/futures_core_alpha_pilot_v1/feature_requests/p15_g5_bbo_top_book_confirmation.json`
-- `research/futures_core_alpha_pilot_v1/label_specs/`
-- `docs/futures_core_alpha_pilot/PRIMITIVE_ADDITIONS.md`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
+- `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
 
-`FUTCORE-P15` adds minimal `fwd_ret_15m` fixed-horizon label support and
-governed records for the 10m, 15m, 30m, derived-OHLCV, and BBO P15 gap items.
-It adds no new commands, diagnostics, feature values, label values, data
-readers, cost calculations, agent runners, or broker surfaces.
+`FUTCORE-P17` records per-session and session x horizon diagnostics for the
+VWAP/session family. The locked 5m LabelPack resolves; the 10m, 15m, and 30m
+horizon cells remain unresolved label-pack cells in this phase. VWAP-specific
+signal-probe diagnostics are inconclusive because no locked running VWAP,
+completed ETH VWAP, or VWAP trigger FeaturePack resolves. No new commands,
+source primitives, feature values, label values, data readers, agent runners,
+or broker surfaces are added.
 
 ## Source Of Truth
 
