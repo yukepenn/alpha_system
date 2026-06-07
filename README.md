@@ -8,19 +8,31 @@ The repository-level campaign pointer targets
 which is coordinator-owned.
 
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed
-`AGENT-P22` Agent Dry-Run Harness and is in the Wave 4 closeout chain. Active /
-next work is `AGENT-P23` Seed-Pack and Synthetic Dry Run.
+`AGENT-P23` of 26 (`AGENT-P00` ... `AGENT-P25`), Seed-Pack and Synthetic Dry
+Run, and is in the Wave 4 closeout chain. Active / next work is `AGENT-P24`
+Workflow 2 DAG Integration and Parallel Plan.
+
+New durable surfaces from `AGENT-P23`:
+
+- `tests/integration/agent_factory/test_dry_run.py`
+- `docs/agent_factory/DRY_RUN_RESULTS.md`
+
+Reproduce the Agent Factory integration dry run with:
+
+```bash
+python -m pytest tests/integration/agent_factory -q
+```
+
+Safety boundaries are unchanged: contracts only; local-first seed-pack or
+synthetic dry-run; no autonomous agent; no continuous research runner; no
+alpha, tradability, or profitability claim; no broker, live, paper, order, or
+account scope; accepted-DatasetVersion-only consumption; runtime consumed
+through the bridge, not bypassed.
 
 New durable surfaces from `AGENT-P22`:
 
 - `alpha_system.agent_factory.dry_run.harness`
 - `docs/agent_factory/DRY_RUN.md`
-
-Safety boundaries are unchanged: contracts only; local-only synthetic dry-run;
-no autonomous agent; no continuous research runner; no alpha, tradability, or
-profitability claim; no broker, live, paper, order, or account scope;
-accepted-DatasetVersion-only; runtime consumed through the bridge, not
-bypassed.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
