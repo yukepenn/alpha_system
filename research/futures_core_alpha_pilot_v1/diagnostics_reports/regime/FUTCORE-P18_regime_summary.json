@@ -1,0 +1,242 @@
+{
+  "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
+  "cost_profiles": [
+    "base",
+    "stress_1",
+    "stress_2",
+    "double_cost"
+  ],
+  "coverage_counts": {
+    "all_resolved_horizons": {
+      "entity_counts": {
+        "series_databento_es_front_unadjusted": 20406
+      },
+      "joined_observation_count": 20406,
+      "regime_field_counts": {
+        "gate_mode": {
+          "unresolved": 20406
+        },
+        "range_state": {
+          "compression": 5510,
+          "not_compression": 14809,
+          "unresolved": 87
+        },
+        "trend_state": {
+          "unresolved": 20406
+        },
+        "volatility_bucket": {
+          "high": 10157,
+          "low": 10159,
+          "unresolved": 90
+        }
+      },
+      "session_view_counts": {
+        "ETH_evening": 5319,
+        "ETH_only": 20406,
+        "ETH_overnight": 7197,
+        "RTH": 0,
+        "RTH_only": 0,
+        "RTH_with_ETH_context": 0,
+        "full_session": 20406,
+        "post_RTH": 690,
+        "pre_RTH": 1350
+      }
+    },
+    "by_horizon": {
+      "10m": {
+        "entity_counts": {
+          "series_databento_es_front_unadjusted": 6832
+        },
+        "joined_observation_count": 6832,
+        "regime_field_counts": {
+          "gate_mode": {
+            "unresolved": 6832
+          },
+          "range_state": {
+            "compression": 1854,
+            "not_compression": 4949,
+            "unresolved": 29
+          },
+          "trend_state": {
+            "unresolved": 6832
+          },
+          "volatility_bucket": {
+            "high": 3388,
+            "low": 3414,
+            "unresolved": 30
+          }
+        },
+        "session_view_counts": {
+          "ETH_evening": 1778,
+          "ETH_only": 6832,
+          "ETH_overnight": 2399,
+          "RTH": 0,
+          "RTH_only": 0,
+          "RTH_with_ETH_context": 0,
+          "full_session": 6832,
+          "post_RTH": 255,
+          "pre_RTH": 450
+        }
+      },
+      "30m": {
+        "entity_counts": {
+          "series_databento_es_front_unadjusted": 6712
+        },
+        "joined_observation_count": 6712,
+        "regime_field_counts": {
+          "gate_mode": {
+            "unresolved": 6712
+          },
+          "range_state": {
+            "compression": 1773,
+            "not_compression": 4910,
+            "unresolved": 29
+          },
+          "trend_state": {
+            "unresolved": 6712
+          },
+          "volatility_bucket": {
+            "high": 3381,
+            "low": 3301,
+            "unresolved": 30
+          }
+        },
+        "session_view_counts": {
+          "ETH_evening": 1758,
+          "ETH_only": 6712,
+          "ETH_overnight": 2399,
+          "RTH": 0,
+          "RTH_only": 0,
+          "RTH_with_ETH_context": 0,
+          "full_session": 6712,
+          "post_RTH": 155,
+          "pre_RTH": 450
+        }
+      },
+      "5m": {
+        "entity_counts": {
+          "series_databento_es_front_unadjusted": 6862
+        },
+        "joined_observation_count": 6862,
+        "regime_field_counts": {
+          "gate_mode": {
+            "unresolved": 6862
+          },
+          "range_state": {
+            "compression": 1883,
+            "not_compression": 4950,
+            "unresolved": 29
+          },
+          "trend_state": {
+            "unresolved": 6862
+          },
+          "volatility_bucket": {
+            "high": 3388,
+            "low": 3444,
+            "unresolved": 30
+          }
+        },
+        "session_view_counts": {
+          "ETH_evening": 1783,
+          "ETH_only": 6862,
+          "ETH_overnight": 2399,
+          "RTH": 0,
+          "RTH_only": 0,
+          "RTH_with_ETH_context": 0,
+          "full_session": 6862,
+          "post_RTH": 280,
+          "pre_RTH": 450
+        }
+      }
+    },
+    "fragile_horizons": {
+      "1m": "diagnostic_only_no_locked_labelpack",
+      "3m": "diagnostic_only_no_locked_labelpack"
+    },
+    "instrument_value_coverage": {
+      "ES": 6866,
+      "NQ": 0,
+      "RTY": 0
+    },
+    "unresolved_primary_horizons": {
+      "15m": "no_registered_labelpack_in_locked_registry"
+    }
+  },
+  "dataset_source": "dsrc_databento_historical",
+  "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+  "feature_pack_count": 5,
+  "fragile_horizons": [
+    {
+      "horizon": "1m",
+      "promotion_basis_allowed": false,
+      "role": "diagnostic_only"
+    },
+    {
+      "horizon": "3m",
+      "promotion_basis_allowed": false,
+      "role": "diagnostic_only"
+    }
+  ],
+  "generated_at_utc": "2026-06-07T18:18:58Z",
+  "label_pack_count": 3,
+  "phase_id": "FUTCORE-P18",
+  "primary_horizons": [
+    "5m",
+    "10m",
+    "15m",
+    "30m"
+  ],
+  "promotion_performed": false,
+  "raw_or_heavy_data_embedded": false,
+  "runtime_tools_only": true,
+  "schema": "alpha_system.research.diagnostics_report.regime.summary.v1",
+  "session_views": [
+    "full_session",
+    "RTH_only",
+    "ETH_only",
+    "ETH_evening",
+    "ETH_overnight",
+    "pre_RTH",
+    "RTH",
+    "post_RTH",
+    "RTH_with_ETH_context"
+  ],
+  "studies": [
+    {
+      "alpha_spec_id": "aspec_eb962fc197eaf3955c5e4711",
+      "exact_gate_activation_status": "INCONCLUSIVE_MISSING_LOCKED_TRENDINESS_AND_ACTIVATION_BINDING",
+      "factor_report_status": "DIAGNOSTICS_COMPLETE",
+      "joined_observation_count_5m": 6862,
+      "joined_observation_count_all_resolved_horizons": 20406,
+      "label_report_status": "DIAGNOSTICS_FAILED",
+      "momentum_signal_probe_status": "REJECTED",
+      "regime_split_status": "INCONCLUSIVE",
+      "report_ref_count": 6,
+      "resolved_primary_horizons": [
+        "5m",
+        "10m",
+        "30m"
+      ],
+      "reversion_signal_probe_status": "REJECTED",
+      "runtime_tool_status": "INCONCLUSIVE",
+      "source_alpha_spec": "FUTCORE-P09_regime_01",
+      "study_spec_id": "sspec_267cc052e37668339c38d179",
+      "unresolved_primary_horizons": [
+        "15m"
+      ]
+    }
+  ],
+  "study_count": 1,
+  "zero_cost": {
+    "note": "zero_cost is carried as policy context only and is not used as a continuation basis.",
+    "profile": "zero_cost",
+    "promotion_basis_allowed": false,
+    "role": "diagnostic_only_contrast",
+    "runtime_cost_profiles_executed": [
+      "base",
+      "stress_1",
+      "stress_2",
+      "double_cost"
+    ]
+  }
+}

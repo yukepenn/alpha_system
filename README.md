@@ -7,6 +7,24 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is at
+`FUTCORE-P18` of the 31-phase pilot campaign in the `family_diagnostics` gate.
+This snapshot records the regime momentum/reversion diagnostics point in the
+serial diagnostics merge queue.
+
+Active / next work: the active phase is `FUTCORE-P18` - Regime
+Momentum/Reversion Diagnostics. The next serial diagnostics phase is
+`FUTCORE-P19` - Liquidity Sweep / PA Diagnostics, with `FUTCORE-P21`
+consolidation after the diagnostics wave completes. Ralph continues to own
+authoritative validation, review routing, staging, PR, CI, merge, and done-check
+actions.
+
+New durable surfaces in this `FUTCORE-P18` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/regime/`
+- `docs/futures_core_alpha_pilot/diagnostics/regime.md`
+
+`FUTCORE-P18` adds no new commands, data readers, agent runners, feature value
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
 through `FUTCORE-P17` of the 31-phase pilot, VWAP / Session Diagnostics, in the
 `family_diagnostics` gate. This snapshot records value-free VWAP/session
@@ -60,9 +78,10 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-Artifact discipline is unchanged: explicit staging only; `runs/**` is
-local-only and never committed; raw/canonical data, feature or label values,
-provider responses, heavy artifacts, local databases, logs, caches, secrets, and
+Artifact discipline is unchanged: runtime-tool-surface-only diagnostics,
+explicit staging only, and value-free evidence; `runs/**` is local-only and
+never committed; raw/canonical data, feature or label values, provider
+responses, heavy artifacts, local databases, logs, caches, secrets, and
 credentials are never committed.
 
 The pilot makes no profitability or tradability claim. Research outputs are
