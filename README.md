@@ -7,6 +7,27 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
+Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is advancing
+through the `family_diagnostics` gate. This snapshot records `FUTCORE-P17` of
+the 31-phase campaign: value-free VWAP/session diagnostics for the approved
+P14 StudySpecs using Research Runtime tool results only.
+
+Active / next work: the `FUTCORE-P16`...`FUTCORE-P20` family diagnostics wave
+remains in progress. Ralph continues to own authoritative validation, review
+routing, serial merge handling, staging, PR, CI, merge, and done-check actions.
+
+New durable surfaces through this `FUTCORE-P17` snapshot:
+
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
+- `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
+
+`FUTCORE-P17` records per-session and session x horizon diagnostics for the
+VWAP/session family. The locked 5m LabelPack resolves; the 10m, 15m, and 30m
+horizon cells remain unresolved label-pack cells in this phase. VWAP-specific
+signal-probe diagnostics are inconclusive because no locked running VWAP,
+completed ETH VWAP, or VWAP trigger FeaturePack resolves. No new commands,
+source primitives, feature values, label values, data readers, agent runners,
+or broker surfaces are added.
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has entered the
 `family_diagnostics` gate. `FUTCORE-P16` adds value-free cross-market
 diagnostics reports for the four approved cross-market StudySpecs.
