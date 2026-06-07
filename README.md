@@ -8,23 +8,23 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P21` of the 31-phase pilot campaign in the
-`consolidation_and_audits` gate. This snapshot records the value-free cost
-stress and thin-session stress consolidation.
+through `FUTCORE-P22` of the 31-phase pilot campaign in the
+`consolidation_and_audits` gate. This snapshot records the value-free
+session / horizon / regime matrix consolidation.
 
-Active / next work: the next phase is `FUTCORE-P22` - Session / Horizon /
-Regime Matrix Consolidation. Ralph continues to own authoritative validation,
-review routing, staging, PR, CI, merge, and done-check actions.
+Active / next work: the next phase is `FUTCORE-P23` - No-Lookahead / Label
+Leakage / Same-Bar Optimism Audit. Ralph continues to own authoritative
+validation, review routing, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P21` snapshot:
+New durable surfaces in this `FUTCORE-P22` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/cost/cost_sensitivity_report.md`
-- `docs/futures_core_alpha_pilot/COST_SENSITIVITY.md`
+- `research/futures_core_alpha_pilot_v1/matrix/session_horizon_regime_matrix.md`
+- `docs/futures_core_alpha_pilot/MATRIX.md`
 
-`FUTCORE-P21` adds no new commands, data readers, agent runners, feature value
-data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
-or deployment behavior. `zero_cost` remains diagnostic-only and is never a
-promotion basis.
+`FUTCORE-P22` adds no new commands, data readers, agent runners, primitives,
+feature value data, label value data, broker surfaces, live surfaces,
+paper-trading surfaces, or deployment behavior. `zero_cost` remains
+diagnostic-only and is never a promotion basis.
 
 ## Source Of Truth
 
