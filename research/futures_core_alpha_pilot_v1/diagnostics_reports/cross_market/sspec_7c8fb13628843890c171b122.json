@@ -13,23 +13,23 @@
   },
   "campaign_id": "ALPHA_FUTURES_CORE_ALPHA_PILOT_V1",
   "cross_market_alignment": {
-    "availability_statement": "Each supplied observation carried event_ts and available_ts; the runtime created no aligned ES/NQ/RTY snapshot because NQ and RTY observations were absent in the locked materialized packs. No cross-instrument value was used before its own available_ts, and no missing leg was forward-filled.",
+    "availability_statement": "All supplied ES observations carried event_ts and available_ts. The locked materialized packs did not supply NQ or RTY value rows for this diagnostics view, so the runtime created no aligned ES/NQ/RTY snapshot and did not infer or forward-fill missing instruments.",
     "coverage_summary": {
       "aligned_snapshot_count": 0,
       "canonical_input_view_count": 3,
       "dataset_lifecycle_accepted": true,
       "duplicate_aligned_count": 0,
-      "feature_pack_count": 2,
-      "input_count": 6862,
+      "feature_pack_count": 4,
+      "input_count": 6865,
       "label_only_field_count": 0,
-      "label_pack_count": 1,
+      "label_pack_count": 3,
       "max_symbol_missingness_rate": 1.0,
       "min_symbol_coverage_ratio": 0.0,
       "missing_available_ts_count": 0,
       "missing_metric_count": 0,
       "observed_required_symbol_count": 1,
       "required_symbol_count": 3,
-      "timestamp_count": 6862,
+      "timestamp_count": 6865,
       "unavailable_at_decision_count": 0
     },
     "lead_lag_summaries": [
@@ -138,6 +138,32 @@
         "zero_lag_rank": null
       }
     ],
+    "pair_timestamp_alignment": [
+      {
+        "aligned_snapshot_count": 0,
+        "anchor_symbol": "ES",
+        "pair_id": "ES_NQ",
+        "peer_symbol": "NQ",
+        "timestamp_alignment_status": "NO_ALIGNED_ES_NQ_RTY_SNAPSHOT",
+        "zero_lag_pearson": null
+      },
+      {
+        "aligned_snapshot_count": 0,
+        "anchor_symbol": "ES",
+        "pair_id": "ES_RTY",
+        "peer_symbol": "RTY",
+        "timestamp_alignment_status": "NO_ALIGNED_ES_NQ_RTY_SNAPSHOT",
+        "zero_lag_pearson": null
+      },
+      {
+        "aligned_snapshot_count": 0,
+        "anchor_symbol": "NQ",
+        "pair_id": "NQ_RTY",
+        "peer_symbol": "RTY",
+        "timestamp_alignment_status": "NO_ALIGNED_ES_NQ_RTY_SNAPSHOT",
+        "zero_lag_pearson": null
+      }
+    ],
     "quality_summary": {
       "diagnostic_complete": false,
       "failing_gate_count": 3,
@@ -175,8 +201,8 @@
       }
     ],
     "runtime_report_ref": {
-      "report_hash": "81250689c0cc5ff18c9b356a1afafae3e09f0a13103b2cd3ec1729231aa1d867",
-      "report_id": "dreport_81250689c0cc5ff18c9b356a",
+      "report_hash": "79bf6ac0f13a61da6a5f2f1c367c9a844f4a8c83355b54eac134fc6ed8893613",
+      "report_id": "dreport_79bf6ac0f13a61da6a5f2f1c",
       "report_kind": "cross_market_diagnostics_summary"
     },
     "runtime_status": "REJECTED",
@@ -185,8 +211,8 @@
       {
         "aligned_snapshot_count": 0,
         "coverage_ratio": 0.0,
-        "first_event_ts": "2024-01-02T00:01:00Z",
-        "input_count": 6862,
+        "first_event_ts": "2024-01-02T00:02:00Z",
+        "input_count": 6865,
         "last_event_ts": "2024-01-08T23:55:00Z",
         "missing_timestamp_count": 0,
         "missingness_rate": 0.0,
@@ -199,7 +225,7 @@
         "first_event_ts": null,
         "input_count": 0,
         "last_event_ts": null,
-        "missing_timestamp_count": 6862,
+        "missing_timestamp_count": 6865,
         "missingness_rate": 1.0,
         "symbol": "NQ",
         "unavailable_timestamp_count": 0
@@ -210,10 +236,66 @@
         "first_event_ts": null,
         "input_count": 0,
         "last_event_ts": null,
-        "missing_timestamp_count": 6862,
+        "missing_timestamp_count": 6865,
         "missingness_rate": 1.0,
         "symbol": "RTY",
         "unavailable_timestamp_count": 0
+      }
+    ],
+    "symbol_session_missingness_splits": [
+      {
+        "coverage_ratio": 1.0,
+        "missing_timestamp_count": 0,
+        "missingness_rate": 0.0,
+        "observed_timestamp_count": 6865,
+        "session_view": "full_session",
+        "symbol": "ES",
+        "timestamp_count": 6865
+      },
+      {
+        "coverage_ratio": 0.0,
+        "missing_timestamp_count": 6865,
+        "missingness_rate": 1.0,
+        "observed_timestamp_count": 0,
+        "session_view": "full_session",
+        "symbol": "NQ",
+        "timestamp_count": 6865
+      },
+      {
+        "coverage_ratio": 0.0,
+        "missing_timestamp_count": 6865,
+        "missingness_rate": 1.0,
+        "observed_timestamp_count": 0,
+        "session_view": "full_session",
+        "symbol": "RTY",
+        "timestamp_count": 6865
+      },
+      {
+        "coverage_ratio": 1.0,
+        "missing_timestamp_count": 0,
+        "missingness_rate": 0.0,
+        "observed_timestamp_count": 6865,
+        "session_view": "ETH_or_non_RTH",
+        "symbol": "ES",
+        "timestamp_count": 6865
+      },
+      {
+        "coverage_ratio": 0.0,
+        "missing_timestamp_count": 6865,
+        "missingness_rate": 1.0,
+        "observed_timestamp_count": 0,
+        "session_view": "ETH_or_non_RTH",
+        "symbol": "NQ",
+        "timestamp_count": 6865
+      },
+      {
+        "coverage_ratio": 0.0,
+        "missing_timestamp_count": 6865,
+        "missingness_rate": 1.0,
+        "observed_timestamp_count": 0,
+        "session_view": "ETH_or_non_RTH",
+        "symbol": "RTY",
+        "timestamp_count": 6865
       }
     ],
     "timestamp_sync": {
@@ -222,23 +304,28 @@
       "max_timestamp_skew_seconds": null,
       "mean_timestamp_skew_seconds": null,
       "synchronized_snapshot_count": 0,
-      "timestamp_count": 6862,
+      "timestamp_count": 6865,
       "timestamp_sync_ratio": null
     }
   },
   "family_requirement_coverage": {
-    "beta_residual": "attempted_by_pair_summary_rejected_no_aligned_es_nq_rty_snapshot",
-    "confirmation_divergence": "attempted_by_pair_summary_rejected_no_aligned_es_nq_rty_snapshot",
-    "lead_lag": "attempted_by_runtime_rejected_no_aligned_es_nq_rty_snapshot",
-    "rotation": "attempted_by_regime_and_pair_summaries_rejected_no_aligned_es_nq_rty_snapshot",
-    "study_category": "lead_lag"
+    "beta_residual": "attempted_by_pair_summary; residual proxies null because no aligned ES/NQ/RTY snapshot exists",
+    "confirmation_divergence": "attempted_by_pair_summary; divergence or confirmation cannot be summarized without aligned cross-market legs",
+    "lead_lag": "attempted_by_runtime; rejected because no aligned ES/NQ/RTY snapshot exists",
+    "rotation": "attempted_by_pair_and_regime_summary; regime summaries empty because no aligned ES/NQ/RTY snapshot exists",
+    "study_category": "confirmation_divergence"
   },
   "locked_inputs": {
     "dataset_version_lock": {
       "bar_size": "1 min",
       "code_hash": "87fb8de7760c3635fb883948971bc12ee21ed64562713975bb20028ae3f92139",
       "config_hash": "206bc27869bcedfde89e483828534c5778bb72cf7e66b69a9d3304c7e7f03b5b",
-      "coverage_report_hash_status": "P03 registry record returned null; P13 carries symbol-level coverage as an audit observation.",
+      "contract_universe": [
+        "contract_databento_es_v_0_front",
+        "contract_databento_nq_v_0_front",
+        "contract_databento_rty_v_0_front"
+      ],
+      "coverage_report_hash_status": "P03 registry record did not expose coverage_report_hash; symbol-level row coverage remains a downstream diagnostic audit item.",
       "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
       "manifest_hash": "abbf9ebbecfe97f2c4b31900d9ae44421549e08a65e90ec64e235a958c1d2d31",
       "partition": "development_partition",
@@ -249,137 +336,173 @@
         "NQ",
         "RTY"
       ],
+      "time_span": "2024-01-01T00:00:00+00:00 to 2025-01-01T00:00:00+00:00",
       "what_to_show": "TRADES"
     },
     "feature_pack_locks": [
       {
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
         "feature_id": "base_ohlcv_rth_flag",
         "feature_request_id": "freq_67991722245329f35c0fa612",
-        "feature_set_id": "fset_es_session_ctx_smoke",
-        "feature_set_version": "v1_rth_flag",
-        "feature_version_id": "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
-        "parquet_side_registry_resolved": true,
-        "partition_id": "development_partition",
-        "value_content_hash": "sha256:58c42ab7515299d64ea4f90348290e88e3510849b3f31490a22f5a56638c7705",
+        "feature_version_id": "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+        "kind": "feature",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "F1",
+        "value_content_hash": "sha256:29a64bad4966f696b1c18e72432ef2e5e00fff9ed767b6cd968493a7d4a6fa79",
         "value_schema_version": "alpha_system.features.materialization.v1",
-        "value_store_format": "dual"
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
       },
       {
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
         "feature_id": "base_ohlcv_session_minute",
-        "feature_request_id": "freq_76147d2e3318292d48004696",
-        "feature_set_id": "fset_es_session_ctx_smoke",
-        "feature_set_version": "v1_session_minute",
-        "feature_version_id": "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978",
-        "parquet_side_registry_resolved": true,
-        "partition_id": "development_partition",
-        "value_content_hash": "sha256:d953e7f4bd32998b0fc5d3db7e28b968dc25bf0896bc491b8fb5ba6442fc8278",
+        "feature_request_id": "freq_f7d4e9c2f4c60c5c25f15ce2",
+        "feature_version_id": "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+        "kind": "feature",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "F2",
+        "value_content_hash": "sha256:94430bbd52270daf8a7e043c9a0e1c45b98e1f84b0f9ff0439d7119ddb3ef0ad",
         "value_schema_version": "alpha_system.features.materialization.v1",
-        "value_store_format": "dual"
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
+      },
+      {
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "feature_id": "base_ohlcv_returns",
+        "feature_request_id": "freq_7644d195221963a725953a50",
+        "feature_version_id": "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "kind": "feature",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "F3",
+        "value_content_hash": "sha256:0a8d29b9284d85e5306d76e0482ce6925c8384e9bb28247dc9564be02360ed90",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
+      },
+      {
+        "available_ts_window": "2024-01-02T00:01:05+00:00 to 2024-01-09T00:00:05+00:00",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "feature_id": "base_ohlcv_log_returns",
+        "feature_request_id": "freq_658fe17db11d23540e4ed17d",
+        "feature_version_id": "fver_7ac2429f12ce6f7d494b7c0ab968446f2455da51863ebe471ddd8a224b6fa9f9",
+        "kind": "feature",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "F4",
+        "value_content_hash": "sha256:5958b475409b9275c5982935de6d3487d2c01fe6845f31eee5781b3f1f0d812a",
+        "value_schema_version": "alpha_system.features.materialization.v1",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
       }
     ],
     "label_pack_locks": [
       {
         "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "kind": "label",
+        "label_available_ts_window": "2024-01-02T00:06:05+00:00 to 2024-01-09T00:00:05+00:00",
         "label_id": "fwd_ret_5m",
         "label_spec_id": "lspec_cd6523694c850c9943b2067e",
         "label_version_id": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
-        "parquet_side_registry_resolved": true,
-        "partition_id": "development_partition",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "L5",
         "value_content_hash": "sha256:abb5f53c7ede5f359a79541b237d71d44e79304ebbb6333a101a3c0588e32a9f",
         "value_schema_version": "alpha_system.labels.materialization.v1",
-        "value_store_format": "dual"
-      }
-    ],
-    "p15_gap_refs_carried_by_studyspec": [
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
+      },
       {
-        "deferred_binding": "No P15 primitive gap blocks the locked 5m/session-context baseline; D1 coverage and cross-instrument availability remain downstream audit items.",
-        "gap_id": "not_applicable_to_locked_baseline"
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "kind": "label",
+        "label_available_ts_window": "2024-01-02T00:11:05+00:00 to 2024-01-09T00:00:05+00:00",
+        "label_id": "fwd_ret_10m",
+        "label_spec_id": "lspec_15c26c4368bb432b0b0dc6e9",
+        "label_version_id": "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "L10",
+        "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+        "value_schema_version": "alpha_system.labels.materialization.v1",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "kind": "label",
+        "label_available_ts_window": "2024-01-02T00:31:05+00:00 to 2024-01-09T00:00:05+00:00",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_65ba5b5c9b4fa37e0e42b6ef",
+        "label_version_id": "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a",
+        "parquet_path_embedded": false,
+        "parquet_resolved_by_registry": true,
+        "partition": "development_partition",
+        "primitive_ref": "L30",
+        "value_content_hash": "sha256:d691193911a2f72a821da02846dbc3bab377ad810b67b0761de72b83bbac1489",
+        "value_schema_version": "alpha_system.labels.materialization.v1",
+        "value_store_format": "dual; research-scale consumers must use the Parquet side of the P03 lock."
       }
     ],
-    "study_input_pack_refs": {
-      "alpha_spec_id": "aspec_0ebd90cecfd475607685b445",
-      "feature_request_ids": [
-        "freq_67991722245329f35c0fa612",
-        "freq_76147d2e3318292d48004696"
-      ],
-      "label_spec_ids": [
-        "lspec_cd6523694c850c9943b2067e"
-      ],
-      "schema_ref": "alpha_system.governance.study_input_pack.StudyInputPack",
-      "validation_scope": "handle-only pack binding; no registry row, Parquet row, feature value, or label value is embedded"
+    "p15_minimal_primitives": {
+      "cross_market_derived_state_locked_parquet_feature_pack_present": false,
+      "cross_market_feature_request_record_present": true,
+      "fwd_ret_15m_label_spec_present": true,
+      "fwd_ret_15m_locked_parquet_label_pack_present": false
     }
   },
   "observation_summary": {
-    "cross_market_required_symbols": [
-      "ES",
-      "NQ",
-      "RTY"
+    "available_locked_label_ids": [
+      "fwd_ret_10m",
+      "fwd_ret_30m",
+      "fwd_ret_5m"
     ],
+    "factor_label_joined_rows": 20403,
+    "feature_rows_read_in_memory": 6865,
+    "label_rows_read_in_memory": 20406,
     "missing_required_symbols": [
       "NQ",
       "RTY"
     ],
-    "observation_basis": "registry_resolved_parquet_pack_summaries_only_no_rows_embedded",
     "observed_required_symbols": [
       "ES"
     ],
-    "pack_row_counts": {
-      "features": {
-        "base_ohlcv_rth_flag": {
-          "entities": {
-            "series_databento_es_front_unadjusted": 6896
-          },
-          "row_count": 6896,
-          "symbols": {
-            "ES": 6896
-          }
-        },
-        "base_ohlcv_session_minute": {
-          "entities": {
-            "series_databento_es_front_unadjusted": 6896
-          },
-          "row_count": 6896,
-          "symbols": {
-            "ES": 6896
-          }
-        }
-      },
-      "joined_feature_label_pair_count": 6862,
-      "joined_symbols": {
-        "ES": 6862
-      },
-      "labels": {
-        "fwd_ret_5m": {
-          "entities": {
-            "series_databento_es_front_unadjusted": 6862
-          },
-          "row_count": 6862,
-          "symbols": {
-            "ES": 6862
-          }
-        }
-      }
+    "observed_symbol_counts": {
+      "ES": 6865
+    },
+    "primary_horizon": "30m",
+    "primary_horizon_locked_label_pack_present": true,
+    "research_scale_value_source": "registry_resolved_parquet",
+    "row_level_values_embedded": false,
+    "selected_feature_id": "base_ohlcv_returns",
+    "session_view_counts": {
+      "ETH_or_non_RTH": 6865
     }
   },
   "phase_id": "FUTCORE-P16",
   "promotion_decision_made": false,
   "raw_or_heavy_data_embedded": false,
-  "report_hash": "072173f6085181a0a68784a6cb00571855d1609b2221ed5e6f38428b968cfd1b",
-  "report_id": "cmdiag_5d603e0cc6d1b3b9ec4c290c",
+  "report_hash": "1827dfa0e17dcc488f44ac712fddabee1488b1742ea8fedbc3627750636f0851",
+  "report_id": "cmdiag_1827dfa0e17dcc488f44ac71",
   "runtime_input_resolution": {
-    "dataset_resolver_surface": "alpha_system.data.foundation.version_registry.resolve_dataset_version",
     "entry_reason_codes": [
       "runtime_entry_references_resolved"
     ],
     "entry_status": "INPUTS_RESOLVED",
-    "pack_resolver_surface": "alpha_system.runtime.input_resolver.FeatureLabelPackResolver",
-    "resolver_reason_codes": [
+    "registry_paths_embedded": false,
+    "registry_resolved_dataset_version": true,
+    "registry_resolved_feature_packs": 4,
+    "registry_resolved_label_packs": 3,
+    "research_scale_value_source": "registry_resolved_parquet",
+    "resolution_reason_codes": [
       "runtime_input_pack_resolved"
     ],
-    "resolver_status": "INPUTS_RESOLVED",
-    "resolver_surface": "alpha_system.runtime.input_resolver.resolve_runtime_input_pack"
+    "resolution_status": "INPUTS_RESOLVED",
+    "resolved_input_pack": true
   },
   "runtime_run_summary": {
     "artifacts": [],
@@ -388,8 +511,8 @@
       "bbo_unavailable_fallback_used": true,
       "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
       "diagnostics_report_ref": {
-        "report_hash": "64606b2a8065ba0c23ff5496148af1c73c7ec18dd8b15f944c86f88d5c8012ad",
-        "report_id": "dreport_64606b2a8065ba0c23ff5496",
+        "report_hash": "aaa40f6c751a15fdffa514ae73de9d4d36a848dbee8e0772c177e47a097c277a",
+        "report_id": "dreport_aaa40f6c751a15fdffa514ae",
         "report_kind": "cost_sensitivity_report"
       },
       "double_cost_combined_cost_slippage_proxy": "0",
@@ -414,17 +537,17 @@
         "cross_market_diagnostics_summary_coverage_canonical_input_view_count": 3,
         "cross_market_diagnostics_summary_coverage_dataset_lifecycle_accepted": true,
         "cross_market_diagnostics_summary_coverage_duplicate_aligned_count": 0,
-        "cross_market_diagnostics_summary_coverage_feature_pack_count": 2,
-        "cross_market_diagnostics_summary_coverage_input_count": 6862,
+        "cross_market_diagnostics_summary_coverage_feature_pack_count": 4,
+        "cross_market_diagnostics_summary_coverage_input_count": 6865,
         "cross_market_diagnostics_summary_coverage_label_only_field_count": 0,
-        "cross_market_diagnostics_summary_coverage_label_pack_count": 1,
+        "cross_market_diagnostics_summary_coverage_label_pack_count": 3,
         "cross_market_diagnostics_summary_coverage_max_symbol_missingness_rate": 1.0,
         "cross_market_diagnostics_summary_coverage_min_symbol_coverage_ratio": 0.0,
         "cross_market_diagnostics_summary_coverage_missing_available_ts_count": 0,
         "cross_market_diagnostics_summary_coverage_missing_metric_count": 0,
         "cross_market_diagnostics_summary_coverage_observed_required_symbol_count": 1,
         "cross_market_diagnostics_summary_coverage_required_symbol_count": 3,
-        "cross_market_diagnostics_summary_coverage_timestamp_count": 6862,
+        "cross_market_diagnostics_summary_coverage_timestamp_count": 6865,
         "cross_market_diagnostics_summary_coverage_unavailable_at_decision_count": 0,
         "cross_market_diagnostics_summary_diagnostics_family": "cross_market",
         "cross_market_diagnostics_summary_quality_gate_count": 8,
@@ -432,28 +555,28 @@
         "cross_market_diagnostics_summary_status": "REJECTED",
         "factor_diagnostics_summary_coverage_available_ts_missing_count": 0,
         "factor_diagnostics_summary_coverage_coverage_ratio": 1.0,
-        "factor_diagnostics_summary_coverage_horizon_count": 1,
-        "factor_diagnostics_summary_coverage_input_count": 6862,
+        "factor_diagnostics_summary_coverage_horizon_count": 3,
+        "factor_diagnostics_summary_coverage_input_count": 20403,
         "factor_diagnostics_summary_coverage_label_available_ts_missing_count": 0,
         "factor_diagnostics_summary_coverage_missing_factor_count": 0,
         "factor_diagnostics_summary_coverage_missing_label_count": 0,
         "factor_diagnostics_summary_coverage_missingness_rate": 0.0,
-        "factor_diagnostics_summary_coverage_numeric_factor_count": 6862,
-        "factor_diagnostics_summary_coverage_outlier_count": 0,
-        "factor_diagnostics_summary_coverage_outlier_rate": 0.0,
-        "factor_diagnostics_summary_coverage_usable_pair_count": 6862,
+        "factor_diagnostics_summary_coverage_numeric_factor_count": 20403,
+        "factor_diagnostics_summary_coverage_outlier_count": 300,
+        "factor_diagnostics_summary_coverage_outlier_rate": 0.014703720041170416,
+        "factor_diagnostics_summary_coverage_usable_pair_count": 20403,
         "factor_diagnostics_summary_diagnostics_family": "factor",
         "factor_diagnostics_summary_quality_gate_count": 7,
         "factor_diagnostics_summary_rejection_reason_count": 0,
         "factor_diagnostics_summary_status": "DIAGNOSTICS_COMPLETE",
         "label_diagnostics_summary_coverage_audit_label_count": 0,
         "label_diagnostics_summary_coverage_bbo_quarantined_count": 0,
-        "label_diagnostics_summary_coverage_label_pack_count": 1,
+        "label_diagnostics_summary_coverage_label_pack_count": 3,
         "label_diagnostics_summary_coverage_missing_bbo_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_rate": 0.0,
         "label_diagnostics_summary_coverage_partition_overlap_count": 0,
-        "label_diagnostics_summary_coverage_sample_count": 6862,
+        "label_diagnostics_summary_coverage_sample_count": 20406,
         "label_diagnostics_summary_coverage_session_overlap_count": 0,
         "label_diagnostics_summary_coverage_shared_dataset_ref_count": 0,
         "label_diagnostics_summary_coverage_shared_partition_ref_count": 0,
@@ -475,7 +598,6 @@
         "Factor diagnostics are descriptive Tier 0 summaries; a diagnostic PASS is not alpha validation.",
         "The report stores scalar summaries only and does not embed feature or label observations.",
         "IC, RankIC, decay, and bucket summaries are delegated to alpha_system.research.ic and alpha_system.research.buckets.",
-        "Decay summary has fewer than two populated horizons.",
         "Descriptive label diagnostics only; quality gates are not promotion decisions.",
         "The runtime summarizes supplied diagnostics and references; it does not materialize labels.",
         "Coverage and leakage results depend on upstream registered label audits and input resolution.",
@@ -517,59 +639,59 @@
         "factor_diagnostics_summary_quality_bucket_direction": "mixed",
         "factor_diagnostics_summary_quality_bucket_is_monotonic": false,
         "factor_diagnostics_summary_quality_bucket_populated_count": 5,
-        "factor_diagnostics_summary_quality_bucket_rank_correlation": 0.9008083051001438,
+        "factor_diagnostics_summary_quality_bucket_rank_correlation": -0.023184489730525223,
         "factor_diagnostics_summary_quality_bucket_sign_changes": 1,
         "factor_diagnostics_summary_quality_decay_first_horizon_seconds": 300,
-        "factor_diagnostics_summary_quality_decay_first_pearson_ic": 0.06812453325709363,
-        "factor_diagnostics_summary_quality_decay_horizon_count": 1,
-        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": 300,
-        "factor_diagnostics_summary_quality_decay_last_pearson_ic": 0.06812453325709363,
-        "factor_diagnostics_summary_quality_decay_slope_per_second": null,
+        "factor_diagnostics_summary_quality_decay_first_pearson_ic": 0.004891532579693796,
+        "factor_diagnostics_summary_quality_decay_horizon_count": 3,
+        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": 1800,
+        "factor_diagnostics_summary_quality_decay_last_pearson_ic": 0.011532962381905973,
+        "factor_diagnostics_summary_quality_decay_slope_per_second": 4.427619868141451e-06,
         "factor_diagnostics_summary_quality_diagnostic_pass": true,
         "factor_diagnostics_summary_quality_failing_gate_count": 0,
-        "factor_diagnostics_summary_quality_ic_sample_count": 6862,
+        "factor_diagnostics_summary_quality_ic_sample_count": 20403,
         "factor_diagnostics_summary_quality_inconclusive_gate_count": 0,
-        "factor_diagnostics_summary_quality_pearson_ic": 0.06812453325709363,
+        "factor_diagnostics_summary_quality_pearson_ic": 0.0085232206080691,
         "factor_diagnostics_summary_quality_quality_gate_count": 7,
-        "factor_diagnostics_summary_quality_rank_ic": 0.057165585030057205,
-        "factor_diagnostics_summary_quality_tail_expectancy": 7.058473358553977e-05,
-        "factor_diagnostics_summary_quality_warning_gate_count": 1,
+        "factor_diagnostics_summary_quality_rank_ic": -0.006759530971826968,
+        "factor_diagnostics_summary_quality_tail_expectancy": -1.5529377813235284e-05,
+        "factor_diagnostics_summary_quality_warning_gate_count": 0,
         "label_diagnostics_summary_quality_class_count": 3,
         "label_diagnostics_summary_quality_cost_model_declared_count": 0,
         "label_diagnostics_summary_quality_diagnostic_complete": false,
         "label_diagnostics_summary_quality_failing_gate_count": 2,
         "label_diagnostics_summary_quality_gate_count": 7,
-        "label_diagnostics_summary_quality_horizon_count": 1,
+        "label_diagnostics_summary_quality_horizon_count": 3,
         "label_diagnostics_summary_quality_inconclusive_gate_count": 0,
         "label_diagnostics_summary_quality_label_available_ts_valid": true,
         "label_diagnostics_summary_quality_mae_sample_count": 0,
-        "label_diagnostics_summary_quality_majority_class_share": 0.4675021859516176,
+        "label_diagnostics_summary_quality_majority_class_share": 0.4856414779966676,
         "label_diagnostics_summary_quality_mfe_sample_count": 0,
-        "label_diagnostics_summary_quality_observed_outcome_count": 6862,
+        "label_diagnostics_summary_quality_observed_outcome_count": 20406,
         "label_diagnostics_summary_quality_path_ambiguous_count": 0,
         "label_diagnostics_summary_quality_rejection_reason_count": 2,
-        "label_diagnostics_summary_quality_sample_count": 6862,
+        "label_diagnostics_summary_quality_sample_count": 20406,
         "report_count": 4
       },
       "report_refs": [
         {
-          "report_hash": "81250689c0cc5ff18c9b356a1afafae3e09f0a13103b2cd3ec1729231aa1d867",
-          "report_id": "dreport_81250689c0cc5ff18c9b356a",
+          "report_hash": "79bf6ac0f13a61da6a5f2f1c367c9a844f4a8c83355b54eac134fc6ed8893613",
+          "report_id": "dreport_79bf6ac0f13a61da6a5f2f1c",
           "report_kind": "cross_market_diagnostics_summary"
         },
         {
-          "report_hash": "f8c42210360f4418a6c4691e1f3db11ef0afab39cad951b87559aaf6330ea468",
-          "report_id": "dreport_f8c42210360f4418a6c4691e",
+          "report_hash": "140a5e175d836d481fddfe6fb67b133a44419a2f7ff5091ef7e5070a6092df14",
+          "report_id": "dreport_140a5e175d836d481fddfe6f",
           "report_kind": "factor_diagnostics_summary"
         },
         {
-          "report_hash": "c185baf0a0178c09d88ff7c41a7a053514a7c74d3b6fa795f5d943e473ad2184",
-          "report_id": "dreport_c185baf0a0178c09d88ff7c4",
+          "report_hash": "5475176823eb1fde12cad426e777bab84f109d739aeae47b6ccfd4263d4931d1",
+          "report_id": "dreport_5475176823eb1fde12cad426",
           "report_kind": "label_diagnostics_summary"
         },
         {
-          "report_hash": "64606b2a8065ba0c23ff5496148af1c73c7ec18dd8b15f944c86f88d5c8012ad",
-          "report_id": "dreport_64606b2a8065ba0c23ff5496",
+          "report_hash": "aaa40f6c751a15fdffa514ae73de9d4d36a848dbee8e0772c177e47a097c277a",
+          "report_id": "dreport_aaa40f6c751a15fdffa514ae",
           "report_kind": "cost_sensitivity_report"
         }
       ]
@@ -623,35 +745,39 @@
         "decision_state": "REJECTED",
         "message": "Cost stress input count is below the configured descriptive minimum.",
         "source_code": "low_sample",
-        "stage": "diagnostics"
+        "stage": "cost_stress"
       },
       {
         "code": "cost_fragile",
         "decision_state": "REJECTED",
         "message": "Primary threshold expectancy proxy is non-positive under double_cost.",
         "source_code": "double_cost_expectancy_non_positive",
-        "stage": "diagnostics"
+        "stage": "signal_probe"
       },
       {
         "code": "cost_fragile",
         "decision_state": "REJECTED",
         "message": "No declared threshold stayed positive under the double_cost proxy.",
         "source_code": "parameter_neighborhood_unstable",
-        "stage": "diagnostics"
+        "stage": "signal_probe"
       }
     ],
-    "run_id": "FUTCORE-P16_sspec_ac883ec0b962f4ae4f25e190",
+    "run_id": "FUTCORE-P16_sspec_7c8fb13628843890c171b122",
     "status": "REJECTED",
     "version_ids": {
       "code_version": "alpha_system_runtime_current",
       "config_version": "FUTCORE-P16_cross_market_diagnostics_v1",
       "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
       "feature_pack_ids": [
-        "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
-        "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978"
+        "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+        "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+        "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "fver_7ac2429f12ce6f7d494b7c0ab968446f2455da51863ebe471ddd8a224b6fa9f9"
       ],
       "label_pack_ids": [
-        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395"
+        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+        "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a"
       ]
     }
   },
@@ -662,8 +788,8 @@
       "bbo_unavailable_fallback_used": true,
       "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
       "diagnostics_report_ref": {
-        "report_hash": "64606b2a8065ba0c23ff5496148af1c73c7ec18dd8b15f944c86f88d5c8012ad",
-        "report_id": "dreport_64606b2a8065ba0c23ff5496",
+        "report_hash": "aaa40f6c751a15fdffa514ae73de9d4d36a848dbee8e0772c177e47a097c277a",
+        "report_id": "dreport_aaa40f6c751a15fdffa514ae",
         "report_kind": "cost_sensitivity_report"
       },
       "double_cost_combined_cost_slippage_proxy": "0",
@@ -688,17 +814,17 @@
         "cross_market_diagnostics_summary_coverage_canonical_input_view_count": 3,
         "cross_market_diagnostics_summary_coverage_dataset_lifecycle_accepted": true,
         "cross_market_diagnostics_summary_coverage_duplicate_aligned_count": 0,
-        "cross_market_diagnostics_summary_coverage_feature_pack_count": 2,
-        "cross_market_diagnostics_summary_coverage_input_count": 6862,
+        "cross_market_diagnostics_summary_coverage_feature_pack_count": 4,
+        "cross_market_diagnostics_summary_coverage_input_count": 6865,
         "cross_market_diagnostics_summary_coverage_label_only_field_count": 0,
-        "cross_market_diagnostics_summary_coverage_label_pack_count": 1,
+        "cross_market_diagnostics_summary_coverage_label_pack_count": 3,
         "cross_market_diagnostics_summary_coverage_max_symbol_missingness_rate": 1.0,
         "cross_market_diagnostics_summary_coverage_min_symbol_coverage_ratio": 0.0,
         "cross_market_diagnostics_summary_coverage_missing_available_ts_count": 0,
         "cross_market_diagnostics_summary_coverage_missing_metric_count": 0,
         "cross_market_diagnostics_summary_coverage_observed_required_symbol_count": 1,
         "cross_market_diagnostics_summary_coverage_required_symbol_count": 3,
-        "cross_market_diagnostics_summary_coverage_timestamp_count": 6862,
+        "cross_market_diagnostics_summary_coverage_timestamp_count": 6865,
         "cross_market_diagnostics_summary_coverage_unavailable_at_decision_count": 0,
         "cross_market_diagnostics_summary_diagnostics_family": "cross_market",
         "cross_market_diagnostics_summary_quality_gate_count": 8,
@@ -706,28 +832,28 @@
         "cross_market_diagnostics_summary_status": "REJECTED",
         "factor_diagnostics_summary_coverage_available_ts_missing_count": 0,
         "factor_diagnostics_summary_coverage_coverage_ratio": 1.0,
-        "factor_diagnostics_summary_coverage_horizon_count": 1,
-        "factor_diagnostics_summary_coverage_input_count": 6862,
+        "factor_diagnostics_summary_coverage_horizon_count": 3,
+        "factor_diagnostics_summary_coverage_input_count": 20403,
         "factor_diagnostics_summary_coverage_label_available_ts_missing_count": 0,
         "factor_diagnostics_summary_coverage_missing_factor_count": 0,
         "factor_diagnostics_summary_coverage_missing_label_count": 0,
         "factor_diagnostics_summary_coverage_missingness_rate": 0.0,
-        "factor_diagnostics_summary_coverage_numeric_factor_count": 6862,
-        "factor_diagnostics_summary_coverage_outlier_count": 0,
-        "factor_diagnostics_summary_coverage_outlier_rate": 0.0,
-        "factor_diagnostics_summary_coverage_usable_pair_count": 6862,
+        "factor_diagnostics_summary_coverage_numeric_factor_count": 20403,
+        "factor_diagnostics_summary_coverage_outlier_count": 300,
+        "factor_diagnostics_summary_coverage_outlier_rate": 0.014703720041170416,
+        "factor_diagnostics_summary_coverage_usable_pair_count": 20403,
         "factor_diagnostics_summary_diagnostics_family": "factor",
         "factor_diagnostics_summary_quality_gate_count": 7,
         "factor_diagnostics_summary_rejection_reason_count": 0,
         "factor_diagnostics_summary_status": "DIAGNOSTICS_COMPLETE",
         "label_diagnostics_summary_coverage_audit_label_count": 0,
         "label_diagnostics_summary_coverage_bbo_quarantined_count": 0,
-        "label_diagnostics_summary_coverage_label_pack_count": 1,
+        "label_diagnostics_summary_coverage_label_pack_count": 3,
         "label_diagnostics_summary_coverage_missing_bbo_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_count": 0,
         "label_diagnostics_summary_coverage_missing_outcome_rate": 0.0,
         "label_diagnostics_summary_coverage_partition_overlap_count": 0,
-        "label_diagnostics_summary_coverage_sample_count": 6862,
+        "label_diagnostics_summary_coverage_sample_count": 20406,
         "label_diagnostics_summary_coverage_session_overlap_count": 0,
         "label_diagnostics_summary_coverage_shared_dataset_ref_count": 0,
         "label_diagnostics_summary_coverage_shared_partition_ref_count": 0,
@@ -749,7 +875,6 @@
         "Factor diagnostics are descriptive Tier 0 summaries; a diagnostic PASS is not alpha validation.",
         "The report stores scalar summaries only and does not embed feature or label observations.",
         "IC, RankIC, decay, and bucket summaries are delegated to alpha_system.research.ic and alpha_system.research.buckets.",
-        "Decay summary has fewer than two populated horizons.",
         "Descriptive label diagnostics only; quality gates are not promotion decisions.",
         "The runtime summarizes supplied diagnostics and references; it does not materialize labels.",
         "Coverage and leakage results depend on upstream registered label audits and input resolution.",
@@ -791,59 +916,59 @@
         "factor_diagnostics_summary_quality_bucket_direction": "mixed",
         "factor_diagnostics_summary_quality_bucket_is_monotonic": false,
         "factor_diagnostics_summary_quality_bucket_populated_count": 5,
-        "factor_diagnostics_summary_quality_bucket_rank_correlation": 0.9008083051001438,
+        "factor_diagnostics_summary_quality_bucket_rank_correlation": -0.023184489730525223,
         "factor_diagnostics_summary_quality_bucket_sign_changes": 1,
         "factor_diagnostics_summary_quality_decay_first_horizon_seconds": 300,
-        "factor_diagnostics_summary_quality_decay_first_pearson_ic": 0.06812453325709363,
-        "factor_diagnostics_summary_quality_decay_horizon_count": 1,
-        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": 300,
-        "factor_diagnostics_summary_quality_decay_last_pearson_ic": 0.06812453325709363,
-        "factor_diagnostics_summary_quality_decay_slope_per_second": null,
+        "factor_diagnostics_summary_quality_decay_first_pearson_ic": 0.004891532579693796,
+        "factor_diagnostics_summary_quality_decay_horizon_count": 3,
+        "factor_diagnostics_summary_quality_decay_last_horizon_seconds": 1800,
+        "factor_diagnostics_summary_quality_decay_last_pearson_ic": 0.011532962381905973,
+        "factor_diagnostics_summary_quality_decay_slope_per_second": 4.427619868141451e-06,
         "factor_diagnostics_summary_quality_diagnostic_pass": true,
         "factor_diagnostics_summary_quality_failing_gate_count": 0,
-        "factor_diagnostics_summary_quality_ic_sample_count": 6862,
+        "factor_diagnostics_summary_quality_ic_sample_count": 20403,
         "factor_diagnostics_summary_quality_inconclusive_gate_count": 0,
-        "factor_diagnostics_summary_quality_pearson_ic": 0.06812453325709363,
+        "factor_diagnostics_summary_quality_pearson_ic": 0.0085232206080691,
         "factor_diagnostics_summary_quality_quality_gate_count": 7,
-        "factor_diagnostics_summary_quality_rank_ic": 0.057165585030057205,
-        "factor_diagnostics_summary_quality_tail_expectancy": 7.058473358553977e-05,
-        "factor_diagnostics_summary_quality_warning_gate_count": 1,
+        "factor_diagnostics_summary_quality_rank_ic": -0.006759530971826968,
+        "factor_diagnostics_summary_quality_tail_expectancy": -1.5529377813235284e-05,
+        "factor_diagnostics_summary_quality_warning_gate_count": 0,
         "label_diagnostics_summary_quality_class_count": 3,
         "label_diagnostics_summary_quality_cost_model_declared_count": 0,
         "label_diagnostics_summary_quality_diagnostic_complete": false,
         "label_diagnostics_summary_quality_failing_gate_count": 2,
         "label_diagnostics_summary_quality_gate_count": 7,
-        "label_diagnostics_summary_quality_horizon_count": 1,
+        "label_diagnostics_summary_quality_horizon_count": 3,
         "label_diagnostics_summary_quality_inconclusive_gate_count": 0,
         "label_diagnostics_summary_quality_label_available_ts_valid": true,
         "label_diagnostics_summary_quality_mae_sample_count": 0,
-        "label_diagnostics_summary_quality_majority_class_share": 0.4675021859516176,
+        "label_diagnostics_summary_quality_majority_class_share": 0.4856414779966676,
         "label_diagnostics_summary_quality_mfe_sample_count": 0,
-        "label_diagnostics_summary_quality_observed_outcome_count": 6862,
+        "label_diagnostics_summary_quality_observed_outcome_count": 20406,
         "label_diagnostics_summary_quality_path_ambiguous_count": 0,
         "label_diagnostics_summary_quality_rejection_reason_count": 2,
-        "label_diagnostics_summary_quality_sample_count": 6862,
+        "label_diagnostics_summary_quality_sample_count": 20406,
         "report_count": 4
       },
       "report_refs": [
         {
-          "report_hash": "81250689c0cc5ff18c9b356a1afafae3e09f0a13103b2cd3ec1729231aa1d867",
-          "report_id": "dreport_81250689c0cc5ff18c9b356a",
+          "report_hash": "79bf6ac0f13a61da6a5f2f1c367c9a844f4a8c83355b54eac134fc6ed8893613",
+          "report_id": "dreport_79bf6ac0f13a61da6a5f2f1c",
           "report_kind": "cross_market_diagnostics_summary"
         },
         {
-          "report_hash": "f8c42210360f4418a6c4691e1f3db11ef0afab39cad951b87559aaf6330ea468",
-          "report_id": "dreport_f8c42210360f4418a6c4691e",
+          "report_hash": "140a5e175d836d481fddfe6fb67b133a44419a2f7ff5091ef7e5070a6092df14",
+          "report_id": "dreport_140a5e175d836d481fddfe6f",
           "report_kind": "factor_diagnostics_summary"
         },
         {
-          "report_hash": "c185baf0a0178c09d88ff7c41a7a053514a7c74d3b6fa795f5d943e473ad2184",
-          "report_id": "dreport_c185baf0a0178c09d88ff7c4",
+          "report_hash": "5475176823eb1fde12cad426e777bab84f109d739aeae47b6ccfd4263d4931d1",
+          "report_id": "dreport_5475176823eb1fde12cad426",
           "report_kind": "label_diagnostics_summary"
         },
         {
-          "report_hash": "64606b2a8065ba0c23ff5496148af1c73c7ec18dd8b15f944c86f88d5c8012ad",
-          "report_id": "dreport_64606b2a8065ba0c23ff5496",
+          "report_hash": "aaa40f6c751a15fdffa514ae73de9d4d36a848dbee8e0772c177e47a097c277a",
+          "report_id": "dreport_aaa40f6c751a15fdffa514ae",
           "report_kind": "cost_sensitivity_report"
         }
       ]
@@ -897,41 +1022,91 @@
         "decision_state": "REJECTED",
         "message": "Cost stress input count is below the configured descriptive minimum.",
         "source_code": "low_sample",
-        "stage": "diagnostics"
+        "stage": "cost_stress"
       },
       {
         "code": "cost_fragile",
         "decision_state": "REJECTED",
         "message": "Primary threshold expectancy proxy is non-positive under double_cost.",
         "source_code": "double_cost_expectancy_non_positive",
-        "stage": "diagnostics"
+        "stage": "signal_probe"
       },
       {
         "code": "cost_fragile",
         "decision_state": "REJECTED",
         "message": "No declared threshold stayed positive under the double_cost proxy.",
         "source_code": "parameter_neighborhood_unstable",
-        "stage": "diagnostics"
+        "stage": "signal_probe"
       }
     ],
-    "run_id": "FUTCORE-P16_sspec_ac883ec0b962f4ae4f25e190",
+    "run_id": "FUTCORE-P16_sspec_7c8fb13628843890c171b122",
     "status": "REJECTED",
     "version_ids": {
       "code_version": "alpha_system_runtime_current",
       "config_version": "FUTCORE-P16_cross_market_diagnostics_v1",
       "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
       "feature_pack_ids": [
-        "fver_c365f971fe0c25d435eed9233bc7caa30a07dd761f43c3f288316b3a74894b0f",
-        "fver_17dfceba75a9883d2f78fdca07ebd4f59a40c5e98d9d5503d5a853395eedd978"
+        "fver_acbfa7833cb2a07338a91abe750c934d9e9922477ad96e3ea3e0c001970573f9",
+        "fver_fd739ad918a557d2f4ca45d54c9ea700cc0168ad9c6fec90151d87479bf1b858",
+        "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "fver_7ac2429f12ce6f7d494b7c0ab968446f2455da51863ebe471ddd8a224b6fa9f9"
       ],
       "label_pack_ids": [
-        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395"
+        "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "lver_4170332f366d6945a37cfe8980395626c393b40c2e1c36944ffb784b88cc7941",
+        "lver_69c9900cbac5e679f8d97d350e30f493f30a498eb3d47463e6ab9995f1c0310a"
       ]
     }
   },
   "schema": "alpha_system.futures_core_alpha_pilot.cross_market_diagnostics_report.v1",
   "standard_diagnostics": {
     "cost": {
+      "bbo_spread_crossing_used": false,
+      "bbo_unavailable_fallback_used": true,
+      "cost_gradient": {
+        "base_to_stress_1_combined_delta": "0",
+        "base_to_stress_1_cost_delta": "0",
+        "base_to_stress_1_slippage_proxy_delta": "0",
+        "double_to_base_combined_ratio": null,
+        "stress_1_to_stress_2_combined_delta": "0",
+        "stress_1_to_stress_2_cost_delta": "0",
+        "stress_1_to_stress_2_slippage_proxy_delta": "0",
+        "stress_2_to_double_cost_combined_delta": "0",
+        "stress_2_to_double_cost_cost_delta": "0",
+        "stress_2_to_double_cost_slippage_proxy_delta": "0"
+      },
+      "cost_model_version": {
+        "bbo_available": false,
+        "content_hash": "15b7668a13c0da9182400fcb0f2700b7f99ee71fe0b71cf13923163398f9c15e",
+        "cost_model_descriptor": {
+          "components": [
+            {
+              "bps": "1",
+              "minimum_cost": "0",
+              "model": "bps_cost"
+            }
+          ],
+          "fixture_zero_cost": false,
+          "model": "composite",
+          "reference_multiplier": "1",
+          "reference_quantity": "1"
+        },
+        "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
+        "promotion_basis_allowed": false,
+        "schema": "alpha_system.runtime.cost.model_version.v1",
+        "slippage_is_proxy": true,
+        "slippage_model_descriptor": {
+          "components": [
+            {
+              "bps": "0.5",
+              "model": "bps"
+            }
+          ],
+          "fixture_zero_slippage": false,
+          "model": "composite"
+        },
+        "zero_cost_diagnostic_only": false
+      },
       "coverage_summary": {
         "bbo_available": false,
         "bbo_fill_count": 0,
@@ -939,6 +1114,13 @@
         "fill_count": 0,
         "profile_count": 4,
         "session_count": 0
+      },
+      "descriptive_only": true,
+      "diagnostic_pass_is_alpha_validation": false,
+      "diagnostics_family": "cost",
+      "diagnostics_run_spec_ref": {
+        "content_hash": "bbac9be3b84599d56504d72fdc3c5e747947ea34a8dd3624707d031e4aa021d5",
+        "diagnostics_run_spec_id": "dspec_bbac9be3b84599d56504d72f"
       },
       "double_cost_summary": {
         "bbo_fill_count": 0,
@@ -961,6 +1143,14 @@
         "BBO spread crossing is used only when supplied BBO context is present; no spread is fabricated.",
         "BBO context was unavailable or unused, so the bps fallback marker is visible."
       ],
+      "lineage_refs": {
+        "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "diagnostics_run_spec_id": "dspec_bbac9be3b84599d56504d72f",
+        "session_penalty_config_id": "runtime_cost_stress_default_v1",
+        "study_spec_id": "sspec_7c8fb13628843890c171b122"
+      },
+      "non_promotional": true,
       "profile_summaries": [
         {
           "bbo_fill_count": 0,
@@ -1019,6 +1209,58 @@
           "zero_cost_diagnostic_only": false
         }
       ],
+      "promotion_basis_allowed": false,
+      "quality_gates": [
+        {
+          "gate_id": "cost_sample_gate",
+          "limitations": [
+            "Synthetic and local summaries only."
+          ],
+          "metric_refs": {
+            "fill_count": 0,
+            "min_fill_count": 1
+          },
+          "name": "Cost stress sample gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "INCONCLUSIVE",
+          "summary": "Cost stress input count is visible against the configured minimum."
+        },
+        {
+          "gate_id": "double_cost_gate",
+          "limitations": [],
+          "metric_refs": {
+            "double_cost_combined_cost_slippage_proxy": "0"
+          },
+          "name": "Double cost profile gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "The required double_cost profile is present in the cost-stress summary."
+        },
+        {
+          "gate_id": "cost_fragility_gate",
+          "limitations": [
+            "A favorable gate is not a promotion decision."
+          ],
+          "metric_refs": {
+            "max_double_cost_to_base_ratio": "3"
+          },
+          "name": "Cost fragility gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Double-cost sensitivity is compared with the configured descriptive threshold."
+        },
+        {
+          "gate_id": "slippage_proxy_gate",
+          "limitations": [],
+          "metric_refs": {
+            "slippage_labeled_proxy": true
+          },
+          "name": "Slippage proxy gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Slippage is explicitly labeled as a proxy in the cost model version."
+        }
+      ],
       "quality_summary": {
         "base_combined_cost_slippage_proxy": "0",
         "bbo_spread_crossing_used": false,
@@ -1033,192 +1275,225 @@
         "slippage_labeled_proxy": true,
         "zero_cost_diagnostic_only": false
       },
+      "raw_or_heavy_data_embedded": false,
       "rejection_reason_records": [
         {
           "code": "low_sample",
           "message": "Cost stress input count is below the configured descriptive minimum."
         }
       ],
-      "runtime_report_ref": {
-        "report_hash": "64606b2a8065ba0c23ff5496148af1c73c7ec18dd8b15f944c86f88d5c8012ad",
-        "report_id": "dreport_64606b2a8065ba0c23ff5496",
-        "report_kind": "cost_sensitivity_report"
+      "report_hash": "aaa40f6c751a15fdffa514ae73de9d4d36a848dbee8e0772c177e47a097c277a",
+      "report_id": "dreport_aaa40f6c751a15fdffa514ae",
+      "report_kind": "cost_sensitivity_report",
+      "report_metadata": {
+        "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
+        "descriptive_tier": "tier_0_cost_stress",
+        "orchestrated_backtest_primitives": "alpha_system.backtest.costs;alpha_system.backtest.slippage",
+        "profile_order": "base;stress_1;stress_2;double_cost",
+        "promotion_basis_allowed": false,
+        "session_penalty_config_id": "runtime_cost_stress_default_v1",
+        "slippage_labeled_proxy": true,
+        "zero_cost_diagnostic_only": false
       },
+      "report_type": "CostSensitivityReport",
+      "schema": "alpha_system.runtime.diagnostics.report.v1",
       "session_breakdown": [],
+      "slippage_labeled_proxy": true,
       "status": "INCONCLUSIVE",
-      "zero_cost": {
-        "diagnostic_only": true,
-        "present_in_nonzero_stress_ladder": false,
-        "promotion_basis_allowed": false
-      }
+      "value_free": true,
+      "zero_cost_diagnostic_only": false
     },
     "factor": {
       "coverage_summary": {
         "available_ts_missing_count": 0,
         "coverage_ratio": 1.0,
-        "horizon_count": 1,
-        "input_count": 6862,
+        "horizon_count": 3,
+        "input_count": 20403,
         "label_available_ts_missing_count": 0,
         "missing_factor_count": 0,
         "missing_label_count": 0,
         "missingness_rate": 0.0,
-        "numeric_factor_count": 6862,
-        "outlier_count": 0,
-        "outlier_rate": 0.0,
-        "usable_pair_count": 6862
+        "numeric_factor_count": 20403,
+        "outlier_count": 300,
+        "outlier_rate": 0.014703720041170416,
+        "usable_pair_count": 20403
+      },
+      "descriptive_only": true,
+      "diagnostic_pass_is_alpha_validation": false,
+      "diagnostics_family": "factor",
+      "diagnostics_run_spec_ref": {
+        "content_hash": "d733805e366ed93cf68fe52d1db38f849be0fae20376324c08b3e223e41b95f1",
+        "diagnostics_run_spec_id": "dspec_d733805e366ed93cf68fe52d"
       },
       "limitations": [
         "Factor diagnostics are descriptive Tier 0 summaries; a diagnostic PASS is not alpha validation.",
         "The report stores scalar summaries only and does not embed feature or label observations.",
-        "IC, RankIC, decay, and bucket summaries are delegated to alpha_system.research.ic and alpha_system.research.buckets.",
-        "Decay summary has fewer than two populated horizons."
+        "IC, RankIC, decay, and bucket summaries are delegated to alpha_system.research.ic and alpha_system.research.buckets."
+      ],
+      "lineage_refs": {
+        "alpha_spec_id": "aspec_fa4895a43a80d4eef0a607a4",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "diagnostics_run_spec_id": "dspec_d733805e366ed93cf68fe52d",
+        "feature_version_id": "fver_a6390d478bc31576bce270eadb93f8adfe215833ab403aba2e69af53e120eb8a",
+        "study_spec_id": "sspec_7c8fb13628843890c171b122"
+      },
+      "non_promotional": true,
+      "quality_gates": [
+        {
+          "gate_id": "factor_availability_gate",
+          "limitations": [
+            "Full no-lookahead audit remains scoped to a later runtime phase."
+          ],
+          "metric_refs": {
+            "available_ts_missing_count": 0,
+            "label_available_ts_missing_count": 0
+          },
+          "name": "Availability gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Feature available_ts and label_available_ts presence is summarized."
+        },
+        {
+          "gate_id": "factor_coverage_gate",
+          "limitations": [],
+          "metric_refs": {
+            "coverage_ratio": 1.0,
+            "min_coverage_ratio": 0.8
+          },
+          "name": "Coverage gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Usable factor and label pair coverage is summarized."
+        },
+        {
+          "gate_id": "factor_sample_gate",
+          "limitations": [],
+          "metric_refs": {
+            "min_observations": 3,
+            "usable_pair_count": 20403
+          },
+          "name": "Sample gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Usable sample size is summarized for descriptive diagnostics."
+        },
+        {
+          "gate_id": "factor_outlier_gate",
+          "limitations": [],
+          "metric_refs": {
+            "max_outlier_rate": 0.2,
+            "outlier_rate": 0.014703720041170416
+          },
+          "name": "Outlier gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Factor outlier rate is summarized against the configured threshold."
+        },
+        {
+          "gate_id": "factor_ic_gate",
+          "limitations": [],
+          "metric_refs": {
+            "ic_sample_count": 20403,
+            "pearson_ic": 0.0085232206080691,
+            "rank_ic": -0.006759530971826968
+          },
+          "name": "IC gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "IC and RankIC scalar summaries are delegated to research.ic."
+        },
+        {
+          "gate_id": "factor_bucket_gate",
+          "limitations": [],
+          "metric_refs": {
+            "bucket_is_monotonic": false,
+            "bucket_populated_count": 5,
+            "min_populated_buckets": 2
+          },
+          "name": "Bucket gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Bucket return monotonicity summary is delegated to research.buckets."
+        },
+        {
+          "gate_id": "factor_decay_gate",
+          "limitations": [
+            "Decay slope requires at least two populated horizons."
+          ],
+          "metric_refs": {
+            "decay_horizon_count": 3,
+            "decay_slope_per_second": 4.427619868141451e-06
+          },
+          "name": "Decay gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Decay curve scalar summary is delegated to research.ic."
+        }
       ],
       "quality_summary": {
         "bucket_count": 5,
         "bucket_direction": "mixed",
         "bucket_is_monotonic": false,
         "bucket_populated_count": 5,
-        "bucket_rank_correlation": 0.9008083051001438,
+        "bucket_rank_correlation": -0.023184489730525223,
         "bucket_sign_changes": 1,
         "decay_first_horizon_seconds": 300,
-        "decay_first_pearson_ic": 0.06812453325709363,
-        "decay_horizon_count": 1,
-        "decay_last_horizon_seconds": 300,
-        "decay_last_pearson_ic": 0.06812453325709363,
-        "decay_slope_per_second": null,
+        "decay_first_pearson_ic": 0.004891532579693796,
+        "decay_horizon_count": 3,
+        "decay_last_horizon_seconds": 1800,
+        "decay_last_pearson_ic": 0.011532962381905973,
+        "decay_slope_per_second": 4.427619868141451e-06,
         "diagnostic_pass": true,
         "failing_gate_count": 0,
-        "ic_sample_count": 6862,
+        "ic_sample_count": 20403,
         "inconclusive_gate_count": 0,
-        "pearson_ic": 0.06812453325709363,
+        "pearson_ic": 0.0085232206080691,
         "quality_gate_count": 7,
-        "rank_ic": 0.057165585030057205,
-        "tail_expectancy": 7.058473358553977e-05,
-        "warning_gate_count": 1
+        "rank_ic": -0.006759530971826968,
+        "tail_expectancy": -1.5529377813235284e-05,
+        "warning_gate_count": 0
       },
+      "raw_or_heavy_data_embedded": false,
       "rejection_reason_records": [],
-      "runtime_record": {
-        "diagnostics_run_record_id": "drecord_bc936418727030c8f130ca8b",
-        "diagnostics_run_spec_ref": {
-          "content_hash": "8e1e52ecab00513a04cd2b2628cc95890ed942e24ba6761f82565fe26258fbc1",
-          "diagnostics_run_spec_id": "dspec_8e1e52ecab00513a04cd2b26"
-        },
-        "record_hash": "bc936418727030c8f130ca8b001e68e02589661507ec0dd92162fe535cdff60e",
-        "rejection_reason_records": [],
-        "report_ref": {
-          "report_hash": "f8c42210360f4418a6c4691e1f3db11ef0afab39cad951b87559aaf6330ea468",
-          "report_id": "dreport_f8c42210360f4418a6c4691e",
-          "report_kind": "factor_diagnostics_summary"
-        },
-        "schema": "alpha_system.runtime.diagnostics.run_record.v1",
-        "status": "DIAGNOSTICS_COMPLETE",
-        "study_run_record_ref": null,
-        "value_free": true
+      "report_hash": "140a5e175d836d481fddfe6fb67b133a44419a2f7ff5091ef7e5070a6092df14",
+      "report_id": "dreport_140a5e175d836d481fddfe6f",
+      "report_kind": "factor_diagnostics_summary",
+      "report_metadata": {
+        "descriptive_tier": "tier_0_factor_diagnostics",
+        "orchestrated_research_primitives": "alpha_system.research.ic;alpha_system.research.buckets",
+        "threshold_profile": "factor_diagnostics_default_v1"
       },
-      "runtime_report_ref": {
-        "report_hash": "f8c42210360f4418a6c4691e1f3db11ef0afab39cad951b87559aaf6330ea468",
-        "report_id": "dreport_f8c42210360f4418a6c4691e",
-        "report_kind": "factor_diagnostics_summary"
-      },
-      "status": "DIAGNOSTICS_COMPLETE"
+      "report_type": "FactorDiagnosticsReport",
+      "schema": "alpha_system.runtime.diagnostics.report.v1",
+      "status": "DIAGNOSTICS_COMPLETE",
+      "value_free": true
     },
     "label": {
       "coverage_summary": {
         "audit_label_count": 0,
         "bbo_quarantined_count": 0,
-        "label_pack_count": 1,
+        "label_pack_count": 3,
         "missing_bbo_count": 0,
         "missing_outcome_count": 0,
         "missing_outcome_rate": 0.0,
         "partition_overlap_count": 0,
-        "sample_count": 6862,
+        "sample_count": 20406,
         "session_overlap_count": 0,
         "shared_dataset_ref_count": 0,
         "shared_partition_ref_count": 0,
         "symbol_overlap_count": 0,
         "synthetic_no_trade_count": 0
       },
-      "declared_primary_horizon_status": {
-        "diagnostic_status": "locked_materialized_label_pack_used",
-        "label_spec_id": "lspec_cd6523694c850c9943b2067e",
-        "label_version_id": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
-        "runtime_observation_count": 6862
-      },
-      "fragile_horizons": {
-        "1m": {
-          "diagnostic_status": "diagnostic_only_not_materialized_for_FUTCORE_P16",
-          "promotion_basis_allowed": false
-        },
-        "3m": {
-          "diagnostic_status": "diagnostic_only_not_materialized_for_FUTCORE_P16",
-          "promotion_basis_allowed": false
-        }
-      },
-      "horizon_bindings": {
-        "10m": {
-          "diagnostic_status": "governed_label_spec_present_no_materialized_label_pack_in_locked_registry",
-          "label_spec_id": "lspec_297ba9c00b50043020a1945e",
-          "label_version_id": null,
-          "runtime_observation_count": 0
-        },
-        "15m": {
-          "diagnostic_status": "governed_label_spec_present_no_materialized_label_pack_in_locked_registry",
-          "label_spec_id": "lspec_c9e388fde3d860ae012b2ad0",
-          "label_version_id": null,
-          "runtime_observation_count": 0
-        },
-        "30m": {
-          "diagnostic_status": "governed_label_spec_present_no_materialized_label_pack_in_locked_registry",
-          "label_spec_id": "lspec_85a5a466430a814f6a608b2c",
-          "label_version_id": null,
-          "runtime_observation_count": 0
-        },
-        "5m": {
-          "diagnostic_status": "locked_materialized_label_pack_used",
-          "label_spec_id": "lspec_cd6523694c850c9943b2067e",
-          "label_version_id": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
-          "runtime_observation_count": 6862
-        }
-      },
-      "limitations": [
-        "Descriptive label diagnostics only; quality gates are not promotion decisions.",
-        "The runtime summarizes supplied diagnostics and references; it does not materialize labels.",
-        "Coverage and leakage results depend on upstream registered label audits and input resolution."
-      ],
-      "quality_summary": {
-        "class_count": 3,
-        "cost_model_declared_count": 0,
-        "diagnostic_complete": false,
-        "failing_gate_count": 2,
-        "gate_count": 7,
-        "horizon_count": 1,
-        "inconclusive_gate_count": 0,
-        "label_available_ts_valid": true,
-        "mae_sample_count": 0,
-        "majority_class_share": 0.4675021859516176,
-        "mfe_sample_count": 0,
-        "observed_outcome_count": 6862,
-        "path_ambiguous_count": 0,
-        "rejection_reason_count": 2,
-        "sample_count": 6862
-      },
-      "rejection_reason_records": [
-        {
-          "code": "data_unavailable",
-          "message": "Label audit reports are required for label diagnostics."
-        },
-        {
-          "code": "weak_diagnostics",
-          "message": "Label diagnostics require declared cost-adjustment metadata."
-        }
-      ],
-      "runtime_record": {
-        "diagnostics_run_record_id": "drecord_1d6a5f2100c086918e134edc",
+      "descriptive_only": true,
+      "diagnostic_pass_is_alpha_validation": false,
+      "diagnostics_family": "label",
+      "diagnostics_run_record": {
+        "diagnostics_run_record_id": "drecord_90c70f60890b7559e01489c5",
         "diagnostics_run_spec_ref": {
-          "content_hash": "6962284b58ffa621f30479cdf8bcc4d050061f0f1baa539104ace4a34422083d",
-          "diagnostics_run_spec_id": "dspec_6962284b58ffa621f30479cd"
+          "content_hash": "ce0447715c1b0a07cd959b75c1e4c21e545ce11c9edf61ac712bded9b5ca1400",
+          "diagnostics_run_spec_id": "dspec_ce0447715c1b0a07cd959b75"
         },
-        "record_hash": "1d6a5f2100c086918e134edcdf96a38cb65aff99758baa049bf59b4ef3c42622",
+        "record_hash": "90c70f60890b7559e01489c533af134ef8eb3bda30c1124f1b6ad902d433d271",
         "rejection_reason_records": [
           {
             "code": "data_unavailable",
@@ -1230,8 +1505,8 @@
           }
         ],
         "report_ref": {
-          "report_hash": "c185baf0a0178c09d88ff7c41a7a053514a7c74d3b6fa795f5d943e473ad2184",
-          "report_id": "dreport_c185baf0a0178c09d88ff7c4",
+          "report_hash": "5475176823eb1fde12cad426e777bab84f109d739aeae47b6ccfd4263d4931d1",
+          "report_id": "dreport_5475176823eb1fde12cad426",
           "report_kind": "label_diagnostics_summary"
         },
         "schema": "alpha_system.runtime.diagnostics.run_record.v1",
@@ -1239,28 +1514,263 @@
         "study_run_record_ref": null,
         "value_free": true
       },
-      "runtime_report_ref": {
-        "report_hash": "c185baf0a0178c09d88ff7c41a7a053514a7c74d3b6fa795f5d943e473ad2184",
-        "report_id": "dreport_c185baf0a0178c09d88ff7c4",
-        "report_kind": "label_diagnostics_summary"
+      "diagnostics_run_spec_ref": {
+        "content_hash": "ce0447715c1b0a07cd959b75c1e4c21e545ce11c9edf61ac712bded9b5ca1400",
+        "diagnostics_run_spec_id": "dspec_ce0447715c1b0a07cd959b75"
       },
-      "status": "DIAGNOSTICS_FAILED"
+      "label_available_ts_validity": {
+        "label_as_feature_reference_detected": false,
+        "label_available_ts_missing_count": 0,
+        "label_available_ts_observation_count": 20406,
+        "label_available_ts_valid": true,
+        "label_pack_count": 3
+      },
+      "label_class_balance": {
+        "class_count": 3,
+        "majority_class_count": 9910,
+        "majority_class_share": 0.4856414779966676,
+        "minority_class_count": 1476,
+        "minority_class_share": 0.07233166715671861,
+        "observed_outcome_count": 20406
+      },
+      "label_cost_adjustment_sanity": {
+        "cost_adjusted_label_count": 0,
+        "cost_adjustment_sanity": "missing",
+        "cost_model_declared_count": 0,
+        "cost_warning_count": 0,
+        "profile_count": 5
+      },
+      "label_coverage_missingness": {
+        "audit_label_count": 0,
+        "bbo_quarantined_count": 0,
+        "feature_label_status": "blocked",
+        "missing_bbo_count": 0,
+        "missing_outcome_count": 0,
+        "missing_outcome_rate": 0.0,
+        "partition_overlap_count": 0,
+        "session_overlap_count": 0,
+        "shared_dataset_ref_count": 0,
+        "shared_partition_ref_count": 0,
+        "symbol_overlap_count": 0,
+        "synthetic_no_trade_count": 0
+      },
+      "label_distribution_summary": {
+        "class_count": 3,
+        "majority_class_count": 9910,
+        "minority_class_count": 1476,
+        "missing_outcome_count": 0,
+        "missing_outcome_rate": 0.0,
+        "negative_outcome_count": 9910,
+        "neutral_outcome_count": 1476,
+        "numeric_outcome_count": 20406,
+        "observed_outcome_count": 20406,
+        "positive_outcome_count": 9020,
+        "sample_count": 20406
+      },
+      "label_horizon_coverage": {
+        "horizon_count": 3,
+        "horizon_coverage_ratio": 0.978140483823958,
+        "horizon_sample_count": 20406,
+        "max_horizon_sample_count": 6862,
+        "max_horizon_seconds": 1800,
+        "min_horizon_sample_count": 6712,
+        "min_horizon_seconds": 300,
+        "missing_horizon_count": 0
+      },
+      "label_mfe_mae_summary": {
+        "event_count": 20406,
+        "mae_sample_count": 0,
+        "mean_mae": null,
+        "mean_mfe": null,
+        "mfe_sample_count": 0
+      },
+      "label_path_ambiguity_summary": {
+        "ambiguous_path_count": 0,
+        "ambiguous_path_rate": 0.0,
+        "path_metric_sample_count": 0,
+        "target_before_stop_event_count": 0,
+        "target_before_stop_probability": null
+      },
+      "limitations": [
+        "Descriptive label diagnostics only; quality gates are not promotion decisions.",
+        "The runtime summarizes supplied diagnostics and references; it does not materialize labels.",
+        "Coverage and leakage results depend on upstream registered label audits and input resolution."
+      ],
+      "lineage_refs": {
+        "alpha_spec_ref": "aspec_fa4895a43a80d4eef0a607a4",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "diagnostics_run_spec_id": "dspec_ce0447715c1b0a07cd959b75",
+        "label_pack_ref": "lver_11d66acbdc1c7ebe9127d51387fed05aa897eb34d00e0c3f36898cd34c8af395",
+        "runtime_plan_ref": "bound_by_diagnostics_run_spec",
+        "study_run_spec_id": "bound_by_dspec_ce0447715c1b0a07cd959b75",
+        "study_spec_ref": "sspec_7c8fb13628843890c171b122"
+      },
+      "non_promotional": true,
+      "quality_gates": [
+        {
+          "gate_id": "label_availability_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "label_available_ts_missing_count": 0,
+            "label_pack_count": 3
+          },
+          "name": "Label availability gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "label_available_ts and label-as-feature checks are summarized."
+        },
+        {
+          "gate_id": "label_distribution_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "missing_outcome_count": 0,
+            "observed_outcome_count": 20406,
+            "sample_count": 20406
+          },
+          "name": "Label distribution gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Label distribution is summarized from scalar diagnostic observations."
+        },
+        {
+          "gate_id": "label_class_balance_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "class_count": 3,
+            "majority_class_share": 0.4856414779966676,
+            "threshold_ref": "label_diagnostics_config.max_majority_class_share"
+          },
+          "name": "Label class balance gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Class balance is summarized without embedding label outcomes."
+        },
+        {
+          "gate_id": "label_horizon_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "horizon_count": 3,
+            "horizon_coverage_ratio": 0.978140483823958,
+            "threshold_ref": "label_diagnostics_config.min_horizon_coverage_ratio"
+          },
+          "name": "Label horizon gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "PASS",
+          "summary": "Horizon coverage is summarized across supplied diagnostics observations."
+        },
+        {
+          "gate_id": "label_path_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "ambiguous_path_count": 0,
+            "mae_sample_count": 0,
+            "mfe_sample_count": 0
+          },
+          "name": "Label path gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "WARN",
+          "summary": "MFE, MAE, and path ambiguity are summarized through research event helpers."
+        },
+        {
+          "gate_id": "label_cost_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "cost_adjusted_label_count": 0,
+            "cost_model_declared_count": 0,
+            "cost_warning_count": 0
+          },
+          "name": "Label cost gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "FAIL",
+          "summary": "Cost-adjustment metadata presence is checked descriptively."
+        },
+        {
+          "gate_id": "label_coverage_missingness_gate",
+          "limitations": [
+            "Scalar summary only; no runtime label outcomes are embedded."
+          ],
+          "metric_refs": {
+            "audit_label_count": 0,
+            "missing_outcome_count": 0,
+            "shared_dataset_ref_count": 0
+          },
+          "name": "Label coverage and missingness gate",
+          "schema": "alpha_system.runtime.diagnostics.quality_gate.v1",
+          "status": "FAIL",
+          "summary": "Feature/label coverage and missingness are delegated to the research primitive."
+        }
+      ],
+      "quality_summary": {
+        "class_count": 3,
+        "cost_model_declared_count": 0,
+        "diagnostic_complete": false,
+        "failing_gate_count": 2,
+        "gate_count": 7,
+        "horizon_count": 3,
+        "inconclusive_gate_count": 0,
+        "label_available_ts_valid": true,
+        "mae_sample_count": 0,
+        "majority_class_share": 0.4856414779966676,
+        "mfe_sample_count": 0,
+        "observed_outcome_count": 20406,
+        "path_ambiguous_count": 0,
+        "rejection_reason_count": 2,
+        "sample_count": 20406
+      },
+      "raw_or_heavy_data_embedded": false,
+      "rejection_reason_records": [
+        {
+          "code": "data_unavailable",
+          "message": "Label audit reports are required for label diagnostics."
+        },
+        {
+          "code": "weak_diagnostics",
+          "message": "Label diagnostics require declared cost-adjustment metadata."
+        }
+      ],
+      "report_hash": "5475176823eb1fde12cad426e777bab84f109d739aeae47b6ccfd4263d4931d1",
+      "report_id": "dreport_5475176823eb1fde12cad426",
+      "report_kind": "label_diagnostics_summary",
+      "report_metadata": {
+        "external_provider_call_performed": false,
+        "label_materialization_performed": false,
+        "uses_research_events_post_event_mfe_mae": true,
+        "uses_research_events_target_before_stop_probability": true,
+        "uses_research_feature_label_diagnostics": true
+      },
+      "schema": "alpha_system.runtime.diagnostics.report.v1",
+      "status": "DIAGNOSTICS_FAILED",
+      "value_free": true
     },
     "signal_probe": {
       "cost_aware_expectancy_proxy": {
-        "base_expectancy_proxy": "-0.031185787738929852048",
-        "double_cost_expectancy_proxy": "-0.031410787738929852048",
-        "stress_1_expectancy_proxy": "-0.031242037738929852048",
-        "stress_2_expectancy_proxy": "-0.031298287738929852048"
+        "base_expectancy_proxy": "-0.0001591856377614783916526946108",
+        "double_cost_expectancy_proxy": "-0.0003211616856656700084191616766",
+        "stress_1_expectancy_proxy": "-0.0001996796497375262958443113772",
+        "stress_2_expectancy_proxy": "-0.0002401736617135742000359281437"
       },
       "cost_sensitivity_report_ref": {
-        "report_hash": "0ecc6f2dc517bd91d22df82b0b6be901027932768a3e97115eb4051efe0156db",
-        "report_id": "dreport_0ecc6f2dc517bd91d22df82b",
+        "report_hash": "7a14e9492fa278333ac6d6b5a1b6b2acc1ee864cb464398a262043bee76c5e8a",
+        "report_id": "dreport_7a14e9492fa278333ac6d6b5",
         "report_kind": "cost_sensitivity_report"
       },
+      "cost_stress_evidence_state": "COST_STRESS_COMPLETE",
       "drawdown_proxy": {
-        "drawdown_proxy": "0.136442777097905865301"
+        "drawdown_proxy": "0.001244297750568557046"
       },
+      "fast_path": true,
       "limitations": [
         "Signal Probe is a Tier 1 descriptive screen, not strategy validation.",
         "Position changes use next-bar or explicit delayed fills; same-bar fills are forbidden.",
@@ -1268,17 +1778,27 @@
         "Slippage remains labeled as a proxy through the attached CostSensitivityReport.",
         "A complete probe is not a candidate, promotion decision, or profitability claim."
       ],
-      "normalized_price_proxy": true,
+      "lineage_refs": {
+        "alpha_spec_ref": "aspec_fa4895a43a80d4eef0a607a4",
+        "cost_model_version_id": "cmv_15b7668a13c0da9182400fcb",
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "signal_probe_spec_id": "sprobe_c559c6dda83c3ae574ef85bc",
+        "study_spec_id": "sspec_7c8fb13628843890c171b122",
+        "study_spec_ref": "sspec_7c8fb13628843890c171b122"
+      },
+      "not_a_backtest": true,
+      "not_a_candidate": true,
       "not_strategy_validation": true,
       "position_summary": {
-        "long_position_count": 6741,
-        "non_flat_position_count": 6741,
-        "observation_count": 6862,
-        "position_count": 6862,
+        "long_position_count": 57,
+        "non_flat_position_count": 111,
+        "observation_count": 512,
+        "position_count": 512,
         "same_bar_fill_count": 0,
-        "short_position_count": 0
+        "short_position_count": 54
       },
       "promotion_basis_allowed": false,
+      "raw_or_heavy_data_embedded": false,
       "rejection_reason_records": [
         {
           "code": "double_cost_expectancy_non_positive",
@@ -1289,64 +1809,80 @@
           "message": "No declared threshold stayed positive under the double_cost proxy."
         }
       ],
-      "runtime_report_ref": {
-        "report_hash": "2608e829ada3d6282d12aeeaa38531ed548e4f90d07b5ae1e3140ee2bc9cdd32",
-        "report_id": "preport_2608e829ada3d6282d12aeea",
-        "report_kind": "signal_probe_report"
+      "report_hash": "92109bf1a0ddb49ef8a59f9382cbd1837972c56ba1d2e94e09bbc0385108efe0",
+      "report_id": "preport_92109bf1a0ddb49ef8a59f93",
+      "report_kind": "signal_probe_report",
+      "report_metadata": {
+        "cost_stress_required": true,
+        "descriptive_tier": "tier_1_signal_probe",
+        "double_cost_required": true,
+        "orchestrated_runtime_cost": true,
+        "runtime_cost_surface": "alpha_system.runtime.cost",
+        "same_bar_optimistic_fill_forbidden": true,
+        "zero_cost_promotion_basis_allowed": false
+      },
+      "schema": "alpha_system.runtime.probe.report.v1",
+      "signal_probe_spec_ref": {
+        "content_hash": "c559c6dda83c3ae574ef85bc805e06456790eb1647e7ccb6485fc66e514a2211",
+        "signal_probe_spec_id": "sprobe_c559c6dda83c3ae574ef85bc"
       },
       "stability_summary": {
         "bounded_threshold_neighborhood": true,
         "stable_threshold_count": 0,
         "stable_threshold_share": "0",
-        "threshold_count": 3
+        "threshold_count": 2
       },
       "status": "REJECTED",
       "threshold_summaries": [
         {
-          "double_cost_expectancy_proxy": "-0.033639768320186497523",
-          "drawdown_proxy": "0.136442777097905865301",
-          "gross_expectancy_proxy": "-0.033189768320186497523",
+          "double_cost_expectancy_proxy": "-0.0003211616856656700084191616766",
+          "drawdown_proxy": "0.001244297750568557046",
+          "gross_expectancy_proxy": "0.00000279041014271322511377245509",
           "stable_under_double_cost": false,
-          "threshold": "60",
-          "trade_count": 1,
-          "turnover": "1"
+          "threshold": "0.0001",
+          "trade_count": 167,
+          "turnover": "187"
         },
         {
-          "double_cost_expectancy_proxy": "-0.031410787738929852048",
-          "drawdown_proxy": "0.136442777097905865301",
-          "gross_expectancy_proxy": "-0.030960787738929852048",
+          "double_cost_expectancy_proxy": null,
+          "drawdown_proxy": "0",
+          "gross_expectancy_proxy": null,
           "stable_under_double_cost": false,
-          "threshold": "120",
-          "trade_count": 1,
-          "turnover": "1"
-        },
-        {
-          "double_cost_expectancy_proxy": "-0.034420071324535001168",
-          "drawdown_proxy": "0.136442777097905865301",
-          "gross_expectancy_proxy": "-0.033970071324535001168",
-          "stable_under_double_cost": false,
-          "threshold": "360",
-          "trade_count": 1,
-          "turnover": "1"
+          "threshold": "0.0005",
+          "trade_count": 0,
+          "turnover": "0"
         }
       ],
       "trade_summary": {
-        "gross_expectancy_proxy": "-0.030960787738929852048",
-        "gross_total_proxy": "-0.030960787738929852048",
-        "trade_count": 1,
-        "turnover": "1"
+        "gross_expectancy_proxy": "0.00000279041014271322511377245509",
+        "gross_total_proxy": "0.000465998493833108594",
+        "trade_count": 167,
+        "turnover": "187"
       }
+    },
+    "zero_cost_profile_boundary": {
+      "diagnostic_only": true,
+      "profile_name": "zero_cost",
+      "promotion_basis_allowed": false,
+      "reason": "FUTCORE-P04 treats zero_cost as diagnostic-only contrast; this phase's runtime cost-stress report covers required non-zero profiles base, stress_1, stress_2, and double_cost.",
+      "runtime_cost_report_profile_included": false
     }
   },
   "status": "REJECTED_FOR_CROSS_MARKET_MISSINGNESS",
   "study_spec": {
-    "alpha_spec_id": "aspec_0ebd90cecfd475607685b445",
-    "cross_market_category": "lead_lag",
-    "declared_primary_horizon": "5m",
-    "family": "cross_market",
-    "source_alpha_spec_path": "research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_01_nq_leads_es_completed_bar_context.json",
-    "study_spec_id": "sspec_ac883ec0b962f4ae4f25e190",
-    "summary": "NQ completed-bar context for a later ES decision with strict cross-instrument available_ts alignment.",
+    "alpha_spec_id": "aspec_fa4895a43a80d4eef0a607a4",
+    "cross_market_category": "confirmation_divergence",
+    "declared_primary_horizon": "30m",
+    "p13_mapping_status": "MISSING",
+    "pending_p15_gap_refs": [
+      {
+        "deferred_binding": "Cross-market derived-state FeaturePack binding for beta residual, basket residual, relative-rank or catch-up, pair divergence, and agreement state",
+        "gap_id": "P15-G3"
+      }
+    ],
+    "source_alpha_spec_path": "research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/FUTCORE-P07_cross_market_14_nq_es_divergence_context.json",
+    "source_alpha_spec_summary": "NQ/ES completed-bar divergence context with point-in-time pair-state construction.",
+    "study_spec_id": "sspec_7c8fb13628843890c171b122",
     "target_instruments": [
       "NQ",
       "ES"

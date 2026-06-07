@@ -8,23 +8,22 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P15`, Minimal Missing FeatureRequest / LabelSpec Additions, in
-the `spec_audit_and_packs` gate. This snapshot records the bounded P15
-FeatureRequest / LabelSpec additions needed by the P13/P14 gap mapping.
+through `FUTCORE-P16`, Cross-Market Diagnostics, in the
+`family_diagnostics` gate. This snapshot records the cross-market family
+diagnostics against registry-resolved locked Parquet inputs.
 
-Active / next work: `FUTCORE-P15` is completed from the executor side. The next
-phase wave is `FUTCORE-P16` through `FUTCORE-P20`, the family-diagnostics wave
-under the `family_diagnostics` gate. Ralph continues to own authoritative
-validation, review routing, staging, PR, CI, merge, and done-check actions.
+Active / next work: `FUTCORE-P16` is completed from the executor side. The
+remaining diagnostics wave continues with `FUTCORE-P17` through `FUTCORE-P20`,
+then `FUTCORE-P21` consolidates cost stress and thin-session stress per the
+wave map. Ralph continues to own authoritative validation, review routing,
+staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P15` snapshot:
+New durable surfaces in this `FUTCORE-P16` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/feature_requests/`
-- `research/futures_core_alpha_pilot_v1/label_specs/fwd_ret_15m.json`
-- `docs/futures_core_alpha_pilot/PRIMITIVE_ADDITIONS.md`
-- `src/alpha_system/labels/families/fixed_horizon/family.py`
+- `docs/futures_core_alpha_pilot/diagnostics/cross_market.md`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/`
 
-`FUTCORE-P15` adds no new commands, data readers, agent runners, feature value
+`FUTCORE-P16` adds no new commands, data readers, agent runners, feature value
 data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
 or deployment behavior.
 
