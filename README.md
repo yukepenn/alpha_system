@@ -7,11 +7,10 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
-`agent_roles` wave (`AGENT-P07` through `AGENT-P15`) and the
-`enforcement_and_records` gate through `AGENT-P18` merged. Active / next work
-is `AGENT-P19` Agent Prompt and Skill Assets, beginning Wave 3
-(`AGENT-P19`, `AGENT-P20`, `AGENT-P21`).
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is advancing through the
+`assets_and_bridge` gate in Wave 3. `AGENT-P21` Runtime Tool Integration Bridge
+is complete. Active / next work is the Wave 4 closeout sequence beginning with
+`AGENT-P22` Agent Dry-Run Harness.
 
 `AGENT-P00` adds the durable `docs/agent_factory/` documentation root:
 
@@ -183,6 +182,17 @@ in-memory duplicate-idea avoidance plus prior-rejection surfacing. They keep
 failed and rejected ideas visible by ids, refs, statuses, summaries, rejection
 reasons, and next gates only. No new command is added.
 
+`AGENT-P21` adds the runtime-to-agent adapter and documentation:
+
+- `alpha_system.agent_factory.runtime_bridge`
+- `docs/agent_factory/RUNTIME_BRIDGE.md`
+
+The bridge consumes `RuntimeToolResult` / `RuntimeRunSummary` and resolves
+DatasetVersion inputs through `resolve_dataset_version`, admitting only
+`VERSIONED` or `READY_FOR_RESEARCH` states. It returns structured
+`AgentToolResult` ids, refs, summaries, reasons, gates, artifacts, and
+limitations only. No new command is added.
+
 `ALPHA_AGENT_FACTORY_MVP` is the controlled AI research-team contract layer over
 the completed Governance + Feature/Label + Research Runtime stack. It is
 contracts-only at this point: no autonomous agent is instantiated, no continuous
@@ -194,12 +204,13 @@ promotes, writes a registry, or creates candidate/strategy scope.
 
 Safety boundaries are unchanged: contracts only; local-first execution;
 default-deny and fail-closed permissions; accepted DatasetVersion-only
-consumption through sanctioned APIs; no autonomous agent; no raw-provider
-access; no external provider calls; no broker, live, paper, order, or account
-scope; no alpha, tradability, profitability, strategy, backtest, portfolio,
-deployment, or production-readiness claim; no raw/canonical/feature/label/
-runtime/agent values, heavy artifacts, provider responses, local DBs, logs, or
-caches committed.
+consumption through sanctioned APIs; the runtime, governance, and registry
+primitives are consumed and never edited or duplicated; no autonomous agent; no
+raw-provider access; no external provider calls; no broker, live, paper, order,
+or account scope; no alpha, tradability, profitability, strategy, backtest,
+portfolio, deployment, or production-readiness claim; no raw/canonical/feature/
+label/runtime/agent values, heavy artifacts, provider responses, local DBs,
+logs, or caches committed.
 
 The predecessor `ALPHA_RESEARCH_RUNTIME_MVP` is complete
 (`COMPLETE_WITH_WARNINGS`). Its durable runtime modules include
