@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tools.frontier.artifact_policy import curate_commit_paths
 from tools.frontier.config import load_config, validate_config
 from tools.frontier.provider_config import load_provider_config
 
@@ -101,6 +102,7 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
         "handoffs/**",
         "reviews/**",
         "decisions/**",
+        "research/**",
         "docs/**",
         "evals/**",
         "src/**",
@@ -125,6 +127,36 @@ def test_generated_frontier_yaml_artifact_policy_includes_bootstrap_paths() -> N
     assert "runs/**" in forbid_commit
     assert ".frontier/upgrade_reports/**" in forbid_commit
     assert "runs/**" not in allow_commit
+
+
+def test_research_evidence_committable_but_research_data_blocked() -> None:
+    """Tracked research evidence (markdown/placeholders) is commit-eligible while
+    research-scope value/DB artifacts stay blocked by suffix policy."""
+
+    config = load_config(Path("frontier.yaml"))
+    artifacts = config["artifacts"]
+    paths = [
+        "research/futures_core_alpha_pilot_v1/README.md",
+        "research/futures_core_alpha_pilot_v1/.gitkeep",
+        "research/futures_core_alpha_pilot_v1/preflight/preflight_report.md",
+        "research/futures_core_alpha_pilot_v1/values/sample.parquet",
+        "research/futures_core_alpha_pilot_v1/values/factors.sqlite",
+        "research/futures_core_alpha_pilot_v1/run.log",
+    ]
+    allowed, blocked = curate_commit_paths(
+        paths,
+        allow_patterns=list(artifacts["allow_commit"]),
+        forbid_patterns=list(artifacts["forbid_commit"]),
+        placeholder_exceptions=artifacts.get("placeholder_exceptions"),
+        placeholder_dirs=artifacts.get("placeholder_dirs"),
+    )
+
+    assert "research/futures_core_alpha_pilot_v1/README.md" in allowed
+    assert "research/futures_core_alpha_pilot_v1/.gitkeep" in allowed
+    assert "research/futures_core_alpha_pilot_v1/preflight/preflight_report.md" in allowed
+    assert "research/futures_core_alpha_pilot_v1/values/sample.parquet" in blocked
+    assert "research/futures_core_alpha_pilot_v1/values/factors.sqlite" in blocked
+    assert "research/futures_core_alpha_pilot_v1/run.log" in blocked
 
 
 def test_env_overrides_provider_config(tmp_path, monkeypatch) -> None:
