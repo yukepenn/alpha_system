@@ -7,10 +7,29 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
-Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed
-`AGENT-P24` of 26 (`AGENT-P00` ... `AGENT-P25`), Workflow 2 DAG Integration
-and Parallel Plan, and is in the Wave 4 closeout chain. Active / next work is
-`AGENT-P25` Acceptance Audit and Closeout, the final Wave 4 phase.
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is complete after
+`AGENT-P25` (26/26 phases, `AGENT-P00` ... `AGENT-P25`) with final campaign
+verdict `COMPLETE_WITH_WARNINGS`.
+
+Active / next work: campaign closed. Next-campaign readiness points at
+`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`, which is separately authorized and not
+started here.
+
+New durable surfaces from `AGENT-P25`:
+
+- `campaigns/ALPHA_AGENT_FACTORY_MVP/CLOSEOUT.md`
+- `docs/agent_factory/ACCEPTANCE_AUDIT.md`
+
+They record the final acceptance audit, closeout verdict, warnings, artifact
+boundaries, and next-campaign readiness. The warning is intentional: the final
+dry run used synthetic fallback where local seed registries were absent, and
+`FEATURE_LABEL_PARQUET_SINK_V1` plus `SESSION_LABEL_GUARD_FIX_V1` remain future
+blockers.
+
+Safety boundaries are unchanged: contracts only; local-first; no autonomous
+agent; no continuous research runner; no broker, live, paper, order, or account
+scope; no alpha, tradability, or profitability claim; accepted-DatasetVersion
+only; runtime consumed through the bridge, not edited or bypassed.
 
 New durable surface from `AGENT-P24`:
 
