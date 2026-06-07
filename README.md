@@ -7,6 +7,11 @@ The repository-level campaign pointer targets
 `ALPHA_AGENT_FACTORY_MVP`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`,
 which is coordinator-owned.
 
+Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` is at `AGENT-P20` of the
+26-phase plan, in the Wave 3 `assets` group (`AGENT-P19`, `AGENT-P20`,
+`AGENT-P21`). This phase is `AGENT-P20` Agent Factory Docs and Operator Guide;
+the next campaign movement is the rest of the assets wave and then closeout
+phases `AGENT-P22` through `AGENT-P25`.
 Current campaign progress: `ALPHA_AGENT_FACTORY_MVP` has completed the
 `agent_roles` wave (`AGENT-P07` through `AGENT-P15`) and the
 `enforcement_and_records` gate through `AGENT-P18` merged. The
@@ -184,6 +189,19 @@ in-memory duplicate-idea avoidance plus prior-rejection surfacing. They keep
 failed and rejected ideas visible by ids, refs, statuses, summaries, rejection
 reasons, and next gates only. No new command is added.
 
+`AGENT-P20` adds the durable Agent Factory operator and readiness docs:
+
+- `docs/agent_factory/GUIDE.md`
+- `docs/agent_factory/OPERATOR.md`
+- `docs/agent_factory/NEXT_CORE_ALPHA_PILOT_READINESS.md`
+
+These docs explain how the existing contracts fit together, how operators
+should interpret structured `AgentToolResult` outputs and planned dry-run
+surfaces, and what the future `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` campaign
+still needs. Safety boundaries are unchanged: contracts only; no autonomous
+agent; no continuous research runner; no alpha search; no factor promotion;
+accepted-DatasetVersion-only; no broker, live, paper, or order scope; no alpha,
+tradability, profitability, or readiness claim.
 `AGENT-P19` adds indexed prompt/skill template assets for the ten-role MVP
 roster:
 
