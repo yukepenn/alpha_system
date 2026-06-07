@@ -8,56 +8,21 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is at
-`FUTCORE-P18` of the 31-phase pilot campaign in the `family_diagnostics` gate.
-This snapshot records the regime momentum/reversion diagnostics point in the
-serial diagnostics merge queue.
+`FUTCORE-P19` of the 31-phase pilot campaign in the `family_diagnostics` gate.
+This snapshot records the liquidity-sweep / objective PA diagnostics point in
+the serial diagnostics merge queue.
 
-Active / next work: the active phase is `FUTCORE-P18` - Regime
-Momentum/Reversion Diagnostics. The next serial diagnostics phase is
-`FUTCORE-P19` - Liquidity Sweep / PA Diagnostics, with `FUTCORE-P21`
-consolidation after the diagnostics wave completes. Ralph continues to own
-authoritative validation, review routing, staging, PR, CI, merge, and done-check
-actions.
+Active / next work: the next serial diagnostics phase is `FUTCORE-P20` - BBO
+Tradability Diagnostics, followed by the `FUTCORE-P21` consolidation sequence
+after the diagnostics wave completes. Ralph continues to own authoritative
+validation, review routing, staging, PR, CI, merge, and done-check actions.
 
-New durable surfaces in this `FUTCORE-P18` snapshot:
+New durable surfaces in this `FUTCORE-P19` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/regime/`
-- `docs/futures_core_alpha_pilot/diagnostics/regime.md`
+- `research/futures_core_alpha_pilot_v1/diagnostics_reports/liquidity_pa/`
+- `docs/futures_core_alpha_pilot/diagnostics/liquidity_pa.md`
 
-`FUTCORE-P18` adds no new commands, data readers, agent runners, feature value
-Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has advanced
-through `FUTCORE-P17` of the 31-phase pilot, VWAP / Session Diagnostics, in the
-`family_diagnostics` gate. This snapshot records value-free VWAP/session
-runtime diagnostics for the two canonical P14 StudySpecs in that family.
-
-Active / next work: the family-diagnostics wave (`FUTCORE-P16` through
-`FUTCORE-P20`) remains Ralph-orchestrated; remaining diagnostics and the
-`FUTCORE-P21` consolidation gate follow the serial merge queue. Ralph owns
-authoritative validation, review routing, staging, PR, CI, merge, and
-done-check actions.
-
-New durable surfaces in this `FUTCORE-P17` snapshot:
-
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/vwap_session/`
-- `docs/futures_core_alpha_pilot/diagnostics/vwap_session.md`
-
-`FUTCORE-P17` adds no new commands, data readers, agent runners, feature value
-through `FUTCORE-P16`, Cross-Market Diagnostics, in the
-`family_diagnostics` gate. This snapshot records the cross-market family
-diagnostics against registry-resolved locked Parquet inputs.
-
-Active / next work: `FUTCORE-P16` is completed from the executor side. The
-remaining diagnostics wave continues with `FUTCORE-P17` through `FUTCORE-P20`,
-then `FUTCORE-P21` consolidates cost stress and thin-session stress per the
-wave map. Ralph continues to own authoritative validation, review routing,
-staging, PR, CI, merge, and done-check actions.
-
-New durable surfaces in this `FUTCORE-P16` snapshot:
-
-- `docs/futures_core_alpha_pilot/diagnostics/cross_market.md`
-- `research/futures_core_alpha_pilot_v1/diagnostics_reports/cross_market/`
-
-`FUTCORE-P16` adds no new commands, data readers, agent runners, feature value
+`FUTCORE-P19` adds no new commands, data readers, agent runners, feature value
 data, label value data, broker surfaces, live surfaces, paper-trading surfaces,
 or deployment behavior.
 
