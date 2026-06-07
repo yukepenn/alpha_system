@@ -8,15 +8,16 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P06` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
-post-merge snapshot and pins the bounded research queue plus role-assignment
-map. The `foundation` merge group / `bootstrap_and_inputs` gate is complete
-through `FUTCORE-P06`.
+`FUTCORE-P07` of `FUTCORE-P00` through `FUTCORE-P30` is complete for this
+post-merge snapshot and adds the cross-market AlphaSpec batch within the
+parallel `alpha_specs` wave. The `foundation` merge group /
+`bootstrap_and_inputs` gate is complete through `FUTCORE-P06`.
 
-Active / next work: `FUTCORE-P06` is done. The next work is the
-`FUTCORE-P07` through `FUTCORE-P11` parallel AlphaSpec batch wave.
+Active / next work: `FUTCORE-P07` is done. The next work is the remaining
+`FUTCORE-P08` through `FUTCORE-P11` AlphaSpec family batches, followed by
+`FUTCORE-P12` AlphaSpec Critic and Family Budget Audit.
 
-New durable surfaces through `FUTCORE-P06`:
+New durable surfaces through `FUTCORE-P07`:
 
 - `docs/futures_core_alpha_pilot/README.md`
 - `docs/futures_core_alpha_pilot/OVERVIEW.md`
@@ -34,12 +35,14 @@ New durable surfaces through `FUTCORE-P06`:
 - `research/futures_core_alpha_pilot_v1/cost_model/cost_model_contract.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/PROTOCOL.md`
 - `research/futures_core_alpha_pilot_v1/alpha_specs/README.md`
+- `research/futures_core_alpha_pilot_v1/alpha_specs/cross_market/`
 - `research/futures_core_alpha_pilot_v1/queue/`
+- `docs/futures_core_alpha_pilot/alpha_specs/cross_market.md`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, cost
-calculations, AlphaSpec drafts, reviews, agent runners, or broker surfaces are
-added by `FUTCORE-P06`. The queue records task ownership, finite budget
-references, and separation-of-duties constraints only.
+calculations, reviews, agent runners, or broker surfaces are added by
+`FUTCORE-P07`. The cross-market AlphaSpec drafts are value-free research
+evidence only and remain subject to independent critique in `FUTCORE-P12`.
 
 ## Source Of Truth
 
