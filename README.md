@@ -8,22 +8,24 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` is active.
-`FUTCORE-P00` is the bootstrap phase and is complete after the Ralph-owned merge
-of this phase's scoped changes.
+`FUTCORE-P01` records preflight readiness for the pre-pilot hardening,
+DatasetVersion, Parquet FeaturePack / LabelPack, Research Runtime, and Agent
+Factory entry gates.
 
-Active / next work: next phase is `FUTCORE-P01` - Preflight. It records
-pre-pilot hardening, DatasetVersion, Parquet FeaturePack / LabelPack, Research
-Runtime, and Agent Factory readiness.
+Active / next work: next phase is `FUTCORE-P02` - pilot scope, universe,
+sessions, horizons, and budget.
 
-New durable surfaces from `FUTCORE-P00`:
+New durable surfaces through `FUTCORE-P01`:
 
 - `docs/futures_core_alpha_pilot/README.md`
 - `docs/futures_core_alpha_pilot/OVERVIEW.md`
+- `docs/futures_core_alpha_pilot/PREFLIGHT.md`
 - `research/futures_core_alpha_pilot_v1/README.md`
 - `research/futures_core_alpha_pilot_v1/.gitkeep`
+- `research/futures_core_alpha_pilot_v1/preflight/preflight_report.md`
 
 No new commands, modules, runtime behavior, data readers, diagnostics, or broker
-surfaces are added by `FUTCORE-P00`.
+surfaces are added by `FUTCORE-P01`.
 
 ## Source Of Truth
 
