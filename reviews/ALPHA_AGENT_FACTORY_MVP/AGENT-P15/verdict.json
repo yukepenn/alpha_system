@@ -1,0 +1,31 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/agent_factory/roles/librarian.py` declares one `AgentRole` and **self-registers** via the AGENT-P03 discovery registry (`_register_once`). `git status --short` confirms **no edits** to `roles/__init__.py` or `roles/registry.py` (both untracked-clean; only `librarian.py` is new). Test `test_import_does_not_require_shared_role_file_edits` enforces this.",
+    "The contract **consumes, does not reimplement** governance/queue primitives: it imports `ReviewerVerdict`, `RejectedIdeaRecord`/`ResearchGraveyardLedger`, `PromotionDecision`/`PromotionGateContext`/`validate_governance_transition`, `PROHIBITED_MVP_STATES`, and queue `ResearchTask`/statuses. The test asserts no `class ReviewerVerdict`/`class RejectedIdeaRecord`/`def validate_governance_transition` etc. appear in the source.",
+    "No autonomous agent, no continuous runner, no alpha search, no promotion, no registry write, no provider/raw-data access. Confirmed in code, docs, and template.",
+    "`CALLABLE_TOOL_IDS` is derived from the pre-existing `librarian` permission-matrix entry (matrix.py is unchanged by this phase). Module-level guards `raise` if callable tools drift from the matrix or if any tool starts with `promotion.`/`registry.`.",
+    "Verdict-gated record surfaces (`ledger.record_trial`, `memory.record_rejection`, `memory.record_watch`) are confirmed in `configs/.../registry.toml`: each `allowed_callers=[\"librarian\"]`, `required_inputs` includes `review_verdict_ref`, `artifact_policy=\"local_only\"`, group `ledger_memory_promotion`, output `AgentToolResult`. `promotion.review` is restricted to `statistical_reviewer` + `human_operator` gate \u2014 librarian excluded.",
+    "Forbidden-decision set explicitly covers promote-without-`PromotionGate`, direct registry write, self-promotion, no-alpha/tradability claims, and **all** prohibited MVP states.",
+    "`git ls-files runs` is empty; only the six expected paths are touched. README is the sole modified tracked file.",
+    "Value-free outputs only; docs/template/handoff repeatedly frame recording as **not** promotion/validation/alpha-evidence.",
+    "Provided validation: `just frontier-doctor` PASS, `just verify-canaries` **all 16 PASS** (including `forbidden_scope_drift`, `forbidden_boundary_import`, `forbidden_raw_data_commit`). Executor reported `10 passed` for the unit suite + Ruff clean. No test weakening (new strong-assertion file only).",
+    "Handoff is truthful and complete: explicit staged file list, per-command results, skipped-check reasons, and honest disclosure of the plain-import nuance. No hidden failed runs."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T22:20:55Z",
+  "phase_id": "AGENT-P15",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P15/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T21:24:41Z",
+  "phase_id": "AGENT-P06",
+  "raw_review_path": null,
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "none",
+  "source": "done_check_warning",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": []
+}

@@ -1,0 +1,39 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "`src/alpha_system/agent_factory/roles/hypothesis_scout.py`",
+    "`tests/unit/agent_factory/roles/test_hypothesis_scout.py`",
+    "`docs/agent_factory/roles/hypothesis_scout.md`",
+    "`templates/agent_factory/roles/hypothesis_scout.md`",
+    "`handoffs/ALPHA_AGENT_FACTORY_MVP/AGENT-P08.md`",
+    "`README.md` (minimal, append-style snapshot in the campaign-progress region)",
+    "**Discovery registration, no shared-file edits:** `git diff HEAD` on `roles/__init__.py`, `roles/registry.py`, and `permissions/matrix.py` is empty. The role self-registers via `register(_ROLE_CONTRACT)` at import (`hypothesis_scout.py:209`), preserving wave-1 disjointness. \u2714",
+    "**Permission-matrix linkage is default-deny:** the P04 `hypothesis_scout` entry (`matrix.py:88`) grants exactly the three callable tool ids and write scope `(\"alphaspec.draft\",)`, with no review/promotion/raw-data scopes. The contract's `CALLABLE_TOOL_IDS` match. \u2714",
+    "**Separation of duties:** `generator \u2260 approver` encoded in `reviewer_independence`; `forbidden_decisions` explicitly denies self-approval, self-critique, implementation, diagnostics, dataset resolution, registry writes, promotion, and continuous runners. \u2714",
+    "**Bounded drafting:** `validate_draft_batch` enforces 3\u20135 drafts and the task `VariantBudget`; no loop/continuous shape. \u2714",
+    "**Value-free outputs:** `AlphaSpecDraftRef`/`RejectionReasonRecordRef`/`AgentHandoff` validators reject bytes, dataframe/array objects (`RAW_OBJECT_MODULE_PREFIXES`), forbidden payload markers, and heavy suffixes. Outputs carry only ids/refs/summaries. \u2714",
+    "**Duplicate surfacing:** `surface_prior_rejections` flags matched prior `RejectionReasonRecordRef` rather than silently re-proposing; downstream gate routes to duplicate review. \u2714",
+    "**No prohibited states / no claims:** transitions are confined to `HYPOTHESIS_DRAFTED \u2192 {ALPHASPEC_DRAFTED, INPUTS_BLOCKED, BLOCKED}`; `_validate_task_status_name` rejects `PROHIBITED_MVP_TASK_STATUSES`. Strong no-claims language in doc/template/limitations. No broker/live/paper/order/account surface anywhere. \u2714",
+    "`git ls-files runs` is empty; no `runs/` path staged or created; no run-local `handoff.md` committed. \u2714",
+    "No data/heavy/DB/provider artifacts; commit-eligible handoff is under `handoffs/<campaign>/<phase>.md`. \u2714",
+    "`ACTIVE_CAMPAIGN.md` untouched (coordinator-owned). \u2714",
+    "`just verify-canaries` (16 PASS, incl. `forbidden_scope_drift`, `forbidden_boundary_import`, `forbidden_raw_data_commit`) and `just frontier-doctor` pass. \u2714",
+    "No test weakening: tests assert positive denials (self-approval/promotion/raw payloads), budget bounds, and failure-mode shapes on synthetic fixtures only."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T21:42:13Z",
+  "phase_id": "AGENT-P08",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P08/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}

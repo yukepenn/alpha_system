@@ -4,13 +4,13 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_AGENT_FACTORY_MVP`
 Workflow: `workflow2`
-Run: `none` - not started
-Status: `not_started`
+Run: `2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP`
+Status: `complete` - `COMPLETE_WITH_WARNINGS`
 
-Current phase: `none` - campaign not started
-Last completed phase: `none`
-Last completed status: `none`
-Passing phases: `0/26`
+Current phase: `none` - campaign complete
+Last completed phase: `AGENT-P25` - Acceptance Audit and Closeout
+Last completed status: `PASS_WITH_WARNINGS`
+Passing phases: `26/26`
 
 Campaign `ALPHA_AGENT_FACTORY_MVP` is the **controlled AI Alpha Research Team
 layer** over the completed Governance + Feature/Label + Research Runtime stack.

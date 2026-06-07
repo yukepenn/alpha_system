@@ -1,0 +1,28 @@
+{
+  "auto_merge_performed": false,
+  "campaign_id": "ALPHA_AGENT_FACTORY_MVP",
+  "external_providers_called": true,
+  "findings": [
+    "**No edits to consumed primitives.** `git status` shows changes confined to `agent_factory/tools/`, its tests, `configs/agent_factory/tools/`, `docs/agent_factory/TOOLS.md`, `README.md`, and the handoff. No `runtime/**`, `governance/**`, `data/**`, `cli/**`, or any forbidden path touched. `forbidden_boundary_import` and `forbidden_scope_drift` canaries pass.",
+    "**Registry import isolation.** `registry.py` imports only `contracts` + `results`; `contracts.py` imports `permissions.matrix` (the P04 dependency \u2014 expected and in-scope). The \"no runtime/governance/data import\" property is asserted by `test_registry_module_does_not_import_consumed_primitive_packages`.",
+    "**Candidate tool surface matches the campaign exactly:** 24 tools across the 5 required groups (`registry`/`feature_label`/`runtime`/`review`/`ledger_memory_promotion`), confirmed against the config, docs table, and `EXPECTED_TOOLS` test set.",
+    "**Default-deny / fail-closed.** `resolve()` raises `KeyError` for unknown tools and `PermissionError` for disallowed callers; discovery helpers (`contract_for`, `list_by_group`, etc.) explicitly do not grant call authority (`test_registry_discovery_does_not_grant_call_authority`).",
+    "**Value-free results.** `AgentToolResult` has exactly the 16 required fields (frozen, slots), and `__post_init__` rejects bytes/bytearray/memoryview, dataframe/array objects (by module root), duplicates, control chars, raw/provider/heavy markers, and heavy-suffix references. Strong, fail-closed construction-time validation.",
+    "**No broker/live/paper/promotion scope.** Every contract forbids `broker_paper_live_order_scope` and direct registry writes; `promotion.review` is `status=future` with an extra `factor_promotion_without_human_approval` forbidden effect and `human_operator` as required reviewer. No autonomous agent, alpha search, or runtime execution introduced.",
+    "**P04 cross-reference is enforced, not cosmetic.** `_validate_permission_matrix_cross_refs` runs at module load via `TOOL_REGISTRY = ToolRegistry.from_config()`; clean import proves every `allowed_caller` has a matching P04 tool permission. Allowed callers are all real roster roles."
+  ],
+  "mock_providers": false,
+  "network_used": true,
+  "parsed_at": "2026-06-06T21:04:02Z",
+  "phase_id": "AGENT-P05",
+  "raw_review_path": "/home/yuke_zhang/projects/alpha_system/runs/2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP/phases/AGENT-P05/review.md",
+  "required_repairs": [],
+  "run_id": "2026-06-06T193514Z_ALPHA_AGENT_FACTORY_MVP",
+  "schema_version": "frontier-review-verdict-v1",
+  "severity": "warning",
+  "source": "review",
+  "verdict": "PASS_WITH_WARNINGS",
+  "warnings": [
+    "Review passed with warnings but did not enumerate warning bullets."
+  ]
+}
