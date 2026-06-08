@@ -60,6 +60,7 @@ class ScaleoutConfig:
     symbols: tuple[str, ...]
     years: tuple[int, ...]
     input_schemas: tuple[str, ...]
+    dense_grid_required: bool
     inventory_path: Path
     eligible_states: tuple[str, ...]
     value_store_format: ValueStoreFormat
@@ -71,6 +72,26 @@ class ScaleoutConfig:
     bounded_year: int = DEFAULT_BOUNDED_YEAR
     alpha_spec_id: str = DEFAULT_ALPHA_SPEC_ID
     policy_path: Path = Path(DEFAULT_POLICY_CONFIG)
+
+
+@dataclass(frozen=True, slots=True)
+class ScaleoutInputDataset:
+    """One accepted input DatasetVersion required by a scaleout unit."""
+
+    schema_id: str
+    dataset_version_id: str
+    acceptance_state: str
+    acceptance_state_source: str
+
+    def to_dict(self) -> dict[str, str]:
+        """Return a JSON-compatible input DatasetVersion summary."""
+
+        return {
+            "schema": self.schema_id,
+            "dataset_version_id": self.dataset_version_id,
+            "acceptance_state": self.acceptance_state,
+            "acceptance_state_source": self.acceptance_state_source,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +112,7 @@ class ScaleoutUnit:
     feature_set_id: str
     feature_set_version: str
     feature_names: tuple[str, ...]
+    input_datasets: tuple[ScaleoutInputDataset, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible unit summary."""
@@ -107,6 +129,7 @@ class ScaleoutUnit:
             "partition_id": self.partition_id,
             "window_start_ts": self.window_start_ts,
             "window_end_ts": self.window_end_ts,
+            "input_datasets": [dataset.to_dict() for dataset in self.input_datasets],
             "feature_set": {
                 "feature_set_id": self.feature_set_id,
                 "feature_set_version": self.feature_set_version,
@@ -245,6 +268,11 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
         symbols=_text_tuple(grid.get("symbols"), "batch_unit_grid.symbols"),
         years=_int_tuple(grid.get("years"), "batch_unit_grid.years"),
         input_schemas=_text_tuple(grid.get("input_schemas"), "batch_unit_grid.input_schemas"),
+        dense_grid_required=_optional_bool(
+            grid.get("dense_grid_required"),
+            "batch_unit_grid.dense_grid_required",
+            default=False,
+        ),
         inventory_path=_repo_path(
             dataset_selection.get("inventory_ref"),
             "dataset_selection.inventory_ref",
@@ -285,9 +313,10 @@ def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
     )
     partial_year_end_ts = _partial_year_end_ts(config.policy_path)
     units: list[ScaleoutUnit] = []
-    for schema_id in config.input_schemas:
-        schema_inventory = _require_mapping(schemas.get(schema_id), f"schemas.{schema_id}")
-        for year in config.years:
+    for year in config.years:
+        input_datasets: list[ScaleoutInputDataset] = []
+        for schema_id in config.input_schemas:
+            schema_inventory = _require_mapping(schemas.get(schema_id), f"schemas.{schema_id}")
             year_inventory = _require_mapping(
                 schema_inventory.get(str(year)),
                 f"schemas.{schema_id}.{year}",
@@ -304,45 +333,93 @@ def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
                 inventory_state=year_inventory.get("committed_summary_state"),
             )
             if state not in config.eligible_states:
-                continue
-            for symbol in config.symbols:
-                partition_id = _render_partition(config.partition_template, symbol=symbol, year=year)
-                feature_set_id = f"feature_set_futures_scaleout_{config.family}"
-                feature_set_version = f"v1_{symbol.lower()}_{year}"
-                unit_payload = {
-                    "schema": SCALEOUT_CONFIG_SCHEMA,
-                    "campaign_id": config.campaign_id,
-                    "family": config.family,
-                    "schema_id": schema_id,
-                    "symbol": symbol,
-                    "year": year,
-                    "dataset_version_id": dataset_version_id,
-                    "value_store_format": config.value_store_format.value,
-                    "feature_set_id": feature_set_id,
-                    "feature_set_version": feature_set_version,
-                }
-                units.append(
-                    ScaleoutUnit(
-                        unit_id=f"mbu_{hash_config(unit_payload)[:24]}",
-                        family=config.family,
-                        schema_id=schema_id,
-                        symbol=symbol,
-                        year=year,
-                        dataset_version_id=dataset_version_id,
-                        acceptance_state=state,
-                        acceptance_state_source=state_source,
-                        partition_id=partition_id,
-                        window_start_ts=f"{year:04d}-01-01T00:00:00+00:00",
-                        window_end_ts=partial_year_end_ts.get(
-                            year,
-                            f"{year + 1:04d}-01-01T00:00:00+00:00",
-                        ),
-                        feature_set_id=feature_set_id,
-                        feature_set_version=feature_set_version,
-                        feature_names=config.feature_names,
-                    )
+                input_datasets = []
+                break
+            input_datasets.append(
+                ScaleoutInputDataset(
+                    schema_id=schema_id,
+                    dataset_version_id=dataset_version_id,
+                    acceptance_state=state,
+                    acceptance_state_source=state_source,
                 )
+            )
+        if not input_datasets:
+            continue
+        primary = _primary_input_dataset(config, tuple(input_datasets))
+        for symbol in config.symbols:
+            partition_id = _render_partition(config.partition_template, symbol=symbol, year=year)
+            feature_set_id = f"feature_set_futures_scaleout_{config.family}"
+            feature_set_version = f"v1_{symbol.lower()}_{year}"
+            unit_payload = _unit_identity_payload(
+                config,
+                symbol=symbol,
+                year=year,
+                primary=primary,
+                input_datasets=tuple(input_datasets),
+                feature_set_id=feature_set_id,
+                feature_set_version=feature_set_version,
+            )
+            units.append(
+                ScaleoutUnit(
+                    unit_id=f"mbu_{hash_config(unit_payload)[:24]}",
+                    family=config.family,
+                    schema_id=primary.schema_id,
+                    symbol=symbol,
+                    year=year,
+                    dataset_version_id=primary.dataset_version_id,
+                    acceptance_state=primary.acceptance_state,
+                    acceptance_state_source=primary.acceptance_state_source,
+                    partition_id=partition_id,
+                    window_start_ts=f"{year:04d}-01-01T00:00:00+00:00",
+                    window_end_ts=partial_year_end_ts.get(
+                        year,
+                        f"{year + 1:04d}-01-01T00:00:00+00:00",
+                    ),
+                    feature_set_id=feature_set_id,
+                    feature_set_version=feature_set_version,
+                    feature_names=config.feature_names,
+                    input_datasets=tuple(input_datasets),
+                )
+            )
     return tuple(sorted(units, key=lambda item: (item.year, item.symbol, item.schema_id)))
+
+
+def _primary_input_dataset(
+    config: ScaleoutConfig,
+    input_datasets: tuple[ScaleoutInputDataset, ...],
+) -> ScaleoutInputDataset:
+    if config.dense_grid_required:
+        for dataset in input_datasets:
+            if dataset.schema_id == "ohlcv_dense_research_grid":
+                return dataset
+    return input_datasets[0]
+
+
+def _unit_identity_payload(
+    config: ScaleoutConfig,
+    *,
+    symbol: str,
+    year: int,
+    primary: ScaleoutInputDataset,
+    input_datasets: tuple[ScaleoutInputDataset, ...],
+    feature_set_id: str,
+    feature_set_version: str,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema": SCALEOUT_CONFIG_SCHEMA,
+        "campaign_id": config.campaign_id,
+        "family": config.family,
+        "schema_id": primary.schema_id,
+        "symbol": symbol,
+        "year": year,
+        "dataset_version_id": primary.dataset_version_id,
+        "value_store_format": config.value_store_format.value,
+        "feature_set_id": feature_set_id,
+        "feature_set_version": feature_set_version,
+    }
+    if len(input_datasets) > 1:
+        payload["input_dataset_versions"] = [dataset.to_dict() for dataset in input_datasets]
+    return payload
 
 
 def run_scaleout(
@@ -389,7 +466,7 @@ def run_scaleout(
     dataset_registry = _required_path(dataset_registry_path, "dataset_registry_path")
     canonical = _canonical_root(canonical_root)
     ledger = _ScaleoutLedger(alpha_root, config)
-    executor = unit_executor or materialize_base_ohlcv_unit
+    executor = unit_executor or _unit_executor_for_family(config.family)
 
     for stage, stage_units in _execution_stages(units, bounded, rollout_token):
         stage_records = _execute_stage(
@@ -479,6 +556,152 @@ def materialize_base_ohlcv_unit(
     )
 
 
+def materialize_session_calendar_maintenance_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one Session / Calendar / Maintenance unit through the seam."""
+
+    from alpha_system.cli.seed_pack import (
+        FeatureSetConfig,
+        FeatureSpecConfig,
+        SeedPackConfig,
+        _build_accepted_context,
+    )
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if (
+        config.family != "session_calendar_maintenance"
+        or unit.family != "session_calendar_maintenance"
+    ):
+        raise ScaleoutError(
+            "FUTSUB-P07 executor supports only the session_calendar_maintenance family"
+        )
+
+    seed_config = SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        feature_set=FeatureSetConfig(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            alpha_spec_id=config.alpha_spec_id,
+            features=tuple(
+                FeatureSpecConfig(name=name, window_length=1, horizon=1)
+                for name in unit.feature_names
+            ),
+        ),
+    )
+    context = _build_accepted_context(
+        seed_config,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=None,
+        repo_root=Path.cwd(),
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _session_feature_definitions(config, unit, store.registry)
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(definition.spec.feature_spec for definition in definitions),
+        description="FUTSUB-P07 session/calendar/maintenance FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "point_in_time_session_metadata_guard": "enforced",
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "point_in_time_session_metadata_guard": "enforced",
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=() if config.dense_grid_required else context.bar_rows,
+        dense_grid_bar_rows=context.bar_rows if config.dense_grid_required else (),
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no session feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("session FeatureRequest gate did not return a checked request")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=definition.spec.feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
+def _unit_executor_for_family(family: str) -> UnitExecutor:
+    if family == "base_ohlcv":
+        return materialize_base_ohlcv_unit
+    if family == "session_calendar_maintenance":
+        return materialize_session_calendar_maintenance_unit
+    raise ScaleoutError(f"unsupported scaleout family: {family}")
+
+
 def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
     """Render a compact value-free Markdown summary."""
 
@@ -488,7 +711,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
     lines = [
         f"# {summary.family} Scaleout Summary",
         "",
-        "Value-free FUTSUB-P06 summary. It contains no raw rows, canonical values,",
+        "Value-free scaleout summary. It contains no raw rows, canonical values,",
         "feature values, provider responses, SQLite content, or Parquet payloads.",
         "",
         f"- Campaign: `{summary.campaign_id}`",
@@ -520,20 +743,35 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
             "  DatasetVersion is excluded rather than fabricating per-symbol acceptance.",
             "- 2019 warning metadata and 2026 partial-year warning metadata are preserved",
             "  through the accepted/warned DatasetVersion state.",
+            "- Multi-input units require every configured input schema/year to carry an",
+            "  accepted or accepted-with-warnings DatasetVersion before execution.",
+            "",
+            "## Point-In-Time Guard",
+            "",
+            "- Session metadata is treated as `SESSION_METADATA_POINT_IN_TIME`.",
+            "- Row-specific metadata with an explicit metadata availability timestamp",
+            "  later than the row `available_ts` fails closed.",
+            "- Static RTH clock parameters are schedule definitions, not future labels;",
+            "  optional expiration/status metadata is never fabricated when absent.",
             "",
             "## Unit Outcomes",
             "",
-            "| Stage | Year | Symbol | DatasetVersion | Status | Rows |",
-            "| --- | ---: | --- | --- | --- | ---: |",
+            "| Stage | Year | Symbol | Primary DatasetVersion | Input DatasetVersions | Status | Rows |",
+            "| --- | ---: | --- | --- | --- | --- | ---: |",
         ]
     )
     for record in summary.records:
+        input_dataset_ids = ", ".join(
+            f"{dataset.schema_id}:{dataset.dataset_version_id}"
+            for dataset in _unit_input_datasets(record.unit)
+        )
         lines.append(
-            "| `{stage}` | {year} | `{symbol}` | `{dataset}` | `{status}` | {rows} |".format(
+            "| `{stage}` | {year} | `{symbol}` | `{dataset}` | `{inputs}` | `{status}` | {rows} |".format(
                 stage=record.stage,
                 year=record.unit.year,
                 symbol=record.unit.symbol,
                 dataset=record.unit.dataset_version_id,
+                inputs=input_dataset_ids,
                 status=record.status,
                 rows=record.row_count,
             )
@@ -669,13 +907,7 @@ def _execute_stage(
 
 def _preview_record(config: ScaleoutConfig, unit: ScaleoutUnit, *, stage: str) -> ScaleoutUnitRecord:
     try:
-        from alpha_system.cli.seed_pack import preview_seed_feature_pack
-
-        preview = preview_seed_feature_pack(_seed_config(config, unit))
-        feature_version_ids = tuple(
-            _require_text(value, "feature_version_id")
-            for value in _sequence(preview.get("feature_version_ids"), "feature_version_ids")
-        )
+        feature_version_ids = _preview_feature_version_ids(config, unit)
         return ScaleoutUnitRecord(
             unit=unit,
             status="planned",
@@ -685,6 +917,24 @@ def _preview_record(config: ScaleoutConfig, unit: ScaleoutUnit, *, stage: str) -
         )
     except ValueError as exc:
         return ScaleoutUnitRecord(unit=unit, status="failed", stage=stage, message=str(exc))
+
+
+def _preview_feature_version_ids(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+) -> tuple[str, ...]:
+    if config.family == "base_ohlcv":
+        from alpha_system.cli.seed_pack import preview_seed_feature_pack
+
+        preview = preview_seed_feature_pack(_seed_config(config, unit))
+        return tuple(
+            _require_text(value, "feature_version_id")
+            for value in _sequence(preview.get("feature_version_ids"), "feature_version_ids")
+        )
+    if config.family == "session_calendar_maintenance":
+        definitions = _session_feature_definitions(config, unit, lambda: ())
+        return tuple(definition.feature_version_id for definition in definitions)
+    raise ScaleoutError(f"unsupported scaleout family: {config.family}")
 
 
 def _seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
@@ -720,22 +970,122 @@ def _feature_window(name: str) -> int:
     return 1
 
 
+def _session_bar_row_loader(**kwargs: Any) -> tuple[dict[str, Any], ...]:
+    from alpha_system.data.foundation.canonical_loader import load_canonical_ohlcv_rows
+
+    return load_canonical_ohlcv_rows(**kwargs)
+
+
+def _session_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.session import (
+        SessionFeatureName,
+        build_session_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for feature_name in unit.feature_names:
+        name = SessionFeatureName(feature_name)
+        definitions.append(
+            build_session_feature_definition(
+                name,
+                _session_feature_request(config, unit, name),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                input_view_name=(
+                    "dense_grid_ohlcv" if config.dense_grid_required else "canonical_ohlcv"
+                ),
+                input_scope={
+                    "symbol": unit.symbol.upper(),
+                    "partition_id": unit.partition_id,
+                    "partition_schema": unit.schema_id,
+                },
+            )
+        )
+    return tuple(definitions)
+
+
+def _session_feature_request(config: ScaleoutConfig, unit: ScaleoutUnit, name: Any) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    feature_name = _require_text(getattr(name, "value", str(name)), "session feature name")
+    exposure_family = f"{config.family}_{feature_name}"
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "operation": feature_name,
+            "window": 1,
+            "scaleout_unit_id": unit.unit_id,
+        },
+        availability_assumptions={
+            "timing": "session metadata is consumed as of each row available_ts",
+            "point_in_time_guard": (
+                "metadata with an explicit metadata_available_ts later than the row "
+                "available_ts fails closed"
+            ),
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "contract_id",
+                "series_id",
+                "session_label",
+                "bar_start_ts",
+                "available_ts",
+            ],
+            "source": "already-canonical accepted OHLCV or dense-grid OHLCV DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _unit_input_datasets(unit: ScaleoutUnit) -> tuple[ScaleoutInputDataset, ...]:
+    if unit.input_datasets:
+        return unit.input_datasets
+    return (
+        ScaleoutInputDataset(
+            schema_id=unit.schema_id,
+            dataset_version_id=unit.dataset_version_id,
+            acceptance_state=unit.acceptance_state,
+            acceptance_state_source=unit.acceptance_state_source,
+        ),
+    )
+
+
 def _require_persisted_acceptance_lock(unit: ScaleoutUnit, dataset_registry_path: Path) -> None:
-    lock = resolve_dataset_acceptance_lock(dataset_registry_path, unit.dataset_version_id)
-    if lock is None:
-        raise ScaleoutError(
-            "persisted DatasetVersion acceptance lock not found: "
-            f"{unit.dataset_version_id}"
-        )
-    if lock.state.value not in ELIGIBLE_ACCEPTANCE_STATES:
-        raise ScaleoutError(
-            f"DatasetVersion acceptance state is not executable: {lock.state.value}"
-        )
-    if lock.state.value != unit.acceptance_state:
-        raise ScaleoutError(
-            "persisted DatasetVersion acceptance state does not match planning summary: "
-            f"{lock.state.value} != {unit.acceptance_state}"
-        )
+    for dataset in _unit_input_datasets(unit):
+        lock = resolve_dataset_acceptance_lock(dataset_registry_path, dataset.dataset_version_id)
+        if lock is None:
+            raise ScaleoutError(
+                "persisted DatasetVersion acceptance lock not found: "
+                f"{dataset.dataset_version_id}"
+            )
+        if lock.state.value not in ELIGIBLE_ACCEPTANCE_STATES:
+            raise ScaleoutError(
+                f"DatasetVersion acceptance state is not executable: {lock.state.value}"
+            )
+        if lock.state.value != dataset.acceptance_state:
+            raise ScaleoutError(
+                "persisted DatasetVersion acceptance state does not match planning summary: "
+                f"{lock.state.value} != {dataset.acceptance_state}"
+            )
 
 
 def _verify_feature_registry_roundtrip(
@@ -744,6 +1094,8 @@ def _verify_feature_registry_roundtrip(
     alpha_data_root: Path,
     feature_version_ids: tuple[str, ...],
     parquet_path: str,
+    content_hash: str | None = None,
+    value_schema_version: str | None = None,
 ) -> None:
     store = FeatureStore.from_alpha_data_root(alpha_data_root)
     for feature_version_id in feature_version_ids:
@@ -758,6 +1110,16 @@ def _verify_feature_registry_roundtrip(
             raise ScaleoutError("registered feature is not Parquet-backed")
         if record.parquet_path != parquet_path:
             raise ScaleoutError("registered feature Parquet path does not match materialization")
+        if not record.value_content_hash:
+            raise ScaleoutError("registered feature is missing value_content_hash")
+        if content_hash is not None and record.value_content_hash != content_hash:
+            raise ScaleoutError("registered feature content hash does not match materialization")
+        if not record.value_schema_version:
+            raise ScaleoutError("registered feature is missing value_schema_version")
+        if value_schema_version is not None and record.value_schema_version != value_schema_version:
+            raise ScaleoutError(
+                "registered feature value schema version does not match materialization"
+            )
 
 
 def _completed_record_is_valid(record: ScaleoutUnitRecord) -> bool:
@@ -800,6 +1162,7 @@ def _record_from_payload(payload: Mapping[str, object]) -> ScaleoutUnitRecord:
                 "feature_set.features",
             )
         ),
+        input_datasets=_input_datasets_from_payload(payload),
     )
     return ScaleoutUnitRecord(
         unit=unit,
@@ -813,6 +1176,33 @@ def _record_from_payload(payload: Mapping[str, object]) -> ScaleoutUnitRecord:
             for value in _sequence(payload.get("feature_version_ids", ()), "feature_version_ids")
         ),
         message=str(payload.get("message", "")),
+    )
+
+
+def _input_datasets_from_payload(payload: Mapping[str, object]) -> tuple[ScaleoutInputDataset, ...]:
+    raw = payload.get("input_datasets", ())
+    if raw in (None, ()):
+        return ()
+    return tuple(
+        ScaleoutInputDataset(
+            schema_id=_require_text(
+                _require_mapping(value, "input_datasets[]").get("schema"),
+                "input_datasets[].schema",
+            ),
+            dataset_version_id=_require_text(
+                _require_mapping(value, "input_datasets[]").get("dataset_version_id"),
+                "input_datasets[].dataset_version_id",
+            ),
+            acceptance_state=_require_text(
+                _require_mapping(value, "input_datasets[]").get("acceptance_state"),
+                "input_datasets[].acceptance_state",
+            ),
+            acceptance_state_source=_require_text(
+                _require_mapping(value, "input_datasets[]").get("acceptance_state_source"),
+                "input_datasets[].acceptance_state_source",
+            ),
+        )
+        for value in _sequence(raw, "input_datasets")
     )
 
 
@@ -999,6 +1389,14 @@ def _int_tuple(value: object, field_name: str) -> tuple[int, ...]:
     if not values:
         raise ScaleoutError(f"{field_name} must not be empty")
     return values
+
+
+def _optional_bool(value: object, field_name: str, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ScaleoutError(f"{field_name} must be a boolean")
+    return value
 
 
 def _require_text(value: object, field_name: str) -> str:

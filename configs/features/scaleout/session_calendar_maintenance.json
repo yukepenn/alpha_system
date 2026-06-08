@@ -5,11 +5,16 @@
   "phase_source": "FUTSUB-P05",
   "family": "session_calendar_maintenance",
   "governed_scope": [
-    "rth_eth_flags",
-    "session_minute",
-    "maintenance_window_flags",
-    "holiday_half_day_flags",
-    "minutes_to_close_or_maintenance"
+    "session_id",
+    "minutes_from_rth_open",
+    "minutes_to_rth_close",
+    "rth_segment_flag",
+    "eth_segment_flag",
+    "day_of_week",
+    "bars_to_roll",
+    "minutes_to_roll",
+    "minutes_to_expiration",
+    "halt_status_flag"
   ],
   "batch_unit_grid": {
     "unit_grain": [
@@ -74,8 +79,13 @@
     "registry": "registry/features.sqlite"
   },
   "identity": {
-    "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,input_schemas,dataset_version_id,value_store_format))>",
+    "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,input_schemas,dataset_version_ids,value_store_format))>",
     "partition_template": "{symbol}.{year}.full_year",
     "dry_run_preview_ref": "research/futures_substrate_scaleout_v1/materialization/batch_plan.md#dry-run-identity-preview"
+  },
+  "point_in_time_guard": {
+    "metadata_role": "SESSION_METADATA_POINT_IN_TIME",
+    "metadata_available_ts_required_when_metadata_is_row_specific": true,
+    "fail_closed_if_metadata_available_ts_exceeds_row_available_ts": true
   }
 }

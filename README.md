@@ -8,24 +8,27 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P06`:
-Scaleout Materialization Driver + Base OHLCV FeaturePack Scaleout within the
-`feature_materialization` gate. Ralph owns validation routing, staging, commit,
-review routing, PR, CI, merge, and done-check actions.
+active. This snapshot reflects the executor-complete state for `FUTSUB-P07`:
+Session / Calendar / Maintenance FeaturePack Scaleout within the
+`feature_materialization` gate, following the base OHLCV scaleout driver phase.
+Ralph owns validation routing, staging, commit, review routing, PR, CI, merge,
+and done-check actions.
 
-Active / next work: the next phase is `FUTSUB-P07` - Session / Calendar /
-Maintenance FeaturePack Scaleout.
+Active / next work: remaining `feature_materialization` FeaturePack phases,
+`FUTSUB-P08` VWAP / Session Auction through `FUTSUB-P13` Cross-Market Alignment.
 
-New durable surfaces in this `FUTSUB-P06` snapshot:
+New durable surfaces in this `FUTSUB-P07` snapshot:
 
 - Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
 - CLI surface: `alpha scaleout feature-pack`
-- Scaleout driver doc in `docs/futures_substrate_scaleout/SCALEOUT_DRIVER.md`
-- Value-free base OHLCV scaleout summaries under
-  `research/futures_substrate_scaleout_v1/feature_packs/base_ohlcv/` and
-  `research/futures_substrate_scaleout_v1/scaleout_driver/`
+- Session scaleout config:
+  `configs/features/scaleout/session_calendar_maintenance.json`
+- Session/calendar/maintenance value-free coverage evidence under
+  `research/futures_substrate_scaleout_v1/feature_packs/session_calendar_maintenance/`
+- Session unit-executor dispatch in the scaleout driver, with dense-grid
+  input-view identity and point-in-time session metadata guard tests
 
-`FUTSUB-P06` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+`FUTSUB-P07` adds no raw/provider data reads, re-pulls, runtime diagnostics,
 broker surfaces, live surfaces, paper-trading surfaces, order routing, or
 deployment behavior. Feature values, registries, checkpoints, canonical data,
 and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed

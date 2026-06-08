@@ -64,6 +64,9 @@ class SessionCalendarRollMetadata:
     expiration_ts_by_contract_id: Mapping[str, datetime] = field(default_factory=dict)
     status_by_row_key: Mapping[str, str] = field(default_factory=dict)
     status_by_available_ts: Mapping[datetime, str] = field(default_factory=dict)
+    expiration_available_ts_by_contract_id: Mapping[str, datetime] = field(default_factory=dict)
+    status_available_ts_by_row_key: Mapping[str, datetime] = field(default_factory=dict)
+    status_available_ts_by_available_ts: Mapping[datetime, datetime] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         expiration = {
@@ -83,21 +86,88 @@ class SessionCalendarRollMetadata:
             )
             for available_ts, status in self.status_by_available_ts.items()
         }
+        expiration_available = {
+            _require_text(
+                contract_id,
+                "expiration_available_ts_by_contract_id key",
+            ): _require_aware_datetime(
+                available_ts,
+                "expiration_available_ts_by_contract_id value",
+            )
+            for contract_id, available_ts in self.expiration_available_ts_by_contract_id.items()
+        }
+        row_status_available = {
+            _require_text(
+                row_key_value,
+                "status_available_ts_by_row_key key",
+            ): _require_aware_datetime(
+                available_ts,
+                "status_available_ts_by_row_key value",
+            )
+            for row_key_value, available_ts in self.status_available_ts_by_row_key.items()
+        }
+        available_status_available = {
+            _require_aware_datetime(
+                status_available_ts,
+                "status_available_ts_by_available_ts key",
+            ): _require_aware_datetime(
+                metadata_available_ts,
+                "status_available_ts_by_available_ts value",
+            )
+            for status_available_ts, metadata_available_ts in (
+                self.status_available_ts_by_available_ts.items()
+            )
+        }
         object.__setattr__(self, "expiration_ts_by_contract_id", MappingProxyType(expiration))
         object.__setattr__(self, "status_by_row_key", MappingProxyType(row_status))
         object.__setattr__(self, "status_by_available_ts", MappingProxyType(available_status))
+        object.__setattr__(
+            self,
+            "expiration_available_ts_by_contract_id",
+            MappingProxyType(expiration_available),
+        )
+        object.__setattr__(
+            self,
+            "status_available_ts_by_row_key",
+            MappingProxyType(row_status_available),
+        )
+        object.__setattr__(
+            self,
+            "status_available_ts_by_available_ts",
+            MappingProxyType(available_status_available),
+        )
 
     def expiration_for(self, row: TradeBarRow) -> datetime | None:
         """Return the expiration timestamp for ``row.contract_id`` if supplied."""
 
-        return self.expiration_ts_by_contract_id.get(row.contract_id)
+        expiration_ts = self.expiration_ts_by_contract_id.get(row.contract_id)
+        if expiration_ts is not None:
+            _require_metadata_known_as_of(
+                self.expiration_available_ts_by_contract_id.get(row.contract_id),
+                row,
+                "expiration metadata",
+            )
+        return expiration_ts
 
     def status_for(self, row: TradeBarRow) -> str | None:
         """Return canonical status metadata for one row if supplied."""
 
-        return self.status_by_row_key.get(row_key(row)) or self.status_by_available_ts.get(
-            row.available_ts
-        )
+        key = row_key(row)
+        if key in self.status_by_row_key:
+            _require_metadata_known_as_of(
+                self.status_available_ts_by_row_key.get(key),
+                row,
+                "status metadata",
+            )
+            return self.status_by_row_key[key]
+        if row.available_ts in self.status_by_available_ts:
+            _require_metadata_known_as_of(
+                self.status_available_ts_by_available_ts.get(row.available_ts),
+                row,
+                "status metadata",
+            )
+            return self.status_by_available_ts[row.available_ts]
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,6 +374,8 @@ def build_session_feature_definition(
     dataset_version_ids: Sequence[str] = (),
     rth_open_time: str = "14:30",
     rth_close_time: str = "21:00",
+    input_view_name: str = "canonical_ohlcv",
+    input_scope: Mapping[str, Any] | None = None,
     window: WindowSpec | None = None,
 ) -> SessionFeatureDefinition:
     """Build one approved Session / Calendar / Roll feature definition.
@@ -315,6 +387,7 @@ def build_session_feature_definition(
     feature_name = _coerce_feature_name(name)
     open_time = _parse_clock_time(rth_open_time, "rth_open_time")
     close_time = _parse_clock_time(rth_close_time, "rth_close_time")
+    input_view = _input_view_name(input_view_name)
     if close_time <= open_time:
         raise SessionFeatureError("rth_close_time must be after rth_open_time")
 
@@ -328,6 +401,8 @@ def build_session_feature_definition(
         dataset_version_ids=dataset_version_ids,
         rth_open_time=open_time,
         rth_close_time=close_time,
+        input_view_name=input_view,
+        input_scope=input_scope,
         window=window,
     )
     return SessionFeatureDefinition(
@@ -392,6 +467,8 @@ def _feature_spec(
     dataset_version_ids: Sequence[str],
     rth_open_time: time,
     rth_close_time: time,
+    input_view_name: str,
+    input_scope: Mapping[str, Any] | None,
     window: WindowSpec | None,
 ) -> SessionFeatureSpec:
     if gate_decision.feature_request_id is None:
@@ -414,24 +491,32 @@ def _feature_spec(
         family=FeatureFamily.SESSION_CALENDAR_ROLL,
         feature_request_id=gate_decision.feature_request_id,
         inputs=FeatureInputSpec(
-            input_views=("canonical_ohlcv",),
+            input_views=(input_view_name,),
             fields=_input_fields(name),
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata={
+            input_metadata=_input_metadata(
+                {
                 "consumption_surface": (
-                    "alpha_system.features.input_views.OHLCVInputView; dense-grid "
-                    "rows may be supplied as FLF-P01 DenseGridBarRecord objects"
+                    "alpha_system.features.input_views.OHLCVInputView; FUTSUB-P07 may "
+                    "bind dense_grid_ohlcv so FLF-P01 DenseGridBarRecord objects are "
+                    "reconstructed through the materialization engine"
                 ),
                 "optional_metadata": [
                     "expiration_ts_by_contract_id",
                     "status_by_row_key",
                     "status_by_available_ts",
+                    "expiration_available_ts_by_contract_id",
+                    "status_available_ts_by_row_key",
+                    "status_available_ts_by_available_ts",
                 ],
                 "trade_semantics": (
                     "FLF-P04 synthetic no-trade rows retain session/calendar position "
                     "but are flagged as position-only rows, not trade bars"
                 ),
-            },
+                "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
+                },
+                input_scope=input_scope,
+            ),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -446,6 +531,10 @@ def _feature_spec(
                 "RTH clock times, contract roll transitions, expiration, and status "
                 "metadata are treated as calendar/definition/status metadata"
             ),
+            "session_metadata_role_guard": (
+                "optional metadata carrying explicit metadata availability must be "
+                "known at or before the row available_ts"
+            ),
             "absence": "missing expiration or status metadata yields None with absent flags",
         },
         available_ts_derivation_rule=(
@@ -459,6 +548,7 @@ def _feature_spec(
             "phase": "FLF-P10",
             "materialization": "in_memory_records_only",
             "claims": "session_calendar_roll_substrate_only_no_alpha_or_tradability_claim",
+            "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
         },
         request_gate_decision=gate_decision,
     )
@@ -538,6 +628,18 @@ def _coerce_metadata(
             ),
             status_by_row_key=_mapping_value(metadata, "status_by_row_key"),
             status_by_available_ts=_mapping_value(metadata, "status_by_available_ts"),
+            expiration_available_ts_by_contract_id=_mapping_value(
+                metadata,
+                "expiration_available_ts_by_contract_id",
+            ),
+            status_available_ts_by_row_key=_mapping_value(
+                metadata,
+                "status_available_ts_by_row_key",
+            ),
+            status_available_ts_by_available_ts=_mapping_value(
+                metadata,
+                "status_available_ts_by_available_ts",
+            ),
         )
     raise SessionFeatureError("metadata must be SessionCalendarRollMetadata or a mapping")
 
@@ -798,6 +900,44 @@ def _coerce_feature_name(name: SessionFeatureName | str) -> SessionFeatureName:
         return name if isinstance(name, SessionFeatureName) else SessionFeatureName(str(name))
     except ValueError as exc:
         raise SessionFeatureError(f"unsupported Session feature: {name}") from exc
+
+
+def _input_metadata(
+    metadata: Mapping[str, Any],
+    *,
+    input_scope: Mapping[str, Any] | None,
+) -> dict[str, object]:
+    payload: dict[str, object] = dict(metadata)
+    if input_scope:
+        payload["input_scope"] = {str(key): value for key, value in input_scope.items()}
+    return payload
+
+
+def _input_view_name(value: str) -> str:
+    text = _require_text(value, "input_view_name")
+    if text not in {"canonical_ohlcv", "dense_grid_ohlcv"}:
+        raise SessionFeatureError(
+            "input_view_name must be canonical_ohlcv or dense_grid_ohlcv"
+        )
+    return text
+
+
+def _require_metadata_known_as_of(
+    metadata_available_ts: datetime | None,
+    row: TradeBarRow,
+    metadata_role: str,
+) -> None:
+    if metadata_available_ts is None:
+        return
+    available_ts = _require_aware_datetime(
+        metadata_available_ts,
+        f"{metadata_role}.available_ts",
+    )
+    row_available_ts = _require_aware_datetime(row.available_ts, "trade_row.available_ts")
+    if available_ts > row_available_ts:
+        raise SessionFeatureError(
+            f"{metadata_role} available_ts must be <= trade_row.available_ts"
+        )
 
 
 def _normalize_status(value: object) -> str:
