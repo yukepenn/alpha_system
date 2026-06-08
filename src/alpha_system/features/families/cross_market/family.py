@@ -1356,8 +1356,17 @@ def _sign(value: float) -> int:
 def _market_from_row(row: OHLCVInputRow | BBOInputRow) -> str:
     for candidate in (row.instrument_id, row.contract_id, row.series_id):
         text = _optional_text(candidate).upper()
+        if not text:
+            continue
+        # Canonical provider identifiers embed the market root as an
+        # underscore-delimited token, e.g. ``inst_<provider>_es`` /
+        # ``contract_<provider>_es_v_0_front`` /
+        # ``series_<provider>_es_front_unadjusted``. Match the bare/prefixed forms
+        # (ES, ESH4) used by synthetic rows and the embedded token used by real
+        # canonical rows.
+        tokens = frozenset(text.split("_"))
         for market in _MARKETS:
-            if text == market or text.startswith(market):
+            if text == market or text.startswith(market) or market in tokens:
                 return market
     raise CrossMarketFeatureError("row does not identify ES, NQ, or RTY")
 
