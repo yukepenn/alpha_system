@@ -387,7 +387,7 @@ def run_scaleout(
 
     alpha_root = _alpha_data_root(alpha_data_root)
     dataset_registry = _required_path(dataset_registry_path, "dataset_registry_path")
-    canonical = _canonical_root(canonical_root, alpha_root)
+    canonical = _canonical_root(canonical_root)
     ledger = _ScaleoutLedger(alpha_root, config)
     executor = unit_executor or materialize_base_ohlcv_unit
 
@@ -926,10 +926,16 @@ def _alpha_data_root(value: str | Path | None) -> Path:
     return root
 
 
-def _canonical_root(value: str | Path | None, alpha_data_root: Path) -> Path:
-    if value is not None:
-        return Path(value).expanduser().resolve(strict=False)
-    return alpha_data_root / "databento" / "canonical" / "glbx_mdp3"
+def _canonical_root(value: str | Path | None) -> Path:
+    # Feature-layer code stays provider-agnostic: the canonical root is resolved
+    # and supplied by the orchestration/CLI layer (see cli/scaleout.py), never
+    # constructed here. This keeps the no-raw-provider boundary intact.
+    if value is None:
+        raise ScaleoutError(
+            "canonical_root is required; the orchestration layer must resolve and "
+            "pass the canonical Parquet root (it is not constructed in feature code)"
+        )
+    return Path(value).expanduser().resolve(strict=False)
 
 
 def _required_path(value: str | Path | None, field_name: str) -> Path:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -17,6 +18,29 @@ from alpha_system.features.scaleout.driver import (
     run_scaleout,
 )
 
+# The provider canonical layout lives in the orchestration/CLI layer (and the
+# data layer), never in provider-agnostic feature code. The scaleout driver
+# under features/ requires the caller to pass a resolved canonical_root.
+_CANONICAL_ROOT_SUBPATH = ("databento", "canonical", "glbx_mdp3")
+
+
+def _resolve_canonical_root(
+    canonical_root: str | None, alpha_data_root: str | None
+) -> str | None:
+    """Resolve the canonical Parquet root passed to the driver.
+
+    Uses ``--canonical-root`` when given; otherwise derives it under the resolved
+    ALPHA_DATA_ROOT. Returns ``None`` when no data root is available so the driver
+    fails closed with a clear message (only reached under ``--execute``).
+    """
+
+    if canonical_root is not None:
+        return canonical_root
+    root_value = alpha_data_root or os.environ.get("ALPHA_DATA_ROOT")
+    if not root_value:
+        return None
+    return str(Path(root_value).expanduser().joinpath(*_CANONICAL_ROOT_SUBPATH))
+
 
 def run_feature_pack(args: argparse.Namespace) -> int:
     """Run ``alpha scaleout feature-pack``."""
@@ -27,7 +51,9 @@ def run_feature_pack(args: argparse.Namespace) -> int:
             config,
             alpha_data_root=args.alpha_data_root,
             dataset_registry_path=args.dataset_registry,
-            canonical_root=args.canonical_root,
+            canonical_root=_resolve_canonical_root(
+                args.canonical_root, args.alpha_data_root
+            ),
             rollout=args.rollout,
             execute=args.execute,
             bounded_year=args.bounded_year,
