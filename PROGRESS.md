@@ -1,5 +1,9 @@
 # Progress
 
+> **HISTORICAL — not live status.** This file lags the running campaign and may
+> name a stale "next campaign". For the authoritative campaign/phase, run
+> `just status-doctor` (or read `runs/<run_id>/state.json`). Entry point: `CRITICAL.md`.
+
 Project: `alpha_system`
 
 ## Current status
