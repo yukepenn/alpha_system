@@ -19,6 +19,11 @@ from alpha_system.features.fast.base_ohlcv import (
     build_base_ohlcv_pack,
     supports_base_ohlcv_pack,
 )
+from alpha_system.features.fast.cross_market_panel import (
+    CROSS_MARKET_FEATURE_IDS,
+    build_cross_market_pack,
+    supports_cross_market_pack,
+)
 from alpha_system.features.fast.materializer import (
     FAST_PRODUCER_ENGINE_ID,
     FAST_VALUE_SCHEMA_VERSION,
@@ -72,6 +77,7 @@ __all__ = [
     "BASE_OHLCV_HORIZON",
     "BASE_OHLCV_RESET_ON_SESSION",
     "BASE_OHLCV_WINDOW_LENGTH",
+    "CROSS_MARKET_FEATURE_IDS",
     "FAST_PRODUCER_ENGINE_ID",
     "FAST_VALUE_SCHEMA_VERSION",
     "FastFeatureDeclaration",
@@ -91,6 +97,7 @@ __all__ = [
     "VWAP_SESSION_AUCTION_FEATURE_NAMES",
     "build_bbo_tradability_pack",
     "build_base_ohlcv_pack",
+    "build_cross_market_pack",
     "build_fast_feature_pack",
     "build_liquidity_pa_structure_pack",
     "build_regime_vol_compression_pack",
@@ -99,6 +106,7 @@ __all__ = [
     "build_vwap_session_auction_pack",
     "supports_bbo_tradability_pack",
     "supports_base_ohlcv_pack",
+    "supports_cross_market_pack",
     "supports_liquidity_pa_structure_pack",
     "supports_regime_vol_compression_pack",
     "supports_session_calendar_roll_pack",

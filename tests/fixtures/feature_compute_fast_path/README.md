@@ -29,3 +29,7 @@ harness exercises both `insufficient_window` and `input_gap` quality flags.
   fixture. It covers leading rolling warm-up, missing and quarantined BBO rows,
   wide-spread and low-depth flags, session-reset z-score behavior, and a
   missing spread-ticks gap without storing real market data or feature values.
+- `cross_market.py` generates the `FCFP-P09` ES/NQ/RTY Cross-Market fixture. It
+  covers strict same-event alignment, delayed instrument availability,
+  exact-time missing BBO flags, a missing RTY event that must not be imputed,
+  no-trade and session-reset return gaps, and rolling variance gap branches.

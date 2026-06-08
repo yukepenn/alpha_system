@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -84,6 +85,15 @@ def _assert_values_match(
 ) -> None:
     if reference_value is None or fast_value is None:
         assert fast_value is reference_value
+        return
+    if isinstance(reference_value, Mapping) and isinstance(fast_value, Mapping):
+        assert fast_value.keys() == reference_value.keys()
+        for key, nested_reference in reference_value.items():
+            _assert_values_match(
+                nested_reference,
+                fast_value[key],
+                tolerance=tolerance,
+            )
         return
     if isinstance(reference_value, int | float) and isinstance(fast_value, int | float):
         if tolerance.abs == 0.0 and tolerance.rel == 0.0:

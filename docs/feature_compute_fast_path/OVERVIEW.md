@@ -142,6 +142,41 @@ covers leading insufficient windows, a no-trade input gap, session-boundary
 reset behavior, zero-range structure guards, `available_ts`, quality flags, and
 reference feature-version identity.
 
+## P08 BBO Tradability / Top-Book Pack
+
+`FCFP-P08` adds `alpha_system.features.fast.bbo_tradability` and wires the
+governed BBO tradability / top-book feature set through
+`build_fast_feature_pack()`. The pack computes spread, spread ticks, spread
+bps, top-book sizes/depth/imbalance, microprice, microprice-minus-mid,
+missing-BBO and bad-quote flags, wide-spread and low-depth flags, and
+reset-on-session spread z-score values from one BBO frame.
+
+The synthetic parity gate covers missing and quarantined BBO rows,
+wide-spread/low-depth flags, spread-ticks gaps, reset-on-session rolling
+warm-up, `available_ts`, quality flags, and reference feature-version identity.
+No feature values or real market data are committed.
+
+## P09 Cross-Market Aligned Panel Pack
+
+`FCFP-P09` adds `alpha_system.features.fast.cross_market_panel` and wires the
+governed ES/NQ/RTY Cross-Market feature set through
+`build_fast_feature_pack()`. The pack prepares one aligned Polars panel for the
+selected reference alignment policy: `strict_intersection` joins exact
+same-event ES/NQ/RTY rows and derives `available_ts` as the max contributing
+availability timestamp, while legacy `asof` uses the reference union
+availability timeline. The strict path does not carry one instrument's return
+into another instrument's later timestamp.
+
+The pack computes all 11 governed Cross-Market values from that panel:
+synchronized returns, NQ/RTY return spreads versus ES, NQ/RTY beta residuals
+versus ES, NQ/RTY rolling correlations versus ES, confirmation/divergence
+flags, and risk-on/risk-off rotation proxies. The synthetic parity gate covers
+leading history gaps, no-trade input gaps, reset-on-session behavior,
+zero-benchmark and zero-target rolling variance gaps, optional exact-time BBO
+flags, no-forward-fill strict-intersection behavior, `available_ts`, quality
+flags, and reference feature-version identity. No feature values or real market
+data are committed.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live
