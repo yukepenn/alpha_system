@@ -437,8 +437,8 @@ phases:
   - research/feature_compute_fast_path_v1/.gitkeep
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P00.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P00/**
-  - runs/**
   - ACTIVE_CAMPAIGN.md
+  - README.md
   forbidden_paths: *forbidden_paths
   artifact_policy: &ap
     commit_only:
@@ -494,7 +494,6 @@ phases:
   - docs/feature_compute_fast_path/**
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P01.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P01/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
@@ -785,7 +784,6 @@ phases:
   - docs/feature_compute_fast_path/**
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P10.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P10/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
@@ -833,7 +831,6 @@ phases:
   - research/feature_compute_fast_path_v1/**
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P11.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P11/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
@@ -891,7 +888,6 @@ phases:
   - docs/feature_compute_fast_path/**
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P12.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P12/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
@@ -945,7 +941,6 @@ phases:
   - tests/unit/feature_compute_fast_path/**
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P13.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P13/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
@@ -998,7 +993,6 @@ phases:
   - docs/feature_compute_fast_path/**
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P14.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P14/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
@@ -1044,7 +1038,6 @@ phases:
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md
   - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:

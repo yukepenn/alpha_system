@@ -4,32 +4,26 @@ Project: `alpha_system`
 
 Campaign: `campaigns/FEATURE_COMPUTE_FAST_PATH_V1`
 Workflow: `workflow2`
-Run: `workflow2 ready to launch` - contract bundle authored; mock run 16/16 PASS; live WF2 run starting
-Status: `contract authored (validated, ready to run)` - the 6-file campaign bundle
-is present, YAML parses, the DAG plan is valid, and a deterministic mock run
-completed 16/16 PASS with no providers/network/merge. `FCFP-P00`
-(coordinator-owned, `must_run_alone`) re-confirms this pointer at run start.
+Run: `workflow2 active` - bootstrap pointer and documentation phase prepared
+Status: `bootstrap complete` - `FCFP-P00` refreshed the root pointer, confirmed
+the campaign bundle shape, added the documentation index, and anchored the
+value-free evidence directory. Ralph owns staging, commit, review routing,
+merge-gate evaluation, and downstream phase selection.
 
-Current phase: `none` - run starting
-Next phase: `FCFP-P00` - Campaign Bootstrap and Active Pointer
-Completed phases: `0/16`
+Current phase: `FCFP-P01` - V1 Engine Core + Reference-Parity Harness
+Next phase: `FCFP-P01` - V1 Engine Core + Reference-Parity Harness
+Completed phases: `1/16` (`FCFP-P00`)
 
-Campaign `FEATURE_COMPUTE_FAST_PATH_V1` builds a single-machine, local, columnar
-(Polars), batch/vectorized, incremental, **reference-parity-gated**, registry-safe
-**producer compute fast path** for feature/label materialization (ADR-0007), so
-large-scale backfill stops depending on the per-row Python reference engine -
-which remains the correctness **oracle**. A measured proof
-(`research/futures_substrate_scaleout_v1/producer_fast_path/V1_PROOF.md`) computed
-all 6 base_ohlcv features for ES 2024 in **0.19s vs ~108s** (~500x) with reference
-parity. It is substrate/infra engineering only: NOT Ray/GPU/cluster, NOT a
-feature-compiler platform, NOT alpha ideation, NOT FactorLibrary/AlphaBook/Strategy
-Reference, NOT paper/live/broker; no profitability or tradability claim.
+Campaign `FEATURE_COMPUTE_FAST_PATH_V1` builds a single-machine, local,
+columnar, batch/vectorized, incremental, reference-parity-gated, registry-safe
+producer compute path for feature/label materialization. The per-row Python
+reference engine remains the correctness oracle.
 
 ```text
-reference engine (oracle, kept)
+reference engine (oracle, retained)
   -> V1 PackMaterializer engine core + parity harness
-  -> per-family Polars packs (base/session/vwap/regime/structure-liquidity/volume/bbo)
-  -> cross-market aligned ES/NQ/RTY panel
+  -> per-family Polars packs
+  -> cross-market aligned panel
   -> multi-horizon fixed-horizon label pack
   -> targeted/incremental CLI
   -> engine/value-schema versioning + reconciliation
@@ -38,29 +32,16 @@ reference engine (oracle, kept)
   -> closeout + FUTSUB resume-on-V1 handoff
 ```
 
-## Paused predecessor
-
-`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is **paused** at FUTSUB-P14 pending
-V1. Its driver is fixed and merged (PRs #276-#280); all 8 families validated on
-bounded-real 2024; the reference-engine full-window backfill produced 663 records
-(0 orphaned, preserved, backed up) before the coordinator paused it to build V1.
-After this campaign closes (FCFP-P15 writes the resume handoff), the coordinator
-amends FUTSUB so P06-P13/P16-P20 materialize via V1 and P14/P22 validate V1
-output, reconciles the existing reference outputs (ADR-0007), and resumes FUTSUB
-P14 -> P33 on V1.
-
 ## Campaign Identity
 
 - Campaign ID: `FEATURE_COMPUTE_FAST_PATH_V1`
 - Campaign path: `campaigns/FEATURE_COMPUTE_FAST_PATH_V1`
 - Repo: `alpha_system` / `~/projects/alpha_system`
-- Workflow: `workflow2` (Ralph strict autonomous loop; `dag_wave`; registry-touching
-  phases serialized by a shared `materialization_registry` resource_class; serial merge)
+- Workflow: `workflow2` (Ralph strict autonomous loop; `dag_wave`; serial merge queue)
 - Project profile: `trading_research` / `research` / `producer_compute_fast_path`
 - Phase count: 16 phases (`FCFP-P00` ... `FCFP-P15`)
-- Lane policy: Green/Yellow only; **no Red scope**
-- Decision record: `decisions/0007-producer-compute-fast-path.md`
-- Proof: `research/futures_substrate_scaleout_v1/producer_fast_path/V1_PROOF.md`
+- Lane policy: Green/Yellow only; no Red scope
+- Next phase: `FCFP-P01`
 
 ## Contract Bundle
 
@@ -71,25 +52,29 @@ P14 -> P33 on V1.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/RISK_REGISTER.md`
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/RUNBOOK.md`
 
+## Durable Bootstrap Artifacts
+
+- Fast-path documentation index: `docs/feature_compute_fast_path/`
+- Value-free evidence skeleton: `research/feature_compute_fast_path_v1/`
+- Commit-eligible P00 handoff:
+  `handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P00.md`
+
 ## Boundaries
 
-In scope: the V1 PackMaterializer engine + parity harness; per-family Polars packs
-with reference-parity tests; cross-market aligned panel; multi-horizon label pack;
-targeted/incremental CLI; engine/value-schema versioning + reconciliation;
-benchmark gate; V1 driver integration + resolver smoke. Out of scope: resuming the
-FUTSUB full backfill (coordinator action under FUTSUB on V1 after this closes);
-Ray/GPU/cluster; feature-compiler/DSL platform; new alpha ideation / AlphaSpecs;
-new features/labels beyond existing governed families; param search;
-FactorLibrary/AlphaBook/Strategy Reference; paper/live/broker/order; external
-provider calls; raw/canonical/feature/label/value or local-DB commits; any
-profitability or tradability claim. The reference engine is never deleted or
-weakened; resolver exact-id semantics and serial registry writes are never weakened.
+This campaign is substrate/infra engineering only. It does not authorize live
+trading, paper trading, broker operations, order routing, production deployment,
+external provider calls, alpha ideation, new AlphaSpecs, new features/labels
+beyond existing governed families, parameter search, Ray/GPU/cluster, or a
+feature-compiler/DSL platform.
+
+The reference engine is never deleted or weakened. Resolver exact-id semantics,
+official keystone registry writes, and serial registry writes remain unchanged.
+Raw/canonical data, feature values, label values, local SQLite registries,
+provider responses, heavy artifacts, logs, caches, and `runs/**` artifacts remain
+local-only and are never committed. No profitability or tradability claim is made.
 
 ## Stop / Resume
 
-A `runs/<run_id>/STOP` file is an active stop request; Ralph checks it before phase
-selection, execution, checks, review, PR, CI, merge gate, merge, done-check, and
-next-phase. Resume continues from recorded run state. Registry-touching phases
-(FCFP-P12/P13/P14) share `resource_class: materialization_registry` and never run
-concurrently; merges are always serial. This pointer is updated by `FCFP-P00` and
-`FCFP-P15` only (coordinator-owned, `must_run_alone`).
+A `runs/<run_id>/STOP` file is an active stop request. Ralph checks it before
+phase selection, execution, checks, review, PR, CI, merge gate, merge, done-check,
+and next-phase selection. Resume continues from recorded run state.
