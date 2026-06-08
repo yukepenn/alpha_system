@@ -22,7 +22,7 @@ models:
   codex_executor:
     provider: "openai"
     model: "gpt-5.5"
-    effort: "high"
+    effort: "xhigh"
     role: "primary execution and repair"
   codex_fast_subagent:
     provider: "openai"
