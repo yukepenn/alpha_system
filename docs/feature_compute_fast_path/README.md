@@ -33,3 +33,9 @@ session-auction features in the Base OHLCV reference family. Its synthetic
 parity test covers session-reset VWAP, RTH-anchored VWAP, distance to VWAP,
 opening range, overnight range, the RTH opening-window boundary, ETH-to-RTH
 overnight carry, and exact gap reasons including `zero_vwap`.
+
+`FCFP-P05` adds the `regime_vol_compression` pack for governed ATR,
+trendiness, and range-contraction features. Its synthetic parity test covers
+reset-on-session rolling warm-up, a no-trade input gap, flat-close
+`zero_movement` trendiness gaps, and the structure-family exclusive
+prior-window range-contraction path.

@@ -17,4 +17,7 @@ registries or journals, logs, caches, model artifacts, or generated report
 bundles. Local run state remains under `runs/**` and is not commit-eligible.
 
 `FCFP-P00` anchors this directory. `FCFP-P02` adds the value-free
-`parity/base_ohlcv/` report for the first governed V1 family pack.
+`parity/base_ohlcv/` report for the first governed V1 family pack. `FCFP-P03`
+adds `parity/session_calendar_roll/`, `FCFP-P04` adds
+`parity/vwap_session_auction/`, and `FCFP-P05` adds
+`parity/regime_vol_compression/`.

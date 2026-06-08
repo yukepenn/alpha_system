@@ -99,6 +99,20 @@ carry, leading no-trade input, zero-volume input, and zero-VWAP distance gaps.
 The committed evidence is value-free: counts, gap coverage, tolerance, and
 max/median absolute diffs only.
 
+## P05 Regime / Volatility / Compression Pack
+
+`FCFP-P05` adds `alpha_system.features.fast.regime_vol_compression` and wires
+the governed ATR, trendiness, and range-contraction feature set through
+`build_fast_feature_pack()`. The pack computes ATR as true range plus a trailing
+rolling mean, trendiness as the rolling efficiency ratio, and
+range-contraction as the structure-family current range versus exclusive prior
+mean range.
+
+The synthetic parity gate covers two session segments, reset-on-session warm-up,
+no-trade input-gap propagation, flat-close `zero_movement` trendiness rows, and
+the structure-family prior-window behavior. The committed evidence remains
+value-free: counts, tolerances, and max/median absolute diffs only.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live
