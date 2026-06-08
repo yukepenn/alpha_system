@@ -1,6 +1,10 @@
 # Agent Context Map
 
-**Read this first.** This is the single orientation page for any AI agent (Claude,
+> **Entry point is `CRITICAL.md` (repo root), not this file.** For live
+> campaign/phase status run `just status-doctor`; do not treat any campaign names
+> below as current — they may be historical. This page is static orientation only.
+
+This is the single orientation page for any AI agent (Claude,
 Codex, Ralph) or human working in `alpha_system`. It tells you what the project
 is, what is done, what is next, what to read, and what never to do. It is a map,
 not a contract — the authoritative contracts live where this page points.

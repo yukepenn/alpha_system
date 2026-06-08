@@ -57,6 +57,21 @@ def check_required_files() -> int:
     return 0
 
 
+def check_canaries() -> int:
+    """Run the Frontier negative-canary gate as part of --all/--ci.
+
+    Previously `--all` skipped canaries (they only ran via `verify-canaries` /
+    `agent-preflight`), so "--all" under-reported coverage. Now it is included.
+    """
+    print("+ canary gate (tools/hooks/canary_runner.py)")
+    try:
+        from tools.hooks import canary_runner
+    except Exception as exc:  # pragma: no cover - import guard
+        print(f"canary runner unavailable: {exc}", file=sys.stderr)
+        return 1
+    return canary_runner.main()
+
+
 def check_status_consistency() -> int:
     """Fail when the runtime contract or status pointers contradict the live run.
 
@@ -189,6 +204,8 @@ def main(argv: list[str] | None = None) -> int:
         status |= check_boundaries()
     if args.artifacts or selected:
         status |= check_artifacts()
+    if selected:
+        status |= check_canaries()
 
     if not any(vars(args).values()):
         parser.print_help()

@@ -25,4 +25,8 @@ Actions:
 
 Do not chat casually. Advance state.
 
-Generated Ralph tooling is a scaffold until provider integrations and merge gates are implemented for this project.
+Ralph tooling is provider-wired and live for this project: `tools/frontier/`
+implements the provider config/adapters, DAG-wave scheduler, merge gate, verdict
+parser, and the strict driver loop (`ralph_driver.py`), and has driven real
+multi-phase Workflow 2 campaigns end to end. Treat it as production automation,
+not a scaffold; respect its STOP/resume semantics and merge gates.
