@@ -117,11 +117,11 @@ wiring / rerun / closeout phases are `must_run_alone`.
 ### FUTSUB-P02 — DatasetVersion Inventory and Acceptance-Lock Contract
 - **Lane**: YELLOW · **Deps**: P01 · **must_run_alone**: true · **resource_class**: materialization_registry
 - **Purpose**: Inventory registered DatasetVersions and add a persisted acceptance-lock with coverage verdicts (closes registered≠accepted).
-- **Scope**: inventory OHLCV-1m / OHLCV-dense / BBO-1m (ES/NQ/RTY, 2018→2026) via registry tools; persist `ACCEPTED` / `ACCEPTED_WITH_WARNINGS` / `BLOCKED` + coverage report per version (no re-pull unless corrupt); commit only the value-free summary.
-- **Non-goals**: re-pull; external calls; materializing features/labels; tradability claims.
+- **Scope**: inventory OHLCV-1m / OHLCV-dense / BBO-1m (ES/NQ/RTY, 2018→2026) via registry tools; **compute real coverage evidence from on-disk canonical data** through sanctioned readers only (`data.foundation.canonical_loader` + per-version canonical `manifest.json` `row_count`) — extend `_coverage_evidence_from_registry_metadata` in `datasets.py` to populate all five evidence dimensions (`row_count_sanity`, `gap_coverage`, `required_field_presence`, `missingness_quality_flags`, `roll_metadata` from P03's roll calendar; `continuous_provenance` already resolves from registry metadata) instead of leaving them unavailable; persist honest `ACCEPTED` / `ACCEPTED_WITH_WARNINGS` (2026 partial year) / `BLOCKED` (genuine gaps only) + coverage report per version via `alpha data accept-datasets` (no re-pull unless corrupt); commit only the value-free summary.
+- **Non-goals**: re-pull; external calls; materializing features/labels; tradability claims; fabricating coverage evidence or silently accepting without computed evidence.
 - **Expected files**: `src/alpha_system/data/foundation/datasets.py`, `src/alpha_system/cli/registry.py`/`data.py`, `configs/data/dataset_acceptance/**`, `research/…/dataset_acceptance/**`, `docs/…/DATASET_ACCEPTANCE.md`, tests, handoff/review.
 - **Validation**: smoke; `pytest test_dataset_acceptance.py`; summary/doc exist; `git ls-files runs` + heavy globs empty.
-- **Done**: every yearly version carries a persisted accept/block/warn + coverage verdict (local registry); summary value-free; no re-pull; no value/SQLite committed.
+- **Done**: every yearly version carries a persisted accept/block/warn + coverage verdict **computed from real on-disk canonical evidence** (local registry); a clean full-history corpus yields mostly `ACCEPTED` (2026 `ACCEPTED_WITH_WARNINGS`), not a uniform `BLOCKED` grid; summary value-free; no re-pull; no value/SQLite committed.
 
 ### FUTSUB-P03 — Continuous Series / Roll Metadata / Roll-Splice Guard Contract
 - **Lane**: YELLOW · **Deps**: P02 · **must_run_alone**: true
