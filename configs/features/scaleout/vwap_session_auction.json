@@ -12,6 +12,59 @@
     "overnight_range",
     "rth_open_context"
   ],
+  "feature_bindings": {
+    "running_vwap": {
+      "governed_ohlcv_feature": "vwap",
+      "window": "running_session_expanding",
+      "uses_final_session_aggregate": false
+    },
+    "anchored_eth_vwap": {
+      "governed_ohlcv_feature": "anchored_vwap",
+      "anchor_session_label": "ETH",
+      "window": "running_anchor_expanding",
+      "uses_final_session_aggregate": false
+    },
+    "distance_to_vwap": {
+      "governed_ohlcv_feature": "distance_to_vwap",
+      "window": "derived_from_running_vwap",
+      "uses_final_session_aggregate": false
+    },
+    "opening_range": {
+      "governed_ohlcv_feature": "opening_range",
+      "opening_range_minutes": 30,
+      "uses_final_session_aggregate": false
+    },
+    "overnight_range": {
+      "governed_ohlcv_feature": "overnight_range",
+      "window": "eth_range_freezes_after_eth_segment",
+      "uses_final_session_aggregate": false
+    },
+    "rth_open_context": {
+      "governed_ohlcv_feature": "session_minute",
+      "context": "session-relative RTH open position from current row timestamps",
+      "uses_final_session_aggregate": false
+    }
+  },
+  "anchor_definitions": {
+    "running_vwap": {
+      "anchor": "current session",
+      "reset": "session_label change",
+      "availability": "current row available_ts"
+    },
+    "anchored_eth_vwap": {
+      "anchor": "ETH session start",
+      "reset": "next ETH session start",
+      "availability": "current row available_ts"
+    }
+  },
+  "leakage_policy": {
+    "running_point_in_time_only": true,
+    "forbidden_intraday_inputs": [
+      "final_session_vwap",
+      "full_session_value_area",
+      "closing_auction_print"
+    ]
+  },
   "batch_unit_grid": {
     "unit_grain": [
       "family",

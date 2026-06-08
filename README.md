@@ -8,31 +8,33 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P07`:
-Session / Calendar / Maintenance FeaturePack Scaleout within the
-`feature_materialization` gate, following the base OHLCV scaleout driver phase.
-Ralph owns validation routing, staging, commit, review routing, PR, CI, merge,
-and done-check actions.
+active. This snapshot reflects the executor-complete state for `FUTSUB-P08`:
+VWAP / Session Auction FeaturePack Scaleout within the
+`feature_materialization` gate, following base OHLCV (`FUTSUB-P06`) and
+Session / Calendar / Maintenance (`FUTSUB-P07`). Ralph owns validation routing,
+staging, commit, review routing, PR, CI, merge, and done-check actions.
 
 Active / next work: remaining `feature_materialization` FeaturePack phases,
-`FUTSUB-P08` VWAP / Session Auction through `FUTSUB-P13` Cross-Market Alignment.
+beginning with `FUTSUB-P09` Regime / Volatility / Compression FeaturePack
+Scaleout, then `FUTSUB-P10` through `FUTSUB-P13`.
 
-New durable surfaces in this `FUTSUB-P07` snapshot:
+New durable surfaces in this `FUTSUB-P08` snapshot:
 
 - Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
 - CLI surface: `alpha scaleout feature-pack`
-- Session scaleout config:
-  `configs/features/scaleout/session_calendar_maintenance.json`
-- Session/calendar/maintenance value-free coverage evidence under
-  `research/futures_substrate_scaleout_v1/feature_packs/session_calendar_maintenance/`
-- Session unit-executor dispatch in the scaleout driver, with dense-grid
-  input-view identity and point-in-time session metadata guard tests
+- VWAP / session-auction scaleout config:
+  `configs/features/scaleout/vwap_session_auction.json`
+- VWAP / session-auction value-free coverage evidence under
+  `research/futures_substrate_scaleout_v1/feature_packs/vwap_session_auction/`
+- VWAP / session-auction unit-executor dispatch in the scaleout driver, with
+  running-vs-final VWAP and `available_ts` discipline tests
 
-`FUTSUB-P07` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+`FUTSUB-P08` adds no raw/provider data reads, re-pulls, runtime diagnostics,
 broker surfaces, live surfaces, paper-trading surfaces, order routing, or
 deployment behavior. Feature values, registries, checkpoints, canonical data,
 and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed
-evidence is value-free.
+evidence is value-free. VWAP/session aggregates are point-in-time research
+features, not execution truth.
 
 ## Source Of Truth
 

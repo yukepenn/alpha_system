@@ -177,6 +177,17 @@ class ScaleoutUnitRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class _VWAPSessionAuctionBinding:
+    """One config-facing P08 feature label bound to an approved OHLCV feature."""
+
+    config_name: str
+    ohlcv_name: str
+    exposure_name: str
+    anchor_session_label: str | None = None
+    opening_range_minutes: int = 30
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleoutRunSummary:
     """Summary for a scaleout plan or execution run."""
 
@@ -694,11 +705,150 @@ def materialize_session_calendar_maintenance_unit(
     )
 
 
+def materialize_vwap_session_auction_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one VWAP / session-auction unit through the sanctioned seam."""
+
+    from alpha_system.cli.seed_pack import (
+        FeatureSetConfig,
+        FeatureSpecConfig,
+        SeedPackConfig,
+        _build_accepted_context,
+    )
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if config.family != "vwap_session_auction" or unit.family != "vwap_session_auction":
+        raise ScaleoutError("FUTSUB-P08 executor supports only the vwap_session_auction family")
+
+    bindings = _vwap_session_auction_bindings(unit.feature_names)
+    seed_config = SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        feature_set=FeatureSetConfig(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            alpha_spec_id=config.alpha_spec_id,
+            features=tuple(
+                FeatureSpecConfig(name=binding.ohlcv_name, window_length=1, horizon=1)
+                for binding in bindings
+            ),
+        ),
+    )
+    context = _build_accepted_context(
+        seed_config,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=None,
+        repo_root=Path.cwd(),
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _vwap_session_auction_feature_definitions(config, unit, store.registry)
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(definition.spec for definition in definitions),
+        description="FUTSUB-P08 VWAP / session-auction FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "running_vwap_point_in_time_guard": "enforced",
+            "final_session_aggregate_intraday_use": "forbidden",
+            "feature_bindings": [_vwap_binding_metadata(binding) for binding in bindings],
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "running_vwap_point_in_time_guard": "enforced",
+        "final_session_aggregate_intraday_use": "forbidden",
+        "feature_bindings": [_vwap_binding_metadata(binding) for binding in bindings],
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=context.bar_rows,
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no VWAP/session feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("VWAP/session FeatureRequest gate did not return a checked request")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=definition.spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _unit_executor_for_family(family: str) -> UnitExecutor:
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
     if family == "session_calendar_maintenance":
         return materialize_session_calendar_maintenance_unit
+    if family == "vwap_session_auction":
+        return materialize_vwap_session_auction_unit
     raise ScaleoutError(f"unsupported scaleout family: {family}")
 
 
@@ -753,6 +903,37 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
             "  later than the row `available_ts` fails closed.",
             "- Static RTH clock parameters are schedule definitions, not future labels;",
             "  optional expiration/status metadata is never fabricated when absent.",
+        ]
+    )
+    if summary.family == "vwap_session_auction":
+        lines.extend(
+            [
+                "",
+                "## Running-Vs-Final VWAP Discipline",
+                "",
+                "- Running VWAP and distance-to-VWAP are computed as expanding",
+                "  point-in-time state keyed to each row `available_ts`.",
+                "- Anchored ETH VWAP starts from the ETH anchor and carries forward only",
+                "  rows already available at the output `available_ts`.",
+                "- Final-session VWAP, full-session value area, and closing-auction",
+                "  aggregates are not bound into intraday feature values.",
+                "- Opening and overnight ranges update or freeze only after the source",
+                "  rows needed for that point-in-time range are available.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row feature values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
+            ]
+        )
+    lines.extend(
+        [
             "",
             "## Unit Outcomes",
             "",
@@ -776,6 +957,26 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 rows=record.row_count,
             )
         )
+    if summary.family == "vwap_session_auction":
+        lines.extend(
+            [
+                "",
+                "## Bounded-Real FeatureVersion Preview",
+                "",
+                "The bounded-real dry-run preview is write-free. It records deterministic",
+                "FeatureVersion ids that execution is expected to register for the same",
+                "unit identities; content hashes are unavailable until Parquet values are",
+                "written.",
+                "",
+                "| Symbol | FeatureVersion ids |",
+                "| --- | --- |",
+            ]
+        )
+        for record in summary.records:
+            if record.unit.year != summary.bounded_year:
+                continue
+            version_ids = ", ".join(f"`{version_id}`" for version_id in record.feature_version_ids)
+            lines.append(f"| `{record.unit.symbol}` | {version_ids} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -934,6 +1135,9 @@ def _preview_feature_version_ids(
     if config.family == "session_calendar_maintenance":
         definitions = _session_feature_definitions(config, unit, lambda: ())
         return tuple(definition.feature_version_id for definition in definitions)
+    if config.family == "vwap_session_auction":
+        definitions = _vwap_session_auction_feature_definitions(config, unit, lambda: ())
+        return tuple(definition.feature_version_id for definition in definitions)
     raise ScaleoutError(f"unsupported scaleout family: {config.family}")
 
 
@@ -1054,6 +1258,180 @@ def _session_feature_request(config: ScaleoutConfig, unit: ScaleoutUnit, name: A
         },
         approval_status=FeatureRequestApprovalStatus.APPROVED,
     )
+
+
+def _vwap_session_auction_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.ohlcv import (
+        OHLCVFeatureName,
+        build_ohlcv_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for binding in _vwap_session_auction_bindings(unit.feature_names):
+        name = OHLCVFeatureName(binding.ohlcv_name)
+        definitions.append(
+            build_ohlcv_feature_definition(
+                name,
+                _vwap_session_auction_feature_request(config, unit, binding),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=1,
+                horizon=1,
+                opening_range_minutes=binding.opening_range_minutes,
+                anchor_session_label=binding.anchor_session_label,
+                reset_on_session=True,
+                input_scope={
+                    "symbol": unit.symbol.upper(),
+                    "partition_id": unit.partition_id,
+                    "partition_schema": unit.schema_id,
+                    "feature_pack_family": config.family,
+                    "config_feature_name": binding.config_name,
+                },
+            )
+        )
+    return tuple(definitions)
+
+
+def _vwap_session_auction_feature_request(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    binding: _VWAPSessionAuctionBinding,
+) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    exposure_family = f"{config.family}_{binding.exposure_name}"
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "operation": binding.ohlcv_name,
+            "config_feature_name": binding.config_name,
+            "anchor_session_label": binding.anchor_session_label,
+            "window": "running_expanding_point_in_time",
+            "scaleout_unit_id": unit.unit_id,
+        },
+        availability_assumptions={
+            "timing": "feature value is emitted at the current row available_ts",
+            "running_vwap": (
+                "cumulative VWAP state uses only rows whose available_ts is less than "
+                "or equal to the output available_ts"
+            ),
+            "final_session_aggregate": (
+                "final session VWAP, full-session value area, and closing-auction "
+                "aggregates are not bound into intraday feature values"
+            ),
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "bar_start_ts",
+                "event_ts",
+                "available_ts",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "session_label",
+            ],
+            "source": "already-canonical accepted OHLCV DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _vwap_session_auction_bindings(
+    feature_names: Sequence[str],
+) -> tuple[_VWAPSessionAuctionBinding, ...]:
+    bindings = tuple(_vwap_session_auction_binding(name) for name in feature_names)
+    actual_names = [binding.ohlcv_name for binding in bindings]
+    duplicates = sorted({name for name in actual_names if actual_names.count(name) > 1})
+    if duplicates:
+        raise ScaleoutError(
+            "VWAP/session config maps multiple entries to the same governed "
+            f"feature: {', '.join(duplicates)}"
+        )
+    return bindings
+
+
+def _vwap_session_auction_binding(name: str) -> _VWAPSessionAuctionBinding:
+    token = _require_text(name, "vwap_session_auction feature name")
+    normalized = token.strip().lower()
+    if normalized in {"running_vwap", "vwap"}:
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="vwap",
+            exposure_name="running_vwap",
+        )
+    if normalized in {"anchored_eth_vwap", "eth_vwap"}:
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="anchored_vwap",
+            exposure_name="anchored_eth_vwap",
+            anchor_session_label="ETH",
+        )
+    if normalized == "anchored_vwap":
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="anchored_vwap",
+            exposure_name="anchored_eth_vwap",
+            anchor_session_label="ETH",
+        )
+    if normalized == "distance_to_vwap":
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="distance_to_vwap",
+            exposure_name="distance_to_running_vwap",
+        )
+    if normalized == "opening_range":
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="opening_range",
+            exposure_name="opening_range",
+        )
+    if normalized == "overnight_range":
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="overnight_range",
+            exposure_name="overnight_range",
+        )
+    if normalized in {"rth_open_context", "session_minute"}:
+        return _VWAPSessionAuctionBinding(
+            config_name=token,
+            ohlcv_name="session_minute",
+            exposure_name="rth_open_context",
+        )
+    raise ScaleoutError(f"unsupported VWAP/session-auction feature: {name}")
+
+
+def _vwap_binding_metadata(binding: _VWAPSessionAuctionBinding) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "config_feature_name": binding.config_name,
+        "governed_ohlcv_feature": binding.ohlcv_name,
+        "running_point_in_time": True,
+        "final_session_aggregate_intraday_use": "forbidden",
+    }
+    if binding.anchor_session_label is not None:
+        payload["anchor_session_label"] = binding.anchor_session_label
+    if binding.ohlcv_name == "opening_range":
+        payload["opening_range_minutes"] = binding.opening_range_minutes
+    return payload
 
 
 def _unit_input_datasets(unit: ScaleoutUnit) -> tuple[ScaleoutInputDataset, ...]:
