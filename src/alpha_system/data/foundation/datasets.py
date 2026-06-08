@@ -7,6 +7,7 @@ DATA-P18 own dataset versioning and partition planning behavior.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from bisect import bisect_left
@@ -204,6 +205,21 @@ DATASET_ACCEPTANCE_DEFAULT_POLICY: Mapping[str, object] = MappingProxyType(
             "continuous_provenance",
             "partition_contamination_metadata",
         ),
+        "canonical_root_env": "ALPHA_DATA_ROOT",
+        "canonical_root_subpath": "databento/canonical/glbx_mdp3",
+        "canonical_partition_schemas": MappingProxyType(
+            {
+                "ohlcv_1m": "ohlcv_1m",
+                "ohlcv_dense_research_grid": "ohlcv_1m_dense",
+                "bbo_1m": "bbo_1m",
+            }
+        ),
+        "row_count_warning_floor_ratio": 0.95,
+        "row_count_blocking_floor_ratio": 0.90,
+        "minute_coverage_warning_floor_ratio": 0.95,
+        "minute_coverage_blocking_floor_ratio": 0.90,
+        "trading_day_floor_ratio": 0.75,
+        "quality_flag_warning_ratio": 0.10,
         "row_count_evidence_required": True,
         "gap_evidence_required": True,
         "required_field_evidence_required": True,
@@ -3287,6 +3303,40 @@ def _normalize_reason_tuple(value: object, field_name: str) -> tuple[str, ...]:
     return tuple(reason for reason in reasons if reason)
 
 
+def _optional_text(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    return _require_text(value, field_name)
+
+
+def _normalize_ratio(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float | Decimal):
+        msg = f"{field_name} must be a numeric ratio in [0, 1]"
+        raise DataFoundationValidationError(msg)
+    parsed = float(value)
+    if not isfinite(parsed) or parsed < 0.0 or parsed > 1.0:
+        msg = f"{field_name} must be a numeric ratio in [0, 1]"
+        raise DataFoundationValidationError(msg)
+    return parsed
+
+
+def _normalize_canonical_partition_schemas(value: object) -> Mapping[str, str]:
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = "canonical_partition_schemas must be a mapping"
+        raise DataFoundationValidationError(msg)
+    parsed: dict[str, str] = {}
+    for raw_schema_id, raw_partition_schema in value.items():
+        schema_id = _normalize_id(raw_schema_id, "canonical_partition_schemas.schema_id")
+        parsed[schema_id] = _require_text(
+            raw_partition_schema,
+            f"canonical_partition_schemas.{schema_id}",
+        )
+    if not parsed:
+        msg = "canonical_partition_schemas must not be empty"
+        raise DataFoundationValidationError(msg)
+    return MappingProxyType(parsed)
+
+
 def _require_dataset_acceptance_lock(value: object) -> DatasetAcceptanceLock:
     if not isinstance(value, DatasetAcceptanceLock):
         msg = "dataset acceptance inventory requires DatasetAcceptanceLock entries"
@@ -3340,6 +3390,24 @@ def normalize_dataset_acceptance_policy(
         ),
         "required_registry_metadata_keys",
     )
+    canonical_root_env = _require_text(
+        raw.get("canonical_root_env", "ALPHA_DATA_ROOT"),
+        "canonical_root_env",
+    )
+    canonical_root = _optional_text(
+        raw.get("canonical_root"),
+        "canonical_root",
+    )
+    canonical_root_subpath = _require_text(
+        raw.get("canonical_root_subpath", "databento/canonical/glbx_mdp3"),
+        "canonical_root_subpath",
+    )
+    canonical_partition_schemas = _normalize_canonical_partition_schemas(
+        raw.get(
+            "canonical_partition_schemas",
+            DATASET_ACCEPTANCE_DEFAULT_POLICY["canonical_partition_schemas"],
+        ),
+    )
     missing_evidence_policy = _normalize_dataset_acceptance_state(
         raw.get("missing_evidence_policy", DatasetAcceptanceState.BLOCKED.value),
         "missing_evidence_policy",
@@ -3358,6 +3426,34 @@ def normalize_dataset_acceptance_policy(
             "partial_year_end_ts": partial_year_end_ts,
             "required_field_groups": required_field_groups,
             "required_registry_metadata_keys": required_registry_metadata_keys,
+            "canonical_root": canonical_root,
+            "canonical_root_env": canonical_root_env,
+            "canonical_root_subpath": canonical_root_subpath,
+            "canonical_partition_schemas": canonical_partition_schemas,
+            "row_count_warning_floor_ratio": _normalize_ratio(
+                raw.get("row_count_warning_floor_ratio", 0.95),
+                "row_count_warning_floor_ratio",
+            ),
+            "row_count_blocking_floor_ratio": _normalize_ratio(
+                raw.get("row_count_blocking_floor_ratio", 0.90),
+                "row_count_blocking_floor_ratio",
+            ),
+            "minute_coverage_warning_floor_ratio": _normalize_ratio(
+                raw.get("minute_coverage_warning_floor_ratio", 0.95),
+                "minute_coverage_warning_floor_ratio",
+            ),
+            "minute_coverage_blocking_floor_ratio": _normalize_ratio(
+                raw.get("minute_coverage_blocking_floor_ratio", 0.90),
+                "minute_coverage_blocking_floor_ratio",
+            ),
+            "trading_day_floor_ratio": _normalize_ratio(
+                raw.get("trading_day_floor_ratio", 0.75),
+                "trading_day_floor_ratio",
+            ),
+            "quality_flag_warning_ratio": _normalize_ratio(
+                raw.get("quality_flag_warning_ratio", 0.10),
+                "quality_flag_warning_ratio",
+            ),
             "row_count_evidence_required": _require_bool(
                 raw.get("row_count_evidence_required", True),
                 "row_count_evidence_required",
@@ -3494,6 +3590,8 @@ def inventory_dataset_acceptance_locks(
             coverage_evidence=_coverage_evidence_from_registry_metadata(
                 version,
                 metadata,
+                policy=normalized_policy,
+                schema_id=schema_id,
             ),
             schema_id=schema_id,
             year=year,
@@ -3757,7 +3855,13 @@ def _build_acceptance_coverage_report(
         blocking_reasons,
     )
     symbol_dimension = _symbol_dimension(dataset_version, policy, blocking_reasons)
-    year_dimension = _year_dimension(dataset_version, policy, year, blocking_reasons)
+    year_dimension = _year_dimension(
+        dataset_version,
+        policy,
+        year,
+        blocking_reasons,
+        warning_reasons,
+    )
     duplicate_dimension = _duplicate_dimension(duplicate_count, blocking_reasons)
     row_count_dimension = _evidence_dimension(
         coverage_evidence,
@@ -3904,6 +4008,7 @@ def _year_dimension(
     policy: Mapping[str, object],
     year: int,
     blocking_reasons: list[str],
+    warning_reasons: list[str],
 ) -> Mapping[str, object]:
     expected_years = tuple(int(item) for item in policy["expected_years"])
     partial_years = policy["partial_year_end_ts"]
@@ -3921,16 +4026,26 @@ def _year_dimension(
         and dataset_version.start_ts == expected_start
         and dataset_version.end_ts >= expected_end
     )
+    partial_year = str(year) in partial_years
     if not covered:
         blocking_reasons.append("required year/date-range coverage missing")
+    elif partial_year:
+        warning_reasons.append("partial-year coverage window")
     return MappingProxyType(
         {
-            "status": ReportStatus.PASSING.value if covered else ReportStatus.BLOCKING.value,
+            "status": (
+                ReportStatus.WARNING.value
+                if covered and partial_year
+                else ReportStatus.PASSING.value
+                if covered
+                else ReportStatus.BLOCKING.value
+            ),
             "expected_year": year,
             "observed_start_ts": dataset_version.start_ts.isoformat(),
             "observed_end_ts": dataset_version.end_ts.isoformat(),
             "expected_start_ts": expected_start.isoformat(),
             "minimum_end_ts": expected_end.isoformat(),
+            "partial_year": partial_year,
             "covered": covered,
         }
     )
@@ -4116,25 +4231,713 @@ def _expected_continuous_series(dataset_version: DatasetVersion) -> tuple[str, .
     return tuple(f"{symbol}.v.0" for symbol in dataset_version.symbol_universe)
 
 
+@dataclass(frozen=True, slots=True)
+class _CanonicalSymbolAcceptanceEvidence:
+    symbol: str
+    row_count: int
+    unique_minutes: frozenset[str]
+    trading_days: frozenset[str]
+    columns: frozenset[str]
+    null_counts: Mapping[str, int]
+    quality_flag_item_count: int
+    quality_flag_row_count: int
+    duplicate_minute_count: int
+    session_labels: tuple[str, ...]
+    first_bar_start_ts: str | None
+    last_bar_start_ts: str | None
+
+
 def _coverage_evidence_from_registry_metadata(
     dataset_version: DatasetVersion,
     metadata: Mapping[str, object],
+    *,
+    policy: Mapping[str, object] | None = None,
+    schema_id: str | None = None,
 ) -> Mapping[str, object]:
-    evidence: dict[str, object] = {"evidence_source": "dataset_registry_metadata"}
-    provenance = metadata.get("continuous_provenance")
-    if isinstance(provenance, Mapping):
-        evidence["continuous_provenance"] = {
-            "status": ReportStatus.PASSING.value,
-            "provider_continuous": provenance.get("provider_continuous"),
-            "front_month": provenance.get("front_month"),
-            "unadjusted": provenance.get("unadjusted"),
-            "not_roll_truth": provenance.get("not_roll_truth"),
-            "series_ids": _expected_continuous_series(dataset_version),
-        }
-    # The local registry currently carries roll_policy_id but not roll-boundary
-    # records or row-count/gap/field-presence aggregates; those dimensions stay
-    # absent so the acceptance verdict fails closed instead of silently accepting.
+    normalized_policy = normalize_dataset_acceptance_policy(policy)
+    evidence: dict[str, object] = {
+        "evidence_source": "dataset_registry_metadata+canonical_manifest+canonical_loader"
+    }
+    evidence["continuous_provenance"] = _continuous_provenance_evidence(
+        dataset_version,
+        metadata,
+    )
+
+    canonical_root = _dataset_acceptance_canonical_root(normalized_policy)
+    if canonical_root is None:
+        return _canonical_unavailable_evidence(
+            evidence,
+            dataset_version,
+            normalized_policy,
+            reason="canonical root policy/env is unavailable",
+        )
+
+    partition_schema = _canonical_partition_schema(
+        dataset_version,
+        normalized_policy,
+        schema_id,
+    )
+    try:
+        manifest = _load_canonical_acceptance_manifest(
+            canonical_root,
+            dataset_version,
+            partition_schema,
+        )
+        symbol_evidence = tuple(
+            _load_canonical_symbol_acceptance_evidence(
+                canonical_root,
+                dataset_version=dataset_version,
+                symbol=symbol,
+                partition_schema=partition_schema,
+            )
+            for symbol in dataset_version.symbol_universe
+        )
+    except (OSError, ValueError, DataFoundationValidationError) as exc:
+        return _canonical_unavailable_evidence(
+            evidence,
+            dataset_version,
+            normalized_policy,
+            reason=f"canonical evidence unavailable: {exc.__class__.__name__}",
+        )
+
+    evidence.update(
+        _canonical_acceptance_dimensions(
+            dataset_version,
+            policy=normalized_policy,
+            metadata=metadata,
+            manifest=manifest,
+            symbol_evidence=symbol_evidence,
+        )
+    )
     return _require_summary_mapping(evidence, "coverage_evidence")
+
+
+def _dataset_acceptance_canonical_root(policy: Mapping[str, object]) -> Path | None:
+    explicit_root = policy.get("canonical_root")
+    if explicit_root is not None:
+        return Path(_require_text(explicit_root, "canonical_root")).expanduser()
+    env_name = _require_text(policy.get("canonical_root_env"), "canonical_root_env")
+    env_value = os.environ.get(env_name)
+    if env_value is None or not env_value.strip():
+        return None
+    subpath = _require_text(
+        policy.get("canonical_root_subpath"),
+        "canonical_root_subpath",
+    )
+    return Path(env_value).expanduser() / subpath
+
+
+def _canonical_partition_schema(
+    dataset_version: DatasetVersion,
+    policy: Mapping[str, object],
+    schema_id: str | None,
+) -> str:
+    partition_schemas = policy.get("canonical_partition_schemas")
+    if isinstance(partition_schemas, str) or not isinstance(partition_schemas, Mapping):
+        msg = "normalized policy carries invalid canonical_partition_schemas"
+        raise DataFoundationValidationError(msg)
+    if schema_id is not None and schema_id in partition_schemas:
+        return _require_text(partition_schemas[schema_id], f"{schema_id}.partition_schema")
+    if dataset_version.what_to_show == "BBO":
+        return "bbo_1m"
+    if dataset_version.what_to_show == "TRADES_DENSE_RESEARCH_GRID":
+        return "ohlcv_1m_dense"
+    return "ohlcv_1m"
+
+
+def _load_canonical_acceptance_manifest(
+    canonical_root: Path,
+    dataset_version: DatasetVersion,
+    partition_schema: str,
+) -> Mapping[str, object]:
+    manifest_path = canonical_root / dataset_version.dataset_version_id / "manifest.json"
+    if not manifest_path.exists():
+        msg = "canonical manifest is missing for DatasetVersion"
+        raise DataFoundationValidationError(msg)
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        msg = "canonical manifest JSON is invalid"
+        raise DataFoundationValidationError(msg) from exc
+    if isinstance(payload, str) or not isinstance(payload, Mapping):
+        msg = "canonical manifest must be a mapping"
+        raise DataFoundationValidationError(msg)
+    manifest_data_version = _require_text(
+        payload.get("data_version"),
+        "canonical_manifest.data_version",
+    )
+    if manifest_data_version != dataset_version.dataset_version_id:
+        msg = "canonical manifest data_version does not match DatasetVersion"
+        raise DataFoundationValidationError(msg)
+    manifest_partition_schema = _require_text(
+        payload.get("partition_schema"),
+        "canonical_manifest.partition_schema",
+    )
+    if manifest_partition_schema != partition_schema:
+        msg = "canonical manifest partition_schema does not match acceptance policy"
+        raise DataFoundationValidationError(msg)
+    paths = payload.get("paths", ())
+    path_count = len(paths) if isinstance(paths, tuple | list) else 0
+    return MappingProxyType(
+        {
+            "row_count": _require_non_negative_int(
+                payload.get("row_count"),
+                "canonical_manifest.row_count",
+            ),
+            "partition_schema": manifest_partition_schema,
+            "storage_format": _require_text(
+                payload.get("storage_format"),
+                "canonical_manifest.storage_format",
+            ),
+            "path_count": path_count,
+        }
+    )
+
+
+def _load_canonical_symbol_acceptance_evidence(
+    canonical_root: Path,
+    *,
+    dataset_version: DatasetVersion,
+    symbol: str,
+    partition_schema: str,
+) -> _CanonicalSymbolAcceptanceEvidence:
+    from alpha_system.data.foundation.canonical_loader import (
+        canonical_partition_path,
+        load_canonical_ohlcv_rows,
+    )
+
+    partition_path = canonical_partition_path(
+        canonical_root,
+        dataset_version_id=dataset_version.dataset_version_id,
+        symbol=symbol,
+        partition_schema=partition_schema,
+    )
+    if not partition_path.exists():
+        msg = f"canonical partition is missing for symbol {symbol}"
+        raise DataFoundationValidationError(msg)
+    try:
+        rows = load_canonical_ohlcv_rows(
+            canonical_root=canonical_root,
+            dataset_version_id=dataset_version.dataset_version_id,
+            symbol=symbol,
+            partition_schema=partition_schema,
+        )
+    except Exception as exc:
+        msg = f"canonical partition load failed for symbol {symbol}"
+        raise DataFoundationValidationError(msg) from exc
+
+    columns: set[str] = set()
+    minutes: list[str] = []
+    trading_days: set[str] = set()
+    session_labels: set[str] = set()
+    required_columns = _schema_required_columns(dataset_version)
+    null_counts = {field: 0 for field in required_columns}
+    quality_flag_item_count = 0
+    quality_flag_row_count = 0
+    for row in rows:
+        columns.update(str(key) for key in row)
+        bar_start_ts = row.get("bar_start_ts")
+        if isinstance(bar_start_ts, str) and bar_start_ts:
+            minutes.append(bar_start_ts)
+            trading_days.add(bar_start_ts[:10])
+        session_label = row.get("session_label")
+        if isinstance(session_label, str) and session_label:
+            session_labels.add(session_label)
+        for field in required_columns:
+            if field not in row or row[field] is None:
+                null_counts[field] += 1
+        quality_flags = row.get("quality_flags")
+        if isinstance(quality_flags, tuple | list):
+            flag_count = len(quality_flags)
+        elif isinstance(quality_flags, str):
+            flag_count = 1 if quality_flags.strip() else 0
+        else:
+            flag_count = 0
+        quality_flag_item_count += flag_count
+        quality_flag_row_count += int(flag_count > 0)
+
+    unique_minutes = frozenset(minutes)
+    ordered_minutes = sorted(unique_minutes)
+    return _CanonicalSymbolAcceptanceEvidence(
+        symbol=symbol,
+        row_count=len(rows),
+        unique_minutes=unique_minutes,
+        trading_days=frozenset(trading_days),
+        columns=frozenset(columns),
+        null_counts=MappingProxyType(null_counts),
+        quality_flag_item_count=quality_flag_item_count,
+        quality_flag_row_count=quality_flag_row_count,
+        duplicate_minute_count=max(0, len(minutes) - len(unique_minutes)),
+        session_labels=tuple(sorted(session_labels)),
+        first_bar_start_ts=ordered_minutes[0] if ordered_minutes else None,
+        last_bar_start_ts=ordered_minutes[-1] if ordered_minutes else None,
+    )
+
+
+def _canonical_acceptance_dimensions(
+    dataset_version: DatasetVersion,
+    *,
+    policy: Mapping[str, object],
+    metadata: Mapping[str, object],
+    manifest: Mapping[str, object],
+    symbol_evidence: tuple[_CanonicalSymbolAcceptanceEvidence, ...],
+) -> Mapping[str, object]:
+    union_minutes = frozenset().union(
+        *(item.unique_minutes for item in symbol_evidence)
+    )
+    union_days = frozenset().union(*(item.trading_days for item in symbol_evidence))
+    return MappingProxyType(
+        {
+            "row_count_sanity": _row_count_sanity_evidence(
+                manifest=manifest,
+                symbol_evidence=symbol_evidence,
+                union_minute_count=len(union_minutes),
+                policy=policy,
+            ),
+            "gap_coverage": _gap_coverage_evidence(
+                dataset_version,
+                symbol_evidence=symbol_evidence,
+                union_minutes=union_minutes,
+                union_days=union_days,
+                policy=policy,
+            ),
+            "required_field_presence": _required_field_presence_evidence(
+                dataset_version,
+                policy=policy,
+                metadata=metadata,
+                symbol_evidence=symbol_evidence,
+            ),
+            "missingness_quality_flags": _missingness_quality_evidence(
+                dataset_version,
+                policy=policy,
+                symbol_evidence=symbol_evidence,
+            ),
+            "roll_metadata": _roll_metadata_evidence(
+                dataset_version,
+                metadata=metadata,
+                policy=policy,
+            ),
+        }
+    )
+
+
+def _canonical_unavailable_evidence(
+    evidence: dict[str, object],
+    dataset_version: DatasetVersion,
+    policy: Mapping[str, object],
+    *,
+    reason: str,
+) -> Mapping[str, object]:
+    unavailable = {
+        "status": ReportStatus.BLOCKING.value,
+        "evidence": "unavailable",
+    }
+    evidence["row_count_sanity"] = {
+        **unavailable,
+        "reason": f"row-count canonical evidence unavailable: {reason}",
+    }
+    evidence["gap_coverage"] = {
+        **unavailable,
+        "reason": f"gap canonical evidence unavailable: {reason}",
+    }
+    required_groups = tuple(str(item) for item in policy["required_field_groups"])
+    evidence["required_field_presence"] = {
+        **unavailable,
+        "reason": f"required-field canonical evidence unavailable: {reason}",
+        "required_field_groups": required_groups,
+        "present_field_groups": (),
+        "missing_field_groups": required_groups,
+    }
+    evidence["missingness_quality_flags"] = {
+        **unavailable,
+        "reason": f"missingness canonical evidence unavailable: {reason}",
+    }
+    evidence["roll_metadata"] = _roll_metadata_evidence(
+        dataset_version,
+        metadata={},
+        policy=policy,
+    )
+    return _require_summary_mapping(evidence, "coverage_evidence")
+
+
+def _schema_required_columns(dataset_version: DatasetVersion) -> tuple[str, ...]:
+    if dataset_version.what_to_show == "BBO":
+        return CANONICAL_BBO_REQUIRED_FIELDS
+    return CANONICAL_BAR_RECORD_FIELDS
+
+
+def _ratio(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round(numerator / denominator, 6)
+
+
+def _status_for_floor_ratio(
+    ratio: float,
+    *,
+    warning_floor: float,
+    blocking_floor: float,
+) -> ReportStatus:
+    warning_floor = max(warning_floor, blocking_floor)
+    if ratio < blocking_floor:
+        return ReportStatus.BLOCKING
+    if ratio < warning_floor:
+        return ReportStatus.WARNING
+    return ReportStatus.PASSING
+
+
+def _row_count_sanity_evidence(
+    *,
+    manifest: Mapping[str, object],
+    symbol_evidence: tuple[_CanonicalSymbolAcceptanceEvidence, ...],
+    union_minute_count: int,
+    policy: Mapping[str, object],
+) -> Mapping[str, object]:
+    manifest_row_count = int(manifest["row_count"])
+    observed_total = sum(item.row_count for item in symbol_evidence)
+    warning_floor = float(policy["row_count_warning_floor_ratio"])
+    blocking_floor = float(policy["row_count_blocking_floor_ratio"])
+    per_symbol = {}
+    statuses = []
+    for item in symbol_evidence:
+        ratio = _ratio(item.row_count, union_minute_count)
+        status = _status_for_floor_ratio(
+            ratio,
+            warning_floor=warning_floor,
+            blocking_floor=blocking_floor,
+        )
+        statuses.append(status)
+        per_symbol[item.symbol] = {
+            "observed_bar_count": item.row_count,
+            "expected_bar_floor": int(union_minute_count * blocking_floor),
+            "coverage_ratio": ratio,
+            "status": status.value,
+        }
+
+    manifest_matches = manifest_row_count == observed_total
+    if union_minute_count <= 0 or not manifest_matches or any(
+        status is ReportStatus.BLOCKING for status in statuses
+    ):
+        status = ReportStatus.BLOCKING
+    elif any(status is ReportStatus.WARNING for status in statuses):
+        status = ReportStatus.WARNING
+    else:
+        status = ReportStatus.PASSING
+
+    reason = None
+    if union_minute_count <= 0:
+        reason = "canonical rows unavailable"
+    elif not manifest_matches:
+        reason = "canonical manifest row_count does not match per-symbol rows"
+    elif status is ReportStatus.WARNING:
+        reason = "per-symbol canonical row count is below warning floor"
+    elif status is ReportStatus.BLOCKING:
+        reason = "per-symbol canonical row count is below blocking floor"
+
+    payload: dict[str, object] = {
+        "status": status.value,
+        "manifest_row_count": manifest_row_count,
+        "observed_bar_count": observed_total,
+        "manifest_row_count_matches_observed": manifest_matches,
+        "expected_bar_floor_source": "union_of_canonical_symbol_minutes",
+        "expected_bar_count": union_minute_count,
+        "partition_schema": manifest["partition_schema"],
+        "storage_format": manifest["storage_format"],
+        "canonical_partition_count": manifest["path_count"],
+        "per_symbol": per_symbol,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    return MappingProxyType(payload)
+
+
+def _gap_coverage_evidence(
+    dataset_version: DatasetVersion,
+    *,
+    symbol_evidence: tuple[_CanonicalSymbolAcceptanceEvidence, ...],
+    union_minutes: frozenset[str],
+    union_days: frozenset[str],
+    policy: Mapping[str, object],
+) -> Mapping[str, object]:
+    warning_floor = float(policy["minute_coverage_warning_floor_ratio"])
+    blocking_floor = float(policy["minute_coverage_blocking_floor_ratio"])
+    expected_minute_count = len(union_minutes)
+    per_symbol = {}
+    statuses = []
+    duplicate_minute_count = 0
+    for item in symbol_evidence:
+        missing_count = max(0, expected_minute_count - len(item.unique_minutes))
+        ratio = _ratio(len(item.unique_minutes), expected_minute_count)
+        status = _status_for_floor_ratio(
+            ratio,
+            warning_floor=warning_floor,
+            blocking_floor=blocking_floor,
+        )
+        statuses.append(status)
+        duplicate_minute_count += item.duplicate_minute_count
+        per_symbol[item.symbol] = {
+            "observed_unique_minutes": len(item.unique_minutes),
+            "missing_minutes_vs_union_grid": missing_count,
+            "minute_coverage_ratio": ratio,
+            "distinct_trading_days": len(item.trading_days),
+            "duplicate_minute_count": item.duplicate_minute_count,
+            "status": status.value,
+        }
+
+    calendar_days = max(
+        1,
+        (dataset_version.end_ts.date() - dataset_version.start_ts.date()).days,
+    )
+    trading_day_ratio = _ratio(len(union_days), calendar_days)
+    trading_day_floor = float(policy["trading_day_floor_ratio"])
+    trading_day_status = (
+        ReportStatus.PASSING
+        if trading_day_ratio >= trading_day_floor
+        else ReportStatus.BLOCKING
+    )
+    if (
+        expected_minute_count <= 0
+        or duplicate_minute_count
+        or trading_day_status is ReportStatus.BLOCKING
+        or any(status is ReportStatus.BLOCKING for status in statuses)
+    ):
+        status = ReportStatus.BLOCKING
+    elif any(status is ReportStatus.WARNING for status in statuses):
+        status = ReportStatus.WARNING
+    else:
+        status = ReportStatus.PASSING
+
+    reason = None
+    if expected_minute_count <= 0:
+        reason = "canonical expected session grid is empty"
+    elif duplicate_minute_count:
+        reason = "duplicate canonical minute keys found"
+    elif trading_day_status is ReportStatus.BLOCKING:
+        reason = "distinct trading-day coverage is below policy floor"
+    elif status is ReportStatus.WARNING:
+        reason = "per-symbol minute coverage is below warning floor"
+    elif status is ReportStatus.BLOCKING:
+        reason = "per-symbol minute coverage is below blocking floor"
+
+    payload: dict[str, object] = {
+        "status": status.value,
+        "expected_session_grid_source": "union_of_canonical_symbol_minutes",
+        "expected_minute_count": expected_minute_count,
+        "distinct_trading_days": len(union_days),
+        "calendar_days_in_dataset_window": calendar_days,
+        "trading_day_coverage_ratio": trading_day_ratio,
+        "trading_day_floor_ratio": trading_day_floor,
+        "duplicate_minute_count": duplicate_minute_count,
+        "per_symbol": per_symbol,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    return MappingProxyType(payload)
+
+
+def _required_field_presence_evidence(
+    dataset_version: DatasetVersion,
+    *,
+    policy: Mapping[str, object],
+    metadata: Mapping[str, object],
+    symbol_evidence: tuple[_CanonicalSymbolAcceptanceEvidence, ...],
+) -> Mapping[str, object]:
+    required_groups = tuple(str(item) for item in policy["required_field_groups"])
+    common_columns = (
+        set.intersection(*(set(item.columns) for item in symbol_evidence))
+        if symbol_evidence
+        else set()
+    )
+    schema_required_columns = _schema_required_columns(dataset_version)
+    missing_schema_columns = tuple(
+        field for field in schema_required_columns if field not in common_columns
+    )
+
+    present_groups: list[str] = []
+    sources: dict[str, object] = {}
+
+    def add_present(group: str, source: object) -> None:
+        if group in required_groups and group not in present_groups:
+            present_groups.append(group)
+            sources[group] = source
+
+    if {"bar_start_ts", "bar_end_ts", "event_ts"}.issubset(common_columns):
+        add_present("canonical_timestamps", ("bar_start_ts", "bar_end_ts", "event_ts"))
+    if "available_ts" in common_columns:
+        add_present("available_ts", "available_ts")
+    if "exchange_trade_date" in common_columns:
+        add_present("exchange_trade_date", "exchange_trade_date")
+    elif "bar_start_ts" in common_columns:
+        add_present("exchange_trade_date", "derived_from_bar_start_ts_date")
+    if "session_segment" in common_columns:
+        add_present("session_segment", "session_segment")
+    elif "session_label" in common_columns:
+        add_present("session_segment", "session_label")
+    if isinstance(metadata.get("continuous_provenance"), Mapping):
+        add_present("continuous_provenance", "dataset_registry_metadata")
+    if dataset_version.roll_policy_id:
+        add_present("roll_boundary_metadata", "roll_policy_id_with_P03_boundary_defer")
+    if "quality_flags" in common_columns:
+        add_present("quality_flags", "quality_flags")
+        add_present("missingness_flags", "quality_flags")
+    elif {"has_trade", "synthetic", "fill_method"}.intersection(common_columns):
+        add_present("missingness_flags", "dense_grid_missingness_columns")
+
+    missing_groups = tuple(group for group in required_groups if group not in present_groups)
+    status = (
+        ReportStatus.BLOCKING
+        if missing_groups or missing_schema_columns
+        else ReportStatus.PASSING
+    )
+    payload: dict[str, object] = {
+        "status": status.value,
+        "required_field_groups": required_groups,
+        "present_field_groups": tuple(present_groups),
+        "missing_field_groups": missing_groups,
+        "field_group_sources": sources,
+        "schema_required_columns_present": tuple(
+            field for field in schema_required_columns if field in common_columns
+        ),
+        "schema_required_columns_missing": missing_schema_columns,
+        "common_canonical_columns": tuple(sorted(common_columns)),
+    }
+    if status is ReportStatus.BLOCKING:
+        payload["reason"] = "required field groups or schema columns missing"
+    return MappingProxyType(payload)
+
+
+def _missingness_quality_evidence(
+    dataset_version: DatasetVersion,
+    *,
+    policy: Mapping[str, object],
+    symbol_evidence: tuple[_CanonicalSymbolAcceptanceEvidence, ...],
+) -> Mapping[str, object]:
+    required_columns = _schema_required_columns(dataset_version)
+    total_rows = sum(item.row_count for item in symbol_evidence)
+    total_required_nulls = sum(
+        count for item in symbol_evidence for count in item.null_counts.values()
+    )
+    quality_flag_item_count = sum(item.quality_flag_item_count for item in symbol_evidence)
+    quality_flag_row_count = sum(item.quality_flag_row_count for item in symbol_evidence)
+    quality_flag_ratio = _ratio(quality_flag_row_count, total_rows)
+    warning_ratio = float(policy["quality_flag_warning_ratio"])
+    null_counts_by_symbol = {
+        item.symbol: {
+            f"null_{field}": int(item.null_counts.get(field, 0))
+            for field in required_columns
+        }
+        for item in symbol_evidence
+    }
+    if total_rows <= 0 or total_required_nulls:
+        status = ReportStatus.BLOCKING
+        reason = "required canonical fields contain nulls or rows are unavailable"
+    elif quality_flag_ratio > warning_ratio:
+        status = ReportStatus.WARNING
+        reason = "quality-flag row ratio exceeds warning threshold"
+    else:
+        status = ReportStatus.PASSING
+        reason = None
+    payload: dict[str, object] = {
+        "status": status.value,
+        "required_columns_checked": required_columns,
+        "observed_bar_count": total_rows,
+        "required_field_null_count": total_required_nulls,
+        "quality_flag_fields_present": all(
+            "quality_flags" in item.columns for item in symbol_evidence
+        ),
+        "missingness_flag_fields_present": all(
+            "quality_flags" in item.columns
+            or {"has_trade", "synthetic", "fill_method"}.intersection(item.columns)
+            for item in symbol_evidence
+        ),
+        "quality_flag_item_count": quality_flag_item_count,
+        "quality_flag_row_count": quality_flag_row_count,
+        "quality_flag_row_ratio": quality_flag_ratio,
+        "quality_flag_warning_ratio": warning_ratio,
+        "null_counts_by_symbol": null_counts_by_symbol,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    return MappingProxyType(payload)
+
+
+def _continuous_provenance_evidence(
+    dataset_version: DatasetVersion,
+    metadata: Mapping[str, object],
+) -> Mapping[str, object]:
+    provenance = metadata.get("continuous_provenance")
+    if not isinstance(provenance, Mapping):
+        return MappingProxyType(
+            {
+                "status": ReportStatus.BLOCKING.value,
+                "evidence": "unavailable",
+                "expected_series": _expected_continuous_series(dataset_version),
+                "reason": "continuous_provenance metadata unavailable",
+            }
+        )
+    provider_continuous = provenance.get("provider_continuous") is True
+    unadjusted = provenance.get("unadjusted") is True
+    status = (
+        ReportStatus.PASSING
+        if provider_continuous and unadjusted
+        else ReportStatus.BLOCKING
+    )
+    payload: dict[str, object] = {
+        "status": status.value,
+        "provider_continuous": provenance.get("provider_continuous"),
+        "front_month": provenance.get("front_month"),
+        "unadjusted": provenance.get("unadjusted"),
+        "not_roll_truth": provenance.get("not_roll_truth"),
+        "series_ids": _expected_continuous_series(dataset_version),
+    }
+    if status is ReportStatus.BLOCKING:
+        payload["reason"] = "continuous provenance is incomplete"
+    return MappingProxyType(payload)
+
+
+def _roll_metadata_evidence(
+    dataset_version: DatasetVersion,
+    *,
+    metadata: Mapping[str, object],
+    policy: Mapping[str, object],
+) -> Mapping[str, object]:
+    records = (
+        metadata.get("roll_boundary_records")
+        or metadata.get("roll_boundaries")
+        or metadata.get("roll_metadata")
+    )
+    if isinstance(records, tuple | list) and records:
+        return MappingProxyType(
+            {
+                "status": ReportStatus.PASSING.value,
+                "roll_policy_id": dataset_version.roll_policy_id,
+                "roll_boundary_evidence": "registry_roll_boundary_records",
+                "roll_boundary_record_count": min(len(records), MAX_SUMMARY_ITEMS),
+                "approximate_not_execution_truth": True,
+            }
+        )
+    if isinstance(records, Mapping) and records:
+        return MappingProxyType(
+            {
+                "status": ReportStatus.PASSING.value,
+                "roll_policy_id": dataset_version.roll_policy_id,
+                "roll_boundary_evidence": "registry_roll_boundary_metadata",
+                "roll_boundary_record_count": int(records.get("record_count", 1)),
+                "approximate_not_execution_truth": True,
+            }
+        )
+    required = bool(policy["roll_metadata_required"])
+    status = ReportStatus.WARNING if required else ReportStatus.PASSING
+    return MappingProxyType(
+        {
+            "status": status.value,
+            "roll_policy_id": dataset_version.roll_policy_id,
+            "roll_metadata_required": required,
+            "roll_boundary_evidence": "deferred_pending_FUTSUB_P03",
+            "reason": "approximate roll-boundary records are produced by FUTSUB-P03",
+            "approximate_not_execution_truth": True,
+        }
+    )
 
 
 def _ensure_acceptance_registry_ready(

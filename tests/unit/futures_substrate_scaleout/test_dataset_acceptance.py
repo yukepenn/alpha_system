@@ -5,6 +5,8 @@ import socket
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from alpha_system.core.hashing import hash_config
 from alpha_system.data.foundation.datasets import (
     DATASET_ACCEPTANCE_REQUIRED_FIELD_GROUPS,
@@ -13,6 +15,7 @@ from alpha_system.data.foundation.datasets import (
     DatasetAcceptanceState,
     DatasetVersion,
     ReportStatus,
+    _coverage_evidence_from_registry_metadata,
     build_dataset_acceptance_lock,
     compute_quality_report_hash,
     inventory_dataset_acceptance_locks,
@@ -104,7 +107,12 @@ def _coverage_report(dataset_version_id: str) -> CoverageReport:
     )
 
 
-def _dataset_version(dataset_version_id: str = "dsv_acceptance_fixture_2024") -> DatasetVersion:
+def _dataset_version(
+    dataset_version_id: str = "dsv_acceptance_fixture_2024",
+    *,
+    start_ts: datetime = START_TS,
+    end_ts: datetime = END_TS,
+) -> DatasetVersion:
     quality_report = _quality_report(dataset_version_id)
     return DatasetVersion(
         dataset_version_id=dataset_version_id,
@@ -112,8 +120,8 @@ def _dataset_version(dataset_version_id: str = "dsv_acceptance_fixture_2024") ->
         symbol_universe=("ES",),
         bar_size="1 min",
         what_to_show="TRADES",
-        start_ts=START_TS,
-        end_ts=END_TS,
+        start_ts=start_ts,
+        end_ts=end_ts,
         contract_universe=("contract_databento_es_v_0_front",),
         roll_policy_id="roll_cme_index_futures_quarterly",
         manifest_hash=hash_config({"manifest": dataset_version_id}),
@@ -160,6 +168,88 @@ def _full_evidence(**overrides: object) -> dict[str, object]:
     }
     evidence.update(overrides)
     return evidence
+
+
+def _canonical_policy(root: Path, *, roll_metadata_required: bool = False) -> dict[str, object]:
+    policy = _policy()
+    policy["canonical_root"] = root.as_posix()
+    policy["canonical_root_subpath"] = "."
+    policy["canonical_partition_schemas"] = {"ohlcv_1m": "ohlcv_1m"}
+    policy["roll_metadata_required"] = roll_metadata_required
+    policy["row_count_warning_floor_ratio"] = 0.95
+    policy["row_count_blocking_floor_ratio"] = 0.90
+    policy["minute_coverage_warning_floor_ratio"] = 0.95
+    policy["minute_coverage_blocking_floor_ratio"] = 0.90
+    policy["trading_day_floor_ratio"] = 0.001
+    policy["quality_flag_warning_ratio"] = 0.10
+    return policy
+
+
+def _write_canonical_ohlcv_fixture(root: Path, dataset_version_id: str) -> None:
+    polars = pytest.importorskip("polars")
+    rows = [
+        {
+            "instrument_id": "ES",
+            "contract_id": "contract_databento_es_v_0_front",
+            "series_id": "ES.v.0",
+            "bar_start_ts": "2024-01-01T23:00:00+00:00",
+            "bar_end_ts": "2024-01-01T23:01:00+00:00",
+            "event_ts": "2024-01-01T23:01:00+00:00",
+            "available_ts": "2024-01-01T23:01:01+00:00",
+            "ingested_at": "2024-01-01T23:01:02+00:00",
+            "open": "1",
+            "high": "1",
+            "low": "1",
+            "close": "1",
+            "volume": "1",
+            "source": "dsrc_databento_historical",
+            "source_request_id": "req_fixture",
+            "data_version": dataset_version_id,
+            "quality_flags": [],
+            "session_label": "ETH",
+        },
+        {
+            "instrument_id": "ES",
+            "contract_id": "contract_databento_es_v_0_front",
+            "series_id": "ES.v.0",
+            "bar_start_ts": "2024-01-01T23:01:00+00:00",
+            "bar_end_ts": "2024-01-01T23:02:00+00:00",
+            "event_ts": "2024-01-01T23:02:00+00:00",
+            "available_ts": "2024-01-01T23:02:01+00:00",
+            "ingested_at": "2024-01-01T23:02:02+00:00",
+            "open": "1",
+            "high": "1",
+            "low": "1",
+            "close": "1",
+            "volume": "1",
+            "source": "dsrc_databento_historical",
+            "source_request_id": "req_fixture",
+            "data_version": dataset_version_id,
+            "quality_flags": [],
+            "session_label": "ETH",
+        },
+    ]
+    partition = root / dataset_version_id / "schema=ohlcv_1m" / "root=ES"
+    partition.mkdir(parents=True)
+    part_path = partition / "part-00000.parquet"
+    polars.DataFrame(rows).write_parquet(part_path.as_posix())
+    (root / dataset_version_id / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema": "alpha_system.databento.canonical_manifest.v1",
+                "data_version": dataset_version_id,
+                "dataset": "GLBX.MDP3",
+                "partition_schema": "ohlcv_1m",
+                "storage_format": "parquet",
+                "row_count": len(rows),
+                "paths": [part_path.as_posix()],
+                "request_spec_hash": hash_config({"request": "fixture"}),
+                "source_manifest_hash": hash_config({"source": "fixture"}),
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _registry_with_dataset(tmp_path: Path) -> Path:
@@ -216,6 +306,96 @@ def test_dataset_acceptance_three_state_mapping() -> None:
     assert accepted.state is DatasetAcceptanceState.ACCEPTED
     assert warned.state is DatasetAcceptanceState.ACCEPTED_WITH_WARNINGS
     assert blocked.state is DatasetAcceptanceState.BLOCKED
+
+
+def test_canonical_acceptance_evidence_computes_required_dimensions(tmp_path: Path) -> None:
+    dataset_version = _dataset_version()
+    canonical_root = tmp_path / "canonical"
+    _write_canonical_ohlcv_fixture(canonical_root, dataset_version.dataset_version_id)
+
+    evidence = _coverage_evidence_from_registry_metadata(
+        dataset_version,
+        {
+            "continuous_provenance": {
+                "provider_continuous": True,
+                "front_month": True,
+                "unadjusted": True,
+                "not_roll_truth": True,
+            },
+            "partition_contamination_metadata": {"purpose": "data_qa_coverage_inspection"},
+        },
+        policy=_canonical_policy(canonical_root),
+        schema_id="ohlcv_1m",
+    )
+
+    assert evidence["row_count_sanity"]["status"] == ReportStatus.PASSING.value
+    assert evidence["gap_coverage"]["status"] == ReportStatus.PASSING.value
+    assert evidence["required_field_presence"]["status"] == ReportStatus.PASSING.value
+    assert evidence["missingness_quality_flags"]["status"] == ReportStatus.PASSING.value
+    assert evidence["continuous_provenance"]["status"] == ReportStatus.PASSING.value
+    assert evidence["roll_metadata"]["status"] == ReportStatus.PASSING.value
+    assert evidence["row_count_sanity"]["manifest_row_count"] == 2
+
+    lock = build_dataset_acceptance_lock(
+        dataset_version,
+        policy=_canonical_policy(canonical_root),
+        coverage_evidence=evidence,
+        locked_at=LOCKED_AT,
+    )
+    assert lock.state is DatasetAcceptanceState.ACCEPTED
+
+
+def test_roll_metadata_deferred_by_policy_warns_without_blocking(tmp_path: Path) -> None:
+    dataset_version = _dataset_version()
+    canonical_root = tmp_path / "canonical"
+    _write_canonical_ohlcv_fixture(canonical_root, dataset_version.dataset_version_id)
+
+    evidence = _coverage_evidence_from_registry_metadata(
+        dataset_version,
+        {
+            "continuous_provenance": {
+                "provider_continuous": True,
+                "front_month": True,
+                "unadjusted": True,
+                "not_roll_truth": True,
+            },
+        },
+        policy=_canonical_policy(canonical_root, roll_metadata_required=True),
+        schema_id="ohlcv_1m",
+    )
+    lock = build_dataset_acceptance_lock(
+        dataset_version,
+        policy=_canonical_policy(canonical_root, roll_metadata_required=True),
+        coverage_evidence=evidence,
+        locked_at=LOCKED_AT,
+    )
+
+    assert evidence["roll_metadata"]["roll_boundary_evidence"] == "deferred_pending_FUTSUB_P03"
+    assert lock.state is DatasetAcceptanceState.ACCEPTED_WITH_WARNINGS
+    assert not lock.blocking_reasons
+
+
+def test_partial_year_maps_to_accepted_with_warnings() -> None:
+    policy = _policy()
+    policy["expected_years"] = [2026]
+    policy["partial_year_end_ts"] = {"2026": "2026-06-01T00:00:00+00:00"}
+    policy["roll_metadata_required"] = False
+
+    lock = build_dataset_acceptance_lock(
+        _dataset_version(
+            "dsv_acceptance_fixture_2026",
+            start_ts=datetime(2026, 1, 1, tzinfo=UTC),
+            end_ts=datetime(2026, 6, 1, tzinfo=UTC),
+        ),
+        policy=policy,
+        coverage_evidence=_full_evidence(),
+        schema_id="ohlcv_1m",
+        year=2026,
+        locked_at=LOCKED_AT,
+    )
+
+    assert lock.state is DatasetAcceptanceState.ACCEPTED_WITH_WARNINGS
+    assert any("partial-year" in reason for reason in lock.warning_reasons)
 
 
 def test_missing_coverage_never_silently_accepts() -> None:

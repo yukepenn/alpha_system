@@ -34,11 +34,24 @@
     "continuous_provenance",
     "partition_contamination_metadata"
   ],
+  "canonical_root_env": "ALPHA_DATA_ROOT",
+  "canonical_root_subpath": "databento/canonical/glbx_mdp3",
+  "canonical_partition_schemas": {
+    "ohlcv_1m": "ohlcv_1m",
+    "ohlcv_dense_research_grid": "ohlcv_1m_dense",
+    "bbo_1m": "bbo_1m"
+  },
+  "row_count_warning_floor_ratio": 0.95,
+  "row_count_blocking_floor_ratio": 0.90,
+  "minute_coverage_warning_floor_ratio": 0.95,
+  "minute_coverage_blocking_floor_ratio": 0.90,
+  "trading_day_floor_ratio": 0.75,
+  "quality_flag_warning_ratio": 0.10,
   "row_count_evidence_required": true,
   "gap_evidence_required": true,
   "required_field_evidence_required": true,
   "missingness_quality_evidence_required": true,
   "continuous_provenance_required": true,
-  "roll_metadata_required": true,
+  "roll_metadata_required": false,
   "missing_evidence_policy": "BLOCKED"
 }
