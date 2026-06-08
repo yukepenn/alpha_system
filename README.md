@@ -4,41 +4,37 @@
 Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
 The repository-level campaign pointer targets
-`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`. Campaign state is tracked in
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: after `FUTCORE-P29` merges,
-`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` has completed 30 of 31 phases in the
-`handoff_and_closeout` gate. This snapshot records value-free downstream
-failure-mode handoffs for Validation Governance, FactorLibrary, and Strategy
-Reference validation.
+Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
+active. This snapshot reflects the post-merge state for `FUTSUB-P00`: campaign
+bootstrap complete as phase 1 of 34, with the six-file campaign bundle verified
+and the durable docs/evidence scaffolding added. Ralph owns validation routing,
+staging, commit, review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: `FUTCORE-P29` is ready for Ralph-owned validation and
-review; the next phase is `FUTCORE-P30` - Acceptance Audit and Closeout. Ralph
-continues to own authoritative validation, review routing, staging, PR, CI,
-merge, and done-check actions.
+Active / next work: the next phase is `FUTSUB-P01` - Reality Report Lock and
+Core Pilot Handoff Ingestion.
 
-New durable surfaces in this `FUTCORE-P29` snapshot:
+New durable surfaces in this `FUTSUB-P00` snapshot:
 
-- `research/futures_core_alpha_pilot_v1/downstream_handoffs/`
-- `docs/futures_core_alpha_pilot/DOWNSTREAM_HANDOFFS.md`
+- `docs/futures_substrate_scaleout/`
+- `research/futures_substrate_scaleout_v1/`
 
-`FUTCORE-P29` adds no new commands, data readers, agent runners, primitives,
-feature value data, label value data, broker surfaces, live surfaces,
-paper-trading surfaces, or deployment behavior. The handoffs carry forward the
-P28 state of 0 `WATCH` / `CANDIDATE_RESEARCH` outcomes, so this pilot creates
-no FactorLibrary-ingestible survivor and no Strategy Reference validation
-candidate.
+`FUTSUB-P00` adds no new modules, commands, data readers, runtime behavior,
+diagnostics, broker surfaces, live surfaces, paper-trading surfaces, order
+routing, or deployment behavior.
 
 ## Source Of Truth
 
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
-- Campaign bundle: `campaigns/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/`
-- Pilot docs: `docs/futures_core_alpha_pilot/`
-- Value-free pilot research evidence root:
-  `research/futures_core_alpha_pilot_v1/`
+- Campaign bundle:
+  `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
+- Substrate scaleout docs: `docs/futures_substrate_scaleout/`
+- Value-free research evidence root:
+  `research/futures_substrate_scaleout_v1/`
 - Commit-eligible handoffs:
-  `handoffs/ALPHA_FUTURES_CORE_ALPHA_PILOT_V1/`
+  `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
 
 ## Safety Boundaries
 
@@ -47,15 +43,15 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-Artifact discipline is unchanged: runtime-tool-surface-only diagnostics,
-explicit staging only, and value-free evidence; `runs/**` is local-only and
-never committed; raw/canonical data, feature or label values, provider
-responses, heavy artifacts, local databases, logs, caches, secrets, and
-credentials are never committed.
+Artifact discipline is unchanged: explicit staging only, value-free evidence
+only, and runtime-tool-surface-only diagnostics. `runs/**` is local-only and
+never committed. Raw or canonical data, feature or label values, provider
+responses, heavy artifacts, local databases, roll-calendar data, logs, caches,
+secrets, and credentials are never committed.
 
-The pilot makes no profitability or tradability claim. Research outputs are
-evidence for review only, and later phases must keep value data and run-local
-artifacts out of git.
+This campaign makes no profitability or tradability claim. Research outputs are
+evidence for review only, and later phases must keep value data, local
+registries, roll-calendar data, and run-local artifacts out of git.
 
 ## Validation Commands
 
