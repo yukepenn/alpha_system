@@ -45,7 +45,7 @@ wiring / rerun / closeout phases are `must_run_alone`.
 | `FUTSUB-P03` | Continuous Series / Roll Metadata / Roll-Splice Guard Contract | YELLOW | P02 | false | true | — | foundation | bootstrap_and_contract |
 | `FUTSUB-P04` | Value Store / Registry / Keystone Identity Preflight | YELLOW | P03 | false | true | — | foundation | bootstrap_and_contract |
 | `FUTSUB-P05` | Materialization Budget, Batch Plan, and Resource Guard | YELLOW | P04 | false | true | — | foundation | bootstrap_and_contract |
-| `FUTSUB-P06` | Base OHLCV FeaturePack Scaleout | YELLOW | P05 | false | false | materialization_registry | feature_materialization | feature_materialization |
+| `FUTSUB-P06` | Scaleout Materialization Driver + Base OHLCV FeaturePack Scaleout | YELLOW | P05 | false | false | materialization_registry | feature_materialization | feature_materialization |
 | `FUTSUB-P07` | Session / Calendar / Maintenance FeaturePack Scaleout | YELLOW | P05 | false | false | materialization_registry | feature_materialization | feature_materialization |
 | `FUTSUB-P08` | VWAP / Session Auction FeaturePack Scaleout | YELLOW | P05 | false | false | materialization_registry | feature_materialization | feature_materialization |
 | `FUTSUB-P09` | Regime / Volatility / Compression FeaturePack Scaleout | YELLOW | P05 | false | false | materialization_registry | feature_materialization | feature_materialization |
@@ -136,33 +136,33 @@ wiring / rerun / closeout phases are `must_run_alone`.
 - **Lane**: YELLOW · **Deps**: P03 · **must_run_alone**: true
 - **Purpose**: Confirm/extend value-store + registry metadata so keystone identity + resolver-smoke hold at scale.
 - **Scope**: verify `dry-run preview == execute == registry record == lock == resolver` on a representative slice; add any missing registry metadata fields (`value_store_format`/`parquet_path`/`value_content_hash`/`value_schema_version`/`dataset_version_id`/version ids); record the preflight.
-- **Non-goals**: full-window materialization; editing runtime diagnostics; alpha work.
+- **Non-goals**: full accepted-window materialization; editing runtime diagnostics; alpha work.
 - **Expected files**: `src/alpha_system/core/value_store.py`, `src/alpha_system/features/engine/materialization.py`, `research/…/preflight/**`, `docs/…/KEYSTONE_IDENTITY.md`, tests, handoff/review.
 - **Validation**: smoke; `pytest test_keystone_identity.py`; preflight report exists; heavy globs empty.
 - **Done**: keystone identity verified on a slice; required metadata present; preflight value-free; no full materialization yet.
 
 ### FUTSUB-P05 — Materialization Budget, Batch Plan, and Resource Guard
 - **Lane**: YELLOW · **Deps**: P04 · **must_run_alone**: true
-- **Purpose**: Pin the bounded, chunked, restart-safe materialization plan + serial registry resource guard before any full-window write.
+- **Purpose**: Pin the bounded, chunked, restart-safe materialization plan + serial registry resource guard before any full accepted-window write.
 - **Scope**: define per-family / per-symbol / per-year batch units with row/file budgets + checkpoints; define the `materialization_registry` serial resource guard + restart-safe recovery; produce the dry-run identity preview (no execute).
 - **Non-goals**: executing materialization; editing runtime diagnostics; alpha work.
 - **Expected files**: `configs/features/scaleout/**`, `configs/labels/scaleout/**`, `research/…/materialization/**`, `docs/…/MATERIALIZATION_PLAN.md`, handoff/review.
 - **Validation**: smoke; batch plan + plan doc exist; heavy globs empty.
 - **Done**: bounded chunked restart-safe batch plan + serial registry resource guard; dry-run only; no execute; no values committed.
 
-### FUTSUB-P06 — Base OHLCV FeaturePack Scaleout
+### FUTSUB-P06 — Scaleout Materialization Driver + Base OHLCV FeaturePack Scaleout
 - **Lane**: YELLOW · **Deps**: P05 · **resource_class**: materialization_registry
-- **Purpose**: Materialize the full-window base OHLCV FeaturePack (returns, log-returns, rolling vol/range, range position, volume z-score) for ES/NQ/RTY.
-- **Scope**: `alpha feature materialize --execute` over the full window (values local-only); enforce `available_ts`, keystone identity, Parquet values, content hash, registry metadata; commit only the value-free coverage summary + config; minimal family-code repair only if needed.
-- **Non-goals**: new features beyond the base family; diagnostics; alpha work.
-- **Expected files**: `src/alpha_system/features/families/ohlcv/**`, `configs/features/scaleout/base_ohlcv.json`, `research/…/feature_packs/base_ohlcv/**`, test, handoff/review.
+- **Purpose**: Build the reusable multi-family scaleout materialization driver (the substrate tool for P06–P13 features and P16–P20 labels) and use it to materialize the base OHLCV FeaturePack over the full accepted materialization window for ES/NQ/RTY. The real blocker is missing scaleout **orchestration**, not missing market data: `alpha feature materialize` is a seed/smoke `seed_pack.v1` operator and nothing iterates the family × symbol × accepted-year grid.
+- **Scope**: BUILD a generic scaleout driver (module + CLI) that iterates the family × symbol × accepted-year grid and per unit REUSES the existing family engines (`features/families/*`) + sanctioned `canonical_loader`/BBO loaders + the official keystone registry write path (`FeatureStore.register_materialized_feature`, as in `seed_pack.run_seed_feature_pack`) — never hand-write registry records, never weaken resolver semantics, never bypass acceptance. Window = ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions (BLOCKED 2018 excluded, see `2018_BLOCKED_DIAGNOSIS.md`). **Parquet-first** (JSONL audit/smoke only; no full-history JSONL). **Checkpoint/restart** by family/symbol/dataset_version_id-year/feature_set (completed units skipped). **Serial** keystone registry writes. Use it to materialize base OHLCV **bounded-real first** (one recent accepted year, e.g. 2024, ES/NQ/RTY) then expand to the full accepted window. Commit only value-free driver code + CLI + tests + coverage summary + config.
+- **Non-goals**: new features beyond the base family; diagnostics; alpha work; new AlphaSpecs; full-history JSONL payloads; per-symbol acceptance.
+- **Expected files**: `src/alpha_system/features/scaleout/**`, `src/alpha_system/cli/scaleout.py`/`cli/feature.py`, `src/alpha_system/features/families/ohlcv/**`, `configs/features/scaleout/**`, `research/…/feature_packs/base_ohlcv/**`, `research/…/scaleout_driver/**`, `docs/futures_substrate_scaleout/SCALEOUT_DRIVER.md`, tests, handoff/review.
 - **Validation**: smoke; `git ls-files runs` + heavy globs empty.
-- **Done**: family materialized + registered full-window with `available_ts`/keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite/heavy artifact committed.
+- **Done**: scaleout driver built (generic, Parquet-first, checkpointed, serial registry) + base OHLCV materialized/registered over the full accepted window with `available_ts`/keystone identity/Parquet/content hash/registry metadata, bounded-real validated before full expansion; coverage summary value-free; no value/SQLite/heavy artifact committed.
 
 ### FUTSUB-P07 — Session / Calendar / Maintenance FeaturePack Scaleout
 - **Lane**: YELLOW · **Deps**: P05 · **resource_class**: materialization_registry
-- **Purpose**: Materialize the full-window session/calendar/maintenance FeaturePack (RTH/ETH flags, session-minute, maintenance-window flags, holiday/half-day, minutes-to-close/maintenance where available).
-- **Scope**: materialize + register over the full window; enforce point-in-time SESSION_METADATA / role-aware guard; enforce identity/Parquet/hash/metadata; commit value-free summary + config.
+- **Purpose**: Materialize the full accepted-window session/calendar/maintenance FeaturePack (RTH/ETH flags, session-minute, maintenance-window flags, holiday/half-day, minutes-to-close/maintenance where available).
+- **Scope**: materialize + register over the full accepted materialization window; enforce point-in-time SESSION_METADATA / role-aware guard; enforce identity/Parquet/hash/metadata; commit value-free summary + config.
 - **Non-goals**: new session features; diagnostics; alpha work.
 - **Expected files**: `src/alpha_system/features/families/session/**`, `configs/features/scaleout/session_calendar_maintenance.json`, `research/…/feature_packs/session_calendar_maintenance/**`, test, handoff/review.
 - **Done**: as base feature done-criteria; point-in-time session guard respected.
@@ -178,7 +178,7 @@ wiring / rerun / closeout phases are `must_run_alone`.
 ### FUTSUB-P09 — Regime / Volatility / Compression FeaturePack Scaleout
 - **Lane**: YELLOW · **Deps**: P05 · **resource_class**: materialization_registry
 - **Purpose**: Materialize regime features (trendiness, ATR/vol-regime buckets, range compression/expansion, momentum/reversion state) to unblock the pilot regime study (P18).
-- **Scope**: materialize + register full-window; identity/Parquet/hash/metadata; value-free summary + config.
+- **Scope**: materialize + register full accepted-window; identity/Parquet/hash/metadata; value-free summary + config.
 - **Non-goals**: new regime features; diagnostics; alpha work.
 - **Expected files**: `src/alpha_system/features/families/structure/**`+`ohlcv/**`, `configs/features/scaleout/regime_volatility_compression.json`, `research/…/feature_packs/regime_volatility_compression/**`, test, handoff/review.
 - **Done**: as base feature done-criteria.
@@ -205,7 +205,7 @@ wiring / rerun / closeout phases are `must_run_alone`.
 - **Scope**: treat BBO-1m as a **time-sampled + forward-filled tradability proxy** (no execution-truth/passive-fill/queue/impact claims); identity/Parquet/hash/metadata; value-free summary + config.
 - **Non-goals**: passive-fill/queue/impact/execution claims; new BBO features; diagnostics; alpha work.
 - **Expected files**: `src/alpha_system/features/families/bbo/**`, `configs/features/scaleout/bbo_tradability_top_book.json`, `research/…/feature_packs/bbo_tradability_top_book/**`, test, handoff/review.
-- **Done**: BBO top-book family materialized + registered full-window as a tradability proxy (no execution-truth claim) with identity/Parquet/hash/metadata; coverage summary value-free; no value/SQLite committed.
+- **Done**: BBO top-book family materialized + registered full accepted-window as a tradability proxy (no execution-truth claim) with identity/Parquet/hash/metadata; coverage summary value-free; no value/SQLite committed.
 
 ### FUTSUB-P13 — Cross-Market Alignment FeaturePack Scaleout
 - **Lane**: YELLOW · **Deps**: P05, P06 · **resource_class**: materialization_registry
@@ -213,7 +213,7 @@ wiring / rerun / closeout phases are `must_run_alone`.
 - **Scope**: strict per-instrument `available_ts` (**no cross-instrument forward-fill**); identity/Parquet/hash/metadata; value-free summary + config.
 - **Non-goals**: cross-instrument forward-fill; new features; diagnostics; alpha work.
 - **Expected files**: `src/alpha_system/features/families/cross_market/**`, `configs/features/scaleout/cross_market_alignment.json`, `research/…/feature_packs/cross_market_alignment/**`, test, handoff/review.
-- **Done**: cross-market family materialized + registered full-window with per-instrument `available_ts` preserved (no forward-fill across instruments) + identity/Parquet/hash/metadata; coverage summary value-free; no value/SQLite committed.
+- **Done**: cross-market family materialized + registered full accepted-window with per-instrument `available_ts` preserved (no forward-fill across instruments) + identity/Parquet/hash/metadata; coverage summary value-free; no value/SQLite committed.
 
 ### FUTSUB-P14 — FeaturePack Registry Integration, Coverage Audit, and Resolver Smoke
 - **Lane**: YELLOW · **Deps**: P06–P13 · **must_run_alone**: true · **resource_class**: materialization_registry
@@ -237,7 +237,7 @@ wiring / rerun / closeout phases are `must_run_alone`.
 - **Scope**: apply roll-splice + maintenance-crossing guards; enforce `label_available_ts`, horizon coverage, N_eff/overlap metadata; value-free summary + config.
 - **Non-goals**: new label families; diagnostics; alpha work; silent cross-roll/maintenance windows.
 - **Expected files**: `src/alpha_system/labels/families/fixed_horizon/**`, `configs/labels/scaleout/fixed_horizon.json`, `research/…/label_packs/fixed_horizon/**`, test, handoff/review.
-- **Done**: LabelPack materialized + registered full-window with `label_available_ts`, guards applied, horizon coverage + N_eff/overlap metadata; coverage summary value-free; no value/SQLite/heavy artifact committed.
+- **Done**: LabelPack materialized + registered full accepted-window with `label_available_ts`, guards applied, horizon coverage + N_eff/overlap metadata; coverage summary value-free; no value/SQLite/heavy artifact committed.
 
 ### FUTSUB-P17 — Extended Intraday LabelPack Scaleout: 60m/120m/240m
 - **Lane**: YELLOW · **Deps**: P15 · **resource_class**: materialization_registry
