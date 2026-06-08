@@ -70,6 +70,47 @@ def test_pack_materializer_matches_reference_returns_on_synthetic_fixture() -> N
     )
 
 
+def test_compute_values_derives_identity_once_per_declaration_not_per_row(monkeypatch) -> None:
+    """Regression: the content-addressed identity must be derived once per
+    declaration, never per output row. `feature_version_id` is an uncached property
+    that runs JSON-canonicalize + SHA-256 on every access; referencing it inside the
+    per-row loop re-hashed identity O(rows) times and made full-window
+    materialization pathologically slow (the FCFP P13 benchmark hang)."""
+    pl = pytest.importorskip("polars")
+    rows = _fixture_rows()
+    assert len(rows) >= 2, "fixture must have multiple rows for the per-row bug to be visible"
+    request = approved_feature_request("fast_path_synthetic_returns")
+    definition = build_ohlcv_feature_definition(
+        OHLCVFeatureName.RETURNS,
+        request,
+        EmptyRegistryReader(),
+        dataset_version_ids=(DATASET_ID,),
+        reset_on_session=False,
+    )
+    materializer = PackMaterializer()
+    frame = materializer.frame_from_rows(rows)
+    pack = _returns_pack(definition.spec, pl)
+
+    from alpha_system.features import contracts as _contracts
+
+    original = _contracts.FeatureVersion.derive.__func__
+    calls = {"n": 0}
+
+    def _counting_derive(cls: Any, spec: Any) -> Any:
+        calls["n"] += 1
+        return original(cls, spec)
+
+    monkeypatch.setattr(_contracts.FeatureVersion, "derive", classmethod(_counting_derive))
+
+    records = materializer.compute_values(frame, pack)
+
+    assert len(records) >= 2
+    assert calls["n"] == len(pack.declarations), (
+        f"identity derived {calls['n']}x for {len(pack.declarations)} declaration(s) over "
+        f"{len(records)} rows; feature_version_id must be hoisted out of the per-row loop"
+    )
+
+
 def test_pack_materializer_persists_and_registers_through_feature_store(
     tmp_path: Path,
 ) -> None:

@@ -340,10 +340,16 @@ class PackMaterializer:
                     flags_col,
                 )
             )
+            # Derive the content-addressed identity ONCE per declaration. It is
+            # invariant across rows; `declaration.feature_version_id` is an uncached
+            # property that runs a JSON-canonicalize + SHA-256 on each access, so
+            # referencing it per-row re-hashed the identity once per output row
+            # (O(rows) redundant hashing -> pathological on full-window materialization).
+            feature_version_id = declaration.feature_version_id
             for row in selected.iter_rows(named=True):
                 records.append(
                     FeatureValueRecord(
-                        feature_version_id=declaration.feature_version_id,
+                        feature_version_id=feature_version_id,
                         entity_id=_coerce_text(row[entity_col], "entity_id"),
                         event_ts=_coerce_datetime(row[event_col], "event_ts"),
                         available_ts=_coerce_datetime(row[available_col], "available_ts"),
