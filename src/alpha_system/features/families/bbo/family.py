@@ -268,6 +268,7 @@ def build_bbo_feature_definition(
     reset_on_session: bool = True,
     ddof: int = 0,
     window: WindowSpec | None = None,
+    input_scope: Mapping[str, Any] | None = None,
 ) -> BBOFeatureDefinition:
     """Build one approved BBO tradability feature definition.
 
@@ -300,6 +301,7 @@ def build_bbo_feature_definition(
         reset_on_session=reset_on_session,
         ddof=ddof,
         window=window,
+        input_scope=input_scope,
     )
     return BBOFeatureDefinition(
         name=feature_name,
@@ -371,6 +373,7 @@ def _feature_spec(
     reset_on_session: bool,
     ddof: int,
     window: WindowSpec | None,
+    input_scope: Mapping[str, Any] | None,
 ) -> BBOFeatureSpec:
     if gate_decision.feature_request_id is None:
         raise BBOFeatureError("approved FeatureRequestGateDecision must expose freq_ id")
@@ -391,17 +394,7 @@ def _feature_spec(
             input_views=("canonical_bbo",),
             fields=_input_fields(name),
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata={
-                "consumption_surface": "alpha_system.features.input_views.BBOInputView",
-                "bbo_quality_tokens": [
-                    MISSING_BBO_QUALITY_FLAG,
-                    BBO_QUARANTINE_QUALITY_FLAG,
-                ],
-                "quote_semantics": (
-                    "FLF-P04 missing_bbo and bbo_quarantined rows are gaps for "
-                    "quote-derived values"
-                ),
-            },
+            input_metadata=_input_metadata(input_scope=input_scope),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -521,6 +514,26 @@ def _input_fields(name: BBOFeatureName) -> tuple[str, ...]:
         "quality_flags",
     )
     return tuple(dict.fromkeys((*base, *_BBO_FIELDS_BY_FEATURE[name])))
+
+
+def _input_metadata(
+    *,
+    input_scope: Mapping[str, Any] | None = None,
+) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "consumption_surface": "alpha_system.features.input_views.BBOInputView",
+        "bbo_quality_tokens": [
+            MISSING_BBO_QUALITY_FLAG,
+            BBO_QUARANTINE_QUALITY_FLAG,
+        ],
+        "quote_semantics": (
+            "FLF-P04 missing_bbo and bbo_quarantined rows are gaps for "
+            "quote-derived values"
+        ),
+    }
+    if input_scope:
+        metadata["input_scope"] = {str(key): value for key, value in input_scope.items()}
+    return metadata
 
 
 def _coerce_bbo_view(input_view: BBOInputView | CanonicalInputViews) -> BBOInputView:

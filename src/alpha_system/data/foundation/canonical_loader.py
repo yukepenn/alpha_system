@@ -1,14 +1,15 @@
-"""Dependency-guarded loader for already-canonical local OHLCV Parquet.
+"""Dependency-guarded loader for already-canonical local Parquet.
 
-This loader reads ONLY already-canonical local Parquet partitions produced by the
-data layer. It never reads raw provider files, never calls providers, and never
-writes inside the repository tree. Parquet reads use the optional ``polars``
-dependency through ``require_dependency`` so that stdlib-only imports stay clean
-and environments without ``polars`` fail closed with a clear message.
+This loader reads ONLY already-canonical local OHLCV/BBO Parquet partitions
+produced by the data layer. It never reads raw provider files, never calls
+providers, and never writes inside the repository tree. Parquet reads use the
+optional ``polars`` dependency through ``require_dependency`` so that stdlib-only
+imports stay clean and environments without ``polars`` fail closed with a clear
+message.
 
-The returned rows are canonical OHLCV mapping dicts (string-typed price/volume
-fields, ISO timestamp strings) that downstream feature/label engines consume as
-``CanonicalBarRecord``-compatible mappings.
+The returned rows are canonical mapping dicts (string-typed price/size fields,
+ISO timestamp strings) that downstream feature/label engines consume as
+``CanonicalBarRecord``- or ``CanonicalBBORecord``-compatible mappings.
 """
 
 from __future__ import annotations
@@ -20,7 +21,9 @@ from typing import Any
 from alpha_system.data.paths import assert_local_wsl_path
 from alpha_system.data.storage import require_dependency
 
-DEFAULT_PARTITION_SCHEMA = "ohlcv_1m"
+DEFAULT_OHLCV_PARTITION_SCHEMA = "ohlcv_1m"
+DEFAULT_BBO_PARTITION_SCHEMA = "bbo_1m"
+DEFAULT_PARTITION_SCHEMA = DEFAULT_OHLCV_PARTITION_SCHEMA
 
 # Canonical OHLCV mapping keys expected by the feature/label engines. Mirrors
 # CanonicalBarRecord.from_mapping field set (see data/foundation/bars.py).
@@ -43,6 +46,32 @@ CANONICAL_OHLCV_FIELDS: tuple[str, ...] = (
     "data_version",
     "quality_flags",
     "session_label",
+)
+
+CANONICAL_BBO_FIELDS: tuple[str, ...] = (
+    "instrument_id",
+    "contract_id",
+    "series_id",
+    "bar_start_ts",
+    "bar_end_ts",
+    "event_ts",
+    "available_ts",
+    "ingested_at",
+    "bid",
+    "ask",
+    "bid_size",
+    "ask_size",
+    "mid",
+    "spread",
+    "source",
+    "source_request_id",
+    "data_version",
+    "quality_flags",
+    "session_label",
+    "spread_ticks",
+    "microprice",
+    "bid_order_count",
+    "ask_order_count",
 )
 
 
@@ -118,6 +147,48 @@ def load_canonical_ohlcv_rows(
     return tuple(rows)
 
 
+def load_canonical_bbo_rows(
+    *,
+    canonical_root: str | Path,
+    dataset_version_id: str,
+    symbol: str,
+    start_ts: str | None = None,
+    end_ts: str | None = None,
+    partition_schema: str = DEFAULT_BBO_PARTITION_SCHEMA,
+) -> tuple[dict[str, Any], ...]:
+    """Load canonical BBO rows from one local Parquet partition.
+
+    Filters rows whose ``bar_start_ts`` falls in ``[start_ts, end_ts)`` when a
+    bound is supplied, normalizes ``quality_flags`` to a tuple of strings, and
+    returns rows sorted by ``event_ts``. Missing and quarantined BBO conditions
+    remain row-level quality flags; this loader does not fill, impute, or
+    reinterpret quote values.
+    """
+
+    polars = require_dependency("polars")
+    partition_path = canonical_partition_path(
+        canonical_root,
+        dataset_version_id=dataset_version_id,
+        symbol=symbol,
+        partition_schema=partition_schema,
+    )
+    if not partition_path.exists():
+        raise CanonicalLoaderError(
+            f"canonical BBO partition does not exist: {partition_path.as_posix()}"
+        )
+
+    frame = polars.scan_parquet(partition_path.as_posix())
+    if start_ts is not None:
+        frame = frame.filter(polars.col("bar_start_ts") >= _require_token(start_ts, "start_ts"))
+    if end_ts is not None:
+        frame = frame.filter(polars.col("bar_start_ts") < _require_token(end_ts, "end_ts"))
+    collected = frame.collect()
+
+    rows = [_normalize_row(row) for row in collected.to_dicts()]
+    rows.sort(key=lambda row: str(row.get("event_ts", "")))
+    return tuple(rows)
+
+
 def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
     normalized["quality_flags"] = _normalize_quality_flags(normalized.get("quality_flags"))
@@ -158,9 +229,13 @@ def _require_token(value: object, field_name: str) -> str:
 
 
 __all__ = [
+    "CANONICAL_BBO_FIELDS",
     "CANONICAL_OHLCV_FIELDS",
+    "DEFAULT_BBO_PARTITION_SCHEMA",
+    "DEFAULT_OHLCV_PARTITION_SCHEMA",
     "DEFAULT_PARTITION_SCHEMA",
     "CanonicalLoaderError",
     "canonical_partition_path",
+    "load_canonical_bbo_rows",
     "load_canonical_ohlcv_rows",
 ]
