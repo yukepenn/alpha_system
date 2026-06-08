@@ -6,7 +6,9 @@ DATA-P18 own dataset versioning and partition planning behavior.
 
 from __future__ import annotations
 
+import json
 import re
+import sqlite3
 from bisect import bisect_left
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
@@ -15,9 +17,16 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from math import isfinite
+from pathlib import Path
 from types import MappingProxyType
 
-from alpha_system.core.hashing import hash_config
+from alpha_system.core.hashing import canonical_json, hash_config
+from alpha_system.core.registry import (
+    connect_registry,
+    init_registry,
+    is_local_only_registry_path,
+    resolve_registry_path,
+)
 from alpha_system.data.foundation.bars import (
     CANONICAL_BAR_RECORD_FIELDS,
     CanonicalBarRecord,
@@ -133,6 +142,78 @@ DATASET_VERSION_ADMISSIBLE_STATES: frozenset[str] = frozenset(
     {"VERSIONED", "READY_FOR_RESEARCH"}
 )
 
+DATASET_ACCEPTANCE_STATES: frozenset[str] = frozenset(
+    {"ACCEPTED", "ACCEPTED_WITH_WARNINGS", "BLOCKED"}
+)
+
+DATASET_ACCEPTANCE_LOCK_METADATA_SCHEMA = (
+    "alpha_system.data_foundation.dataset_acceptance_lock.v1"
+)
+
+DATASET_ACCEPTANCE_DEFAULT_POLICY_ID = "dataset_acceptance_futsub_p02_v1"
+
+DATASET_ACCEPTANCE_REQUIRED_FIELD_GROUPS: tuple[str, ...] = (
+    "canonical_timestamps",
+    "available_ts",
+    "exchange_trade_date",
+    "session_segment",
+    "continuous_provenance",
+    "roll_boundary_metadata",
+    "quality_flags",
+    "missingness_flags",
+)
+
+DATASET_ACCEPTANCE_COVERAGE_DIMENSIONS: tuple[str, ...] = (
+    "schema",
+    "symbol",
+    "year_date_range",
+    "row_count_sanity",
+    "gap_coverage",
+    "required_field_presence",
+    "missingness_quality_flags",
+    "continuous_provenance",
+    "roll_metadata",
+    "registry_resolution",
+)
+
+DATASET_ACCEPTANCE_DEFAULT_POLICY: Mapping[str, object] = MappingProxyType(
+    {
+        "policy_id": DATASET_ACCEPTANCE_DEFAULT_POLICY_ID,
+        "expected_source": "dsrc_databento_historical",
+        "expected_symbols": ("ES", "NQ", "RTY"),
+        "expected_years": tuple(range(2018, 2027)),
+        "expected_schemas": MappingProxyType(
+            {
+                "ohlcv_1m": MappingProxyType(
+                    {"bar_size": "1 min", "what_to_show": "TRADES"}
+                ),
+                "ohlcv_dense_research_grid": MappingProxyType(
+                    {
+                        "bar_size": "1 min",
+                        "what_to_show": "TRADES_DENSE_RESEARCH_GRID",
+                    }
+                ),
+                "bbo_1m": MappingProxyType({"bar_size": "1 min", "what_to_show": "BBO"}),
+            }
+        ),
+        "partial_year_end_ts": MappingProxyType(
+            {"2026": "2026-06-01T00:00:00+00:00"}
+        ),
+        "required_field_groups": DATASET_ACCEPTANCE_REQUIRED_FIELD_GROUPS,
+        "required_registry_metadata_keys": (
+            "continuous_provenance",
+            "partition_contamination_metadata",
+        ),
+        "row_count_evidence_required": True,
+        "gap_evidence_required": True,
+        "required_field_evidence_required": True,
+        "missingness_quality_evidence_required": True,
+        "continuous_provenance_required": True,
+        "roll_metadata_required": True,
+        "missing_evidence_policy": "BLOCKED",
+    }
+)
+
 DATASET_PARTITION_QA_PURPOSES: frozenset[str] = frozenset(
     {
         "coverage_qa",
@@ -203,6 +284,14 @@ class ReportStatus(StrEnum):
     PASSING = "PASSING"
     WARNING = "WARNING"
     BLOCKING = "BLOCKING"
+
+
+class DatasetAcceptanceState(StrEnum):
+    """Persisted DatasetVersion acceptance-lock states."""
+
+    ACCEPTED = "ACCEPTED"
+    ACCEPTED_WITH_WARNINGS = "ACCEPTED_WITH_WARNINGS"
+    BLOCKED = "BLOCKED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -2996,6 +3085,1252 @@ class DatasetVersion:
         )
 
 
+DATASET_ACCEPTANCE_LOCK_FIELDS: tuple[str, ...] = (
+    "schema",
+    "dataset_version_id",
+    "state",
+    "policy_id",
+    "policy_hash",
+    "locked_at",
+    "coverage_report",
+    "blocking_reasons",
+    "warning_reasons",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DatasetAcceptanceLock:
+    """Persisted DatasetVersion acceptance verdict with value-free coverage evidence.
+
+    The lock is a data-substrate gate only. It does not imply research approval,
+    tradability, profitability, live readiness, or production readiness.
+    """
+
+    dataset_version_id: str
+    state: DatasetAcceptanceState
+    policy_id: str
+    policy_hash: str
+    locked_at: datetime
+    coverage_report: Mapping[str, object]
+    blocking_reasons: tuple[str, ...]
+    warning_reasons: tuple[str, ...]
+    schema: str = DATASET_ACCEPTANCE_LOCK_METADATA_SCHEMA
+
+    def __post_init__(self) -> None:
+        schema = _require_text(self.schema, "schema")
+        if schema != DATASET_ACCEPTANCE_LOCK_METADATA_SCHEMA:
+            msg = "DatasetAcceptanceLock schema is unsupported"
+            raise DataFoundationValidationError(msg)
+        dataset_version_id = _normalize_id(self.dataset_version_id, "dataset_version_id")
+        state = _normalize_dataset_acceptance_state(self.state, "state")
+        policy_id = _normalize_id(self.policy_id, "policy_id")
+        policy_hash = _normalize_sha256_hash(self.policy_hash, "policy_hash")
+        locked_at = _parse_aware_datetime(self.locked_at, "locked_at")
+        coverage_report = _require_summary_mapping(
+            self.coverage_report,
+            "coverage_report",
+        )
+        blocking_reasons = _normalize_reason_tuple(
+            self.blocking_reasons,
+            "blocking_reasons",
+        )
+        warning_reasons = _normalize_reason_tuple(
+            self.warning_reasons,
+            "warning_reasons",
+        )
+
+        derived_state = _dataset_acceptance_state_from_reasons(
+            blocking_reasons,
+            warning_reasons,
+        )
+        if state is not derived_state:
+            msg = f"state must be {derived_state.value} for recorded coverage reasons"
+            raise DataFoundationValidationError(msg)
+
+        object.__setattr__(self, "schema", schema)
+        object.__setattr__(self, "dataset_version_id", dataset_version_id)
+        object.__setattr__(self, "state", state)
+        object.__setattr__(self, "policy_id", policy_id)
+        object.__setattr__(self, "policy_hash", policy_hash)
+        object.__setattr__(self, "locked_at", locked_at)
+        object.__setattr__(self, "coverage_report", coverage_report)
+        object.__setattr__(self, "blocking_reasons", blocking_reasons)
+        object.__setattr__(self, "warning_reasons", warning_reasons)
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, object]) -> DatasetAcceptanceLock:
+        """Build an acceptance-lock from persisted registry metadata."""
+
+        _require_exact_mapping_fields(
+            values,
+            required_fields=DATASET_ACCEPTANCE_LOCK_FIELDS,
+            object_name="DatasetAcceptanceLock",
+        )
+        return cls(
+            schema=_require_text(values["schema"], "schema"),
+            dataset_version_id=_require_text(
+                values["dataset_version_id"],
+                "dataset_version_id",
+            ),
+            state=_normalize_dataset_acceptance_state(values["state"], "state"),
+            policy_id=_require_text(values["policy_id"], "policy_id"),
+            policy_hash=_require_text(values["policy_hash"], "policy_hash"),
+            locked_at=_parse_aware_datetime(values["locked_at"], "locked_at"),
+            coverage_report=_require_summary_mapping(
+                values["coverage_report"],
+                "coverage_report",
+            ),
+            blocking_reasons=_normalize_reason_tuple(
+                values["blocking_reasons"],
+                "blocking_reasons",
+            ),
+            warning_reasons=_normalize_reason_tuple(
+                values["warning_reasons"],
+                "warning_reasons",
+            ),
+        )
+
+    def to_mapping(self) -> Mapping[str, object]:
+        """Return a JSON-stable acceptance-lock mapping."""
+
+        return MappingProxyType(
+            {
+                "schema": self.schema,
+                "dataset_version_id": self.dataset_version_id,
+                "state": self.state.value,
+                "policy_id": self.policy_id,
+                "policy_hash": self.policy_hash,
+                "locked_at": self.locked_at.isoformat(),
+                "coverage_report": self.coverage_report,
+                "blocking_reasons": self.blocking_reasons,
+                "warning_reasons": self.warning_reasons,
+            }
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class DatasetAcceptanceInventory:
+    """Value-free inventory of acceptance-locks for an expected dataset matrix."""
+
+    policy_id: str
+    policy_hash: str
+    locks: tuple[DatasetAcceptanceLock, ...]
+    missing_expected_versions: tuple[Mapping[str, object], ...]
+    duplicate_expected_versions: tuple[Mapping[str, object], ...]
+
+    def __post_init__(self) -> None:
+        policy_id = _normalize_id(self.policy_id, "policy_id")
+        policy_hash = _normalize_sha256_hash(self.policy_hash, "policy_hash")
+        locks = tuple(_require_dataset_acceptance_lock(lock) for lock in self.locks)
+        missing_expected_versions = tuple(
+            _require_summary_mapping(item, "missing_expected_versions[]")
+            for item in self.missing_expected_versions
+        )
+        duplicate_expected_versions = tuple(
+            _require_summary_mapping(item, "duplicate_expected_versions[]")
+            for item in self.duplicate_expected_versions
+        )
+        object.__setattr__(self, "policy_id", policy_id)
+        object.__setattr__(self, "policy_hash", policy_hash)
+        object.__setattr__(self, "locks", locks)
+        object.__setattr__(self, "missing_expected_versions", missing_expected_versions)
+        object.__setattr__(
+            self,
+            "duplicate_expected_versions",
+            duplicate_expected_versions,
+        )
+
+    @property
+    def state_counts(self) -> Mapping[str, int]:
+        """Return acceptance-lock counts by state."""
+
+        counts = Counter(lock.state.value for lock in self.locks)
+        return MappingProxyType(
+            {state: counts.get(state, 0) for state in sorted(DATASET_ACCEPTANCE_STATES)}
+        )
+
+    @property
+    def complete_expected_matrix(self) -> bool:
+        """Return true when each expected schema/year has exactly one version."""
+
+        return not self.missing_expected_versions and not self.duplicate_expected_versions
+
+
+def _normalize_dataset_acceptance_state(
+    value: object,
+    field_name: str,
+) -> DatasetAcceptanceState:
+    if isinstance(value, DatasetAcceptanceState):
+        return value
+    token = _require_text(value, field_name).upper()
+    try:
+        return DatasetAcceptanceState[token]
+    except KeyError as exc:
+        allowed = ", ".join(state.value for state in DatasetAcceptanceState)
+        msg = f"{field_name} must be one of {allowed}"
+        raise DataFoundationValidationError(msg) from exc
+
+
+def _dataset_acceptance_state_from_reasons(
+    blocking_reasons: tuple[str, ...],
+    warning_reasons: tuple[str, ...],
+) -> DatasetAcceptanceState:
+    if blocking_reasons:
+        return DatasetAcceptanceState.BLOCKED
+    if warning_reasons:
+        return DatasetAcceptanceState.ACCEPTED_WITH_WARNINGS
+    return DatasetAcceptanceState.ACCEPTED
+
+
+def _normalize_reason_tuple(value: object, field_name: str) -> tuple[str, ...]:
+    reasons = _normalize_text_collection(value, field_name)
+    return tuple(reason for reason in reasons if reason)
+
+
+def _require_dataset_acceptance_lock(value: object) -> DatasetAcceptanceLock:
+    if not isinstance(value, DatasetAcceptanceLock):
+        msg = "dataset acceptance inventory requires DatasetAcceptanceLock entries"
+        raise DataFoundationValidationError(msg)
+    return value
+
+
+def normalize_dataset_acceptance_policy(
+    policy: Mapping[str, object] | None = None,
+) -> Mapping[str, object]:
+    """Normalize value-free acceptance criteria for DatasetVersion locks."""
+
+    raw: Mapping[str, object] = (
+        DATASET_ACCEPTANCE_DEFAULT_POLICY if policy is None else policy
+    )
+    if isinstance(raw, str) or not isinstance(raw, Mapping):
+        msg = "dataset acceptance policy must be a mapping"
+        raise DataFoundationValidationError(msg)
+
+    policy_id = _normalize_id(
+        raw.get("policy_id", DATASET_ACCEPTANCE_DEFAULT_POLICY_ID),
+        "policy_id",
+    )
+    expected_source = _normalize_id(
+        raw.get("expected_source", "dsrc_databento_historical"),
+        "expected_source",
+    )
+    expected_symbols = _normalize_symbol_universe(
+        raw.get("expected_symbols", ("ES", "NQ", "RTY"))
+    )
+    expected_years = _normalize_expected_years(
+        raw.get("expected_years", tuple(range(2018, 2027)))
+    )
+    expected_schemas = _normalize_expected_schemas(
+        raw.get("expected_schemas", DATASET_ACCEPTANCE_DEFAULT_POLICY["expected_schemas"])
+    )
+    partial_year_end_ts = _normalize_partial_year_end_ts(
+        raw.get("partial_year_end_ts", DATASET_ACCEPTANCE_DEFAULT_POLICY["partial_year_end_ts"])
+    )
+    required_field_groups = _normalize_text_collection(
+        raw.get(
+            "required_field_groups",
+            DATASET_ACCEPTANCE_REQUIRED_FIELD_GROUPS,
+        ),
+        "required_field_groups",
+    )
+    required_registry_metadata_keys = _normalize_text_collection(
+        raw.get(
+            "required_registry_metadata_keys",
+            ("continuous_provenance", "partition_contamination_metadata"),
+        ),
+        "required_registry_metadata_keys",
+    )
+    missing_evidence_policy = _normalize_dataset_acceptance_state(
+        raw.get("missing_evidence_policy", DatasetAcceptanceState.BLOCKED.value),
+        "missing_evidence_policy",
+    )
+    if missing_evidence_policy is DatasetAcceptanceState.ACCEPTED:
+        msg = "missing_evidence_policy cannot be ACCEPTED"
+        raise DataFoundationValidationError(msg)
+
+    return MappingProxyType(
+        {
+            "policy_id": policy_id,
+            "expected_source": expected_source,
+            "expected_symbols": expected_symbols,
+            "expected_years": expected_years,
+            "expected_schemas": expected_schemas,
+            "partial_year_end_ts": partial_year_end_ts,
+            "required_field_groups": required_field_groups,
+            "required_registry_metadata_keys": required_registry_metadata_keys,
+            "row_count_evidence_required": _require_bool(
+                raw.get("row_count_evidence_required", True),
+                "row_count_evidence_required",
+            ),
+            "gap_evidence_required": _require_bool(
+                raw.get("gap_evidence_required", True),
+                "gap_evidence_required",
+            ),
+            "required_field_evidence_required": _require_bool(
+                raw.get("required_field_evidence_required", True),
+                "required_field_evidence_required",
+            ),
+            "missingness_quality_evidence_required": _require_bool(
+                raw.get("missingness_quality_evidence_required", True),
+                "missingness_quality_evidence_required",
+            ),
+            "continuous_provenance_required": _require_bool(
+                raw.get("continuous_provenance_required", True),
+                "continuous_provenance_required",
+            ),
+            "roll_metadata_required": _require_bool(
+                raw.get("roll_metadata_required", True),
+                "roll_metadata_required",
+            ),
+            "missing_evidence_policy": missing_evidence_policy.value,
+        }
+    )
+
+
+def compute_dataset_acceptance_policy_hash(policy: Mapping[str, object]) -> str:
+    """Return the deterministic hash for normalized acceptance criteria."""
+
+    return hash_config(normalize_dataset_acceptance_policy(policy))
+
+
+def build_dataset_acceptance_lock(
+    dataset_version: DatasetVersion,
+    *,
+    policy: Mapping[str, object] | None = None,
+    coverage_evidence: Mapping[str, object] | None = None,
+    schema_id: object | None = None,
+    year: object | None = None,
+    duplicate_count: object = 1,
+    locked_at: object | None = None,
+) -> DatasetAcceptanceLock:
+    """Build one acceptance-lock from DatasetVersion metadata and coverage evidence."""
+
+    if not isinstance(dataset_version, DatasetVersion):
+        msg = "dataset acceptance requires a DatasetVersion"
+        raise DataFoundationValidationError(msg)
+    normalized_policy = normalize_dataset_acceptance_policy(policy)
+    policy_hash = compute_dataset_acceptance_policy_hash(normalized_policy)
+    resolved_schema_id = (
+        _require_text(schema_id, "schema_id")
+        if schema_id is not None
+        else _schema_id_for_dataset_version(dataset_version, normalized_policy)
+    )
+    resolved_year = (
+        _require_positive_int(year, "year")
+        if year is not None
+        else dataset_version.start_ts.year
+    )
+    duplicates = _require_positive_int(duplicate_count, "duplicate_count")
+    evidence = _normalize_acceptance_evidence(coverage_evidence)
+    locked_timestamp = (
+        datetime.now().astimezone()
+        if locked_at is None
+        else _parse_aware_datetime(locked_at, "locked_at")
+    )
+
+    report, blocking_reasons, warning_reasons = _build_acceptance_coverage_report(
+        dataset_version,
+        policy=normalized_policy,
+        coverage_evidence=evidence,
+        schema_id=resolved_schema_id,
+        year=resolved_year,
+        duplicate_count=duplicates,
+    )
+    state = _dataset_acceptance_state_from_reasons(
+        blocking_reasons,
+        warning_reasons,
+    )
+    return DatasetAcceptanceLock(
+        dataset_version_id=dataset_version.dataset_version_id,
+        state=state,
+        policy_id=str(normalized_policy["policy_id"]),
+        policy_hash=policy_hash,
+        locked_at=locked_timestamp,
+        coverage_report=report,
+        blocking_reasons=blocking_reasons,
+        warning_reasons=warning_reasons,
+    )
+
+
+def inventory_dataset_acceptance_locks(
+    registry_path: str | Path,
+    *,
+    policy: Mapping[str, object] | None = None,
+    locked_at: object | None = None,
+) -> DatasetAcceptanceInventory:
+    """Inventory in-scope DatasetVersions through the registry and build locks.
+
+    This function resolves exact DatasetVersion ids through
+    ``resolve_dataset_version``. It does not read raw provider files or
+    materialized value paths.
+    """
+
+    normalized_policy = normalize_dataset_acceptance_policy(policy)
+    policy_hash = compute_dataset_acceptance_policy_hash(normalized_policy)
+    resolved = _ensure_acceptance_registry_ready(registry_path, write=False)
+    dataset_ids = _registered_dataset_version_ids(resolved)
+    artifacts = _dataset_acceptance_artifact_metadata(resolved)
+    records: list[tuple[DatasetVersion, str, int, Mapping[str, object]]] = []
+
+    for dataset_id in dataset_ids:
+        version = _resolve_dataset_version_exact(resolved, dataset_id)
+        if version is None:
+            continue
+        schema_id = _schema_id_for_dataset_version(version, normalized_policy)
+        if schema_id is None:
+            continue
+        if version.source != normalized_policy["expected_source"]:
+            continue
+        year = version.start_ts.year
+        if year not in normalized_policy["expected_years"]:
+            continue
+        records.append((version, schema_id, year, artifacts.get(dataset_id, {})))
+
+    counts = Counter((schema_id, year) for _, schema_id, year, _ in records)
+    locks = tuple(
+        build_dataset_acceptance_lock(
+            version,
+            policy=normalized_policy,
+            coverage_evidence=_coverage_evidence_from_registry_metadata(
+                version,
+                metadata,
+            ),
+            schema_id=schema_id,
+            year=year,
+            duplicate_count=counts[(schema_id, year)],
+            locked_at=locked_at,
+        )
+        for version, schema_id, year, metadata in records
+    )
+    missing_expected_versions = _missing_expected_acceptance_versions(
+        normalized_policy,
+        counts,
+    )
+    duplicate_expected_versions = _duplicate_expected_acceptance_versions(counts)
+    return DatasetAcceptanceInventory(
+        policy_id=str(normalized_policy["policy_id"]),
+        policy_hash=policy_hash,
+        locks=locks,
+        missing_expected_versions=missing_expected_versions,
+        duplicate_expected_versions=duplicate_expected_versions,
+    )
+
+
+def persist_dataset_acceptance_locks(
+    registry_path: str | Path,
+    inventory: DatasetAcceptanceInventory,
+) -> None:
+    """Persist acceptance-locks into the local registry for exact DatasetVersion ids."""
+
+    if not isinstance(inventory, DatasetAcceptanceInventory):
+        msg = "persist_dataset_acceptance_locks requires a DatasetAcceptanceInventory"
+        raise DataFoundationValidationError(msg)
+    resolved = _ensure_acceptance_registry_ready(registry_path, write=True)
+    with connect_registry(resolved) as connection:
+        for lock in inventory.locks:
+            _persist_dataset_acceptance_lock(connection, resolved, lock)
+
+
+def resolve_dataset_acceptance_lock(
+    registry_path: str | Path,
+    dataset_version_id: object,
+) -> DatasetAcceptanceLock | None:
+    """Resolve a persisted acceptance-lock by exact DatasetVersion id."""
+
+    dataset_id = _normalize_id(dataset_version_id, "dataset_version_id")
+    resolved = _ensure_acceptance_registry_ready(registry_path, write=False)
+    with connect_registry(resolved, read_only=True) as connection:
+        row = connection.execute(
+            """
+            SELECT metadata_json
+            FROM dataset_versions
+            WHERE data_version = ?
+            """,
+            (dataset_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    payload = _load_registry_metadata_json(str(row["metadata_json"]))
+    lock_payload = payload.get("dataset_acceptance_lock")
+    if lock_payload is None:
+        return None
+    if isinstance(lock_payload, str) or not isinstance(lock_payload, Mapping):
+        msg = "dataset_acceptance_lock metadata must be a mapping"
+        raise DataFoundationValidationError(msg)
+    return DatasetAcceptanceLock.from_mapping(lock_payload)
+
+
+def render_dataset_acceptance_summary(
+    inventory: DatasetAcceptanceInventory,
+    *,
+    persisted: bool = False,
+) -> str:
+    """Render a value-free markdown summary for review and handoff."""
+
+    if not isinstance(inventory, DatasetAcceptanceInventory):
+        msg = "render_dataset_acceptance_summary requires a DatasetAcceptanceInventory"
+        raise DataFoundationValidationError(msg)
+    lines = [
+        "# DatasetVersion Acceptance Summary",
+        "",
+        "This value-free summary records DatasetVersion acceptance-lock states only.",
+        "It contains no raw rows, canonical values, feature values, label values,",
+        "provider responses, SQLite content, or roll-calendar data.",
+        "",
+        f"- Policy: `{inventory.policy_id}`",
+        f"- Policy hash: `{inventory.policy_hash}`",
+        f"- DatasetVersion locks in inventory: `{len(inventory.locks)}`",
+        f"- Expected matrix complete: `{'yes' if inventory.complete_expected_matrix else 'no'}`",
+        "",
+        "## State Counts",
+        "",
+        "| State | Count |",
+        "| --- | ---: |",
+    ]
+    for state, count in inventory.state_counts.items():
+        lines.append(f"| `{state}` | {count} |")
+    lines.extend(
+        [
+            "",
+            "## Per-Version Locks",
+            "",
+            "| Schema | Year | DatasetVersion | State | Blocking Reasons | Warnings |",
+            "| --- | ---: | --- | --- | ---: | ---: |",
+        ]
+    )
+    for lock in sorted(
+        inventory.locks,
+        key=lambda item: (
+            str(item.coverage_report.get("schema_id", "")),
+            int(item.coverage_report.get("year", 0)),
+            item.dataset_version_id,
+        ),
+    ):
+        schema_id = str(lock.coverage_report.get("schema_id", "unknown"))
+        year = int(lock.coverage_report.get("year", 0))
+        lines.append(
+            "| `{schema}` | {year} | `{dataset}` | `{state}` | {blocking} | {warnings} |".format(
+                schema=schema_id,
+                year=year,
+                dataset=lock.dataset_version_id,
+                state=lock.state.value,
+                blocking=len(lock.blocking_reasons),
+                warnings=len(lock.warning_reasons),
+            )
+        )
+
+    lines.extend(["", "## Expected Matrix Gaps", ""])
+    if not inventory.missing_expected_versions and not inventory.duplicate_expected_versions:
+        lines.append("No missing or duplicate expected schema/year slots were found.")
+    else:
+        if inventory.missing_expected_versions:
+            lines.append("Missing expected slots:")
+            for item in inventory.missing_expected_versions:
+                lines.append(f"- `{item['schema_id']}` `{item['year']}`")
+        if inventory.duplicate_expected_versions:
+            lines.append("Duplicate expected slots:")
+            for item in inventory.duplicate_expected_versions:
+                lines.append(
+                    f"- `{item['schema_id']}` `{item['year']}` count `{item['count']}`"
+                )
+    lines.extend(["", "## Locality", ""])
+    if persisted:
+        lines.extend(
+            [
+                "Acceptance verdicts and coverage reports were persisted in the local",
+                "DatasetVersion registry. This committed summary is metadata-only",
+                "and does not include per-row values.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "This summary was generated from a read-only registry inventory.",
+                "It does not assert that acceptance-lock persistence succeeded in",
+                "the local DatasetVersion registry.",
+            ]
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _normalize_expected_years(value: object) -> tuple[int, ...]:
+    if isinstance(value, str) or not isinstance(value, Iterable):
+        msg = "expected_years must be an explicit collection of years"
+        raise DataFoundationValidationError(msg)
+    years = tuple(_require_positive_int(year, "expected_years") for year in value)
+    if not years:
+        msg = "expected_years must not be empty"
+        raise DataFoundationValidationError(msg)
+    duplicates = tuple(sorted({year for year in years if years.count(year) > 1}))
+    if duplicates:
+        msg = "expected_years must not contain duplicate values: "
+        raise DataFoundationValidationError(msg + ", ".join(str(year) for year in duplicates))
+    return tuple(sorted(years))
+
+
+def _normalize_expected_schemas(value: object) -> Mapping[str, Mapping[str, str]]:
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = "expected_schemas must be a mapping"
+        raise DataFoundationValidationError(msg)
+    schemas: dict[str, Mapping[str, str]] = {}
+    for raw_schema_id, raw_config in value.items():
+        schema_id = _normalize_id(raw_schema_id, "expected_schemas.schema_id")
+        if isinstance(raw_config, str) or not isinstance(raw_config, Mapping):
+            msg = "expected_schemas entries must be mappings"
+            raise DataFoundationValidationError(msg)
+        bar_size = _require_text(raw_config.get("bar_size"), f"{schema_id}.bar_size")
+        what_to_show = _require_text(
+            raw_config.get("what_to_show"),
+            f"{schema_id}.what_to_show",
+        ).upper()
+        schemas[schema_id] = MappingProxyType(
+            {"bar_size": bar_size, "what_to_show": what_to_show}
+        )
+    if not schemas:
+        msg = "expected_schemas must not be empty"
+        raise DataFoundationValidationError(msg)
+    return MappingProxyType(schemas)
+
+
+def _normalize_partial_year_end_ts(value: object) -> Mapping[str, str]:
+    if value is None:
+        return MappingProxyType({})
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = "partial_year_end_ts must be a mapping"
+        raise DataFoundationValidationError(msg)
+    parsed: dict[str, str] = {}
+    for raw_year, raw_ts in value.items():
+        year = _require_positive_int(int(raw_year), "partial_year_end_ts.year")
+        ts = _parse_aware_datetime(raw_ts, "partial_year_end_ts.value")
+        parsed[str(year)] = ts.isoformat()
+    return MappingProxyType(parsed)
+
+
+def _schema_id_for_dataset_version(
+    dataset_version: DatasetVersion,
+    policy: Mapping[str, object],
+) -> str | None:
+    schemas = policy["expected_schemas"]
+    if isinstance(schemas, str) or not isinstance(schemas, Mapping):
+        msg = "normalized policy carries invalid expected_schemas"
+        raise DataFoundationValidationError(msg)
+    for schema_id, config in schemas.items():
+        if isinstance(config, str) or not isinstance(config, Mapping):
+            msg = "normalized schema config must be a mapping"
+            raise DataFoundationValidationError(msg)
+        if (
+            dataset_version.bar_size == config["bar_size"]
+            and dataset_version.what_to_show == config["what_to_show"]
+        ):
+            return str(schema_id)
+    return None
+
+
+def _normalize_acceptance_evidence(
+    value: Mapping[str, object] | None,
+) -> Mapping[str, object]:
+    if value is None:
+        return MappingProxyType({})
+    if isinstance(value, str) or not isinstance(value, Mapping):
+        msg = "coverage_evidence must be a mapping"
+        raise DataFoundationValidationError(msg)
+    return _require_summary_mapping(value, "coverage_evidence")
+
+
+def _build_acceptance_coverage_report(
+    dataset_version: DatasetVersion,
+    *,
+    policy: Mapping[str, object],
+    coverage_evidence: Mapping[str, object],
+    schema_id: str | None,
+    year: int,
+    duplicate_count: int,
+) -> tuple[Mapping[str, object], tuple[str, ...], tuple[str, ...]]:
+    blocking_reasons: list[str] = []
+    warning_reasons: list[str] = []
+
+    schema_dimension = _schema_dimension(
+        dataset_version,
+        policy,
+        schema_id,
+        blocking_reasons,
+    )
+    symbol_dimension = _symbol_dimension(dataset_version, policy, blocking_reasons)
+    year_dimension = _year_dimension(dataset_version, policy, year, blocking_reasons)
+    duplicate_dimension = _duplicate_dimension(duplicate_count, blocking_reasons)
+    row_count_dimension = _evidence_dimension(
+        coverage_evidence,
+        "row_count_sanity",
+        required=bool(policy["row_count_evidence_required"]),
+        missing_reason="row-count / expected-bar sanity evidence unavailable",
+        blocking_reasons=blocking_reasons,
+        warning_reasons=warning_reasons,
+    )
+    gap_dimension = _evidence_dimension(
+        coverage_evidence,
+        "gap_coverage",
+        required=bool(policy["gap_evidence_required"]),
+        missing_reason="gap coverage evidence unavailable",
+        blocking_reasons=blocking_reasons,
+        warning_reasons=warning_reasons,
+    )
+    required_field_dimension = _required_field_dimension(
+        coverage_evidence,
+        policy,
+        blocking_reasons,
+        warning_reasons,
+    )
+    missingness_dimension = _evidence_dimension(
+        coverage_evidence,
+        "missingness_quality_flags",
+        required=bool(policy["missingness_quality_evidence_required"]),
+        missing_reason="missingness and quality-flag evidence unavailable",
+        blocking_reasons=blocking_reasons,
+        warning_reasons=warning_reasons,
+    )
+    provenance_dimension = _continuous_provenance_dimension(
+        dataset_version,
+        coverage_evidence,
+        policy,
+        blocking_reasons,
+        warning_reasons,
+    )
+    roll_dimension = _roll_metadata_dimension(
+        dataset_version,
+        coverage_evidence,
+        policy,
+        blocking_reasons,
+        warning_reasons,
+    )
+    registry_dimension = MappingProxyType(
+        {
+            "status": ReportStatus.PASSING.value,
+            "resolved_by": "resolve_dataset_version",
+            "exact_id": True,
+            "fuzzy_fallback": False,
+            "duplicate_schema_year_count": duplicate_count,
+            "duplicate_status": duplicate_dimension["status"],
+        }
+    )
+
+    report = _require_summary_mapping(
+        {
+            "dataset_version_id": dataset_version.dataset_version_id,
+            "schema_id": schema_id or "unmatched",
+            "year": year,
+            "source": dataset_version.source,
+            "coverage_dimensions": DATASET_ACCEPTANCE_COVERAGE_DIMENSIONS,
+            "schema": schema_dimension,
+            "symbol": symbol_dimension,
+            "year_date_range": year_dimension,
+            "row_count_sanity": row_count_dimension,
+            "gap_coverage": gap_dimension,
+            "required_field_presence": required_field_dimension,
+            "missingness_quality_flags": missingness_dimension,
+            "continuous_provenance": provenance_dimension,
+            "roll_metadata": roll_dimension,
+            "registry_resolution": registry_dimension,
+            "coverage_evidence_source": coverage_evidence.get(
+                "evidence_source",
+                "registry_metadata_only",
+            ),
+        },
+        "coverage_report",
+    )
+    return report, tuple(blocking_reasons), tuple(warning_reasons)
+
+
+def _schema_dimension(
+    dataset_version: DatasetVersion,
+    policy: Mapping[str, object],
+    schema_id: str | None,
+    blocking_reasons: list[str],
+) -> Mapping[str, object]:
+    if schema_id is None:
+        blocking_reasons.append("schema not present in acceptance policy")
+        return MappingProxyType(
+            {
+                "status": ReportStatus.BLOCKING.value,
+                "present": False,
+                "bar_size": dataset_version.bar_size,
+                "what_to_show": dataset_version.what_to_show,
+            }
+        )
+    if dataset_version.source != policy["expected_source"]:
+        blocking_reasons.append("dataset source is outside acceptance policy")
+        status = ReportStatus.BLOCKING.value
+    else:
+        status = ReportStatus.PASSING.value
+    return MappingProxyType(
+        {
+            "status": status,
+            "present": status == ReportStatus.PASSING.value,
+            "schema_id": schema_id,
+            "bar_size": dataset_version.bar_size,
+            "what_to_show": dataset_version.what_to_show,
+        }
+    )
+
+
+def _symbol_dimension(
+    dataset_version: DatasetVersion,
+    policy: Mapping[str, object],
+    blocking_reasons: list[str],
+) -> Mapping[str, object]:
+    expected = tuple(str(symbol) for symbol in policy["expected_symbols"])
+    observed = dataset_version.symbol_universe
+    missing = tuple(symbol for symbol in expected if symbol not in observed)
+    extra = tuple(symbol for symbol in observed if symbol not in expected)
+    status = ReportStatus.PASSING
+    if missing:
+        blocking_reasons.append("required symbol coverage missing")
+        status = ReportStatus.BLOCKING
+    elif extra:
+        status = ReportStatus.WARNING
+    return MappingProxyType(
+        {
+            "status": status.value,
+            "expected_symbols": expected,
+            "observed_symbols": observed,
+            "missing_symbols": missing,
+            "extra_symbols": extra,
+        }
+    )
+
+
+def _year_dimension(
+    dataset_version: DatasetVersion,
+    policy: Mapping[str, object],
+    year: int,
+    blocking_reasons: list[str],
+) -> Mapping[str, object]:
+    expected_years = tuple(int(item) for item in policy["expected_years"])
+    partial_years = policy["partial_year_end_ts"]
+    if isinstance(partial_years, str) or not isinstance(partial_years, Mapping):
+        msg = "normalized policy carries invalid partial_year_end_ts"
+        raise DataFoundationValidationError(msg)
+    expected_start = datetime.fromisoformat(f"{year}-01-01T00:00:00+00:00")
+    expected_end = (
+        _parse_aware_datetime(partial_years[str(year)], "partial_year_end_ts")
+        if str(year) in partial_years
+        else datetime.fromisoformat(f"{year + 1}-01-01T00:00:00+00:00")
+    )
+    covered = (
+        year in expected_years
+        and dataset_version.start_ts == expected_start
+        and dataset_version.end_ts >= expected_end
+    )
+    if not covered:
+        blocking_reasons.append("required year/date-range coverage missing")
+    return MappingProxyType(
+        {
+            "status": ReportStatus.PASSING.value if covered else ReportStatus.BLOCKING.value,
+            "expected_year": year,
+            "observed_start_ts": dataset_version.start_ts.isoformat(),
+            "observed_end_ts": dataset_version.end_ts.isoformat(),
+            "expected_start_ts": expected_start.isoformat(),
+            "minimum_end_ts": expected_end.isoformat(),
+            "covered": covered,
+        }
+    )
+
+
+def _duplicate_dimension(
+    duplicate_count: int,
+    blocking_reasons: list[str],
+) -> Mapping[str, object]:
+    if duplicate_count != 1:
+        blocking_reasons.append("schema/year registry slot is not unique")
+        status = ReportStatus.BLOCKING
+    else:
+        status = ReportStatus.PASSING
+    return MappingProxyType({"status": status.value, "count": duplicate_count})
+
+
+def _evidence_dimension(
+    evidence: Mapping[str, object],
+    key: str,
+    *,
+    required: bool,
+    missing_reason: str,
+    blocking_reasons: list[str],
+    warning_reasons: list[str],
+) -> Mapping[str, object]:
+    raw = evidence.get(key)
+    if raw is None:
+        status = ReportStatus.BLOCKING if required else ReportStatus.WARNING
+        reason = missing_reason
+        if required:
+            blocking_reasons.append(reason)
+        else:
+            warning_reasons.append(reason)
+        return MappingProxyType(
+            {"status": status.value, "evidence": "unavailable", "reason": reason}
+        )
+    if isinstance(raw, str) or not isinstance(raw, Mapping):
+        msg = f"{key} evidence must be a mapping"
+        raise DataFoundationValidationError(msg)
+    dimension = dict(_require_summary_mapping(raw, key))
+    status = _normalize_status(dimension.get("status", ReportStatus.PASSING), f"{key}.status")
+    dimension["status"] = status.value
+    if status is ReportStatus.BLOCKING:
+        blocking_reasons.append(str(dimension.get("reason", f"{key} is blocking")))
+    elif status is ReportStatus.WARNING:
+        warning_reasons.append(str(dimension.get("reason", f"{key} has warnings")))
+    return MappingProxyType(dimension)
+
+
+def _required_field_dimension(
+    evidence: Mapping[str, object],
+    policy: Mapping[str, object],
+    blocking_reasons: list[str],
+    warning_reasons: list[str],
+) -> Mapping[str, object]:
+    raw = evidence.get("required_field_presence")
+    required_fields = tuple(str(item) for item in policy["required_field_groups"])
+    if raw is None:
+        if bool(policy["required_field_evidence_required"]):
+            blocking_reasons.append("required-field presence evidence unavailable")
+            status = ReportStatus.BLOCKING
+        else:
+            warning_reasons.append("required-field presence evidence unavailable")
+            status = ReportStatus.WARNING
+        return MappingProxyType(
+            {
+                "status": status.value,
+                "required_field_groups": required_fields,
+                "present_field_groups": (),
+                "missing_field_groups": required_fields,
+                "evidence": "unavailable",
+            }
+        )
+    if isinstance(raw, str) or not isinstance(raw, Mapping):
+        msg = "required_field_presence evidence must be a mapping"
+        raise DataFoundationValidationError(msg)
+    dimension = dict(_require_summary_mapping(raw, "required_field_presence"))
+    present = tuple(str(item) for item in dimension.get("present_field_groups", ()))
+    missing = tuple(field for field in required_fields if field not in present)
+    explicit_missing = tuple(str(item) for item in dimension.get("missing_field_groups", ()))
+    missing = tuple(sorted(set(missing + explicit_missing)))
+    status = _normalize_status(
+        dimension.get("status", ReportStatus.PASSING if not missing else ReportStatus.BLOCKING),
+        "required_field_presence.status",
+    )
+    if missing and status is ReportStatus.PASSING:
+        status = ReportStatus.BLOCKING
+    if status is ReportStatus.BLOCKING:
+        blocking_reasons.append("required field groups missing")
+    elif status is ReportStatus.WARNING:
+        warning_reasons.append("required field groups have warnings")
+    dimension.update(
+        {
+            "status": status.value,
+            "required_field_groups": required_fields,
+            "present_field_groups": present,
+            "missing_field_groups": missing,
+        }
+    )
+    return MappingProxyType(dimension)
+
+
+def _continuous_provenance_dimension(
+    dataset_version: DatasetVersion,
+    evidence: Mapping[str, object],
+    policy: Mapping[str, object],
+    blocking_reasons: list[str],
+    warning_reasons: list[str],
+) -> Mapping[str, object]:
+    raw = evidence.get("continuous_provenance")
+    if raw is None:
+        if bool(policy["continuous_provenance_required"]):
+            blocking_reasons.append("continuous-series provenance evidence unavailable")
+            status = ReportStatus.BLOCKING
+        else:
+            warning_reasons.append("continuous-series provenance evidence unavailable")
+            status = ReportStatus.WARNING
+        return MappingProxyType(
+            {
+                "status": status.value,
+                "evidence": "unavailable",
+                "expected_series": _expected_continuous_series(dataset_version),
+            }
+        )
+    if isinstance(raw, str) or not isinstance(raw, Mapping):
+        msg = "continuous_provenance evidence must be a mapping"
+        raise DataFoundationValidationError(msg)
+    dimension = dict(_require_summary_mapping(raw, "continuous_provenance"))
+    status = _normalize_status(
+        dimension.get("status", ReportStatus.PASSING),
+        "continuous_provenance.status",
+    )
+    if status is ReportStatus.BLOCKING:
+        blocking_reasons.append("continuous-series provenance is blocking")
+    elif status is ReportStatus.WARNING:
+        warning_reasons.append("continuous-series provenance has warnings")
+    dimension.setdefault("expected_series", _expected_continuous_series(dataset_version))
+    dimension["status"] = status.value
+    return MappingProxyType(dimension)
+
+
+def _roll_metadata_dimension(
+    dataset_version: DatasetVersion,
+    evidence: Mapping[str, object],
+    policy: Mapping[str, object],
+    blocking_reasons: list[str],
+    warning_reasons: list[str],
+) -> Mapping[str, object]:
+    raw = evidence.get("roll_metadata")
+    if raw is None:
+        if bool(policy["roll_metadata_required"]):
+            blocking_reasons.append("roll / approximate roll-boundary metadata unavailable")
+            status = ReportStatus.BLOCKING
+        else:
+            warning_reasons.append("roll / approximate roll-boundary metadata unavailable")
+            status = ReportStatus.WARNING
+        return MappingProxyType(
+            {
+                "status": status.value,
+                "roll_policy_id": dataset_version.roll_policy_id,
+                "roll_boundary_evidence": "unavailable",
+            }
+        )
+    if isinstance(raw, str) or not isinstance(raw, Mapping):
+        msg = "roll_metadata evidence must be a mapping"
+        raise DataFoundationValidationError(msg)
+    dimension = dict(_require_summary_mapping(raw, "roll_metadata"))
+    status = _normalize_status(
+        dimension.get("status", ReportStatus.PASSING),
+        "roll_metadata.status",
+    )
+    if status is ReportStatus.BLOCKING:
+        blocking_reasons.append("roll metadata is blocking")
+    elif status is ReportStatus.WARNING:
+        warning_reasons.append("roll metadata has warnings")
+    dimension.setdefault("roll_policy_id", dataset_version.roll_policy_id)
+    dimension["status"] = status.value
+    return MappingProxyType(dimension)
+
+
+def _expected_continuous_series(dataset_version: DatasetVersion) -> tuple[str, ...]:
+    return tuple(f"{symbol}.v.0" for symbol in dataset_version.symbol_universe)
+
+
+def _coverage_evidence_from_registry_metadata(
+    dataset_version: DatasetVersion,
+    metadata: Mapping[str, object],
+) -> Mapping[str, object]:
+    evidence: dict[str, object] = {"evidence_source": "dataset_registry_metadata"}
+    provenance = metadata.get("continuous_provenance")
+    if isinstance(provenance, Mapping):
+        evidence["continuous_provenance"] = {
+            "status": ReportStatus.PASSING.value,
+            "provider_continuous": provenance.get("provider_continuous"),
+            "front_month": provenance.get("front_month"),
+            "unadjusted": provenance.get("unadjusted"),
+            "not_roll_truth": provenance.get("not_roll_truth"),
+            "series_ids": _expected_continuous_series(dataset_version),
+        }
+    # The local registry currently carries roll_policy_id but not roll-boundary
+    # records or row-count/gap/field-presence aggregates; those dimensions stay
+    # absent so the acceptance verdict fails closed instead of silently accepting.
+    return _require_summary_mapping(evidence, "coverage_evidence")
+
+
+def _ensure_acceptance_registry_ready(
+    registry_path: str | Path,
+    *,
+    write: bool,
+) -> Path:
+    resolved = resolve_registry_path(registry_path)
+    if not is_local_only_registry_path(resolved):
+        msg = "dataset acceptance registry path is not local-only"
+        raise DataFoundationValidationError(msg)
+    if write:
+        status = init_registry(resolved)
+    else:
+        status = _inspect_existing_acceptance_registry(resolved)
+    if not status.valid:
+        msg = "dataset acceptance registry is not ready: " + status.status_message
+        raise DataFoundationValidationError(msg)
+    return resolved
+
+
+def _inspect_existing_acceptance_registry(path: Path):
+    from alpha_system.core.registry import inspect_registry_status
+
+    return inspect_registry_status(path)
+
+
+def _registered_dataset_version_ids(registry_path: Path) -> tuple[str, ...]:
+    with connect_registry(registry_path, read_only=True) as connection:
+        rows = connection.execute(
+            """
+            SELECT data_version
+            FROM dataset_versions
+            ORDER BY data_version
+            """
+        ).fetchall()
+    return tuple(str(row["data_version"]) for row in rows)
+
+
+def _resolve_dataset_version_exact(
+    registry_path: Path,
+    dataset_version_id: str,
+) -> DatasetVersion | None:
+    from alpha_system.data.foundation.version_registry import resolve_dataset_version
+
+    return resolve_dataset_version(registry_path, dataset_version_id)
+
+
+def _dataset_acceptance_artifact_metadata(
+    registry_path: Path,
+) -> Mapping[str, Mapping[str, object]]:
+    with connect_registry(registry_path, read_only=True) as connection:
+        rows = connection.execute(
+            """
+            SELECT run_id, metadata_json
+            FROM artifact_manifest
+            WHERE run_table = 'dataset_versions'
+              AND artifact_key = 'databento_dataset_metadata'
+            ORDER BY run_id
+            """
+        ).fetchall()
+    artifacts: dict[str, Mapping[str, object]] = {}
+    for row in rows:
+        payload = _load_registry_metadata_json(str(row["metadata_json"]))
+        artifacts[str(row["run_id"])] = _require_summary_mapping(
+            payload,
+            "artifact_manifest.metadata_json",
+        )
+    return MappingProxyType(artifacts)
+
+
+def _load_registry_metadata_json(value: str) -> dict[str, object]:
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError as exc:
+        msg = "registry metadata_json is not valid JSON"
+        raise DataFoundationValidationError(msg) from exc
+    if isinstance(payload, str) or not isinstance(payload, Mapping):
+        msg = "registry metadata_json must be a mapping"
+        raise DataFoundationValidationError(msg)
+    return dict(payload)
+
+
+def _missing_expected_acceptance_versions(
+    policy: Mapping[str, object],
+    counts: Counter[tuple[str, int]],
+) -> tuple[Mapping[str, object], ...]:
+    schemas = tuple(str(schema_id) for schema_id in policy["expected_schemas"])
+    years = tuple(int(year) for year in policy["expected_years"])
+    missing = []
+    for schema_id in schemas:
+        for year in years:
+            if counts.get((schema_id, year), 0) == 0:
+                missing.append(
+                    MappingProxyType(
+                        {
+                            "schema_id": schema_id,
+                            "year": year,
+                            "status": ReportStatus.BLOCKING.value,
+                        }
+                    )
+                )
+    return tuple(missing)
+
+
+def _duplicate_expected_acceptance_versions(
+    counts: Counter[tuple[str, int]],
+) -> tuple[Mapping[str, object], ...]:
+    duplicates = []
+    for (schema_id, year), count in sorted(counts.items()):
+        if count > 1:
+            duplicates.append(
+                MappingProxyType(
+                    {
+                        "schema_id": schema_id,
+                        "year": year,
+                        "count": count,
+                        "status": ReportStatus.BLOCKING.value,
+                    }
+                )
+            )
+    return tuple(duplicates)
+
+
+def _persist_dataset_acceptance_lock(
+    connection: sqlite3.Connection,
+    registry_path: Path,
+    lock: DatasetAcceptanceLock,
+) -> None:
+    row = connection.execute(
+        """
+        SELECT metadata_json
+        FROM dataset_versions
+        WHERE data_version = ?
+        """,
+        (lock.dataset_version_id,),
+    ).fetchone()
+    if row is None:
+        msg = f"DatasetVersion not found for acceptance lock: {lock.dataset_version_id}"
+        raise DataFoundationValidationError(msg)
+    payload = _load_registry_metadata_json(str(row["metadata_json"]))
+    payload["dataset_acceptance_lock"] = lock.to_mapping()
+    payload["dataset_acceptance_lock_schema"] = DATASET_ACCEPTANCE_LOCK_METADATA_SCHEMA
+    metadata_json = canonical_json(payload)
+    lock_hash = hash_config(lock.to_mapping())
+    try:
+        connection.execute(
+            """
+            UPDATE dataset_versions
+            SET metadata_json = ?,
+                status_message = ?
+            WHERE data_version = ?
+            """,
+            (
+                metadata_json,
+                f"FUTSUB-P02 dataset acceptance lock: {lock.state.value}",
+                lock.dataset_version_id,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO artifact_manifest (
+                artifact_id,
+                run_id,
+                run_table,
+                artifact_key,
+                artifact_path,
+                content_hash,
+                artifact_role,
+                created_at,
+                metadata_json,
+                status_message
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"art_dataset_acceptance_lock_{lock.dataset_version_id}",
+                lock.dataset_version_id,
+                "dataset_versions",
+                "dataset_acceptance_lock",
+                registry_path.as_posix(),
+                lock_hash,
+                "dataset_acceptance_lock",
+                lock.locked_at.isoformat(),
+                canonical_json(lock.to_mapping()),
+                "FUTSUB-P02 DatasetVersion acceptance-lock",
+            ),
+        )
+    except sqlite3.Error as exc:
+        msg = (
+            "could not persist DatasetVersion acceptance lock: "
+            f"{lock.dataset_version_id}: {exc}"
+        )
+        raise DataFoundationValidationError(msg) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class DatasetPartitionPlan:
     """Dataset partition plan and locked-test metadata rules.
@@ -3208,15 +4543,31 @@ __all__ = [
     "CONTAMINATION_METADATA_RULE_FIELDS",
     "COVERAGE_REPORT_FIELDS",
     "CoverageReport",
+    "DATASET_ACCEPTANCE_COVERAGE_DIMENSIONS",
+    "DATASET_ACCEPTANCE_DEFAULT_POLICY",
+    "DATASET_ACCEPTANCE_DEFAULT_POLICY_ID",
+    "DATASET_ACCEPTANCE_LOCK_METADATA_SCHEMA",
+    "DATASET_ACCEPTANCE_REQUIRED_FIELD_GROUPS",
+    "DATASET_ACCEPTANCE_STATES",
     "DATA_QUALITY_REPORT_FIELDS",
     "DATASET_PARTITION_QA_PURPOSES",
     "DATASET_VERSION_ADMISSIBLE_STATES",
     "DATASET_VERSION_FIELDS",
     "DataQualityReport",
+    "DatasetAcceptanceInventory",
+    "DatasetAcceptanceLock",
+    "DatasetAcceptanceState",
     "DatasetPartitionPlan",
     "DatasetVersion",
     "REQUIRED_DATASET_PARTITION_PLAN_FIELDS",
     "ReportStatus",
+    "build_dataset_acceptance_lock",
+    "compute_dataset_acceptance_policy_hash",
     "compute_quality_report_hash",
+    "inventory_dataset_acceptance_locks",
+    "normalize_dataset_acceptance_policy",
+    "persist_dataset_acceptance_locks",
+    "render_dataset_acceptance_summary",
     "require_governance_metadata_for_locked_partition_use",
+    "resolve_dataset_acceptance_lock",
 ]
