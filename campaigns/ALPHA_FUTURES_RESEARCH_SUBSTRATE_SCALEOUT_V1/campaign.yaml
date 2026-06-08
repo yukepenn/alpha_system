@@ -980,6 +980,7 @@ phases:
     never_commit: *never_commit
     explicit_staging_only: true
   done_criteria: &feature_done
+  - If the FUTSUB-P06 scaleout driver does not yet support this family, EXTEND it with a family-specific unit executor + family dispatch (the driver ships a base_ohlcv executor and a pluggable UnitExecutor seam) reusing the family engine + sanctioned loaders + the official keystone registry write path; do not hand-write registry records or weaken the resolver.
   - Family materialized + registered via the FUTSUB-P06 scaleout materialization driver over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded and documented), Parquet-first values (JSONL audit/smoke only), with available_ts, keystone identity, content hash, and registry metadata; checkpoint/restart honored; registry writes serialized; bounded-real (one recent accepted year) validated before full accepted-window expansion; coverage summary committed value-free; no value/SQLite/heavy artifact committed.
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06.md
   review: yellow lane; fresh Opus review required.
@@ -1015,6 +1016,11 @@ phases:
   - configs/features/scaleout/session_calendar_maintenance.json
   - research/futures_substrate_scaleout_v1/feature_packs/session_calendar_maintenance/**
   - tests/unit/futures_substrate_scaleout/features/test_session_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P07.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P07/**
   - runs/**
@@ -1056,6 +1062,11 @@ phases:
   - configs/features/scaleout/vwap_session_auction.json
   - research/futures_substrate_scaleout_v1/feature_packs/vwap_session_auction/**
   - tests/unit/futures_substrate_scaleout/features/test_vwap_session_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P08.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P08/**
   - runs/**
@@ -1097,6 +1108,11 @@ phases:
   - configs/features/scaleout/regime_volatility_compression.json
   - research/futures_substrate_scaleout_v1/feature_packs/regime_volatility_compression/**
   - tests/unit/futures_substrate_scaleout/features/test_regime_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P09.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P09/**
   - runs/**
@@ -1137,6 +1153,11 @@ phases:
   - configs/features/scaleout/liquidity_sweep_pa_structure.json
   - research/futures_substrate_scaleout_v1/feature_packs/liquidity_sweep_pa_structure/**
   - tests/unit/futures_substrate_scaleout/features/test_liquidity_pa_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P10.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P10/**
   - runs/**
@@ -1178,6 +1199,11 @@ phases:
   - configs/features/scaleout/volume_activity.json
   - research/futures_substrate_scaleout_v1/feature_packs/volume_activity/**
   - tests/unit/futures_substrate_scaleout/features/test_volume_activity_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P11.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P11/**
   - runs/**
@@ -1218,6 +1244,11 @@ phases:
   - configs/features/scaleout/bbo_tradability_top_book.json
   - research/futures_substrate_scaleout_v1/feature_packs/bbo_tradability_top_book/**
   - tests/unit/futures_substrate_scaleout/features/test_bbo_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P12.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P12/**
   - runs/**
@@ -1260,6 +1291,11 @@ phases:
   - configs/features/scaleout/cross_market_alignment.json
   - research/futures_substrate_scaleout_v1/feature_packs/cross_market_alignment/**
   - tests/unit/futures_substrate_scaleout/features/test_cross_market_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P13.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P13/**
   - runs/**
@@ -1461,6 +1497,11 @@ phases:
   - configs/labels/scaleout/extended_horizon.json
   - research/futures_substrate_scaleout_v1/label_packs/extended_horizon/**
   - tests/unit/futures_substrate_scaleout/labels/test_extended_horizon_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17/**
   - runs/**
@@ -1502,6 +1543,11 @@ phases:
   - configs/labels/scaleout/session_close_maintenance_flat.json
   - research/futures_substrate_scaleout_v1/label_packs/session_close_maintenance_flat/**
   - tests/unit/futures_substrate_scaleout/labels/test_session_close_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18/**
   - runs/**
@@ -1543,6 +1589,11 @@ phases:
   - configs/labels/scaleout/cost_adjusted.json
   - research/futures_substrate_scaleout_v1/label_packs/cost_adjusted/**
   - tests/unit/futures_substrate_scaleout/labels/test_cost_adjusted_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19/**
   - runs/**
@@ -1584,6 +1635,11 @@ phases:
   - configs/labels/scaleout/path.json
   - research/futures_substrate_scaleout_v1/label_packs/path/**
   - tests/unit/futures_substrate_scaleout/labels/test_path_scaleout.py
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20/**
   - runs/**
