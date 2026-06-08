@@ -8,28 +8,28 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P04`:
-the Value Store / Registry / Keystone Identity Preflight within the
-`bootstrap_and_contract` gate as phase 5 of 34. Ralph owns validation routing,
-staging, commit, review routing, PR, CI, merge, and done-check actions.
+active. This snapshot reflects the executor-complete state for `FUTSUB-P05`:
+Materialization Budget, Batch Plan, and Resource Guard. The
+`bootstrap_and_contract` gate is planned through P05; Ralph owns validation
+routing, staging, commit, review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: the next phase is `FUTSUB-P05` - Materialization Budget,
-Batch Plan, and Resource Guard.
+Active / next work: the next phase is `FUTSUB-P06` - Base OHLCV FeaturePack
+Scaleout, the first `feature_materialization` phase.
 
-New durable surfaces in this `FUTSUB-P04` snapshot:
+New durable surfaces in this `FUTSUB-P05` snapshot:
 
-- Keystone identity contract in
-  `docs/futures_substrate_scaleout/KEYSTONE_IDENTITY.md`
-- Value-free preflight report in
-  `research/futures_substrate_scaleout_v1/preflight/keystone_identity_preflight.md`
-- Focused synthetic preflight test:
-  `tests/unit/futures_substrate_scaleout/test_keystone_identity.py`
+- Materialization plan in
+  `docs/futures_substrate_scaleout/MATERIALIZATION_PLAN.md`
+- Value-free batch plan in
+  `research/futures_substrate_scaleout_v1/materialization/batch_plan.md`
+- Feature scaleout configs in `configs/features/scaleout/`
+- Label scaleout configs in `configs/labels/scaleout/`
 
-`FUTSUB-P04` adds no raw/provider data readers, full-window materialization,
-runtime diagnostics, broker surfaces, live surfaces, paper-trading surfaces,
-order routing, or deployment behavior. The preflight uses synthetic temporary
-values only to prove Parquet value-store metadata and fail-closed resolver
-identity; committed evidence is value-free.
+`FUTSUB-P05` is dry-run / plan only. It adds no raw/provider data readers,
+full-window materialization execution, runtime diagnostics, broker surfaces,
+live surfaces, paper-trading surfaces, order routing, or deployment behavior.
+Values, registries, checkpoints, and registry backups remain local-only under
+`ALPHA_DATA_ROOT`; committed evidence is value-free.
 
 ## Source Of Truth
 
