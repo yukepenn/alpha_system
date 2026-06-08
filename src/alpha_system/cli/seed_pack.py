@@ -688,14 +688,34 @@ def _build_real_quality_coverage(
     return quality, coverage
 
 
-def _build_feature_request(feature_set: FeatureSetConfig, feature_name: str) -> FeatureRequest:
+def _build_feature_request(
+    feature_set: FeatureSetConfig,
+    feature_name: str,
+    *,
+    exposure_scope: str | None = None,
+) -> FeatureRequest:
     # First seed into an empty target feature registry; EMPTY exposure is correct
     # and documented. If a populated registry later runs this operator, the
     # FeatureStore request gate still re-checks exposure at registration time.
     # Each feature gets a distinct exposure family so the registry duplicate
     # guard does not block distinct features that share one seed set.
+    #
+    # ``exposure_scope`` lets a multi-partition caller (the futures-substrate
+    # scaleout driver) make each (symbol, year) unit its own duplicate-exposure
+    # family. The same feature definition materialized across many instruments and
+    # years is a set of distinct research data assets, so without a per-unit scope
+    # the FLF-P05 guard would block every symbol/year after the first as a
+    # duplicate. The scope is excluded from feature identity (it only feeds the
+    # exposure family, which ``FeatureSpec.to_identity_dict`` omits), so it never
+    # changes ``feature_version_id``. The single-partition smoke seed path passes
+    # no scope and is unchanged.
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"seed_{feature_set.feature_set_id}_{feature_name}"
+    base_exposure_family = f"seed_{feature_set.feature_set_id}_{feature_name}"
+    exposure_family = (
+        f"seed_{feature_set.feature_set_id}_{exposure_scope}_{feature_name}"
+        if exposure_scope
+        else base_exposure_family
+    )
     return create_feature_request(
         alpha_spec_id=feature_set.alpha_spec_id,
         requested_inputs=[exposure_family],

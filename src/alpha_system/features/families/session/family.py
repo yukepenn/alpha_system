@@ -822,8 +822,9 @@ def _roll_proximity_by_row(rows: Sequence[TradeBarRow]) -> Mapping[int, _RollPro
             instrument_rows,
             key=lambda row: (row.bar_start_ts, row.available_ts),
         )
+        next_transition = _next_roll_transition_by_index(chronological)
         for index, row in enumerate(chronological):
-            target = _next_roll_transition(chronological, index)
+            target = next_transition[index]
             if target is None:
                 proximity[id(row)] = _RollProximity(None, None)
                 continue
@@ -833,14 +834,31 @@ def _roll_proximity_by_row(rows: Sequence[TradeBarRow]) -> Mapping[int, _RollPro
     return MappingProxyType(proximity)
 
 
-def _next_roll_transition(rows: Sequence[TradeBarRow], index: int) -> int | None:
-    current = rows[index]
-    current_key = (current.contract_id, current.series_id)
-    for candidate_index in range(index + 1, len(rows)):
-        candidate = rows[candidate_index]
-        if (candidate.contract_id, candidate.series_id) != current_key:
-            return candidate_index
-    return None
+def _next_roll_transition_by_index(rows: Sequence[TradeBarRow]) -> list[int | None]:
+    """Index of the next roll transition for each bar, in a single O(n) pass.
+
+    For each position ``i`` returns the smallest ``j > i`` whose
+    ``(contract_id, series_id)`` differs from ``rows[i]`` -- i.e. the start of the
+    next contiguous contract run -- or ``None`` when no later transition exists.
+    A continuous futures series partitions chronological bars into contiguous
+    runs per active contract, so the next differing key is always the next run
+    boundary; a single backward sweep over adjacent keys finds them all. This
+    replaces a per-row forward scan whose O(n^2) cost made a full-year dense unit
+    (hundreds of thousands of bars) effectively hang, while returning identical
+    transition indices.
+    """
+
+    count = len(rows)
+    next_transition: list[int | None] = [None] * count
+    next_boundary: int | None = None
+    for index in range(count - 1, -1, -1):
+        if index + 1 < count:
+            current_key = (rows[index].contract_id, rows[index].series_id)
+            successor_key = (rows[index + 1].contract_id, rows[index + 1].series_id)
+            if successor_key != current_key:
+                next_boundary = index + 1
+        next_transition[index] = next_boundary
+    return next_transition
 
 
 def _row_semantic_flags(row: TradeBarRow, extra_flags: Sequence[str] = ()) -> tuple[str, ...]:
