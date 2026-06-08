@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
+import alpha_system.features.scaleout.driver as scaleout_driver
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -40,12 +43,26 @@ def test_base_ohlcv_plan_uses_acceptance_summary_and_excludes_blocked_2018() -> 
     assert all(record.unit.dataset_version_id != "dsv_databento_ohlcv_321568572236ef4a" for record in units)
 
 
-def test_bounded_execution_skips_completed_units_from_local_ledger(tmp_path: Path) -> None:
+def test_bounded_execution_skips_completed_units_from_local_ledger(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     config = load_scaleout_config()
     registry_path = _registry_with_accepted_2024(tmp_path)
     alpha_data_root = tmp_path / "alpha_data"
     canonical_root = tmp_path / "canonical"
     calls: list[str] = []
+    registry_records: dict[str, _FakeFeatureRecord] = {}
+
+    class _FakeFeatureStore:
+        def resolve_feature(self, feature_version_id: str) -> _FakeFeatureRecord | None:
+            return registry_records.get(feature_version_id)
+
+    monkeypatch.setattr(
+        scaleout_driver.FeatureStore,
+        "from_alpha_data_root",
+        lambda _root: _FakeFeatureStore(),
+    )
 
     def fake_executor(
         _config,
@@ -58,11 +75,18 @@ def test_bounded_execution_skips_completed_units_from_local_ledger(tmp_path: Pat
         parquet_path = alpha_root / "fake_values" / f"{unit.unit_id}.parquet"
         parquet_path.parent.mkdir(parents=True, exist_ok=True)
         parquet_path.write_text("synthetic parquet placeholder\n", encoding="utf-8")
+        feature_version_id = f"fver_{unit.unit_id.removeprefix('mbu_')}"
+        content_hash = "sha256:" + "a" * 64
+        registry_records[feature_version_id] = _FakeFeatureRecord(
+            parquet_path=parquet_path.as_posix(),
+            content_hash=content_hash,
+            row_count=11,
+        )
         return MaterializedUnitEvidence(
             parquet_path=parquet_path.as_posix(),
-            content_hash="sha256:" + "a" * 64,
+            content_hash=content_hash,
             row_count=11,
-            feature_version_ids=("fver_" + "b" * 24,),
+            feature_version_ids=(feature_version_id,),
         )
 
     first = run_scaleout(
@@ -95,6 +119,13 @@ def test_bounded_execution_skips_completed_units_from_local_ledger(tmp_path: Pat
     )
     assert ledger.exists()
     assert len(ledger.read_text(encoding="utf-8").splitlines()) == 3
+
+
+class _FakeFeatureRecord:
+    def __init__(self, *, parquet_path: str, content_hash: str, row_count: int) -> None:
+        self.parquet_path = parquet_path
+        self.value_content_hash = content_hash
+        self.value_record_count = row_count
 
 
 def _registry_with_accepted_2024(tmp_path: Path) -> Path:
