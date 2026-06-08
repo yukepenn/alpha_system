@@ -20,6 +20,10 @@ from alpha_system.features.fast.session_calendar_roll import (
     build_session_calendar_roll_pack,
     supports_session_calendar_roll_pack,
 )
+from alpha_system.features.fast.volume_activity import (
+    build_volume_activity_pack,
+    supports_volume_activity_pack,
+)
 from alpha_system.features.fast.vwap_session_auction import (
     build_vwap_session_auction_pack,
     supports_vwap_session_auction_pack,
@@ -39,6 +43,8 @@ def build_fast_feature_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
         return build_regime_vol_compression_pack(feature_set)
     if supports_liquidity_pa_structure_pack(feature_set):
         return build_liquidity_pa_structure_pack(feature_set)
+    if supports_volume_activity_pack(feature_set):
+        return build_volume_activity_pack(feature_set)
     raise PackMaterializerError("no V1 fast pack registered for this FeatureSetSpec")
 
 
