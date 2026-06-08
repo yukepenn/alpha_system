@@ -706,10 +706,12 @@ phases:
   purpose: Inventory the registered Databento DatasetVersions and add a persisted acceptance-lock with coverage verdicts, closing the registered-not-accepted gap.
   scope:
   - Inventory the OHLCV-1m, OHLCV-dense, and BBO-1m DatasetVersions (ES/NQ/RTY, 2018->2026) via registry tools.
-  - Add an acceptance-lock that persists ACCEPTED / ACCEPTED_WITH_WARNINGS / BLOCKED plus a coverage report per version (no re-pull unless corrupt).
-  - Commit only the value-free acceptance/coverage summary; persist verdicts in the local registry (local-only).
+  - 'COMPUTE real coverage evidence from the on-disk canonical data for every in-scope DatasetVersion, do NOT leave evidence dimensions absent when canonical data is present on disk. Read ONLY through sanctioned readers (alpha_system.data.foundation.canonical_loader: canonical_partition_path / load_canonical_ohlcv_rows, and the per-version canonical manifest.json row_count) plus the registry; no raw provider reads, no network, no hand-read provider file paths. The acceptance evidence builder (_coverage_evidence_from_registry_metadata in src/alpha_system/data/foundation/datasets.py) must be extended to populate all five required evidence dimensions from this canonical data rather than returning them as unavailable.'
+  - 'Each of the five evidence dimensions must be honestly computed: row_count_sanity (canonical manifest row_count plus per-symbol bar counts vs an expected-bar floor), gap_coverage (distinct trading-day / minute coverage vs the expected session grid), required_field_presence (map the policy required_field_groups to the canonical schema columns and continuous_provenance / roll metadata sources), missingness_quality_flags (quality_flags and null aggregates), and roll_metadata (the approximate roll-boundary records produced by FUTSUB-P03). continuous_provenance already resolves from registry metadata.'
+  - 'Verdicts are coverage-driven and HONEST: ACCEPTED only when all required evidence is present and within policy tolerance; ACCEPTED_WITH_WARNINGS for the 2026 partial year or minor tolerable gaps; BLOCKED only for a genuine missing-coverage gap. Never silently ACCEPT without computed evidence and never fabricate counts or hashes. Over a clean full-history ES/NQ/RTY corpus the expected outcome is mostly ACCEPTED (2026 ACCEPTED_WITH_WARNINGS), not a uniform BLOCKED grid.'
+  - Persist the per-version ACCEPTED / ACCEPTED_WITH_WARNINGS / BLOCKED verdicts plus coverage report into the local registry via the sanctioned persist path (alpha data accept-datasets) so downstream materialization (FUTSUB-P06+) can resolve ACCEPTED locks; commit only the value-free acceptance/coverage summary (values, SQLite, and canonical data stay local-only).
   non_goals:
-  - Re-pulling data; external provider calls; materializing features/labels; tradability claims.
+  - Re-pulling data; external provider calls; materializing features/labels; tradability claims; fabricating coverage evidence or silently accepting without computed evidence.
   checks:
   - git status --short
   - python tools/verify.py --smoke
