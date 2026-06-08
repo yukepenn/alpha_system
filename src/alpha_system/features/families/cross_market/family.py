@@ -1358,10 +1358,10 @@ def _market_from_row(row: OHLCVInputRow | BBOInputRow) -> str:
         text = _optional_text(candidate).upper()
         if not text:
             continue
-        # Canonical databento identifiers embed the market root as an
-        # underscore-delimited token, e.g. ``inst_databento_es`` /
-        # ``contract_databento_es_v_0_front`` /
-        # ``series_databento_es_front_unadjusted``. Match the bare/prefixed forms
+        # Canonical provider identifiers embed the market root as an
+        # underscore-delimited token, e.g. ``inst_<provider>_es`` /
+        # ``contract_<provider>_es_v_0_front`` /
+        # ``series_<provider>_es_front_unadjusted``. Match the bare/prefixed forms
         # (ES, ESH4) used by synthetic rows and the embedded token used by real
         # canonical rows.
         tokens = frozenset(text.split("_"))
