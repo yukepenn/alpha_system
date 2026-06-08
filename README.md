@@ -8,28 +8,28 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the post-merge state for `FUTSUB-P03`: the
-Continuous Series / Roll Metadata / Roll-Splice Guard Contract within the
-`bootstrap_and_contract` gate as phase 4 of 34. Ralph owns validation routing,
+active. This snapshot reflects the executor-complete state for `FUTSUB-P04`:
+the Value Store / Registry / Keystone Identity Preflight within the
+`bootstrap_and_contract` gate as phase 5 of 34. Ralph owns validation routing,
 staging, commit, review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: the next phase is `FUTSUB-P04` - Value Store / Registry /
-Keystone Identity Preflight.
+Active / next work: the next phase is `FUTSUB-P05` - Materialization Budget,
+Batch Plan, and Resource Guard.
 
-New durable surfaces in this `FUTSUB-P03` snapshot:
+New durable surfaces in this `FUTSUB-P04` snapshot:
 
-- Approximate CME equity-index quarterly roll-calendar computation in
-  `src/alpha_system/data/foundation/rolls.py`
-- Roll-splice label guard primitive in `src/alpha_system/labels/roll_guard.py`
-- `configs/data/roll_calendar/futsub_p03_roll_guard.json`
-- `docs/futures_substrate_scaleout/ROLL_GUARD.md`
-- `research/futures_substrate_scaleout_v1/roll_guard/roll_guard_contract.md`
+- Keystone identity contract in
+  `docs/futures_substrate_scaleout/KEYSTONE_IDENTITY.md`
+- Value-free preflight report in
+  `research/futures_substrate_scaleout_v1/preflight/keystone_identity_preflight.md`
+- Focused synthetic preflight test:
+  `tests/unit/futures_substrate_scaleout/test_keystone_identity.py`
 
-`FUTSUB-P03` adds no raw/provider data readers, feature or label materializers,
-diagnostics, broker surfaces, live surfaces, paper-trading surfaces, order
-routing, or deployment behavior. The roll calendar is analytic and approximate,
-not provider-exact splice truth. Values, registries, and persisted
-roll-calendar data remain local-only; committed evidence is value-free.
+`FUTSUB-P04` adds no raw/provider data readers, full-window materialization,
+runtime diagnostics, broker surfaces, live surfaces, paper-trading surfaces,
+order routing, or deployment behavior. The preflight uses synthetic temporary
+values only to prove Parquet value-store metadata and fail-closed resolver
+identity; committed evidence is value-free.
 
 ## Source Of Truth
 
