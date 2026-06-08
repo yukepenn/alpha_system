@@ -1,5 +1,15 @@
 """Vectorized feature producer core for the fast-path campaign."""
 
+from alpha_system.features.fast.bbo_tradability import (
+    BBO_TRADABILITY_DDOF,
+    BBO_TRADABILITY_FEATURE_IDS,
+    BBO_TRADABILITY_LOW_DEPTH_THRESHOLD,
+    BBO_TRADABILITY_RESET_ON_SESSION,
+    BBO_TRADABILITY_WIDE_SPREAD_BPS_THRESHOLD,
+    BBO_TRADABILITY_WINDOW_LENGTH,
+    build_bbo_tradability_pack,
+    supports_bbo_tradability_pack,
+)
 from alpha_system.features.fast.base_ohlcv import (
     BASE_OHLCV_DDOF,
     BASE_OHLCV_FEATURE_IDS,
@@ -51,6 +61,12 @@ from alpha_system.features.fast.vwap_session_auction import (
 )
 
 __all__ = [
+    "BBO_TRADABILITY_DDOF",
+    "BBO_TRADABILITY_FEATURE_IDS",
+    "BBO_TRADABILITY_LOW_DEPTH_THRESHOLD",
+    "BBO_TRADABILITY_RESET_ON_SESSION",
+    "BBO_TRADABILITY_WIDE_SPREAD_BPS_THRESHOLD",
+    "BBO_TRADABILITY_WINDOW_LENGTH",
     "BASE_OHLCV_DDOF",
     "BASE_OHLCV_FEATURE_IDS",
     "BASE_OHLCV_HORIZON",
@@ -73,6 +89,7 @@ __all__ = [
     "VOLUME_ACTIVITY_WINDOW_LENGTH",
     "VWAP_SESSION_AUCTION_FEATURE_IDS",
     "VWAP_SESSION_AUCTION_FEATURE_NAMES",
+    "build_bbo_tradability_pack",
     "build_base_ohlcv_pack",
     "build_fast_feature_pack",
     "build_liquidity_pa_structure_pack",
@@ -80,6 +97,7 @@ __all__ = [
     "build_session_calendar_roll_pack",
     "build_volume_activity_pack",
     "build_vwap_session_auction_pack",
+    "supports_bbo_tradability_pack",
     "supports_base_ohlcv_pack",
     "supports_liquidity_pa_structure_pack",
     "supports_regime_vol_compression_pack",

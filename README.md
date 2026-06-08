@@ -10,14 +10,15 @@ The repository-level campaign pointer targets
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
 core plus governed `base_ohlcv`, `session_calendar_roll`,
 `vwap_session_auction`, `regime_vol_compression`, `liquidity_pa_structure`, and
-`volume_activity` fast-pack executor work available in this worktree. Ralph
-owns validation, staging, Yellow-lane review routing, and any phase verdict.
+`volume_activity` fast-pack executor work, plus `FCFP-P08` BBO tradability /
+top-book pack executor work, available in this worktree. Ralph owns validation,
+staging, Yellow-lane review routing, and any phase verdict.
 
-Active / next phase after P07 review and merge: `FCFP-P08` BBO Polars Pack +
-Parity. The remaining family-pack phases build in parallel and merge serially:
-next packs include `FCFP-P08` and `FCFP-P09`, followed by `FCFP-P10` labels.
+Active / next phase after P08 review and merge: `FCFP-P09` Cross-Market /
+Session-Relative Pack + Parity, followed by `FCFP-P10` labels. Remaining
+family-pack phases build in parallel and merge serially.
 
-New durable surfaces in this `FCFP-P07` executor snapshot:
+New durable surfaces in this `FCFP-P08` executor snapshot:
 
 - `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
   `src/alpha_system/features/fast/`
@@ -33,17 +34,19 @@ New durable surfaces in this `FCFP-P07` executor snapshot:
   `src/alpha_system/features/fast/`
 - The V1 `volume_activity` Polars pack and resolver wiring under
   `src/alpha_system/features/fast/`
+- The V1 `bbo_tradability` Polars pack and resolver wiring under
+  `src/alpha_system/features/fast/`
 - Synthetic reference-parity harness under
   `tests/unit/feature_compute_fast_path/`
 - Base OHLCV, Session / Calendar / Roll, and VWAP / Session-Auction synthetic
   parity tests, plus the Regime / Volatility / Compression and Liquidity / PA
-  Structure and Volume / Activity parity tests, under
+  Structure, Volume / Activity, and BBO Tradability parity tests, under
   `tests/unit/feature_compute_fast_path/`
 - Tiny documented synthetic fixtures, including the 32-row Base OHLCV pack
   fixture, the dense-grid Session / Calendar / Roll pack fixture, the VWAP /
   Session-Auction pack fixture, the Regime / Volatility / Compression pack
-  fixture, the Liquidity / PA Structure pack fixture, and the Volume / Activity
-  pack fixture, under
+  fixture, the Liquidity / PA Structure pack fixture, the Volume / Activity pack
+  fixture, and the BBO Tradability pack fixture, under
   `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
 - Value-free Base OHLCV, Session / Calendar / Roll, VWAP / Session-Auction, and

@@ -52,3 +52,9 @@ session minute, rolling range, range position, trendiness, close-location
 value, and wick rejection. Its synthetic parity test covers reset-on-session
 rolling warm-up, an input gap, session-boundary reset behavior, zero-range
 structure guards, values, availability, quality flags, and reference identity.
+
+`FCFP-P08` adds the `bbo_tradability` pack for governed BBO tradability /
+top-book proxy features. Its synthetic parity test covers spread, top-book
+depth and imbalance, microprice, missing/quarantined BBO flags, wide-spread and
+low-depth flags, session-reset spread z-score behavior, availability, quality
+flags, and reference identity.

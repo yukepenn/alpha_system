@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from alpha_system.features.contracts import FeatureSetSpec
+from alpha_system.features.fast.bbo_tradability import (
+    build_bbo_tradability_pack,
+    supports_bbo_tradability_pack,
+)
 from alpha_system.features.fast.base_ohlcv import (
     build_base_ohlcv_pack,
     supports_base_ohlcv_pack,
@@ -33,6 +37,8 @@ from alpha_system.features.fast.vwap_session_auction import (
 def build_fast_feature_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
     """Resolve a governed feature set to its V1 fast pack."""
 
+    if supports_bbo_tradability_pack(feature_set):
+        return build_bbo_tradability_pack(feature_set)
     if supports_base_ohlcv_pack(feature_set):
         return build_base_ohlcv_pack(feature_set)
     if supports_session_calendar_roll_pack(feature_set):
