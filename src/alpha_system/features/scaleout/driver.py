@@ -51,6 +51,92 @@ class ScaleoutError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class ScaleoutTarget:
+    """Optional targeted/incremental selectors for a scaleout run."""
+
+    family: str | None = None
+    feature_ids: tuple[str, ...] = ()
+    feature_groups: tuple[str, ...] = ()
+    label_ids: tuple[str, ...] = ()
+    label_groups: tuple[str, ...] = ()
+    symbols: tuple[str, ...] = ()
+    years: tuple[int, ...] = ()
+    dataset_version_ids: tuple[str, ...] = ()
+
+    @property
+    def active(self) -> bool:
+        """Return true when at least one selector is present."""
+
+        return bool(
+            self.family
+            or self.feature_ids
+            or self.feature_groups
+            or self.label_ids
+            or self.label_groups
+            or self.symbols
+            or self.years
+            or self.dataset_version_ids
+        )
+
+    @property
+    def label_targeted(self) -> bool:
+        """Return true when label selectors are present."""
+
+        return bool(self.label_ids or self.label_groups)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible target summary."""
+
+        return {
+            "family": self.family,
+            "feature_ids": list(self.feature_ids),
+            "feature_groups": list(self.feature_groups),
+            "label_ids": list(self.label_ids),
+            "label_groups": list(self.label_groups),
+            "symbols": list(self.symbols),
+            "years": list(self.years),
+            "dataset_version_ids": list(self.dataset_version_ids),
+            "active": self.active,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ScaleoutDryRunEstimate:
+    """Value-free dry-run estimate for selected scaleout units."""
+
+    selected_unit_count: int
+    planned_step_count: int
+    symbol_count: int
+    symbols: tuple[str, ...]
+    year_count: int
+    years: tuple[int, ...]
+    dataset_version_ids: tuple[str, ...]
+    estimated_rows_per_unit: int
+    estimated_total_rows: int
+    estimated_seconds_per_unit: float
+    estimated_total_seconds: float
+    unit_estimates: tuple[Mapping[str, object], ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible estimate summary."""
+
+        return {
+            "selected_unit_count": self.selected_unit_count,
+            "planned_step_count": self.planned_step_count,
+            "symbol_count": self.symbol_count,
+            "symbols": list(self.symbols),
+            "year_count": self.year_count,
+            "years": list(self.years),
+            "dataset_version_ids": list(self.dataset_version_ids),
+            "estimated_rows_per_unit": self.estimated_rows_per_unit,
+            "estimated_total_rows": self.estimated_total_rows,
+            "estimated_seconds_per_unit": self.estimated_seconds_per_unit,
+            "estimated_total_seconds": self.estimated_total_seconds,
+            "units": [dict(unit) for unit in self.unit_estimates],
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleoutConfig:
     """Parsed feature scaleout configuration."""
 
@@ -59,10 +145,15 @@ class ScaleoutConfig:
     phase_id: str
     family: str
     feature_names: tuple[str, ...]
+    feature_groups: Mapping[str, tuple[str, ...]]
+    label_names: tuple[str, ...]
+    label_groups: Mapping[str, tuple[str, ...]]
     symbols: tuple[str, ...]
     years: tuple[int, ...]
     input_schemas: tuple[str, ...]
     dense_grid_required: bool
+    row_budget_per_unit: int
+    estimated_seconds_per_unit: float
     inventory_path: Path
     eligible_states: tuple[str, ...]
     value_store_format: ValueStoreFormat
@@ -271,11 +362,13 @@ class ScaleoutRunSummary:
     campaign_id: str
     phase_id: str
     family: str
+    target: ScaleoutTarget
     rollout: str
     dry_run: bool
     bounded_year: int
     accepted_unit_count: int
     bounded_unit_count: int
+    dry_run_estimate: ScaleoutDryRunEstimate | None = None
     records: tuple[ScaleoutUnitRecord, ...] = field(default_factory=tuple)
 
     @property
@@ -301,11 +394,15 @@ class ScaleoutRunSummary:
             "campaign_id": self.campaign_id,
             "phase_id": self.phase_id,
             "family": self.family,
+            "target": self.target.to_dict(),
             "rollout": self.rollout,
             "dry_run": self.dry_run,
             "bounded_year": self.bounded_year,
             "accepted_unit_count": self.accepted_unit_count,
             "bounded_unit_count": self.bounded_unit_count,
+            "dry_run_estimate": (
+                self.dry_run_estimate.to_dict() if self.dry_run_estimate is not None else None
+            ),
             "planned_count": self.planned_count,
             "completed_count": self.completed_count,
             "skipped_count": self.skipped_count,
@@ -336,7 +433,9 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
         raise ScaleoutError(f"scaleout config schema must be {SCALEOUT_CONFIG_SCHEMA}")
 
     grid = _require_mapping(payload.get("batch_unit_grid"), "batch_unit_grid")
+    budgets = _optional_mapping(payload.get("budgets"), "budgets")
     dataset_selection = _require_mapping(payload.get("dataset_selection"), "dataset_selection")
+    targeting = _optional_mapping(payload.get("targeting"), "targeting")
     value_store = _require_mapping(payload.get("value_store"), "value_store")
     checkpoint = _require_mapping(payload.get("checkpoint"), "checkpoint")
     identity = _require_mapping(payload.get("identity"), "identity")
@@ -347,12 +446,30 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
         raise ScaleoutError("scaleout research-scale value_store.format must be parquet")
 
     checkpoint_root = Path(_require_text(checkpoint.get("checkpoint_root"), "checkpoint_root"))
+    feature_names = _text_tuple(payload.get("governed_scope"), "governed_scope")
+    label_names = _optional_text_tuple(payload.get("governed_label_scope"), "governed_label_scope")
+    row_budget_per_unit = _optional_positive_int(
+        budgets.get("row_budget_per_unit"),
+        "budgets.row_budget_per_unit",
+        default=0,
+    )
     return ScaleoutConfig(
         config_path=config_path,
         campaign_id=_require_text(payload.get("campaign_id"), "campaign_id"),
         phase_id=_require_text(payload.get("phase_id"), "phase_id"),
         family=_require_text(payload.get("family"), "family"),
-        feature_names=_text_tuple(payload.get("governed_scope"), "governed_scope"),
+        feature_names=feature_names,
+        feature_groups=_group_mapping(
+            targeting.get("feature_groups"),
+            "targeting.feature_groups",
+            allowed_names=feature_names,
+        ),
+        label_names=label_names,
+        label_groups=_group_mapping(
+            targeting.get("label_groups"),
+            "targeting.label_groups",
+            allowed_names=label_names,
+        ),
         symbols=_text_tuple(grid.get("symbols"), "batch_unit_grid.symbols"),
         years=_int_tuple(grid.get("years"), "batch_unit_grid.years"),
         input_schemas=_text_tuple(grid.get("input_schemas"), "batch_unit_grid.input_schemas"),
@@ -360,6 +477,12 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
             grid.get("dense_grid_required"),
             "batch_unit_grid.dense_grid_required",
             default=False,
+        ),
+        row_budget_per_unit=row_budget_per_unit,
+        estimated_seconds_per_unit=_optional_float(
+            targeting.get("estimated_seconds_per_unit"),
+            "targeting.estimated_seconds_per_unit",
+            default=_default_seconds_per_unit(row_budget_per_unit),
         ),
         inventory_path=_repo_path(
             dataset_selection.get("inventory_ref"),
@@ -388,9 +511,24 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
     )
 
 
-def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
-    """Build the accepted family x symbol x year grid from value-free locks."""
+def build_scaleout_units(
+    config: ScaleoutConfig,
+    *,
+    target: ScaleoutTarget | None = None,
+) -> tuple[ScaleoutUnit, ...]:
+    """Build the selected family/name x symbol x year grid from value-free locks."""
 
+    target = target or ScaleoutTarget()
+    if target.family is not None and target.family != config.family:
+        return ()
+    if target.label_targeted and not config.label_names:
+        return ()
+    feature_names = _selected_feature_names(config, target)
+    if not feature_names:
+        return ()
+    selected_symbols = _selected_symbols(config, target)
+    selected_years = _selected_years(config, target)
+    selected_dataset_version_ids = set(target.dataset_version_ids)
     inventory = _load_json_mapping(config.inventory_path, "dataset inventory")
     schemas = _require_mapping(inventory.get("schemas"), "dataset inventory schemas")
     summary_path = _optional_repo_path(inventory.get("source_summary"))
@@ -401,7 +539,7 @@ def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
     )
     partial_year_end_ts = _partial_year_end_ts(config.policy_path)
     units: list[ScaleoutUnit] = []
-    for year in config.years:
+    for year in selected_years:
         input_datasets: list[ScaleoutInputDataset] = []
         for schema_id in config.input_schemas:
             schema_inventory = _require_mapping(schemas.get(schema_id), f"schemas.{schema_id}")
@@ -433,8 +571,12 @@ def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
             )
         if not input_datasets:
             continue
+        if selected_dataset_version_ids and selected_dataset_version_ids.isdisjoint(
+            dataset.dataset_version_id for dataset in input_datasets
+        ):
+            continue
         primary = _primary_input_dataset(config, tuple(input_datasets))
-        for symbol in config.symbols:
+        for symbol in selected_symbols:
             partition_id = _render_partition(config.partition_template, symbol=symbol, year=year)
             feature_set_id = f"feature_set_futures_scaleout_{config.family}"
             feature_set_version = f"v1_{symbol.lower()}_{year}"
@@ -446,6 +588,7 @@ def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
                 input_datasets=tuple(input_datasets),
                 feature_set_id=feature_set_id,
                 feature_set_version=feature_set_version,
+                feature_names=feature_names,
             )
             units.append(
                 ScaleoutUnit(
@@ -465,7 +608,7 @@ def build_scaleout_units(config: ScaleoutConfig) -> tuple[ScaleoutUnit, ...]:
                     ),
                     feature_set_id=feature_set_id,
                     feature_set_version=feature_set_version,
-                    feature_names=config.feature_names,
+                    feature_names=feature_names,
                     input_datasets=tuple(input_datasets),
                 )
             )
@@ -492,6 +635,7 @@ def _unit_identity_payload(
     input_datasets: tuple[ScaleoutInputDataset, ...],
     feature_set_id: str,
     feature_set_version: str,
+    feature_names: tuple[str, ...],
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "schema": SCALEOUT_CONFIG_SCHEMA,
@@ -505,6 +649,8 @@ def _unit_identity_payload(
         "feature_set_id": feature_set_id,
         "feature_set_version": feature_set_version,
     }
+    if feature_names != config.feature_names:
+        payload["selected_feature_names"] = list(feature_names)
     if len(input_datasets) > 1:
         payload["input_dataset_versions"] = [dataset.to_dict() for dataset in input_datasets]
     return payload
@@ -520,6 +666,7 @@ def run_scaleout(
     execute: bool = False,
     bounded_year: int | None = None,
     unit_executor: UnitExecutor | None = None,
+    target: ScaleoutTarget | None = None,
 ) -> ScaleoutRunSummary:
     """Plan or execute scaleout units.
 
@@ -528,7 +675,8 @@ def run_scaleout(
     """
 
     rollout_token = _normalize_rollout(rollout)
-    units = build_scaleout_units(config)
+    target = target or ScaleoutTarget()
+    units = build_scaleout_units(config, target=target)
     bounded = _bounded_units(units, bounded_year or config.bounded_year)
     records: list[ScaleoutUnitRecord] = []
 
@@ -542,11 +690,17 @@ def run_scaleout(
             campaign_id=config.campaign_id,
             phase_id=config.phase_id,
             family=config.family,
+            target=target,
             rollout=rollout_token,
             dry_run=True,
             bounded_year=bounded_year or config.bounded_year,
             accepted_unit_count=len(units),
             bounded_unit_count=len(bounded),
+            dry_run_estimate=_dry_run_estimate(
+                config,
+                units=units,
+                planned_step_count=len(planned),
+            ),
             records=tuple(records),
         )
 
@@ -575,6 +729,7 @@ def run_scaleout(
         campaign_id=config.campaign_id,
         phase_id=config.phase_id,
         family=config.family,
+        target=target,
         rollout=rollout_token,
         dry_run=False,
         bounded_year=bounded_year or config.bounded_year,
@@ -1393,6 +1548,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         f"- Phase: `{summary.phase_id}`",
         f"- Rollout: `{summary.rollout}`",
         f"- Dry run: `{'yes' if summary.dry_run else 'no'}`",
+        f"- Targeting active: `{'yes' if summary.target.active else 'no'}`",
         f"- Accepted unit count: `{summary.accepted_unit_count}`",
         f"- Bounded-real year: `{summary.bounded_year}`",
         f"- Bounded-real unit count: `{summary.bounded_unit_count}`",
@@ -1400,12 +1556,38 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         f"- Completed: `{summary.completed_count}`",
         f"- Skipped: `{summary.skipped_count}`",
         f"- Failed: `{summary.failed_count}`",
-        "",
-        "## Acceptance States",
-        "",
-        "| State | Unit count |",
-        "| --- | ---: |",
     ]
+    if summary.dry_run_estimate is not None:
+        estimate = summary.dry_run_estimate
+        lines.extend(
+            [
+                f"- Estimated rows per unit: `{estimate.estimated_rows_per_unit}`",
+                f"- Estimated total rows: `{estimate.estimated_total_rows}`",
+                f"- Estimated seconds per unit: `{estimate.estimated_seconds_per_unit}`",
+                f"- Estimated total seconds: `{estimate.estimated_total_seconds}`",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Target",
+            "",
+            f"- Family: `{summary.target.family or summary.family}`",
+            f"- Feature ids: `{', '.join(summary.target.feature_ids) or 'config default'}`",
+            f"- Feature groups: `{', '.join(summary.target.feature_groups) or 'none'}`",
+            f"- Label ids: `{', '.join(summary.target.label_ids) or 'none'}`",
+            f"- Label groups: `{', '.join(summary.target.label_groups) or 'none'}`",
+            f"- Symbols: `{', '.join(summary.target.symbols) or 'config default'}`",
+            f"- Years: `{', '.join(str(year) for year in summary.target.years) or 'config default'}`",
+            "- DatasetVersion ids: "
+            f"`{', '.join(summary.target.dataset_version_ids) or 'accepted grid default'}`",
+            "",
+            "## Acceptance States",
+            "",
+            "| State | Unit count |",
+            "| --- | ---: |",
+        ]
+    )
     for state in sorted(states):
         lines.append(f"| `{state}` | {states[state]} |")
     lines.extend(
@@ -1801,6 +1983,29 @@ def _registry_completed_unit(
     )
 
 
+def _completed_record_has_registry_truth(
+    record: ScaleoutUnitRecord,
+    alpha_data_root: Path,
+) -> bool:
+    if record.status != "completed" or not record.feature_version_ids:
+        return False
+    try:
+        store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    except Exception:  # noqa: BLE001 - registry truth unavailable => not completed
+        return False
+    for feature_version_id in record.feature_version_ids:
+        try:
+            registry_record = store.resolve_feature(feature_version_id)
+        except Exception:  # noqa: BLE001 - registry truth unavailable => not completed
+            return False
+        if registry_record is None:
+            return False
+        parquet_path = getattr(registry_record, "parquet_path", None)
+        if not parquet_path or not Path(parquet_path).exists():
+            return False
+    return True
+
+
 def _execute_stage(
     config: ScaleoutConfig,
     units: tuple[ScaleoutUnit, ...],
@@ -1815,6 +2020,12 @@ def _execute_stage(
     records: list[ScaleoutUnitRecord] = []
     for unit in units:
         completed = ledger.latest_completed(unit)
+        if (
+            completed is not None
+            and completed.status == "completed"
+            and not _completed_record_has_registry_truth(completed, alpha_data_root)
+        ):
+            completed = None
         if completed is None:
             registry_completed = _registry_completed_unit(config, unit, alpha_data_root)
             if registry_completed is not None:
@@ -1834,7 +2045,7 @@ def _execute_stage(
                 row_count=completed.row_count,
                 feature_version_ids=completed.feature_version_ids,
                 message=(
-                    "completed unit skipped from local ledger"
+                    "completed unit skipped from checkpoint + registry truth"
                     if status == "skipped"
                     else completed.message
                 ),
@@ -3879,6 +4090,91 @@ def _partial_year_end_ts(policy_path: Path) -> dict[int, str]:
     return {int(year): _require_text(value, "partial_year_end_ts") for year, value in raw.items()}
 
 
+def _selected_feature_names(
+    config: ScaleoutConfig,
+    target: ScaleoutTarget,
+) -> tuple[str, ...]:
+    if target.label_targeted:
+        return ()
+    if not target.feature_ids and not target.feature_groups:
+        return config.feature_names
+    selected: set[str] = set()
+    known_features = set(config.feature_names)
+    unknown_features = sorted(set(target.feature_ids).difference(known_features))
+    if unknown_features:
+        raise ScaleoutError("unknown feature_id target(s): " + ", ".join(unknown_features))
+    selected.update(target.feature_ids)
+    for group in target.feature_groups:
+        if group not in config.feature_groups:
+            raise ScaleoutError(f"unknown feature_group target: {group}")
+        selected.update(config.feature_groups[group])
+    return tuple(name for name in config.feature_names if name in selected)
+
+
+def _selected_symbols(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[str, ...]:
+    if not target.symbols:
+        return config.symbols
+    unknown_symbols = sorted(set(target.symbols).difference(config.symbols))
+    if unknown_symbols:
+        raise ScaleoutError("unknown symbol target(s): " + ", ".join(unknown_symbols))
+    return tuple(symbol for symbol in config.symbols if symbol in target.symbols)
+
+
+def _selected_years(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[int, ...]:
+    if not target.years:
+        return config.years
+    unknown_years = sorted(set(target.years).difference(config.years))
+    if unknown_years:
+        raise ScaleoutError(
+            "unknown year target(s): " + ", ".join(str(year) for year in unknown_years)
+        )
+    return tuple(year for year in config.years if year in target.years)
+
+
+def _dry_run_estimate(
+    config: ScaleoutConfig,
+    *,
+    units: tuple[ScaleoutUnit, ...],
+    planned_step_count: int,
+) -> ScaleoutDryRunEstimate:
+    rows_per_unit = config.row_budget_per_unit
+    seconds_per_unit = config.estimated_seconds_per_unit
+    return ScaleoutDryRunEstimate(
+        selected_unit_count=len(units),
+        planned_step_count=planned_step_count,
+        symbol_count=len({unit.symbol for unit in units}),
+        symbols=tuple(sorted({unit.symbol for unit in units})),
+        year_count=len({unit.year for unit in units}),
+        years=tuple(sorted({unit.year for unit in units})),
+        dataset_version_ids=tuple(
+            sorted(
+                {
+                    dataset.dataset_version_id
+                    for unit in units
+                    for dataset in _unit_input_datasets(unit)
+                }
+            )
+        ),
+        estimated_rows_per_unit=rows_per_unit,
+        estimated_total_rows=rows_per_unit * len(units),
+        estimated_seconds_per_unit=seconds_per_unit,
+        estimated_total_seconds=round(seconds_per_unit * planned_step_count, 3),
+        unit_estimates=tuple(
+            {
+                "unit_id": unit.unit_id,
+                "family": unit.family,
+                "symbol": unit.symbol,
+                "year": unit.year,
+                "dataset_version_id": unit.dataset_version_id,
+                "feature_ids": list(unit.feature_names),
+                "estimated_rows": rows_per_unit,
+                "estimated_seconds": seconds_per_unit,
+            }
+            for unit in units
+        ),
+    )
+
+
 def _bounded_units(units: tuple[ScaleoutUnit, ...], bounded_year: int) -> tuple[ScaleoutUnit, ...]:
     selected = tuple(unit for unit in units if unit.year == bounded_year)
     if selected:
@@ -3998,6 +4294,35 @@ def _render_partition(template: str, *, symbol: str, year: int) -> str:
     return sanitized
 
 
+def _optional_mapping(value: object, field_name: str) -> Mapping[str, Any]:
+    if value is None:
+        return {}
+    return _require_mapping(value, field_name)
+
+
+def _group_mapping(
+    value: object,
+    field_name: str,
+    *,
+    allowed_names: tuple[str, ...],
+) -> Mapping[str, tuple[str, ...]]:
+    if value is None:
+        return {}
+    raw = _require_mapping(value, field_name)
+    allowed = set(allowed_names)
+    groups: dict[str, tuple[str, ...]] = {}
+    for group_name, raw_members in raw.items():
+        group = _require_text(group_name, f"{field_name}.key")
+        members = _text_tuple(raw_members, f"{field_name}.{group}")
+        unknown = sorted(set(members).difference(allowed))
+        if unknown:
+            raise ScaleoutError(
+                f"{field_name}.{group} references unknown name(s): " + ", ".join(unknown)
+            )
+        groups[group] = members
+    return groups
+
+
 def _require_mapping(value: object, field_name: str) -> Mapping[str, Any]:
     if isinstance(value, str) or not isinstance(value, Mapping):
         raise ScaleoutError(f"{field_name} must be a mapping")
@@ -4017,6 +4342,12 @@ def _text_tuple(value: object, field_name: str) -> tuple[str, ...]:
     return values
 
 
+def _optional_text_tuple(value: object, field_name: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return _text_tuple(value, field_name)
+
+
 def _int_tuple(value: object, field_name: str) -> tuple[int, ...]:
     values = tuple(_positive_int(item, field_name) for item in _sequence(value, field_name))
     if not values:
@@ -4030,6 +4361,29 @@ def _optional_bool(value: object, field_name: str, *, default: bool) -> bool:
     if not isinstance(value, bool):
         raise ScaleoutError(f"{field_name} must be a boolean")
     return value
+
+
+def _optional_positive_int(value: object, field_name: str, *, default: int) -> int:
+    if value is None:
+        return default
+    return _positive_int(value, field_name)
+
+
+def _optional_float(value: object, field_name: str, *, default: float) -> float:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ScaleoutError(f"{field_name} must be a non-negative number")
+    number = float(value)
+    if number < 0:
+        raise ScaleoutError(f"{field_name} must be a non-negative number")
+    return round(number, 3)
+
+
+def _default_seconds_per_unit(row_budget_per_unit: int) -> float:
+    if row_budget_per_unit <= 0:
+        return 0.0
+    return round(max(1.0, row_budget_per_unit / 100_000.0), 3)
 
 
 def _require_text(value: object, field_name: str) -> str:
