@@ -84,6 +84,21 @@ the faithful absent-metadata behavior for `minutes_to_expiration` and
 `status_metadata_absent` flags. Present-metadata values remain deferred to the
 reference engine until a governed frame metadata projection is added.
 
+## P04 VWAP / Session-Auction Pack
+
+`FCFP-P04` adds `alpha_system.features.fast.vwap_session_auction` and wires the
+governed VWAP / session-auction feature set through
+`build_fast_feature_pack()`. The pack computes running VWAP, anchored VWAP,
+distance to VWAP, opening range, and overnight range from one Polars OHLCV
+frame. It uses vectorized session and anchor state columns while keeping the
+reference OHLCV family as the oracle.
+
+The synthetic parity gate covers session-reset cumulative VWAP, RTH anchor
+activation and reset, opening-window boundary behavior, ETH-to-RTH overnight
+carry, leading no-trade input, zero-volume input, and zero-VWAP distance gaps.
+The committed evidence is value-free: counts, gap coverage, tolerance, and
+max/median absolute diffs only.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live

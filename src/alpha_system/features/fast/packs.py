@@ -12,6 +12,10 @@ from alpha_system.features.fast.session_calendar_roll import (
     build_session_calendar_roll_pack,
     supports_session_calendar_roll_pack,
 )
+from alpha_system.features.fast.vwap_session_auction import (
+    build_vwap_session_auction_pack,
+    supports_vwap_session_auction_pack,
+)
 
 
 def build_fast_feature_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
@@ -21,6 +25,8 @@ def build_fast_feature_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
         return build_base_ohlcv_pack(feature_set)
     if supports_session_calendar_roll_pack(feature_set):
         return build_session_calendar_roll_pack(feature_set)
+    if supports_vwap_session_auction_pack(feature_set):
+        return build_vwap_session_auction_pack(feature_set)
     raise PackMaterializerError("no V1 fast pack registered for this FeatureSetSpec")
 
 

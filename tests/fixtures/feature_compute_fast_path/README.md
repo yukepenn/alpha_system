@@ -15,3 +15,9 @@ harness exercises both `insufficient_window` and `input_gap` quality flags.
   Calendar / Roll pack fixture. It covers RTH/ETH labels, pre-open and
   post-close RTH-clock edges, a contract-roll transition, a synthetic no-trade
   position-only row, and absent optional metadata flags.
+- `vwap_session_auction.py` generates the `FCFP-P04` VWAP / session-auction
+  fixture. It covers contiguous session resets, anchored VWAP activation,
+  opening-window boundaries, ETH-to-RTH overnight carry, leading no-trade,
+  zero-volume, before-anchor, and zero-VWAP gap cases. It includes one
+  synthetic zero-price edge row solely to exercise the reference `zero_vwap`
+  branch; it is not production canonical data or alpha evidence.

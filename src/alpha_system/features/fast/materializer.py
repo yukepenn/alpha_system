@@ -127,6 +127,7 @@ class FastFeaturePack:
 
     feature_set: FeatureSetSpec
     declarations: Sequence[FastFeatureDeclaration]
+    prepare_frame: Callable[[Any], Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.feature_set, FeatureSetSpec):
@@ -144,6 +145,8 @@ class FastFeaturePack:
             expected = FeatureVersion.derive(declaration.feature_spec)
             if declaration.feature_version != expected:
                 raise PackMaterializerError("fast declaration FeatureVersion mismatch")
+        if self.prepare_frame is not None and not callable(self.prepare_frame):
+            raise PackMaterializerError("FastFeaturePack.prepare_frame must be callable")
         object.__setattr__(self, "declarations", declarations)
 
 
@@ -270,6 +273,15 @@ class PackMaterializer:
         pack = _require_pack(pack)
         frame = _coerce_frame(canonical_frame, polars)
         _require_columns(frame, ("series_id", "event_ts", "available_ts"))
+        if pack.prepare_frame is not None:
+            frame = pack.prepare_frame(frame)
+            if isinstance(frame, polars.LazyFrame):
+                frame = frame.collect()
+            if not isinstance(frame, polars.DataFrame):
+                raise PackMaterializerError(
+                    "FastFeaturePack.prepare_frame must return a Polars DataFrame"
+                )
+            _require_columns(frame, ("series_id", "event_ts", "available_ts"))
 
         value_columns: list[tuple[FastFeatureDeclaration, str, str, str, str, str]] = []
         expressions: list[Any] = []

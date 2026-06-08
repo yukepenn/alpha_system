@@ -10,13 +10,16 @@ Family phases declare a `FastFeaturePack`:
 
 - `feature_set`: the governed `FeatureSetSpec`.
 - `declarations`: one `FastFeatureDeclaration` per feature, in feature-set order.
+- `prepare_frame`: an optional pack callback for vectorized intermediate Polars
+  columns that are needed by multiple declarations.
 - each declaration supplies Polars expressions for `value` and optional
   `quality_flags`, plus optional overrides for `entity_id`, `event_ts`, and
   `available_ts`.
 
-The materializer sorts canonical rows by `available_ts`, evaluates all declared
-expressions as a pack, converts the result to `FeatureValueRecord`, and validates
-that every record belongs to the plan's feature-version ids.
+The materializer sorts canonical rows by `available_ts`, applies
+`prepare_frame` when present, evaluates all declared expressions as a pack,
+converts the result to `FeatureValueRecord`, and validates that every record
+belongs to the plan's feature-version ids.
 
 ## Canonical Loading
 
@@ -120,6 +123,29 @@ Present expiration/status metadata values are intentionally deferred because the
 P01 frame contract does not yet project the reference metadata maps as Polars
 columns. The fast pack does not fabricate those values; it emits `None` plus the
 reference absent-metadata flags.
+
+## VWAP / Session-Auction Pack
+
+`FCFP-P04` adds the governed VWAP / session-auction pack:
+`alpha_system.features.fast.vwap_session_auction`. The resolver accepts the
+exact five-feature set for `vwap`, `anchored_vwap`, `distance_to_vwap`,
+`opening_range`, and `overnight_range`; each declaration derives its
+`feature_version_id` from the same `FeatureSpec` identity as the reference
+family.
+
+The pack prepares contiguous session segment columns once and then computes:
+
+- session-reset running VWAP with `no_trade` and `zero_volume` gap branches
+- anchored VWAP with `before_anchor`, `no_trade`, and `zero_volume` branches
+- distance to session VWAP, including the `zero_vwap` gap branch
+- RTH opening range with `outside_rth` and `no_opening_trade`
+- ETH overnight range with frozen carry into RTH and the reference
+  `no_overnight_trade` / `no_overnight_range` branches
+
+The synthetic parity fixture covers two RTH anchors, ETH-to-RTH carry, an
+opening-window boundary, leading no-trade input, zero-volume input, and a
+synthetic zero-VWAP edge row. No feature values or real market data are
+committed.
 
 ## Optional Dependency
 
