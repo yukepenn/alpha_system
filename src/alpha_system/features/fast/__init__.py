@@ -24,6 +24,12 @@ from alpha_system.features.fast.session_calendar_roll import (
     build_session_calendar_roll_pack,
     supports_session_calendar_roll_pack,
 )
+from alpha_system.features.fast.vwap_session_auction import (
+    VWAP_SESSION_AUCTION_FEATURE_IDS,
+    VWAP_SESSION_AUCTION_FEATURE_NAMES,
+    build_vwap_session_auction_pack,
+    supports_vwap_session_auction_pack,
+)
 
 __all__ = [
     "BASE_OHLCV_DDOF",
@@ -39,9 +45,13 @@ __all__ = [
     "PackMaterializerError",
     "SESSION_CALENDAR_ROLL_FEATURE_IDS",
     "SymbolYearFrameRequest",
+    "VWAP_SESSION_AUCTION_FEATURE_IDS",
+    "VWAP_SESSION_AUCTION_FEATURE_NAMES",
     "build_base_ohlcv_pack",
     "build_fast_feature_pack",
     "build_session_calendar_roll_pack",
+    "build_vwap_session_auction_pack",
     "supports_base_ohlcv_pack",
     "supports_session_calendar_roll_pack",
+    "supports_vwap_session_auction_pack",
 ]

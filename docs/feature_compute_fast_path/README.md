@@ -27,3 +27,9 @@ Calendar / Roll family. Its synthetic parity test covers exact integer/string
 values, row timing, entity ids, feature-version identity, sorted quality flags,
 RTH/ETH session edges, roll proximity, synthetic no-trade position-only flags,
 and absent optional expiration/status metadata.
+
+`FCFP-P04` adds the `vwap_session_auction` pack for the governed VWAP /
+session-auction features in the Base OHLCV reference family. Its synthetic
+parity test covers session-reset VWAP, RTH-anchored VWAP, distance to VWAP,
+opening range, overnight range, the RTH opening-window boundary, ETH-to-RTH
+overnight carry, and exact gap reasons including `zero_vwap`.
