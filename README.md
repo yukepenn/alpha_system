@@ -8,6 +8,18 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
+core plus targeted / incremental scaleout selection in this `FCFP-P11` executor
+snapshot. The scaleout CLI can select materialization by family, feature id,
+configured feature group, label selector, symbols, years, and DatasetVersion
+ids, with value-free dry-run estimates, execute-selected-only behavior, and
+checkpoint plus registry-truth skip-completed semantics. Ralph owns validation,
+staging, Yellow-lane review routing, and any phase verdict.
+
+Active / next integration path: remaining family and label pack work through
+`FCFP-P10` continues on its reviewed path. Next integration phases are
+`FCFP-P12` versioning/reconciliation and `FCFP-P13` benchmark evidence, followed
+by `FCFP-P14` V1 producer-path integration, which routes the driver to V1 and
+depends on the P11 targeting surface. Remaining phases merge serially.
 core plus governed `base_ohlcv`, `session_calendar_roll`,
 `vwap_session_auction`, `regime_vol_compression`, `liquidity_pa_structure`,
 `volume_activity`, `bbo_tradability`, `cross_market`, and multi-horizon
@@ -20,7 +32,7 @@ Active / next phases after P10 review and merge: `FCFP-P11` Targeted /
 Incremental Materialization CLI, `FCFP-P12` Engine / Value-Schema Versioning +
 Reconciliation, and `FCFP-P13` Benchmark Gate. Remaining phases merge serially.
 
-New durable surfaces in this `FCFP-P09` executor snapshot:
+New durable surfaces in this `FCFP-P11` executor snapshot:
 
 - `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
   `src/alpha_system/features/fast/`
@@ -57,10 +69,13 @@ New durable surfaces in this `FCFP-P09` executor snapshot:
   aligned-panel fixture, and the fixed-horizon label fixture, under
   `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
+- Targeted scaleout CLI docs under
+  `docs/feature_compute_fast_path/TARGETED_SCALEOUT.md`
 - Value-free Base OHLCV, Session / Calendar / Roll, VWAP / Session-Auction, and
   Regime / Volatility / Compression parity reports plus the Cross-Market parity
   note under
   `research/feature_compute_fast_path_v1/parity/`
+- No real-data backfill, benchmark, feature/label value artifact,
 - Value-free fixed-horizon label parity report under
   `research/feature_compute_fast_path_v1/label_packs/`
 - No CLI command, real-data backfill, benchmark, feature/label value artifact,
