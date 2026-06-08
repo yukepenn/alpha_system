@@ -8,38 +8,38 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P10`:
-Liquidity Sweep / PA Structure FeaturePack Scaleout within the
-`feature_materialization` gate, following base OHLCV (`FUTSUB-P06`), Session /
-Calendar / Maintenance (`FUTSUB-P07`), VWAP / Session Auction (`FUTSUB-P08`),
-and Regime / Volatility / Compression (`FUTSUB-P09`). The P10 scaleout driver
-extension and value-free coverage preview are in place; the bounded-then-full
-execute command was attempted but this executor sandbox could not write
-`$ALPHA_DATA_ROOT/materialization`. Ralph owns any unsandboxed rerun,
-validation routing, staging, commit, review routing, PR, CI, merge, and
+active. This snapshot reflects the executor-complete state for `FUTSUB-P11`:
+Volume / Activity FeaturePack Scaleout within the `feature_materialization`
+gate, following base OHLCV (`FUTSUB-P06`), Session / Calendar / Maintenance
+(`FUTSUB-P07`), VWAP / Session Auction (`FUTSUB-P08`), Regime / Volatility /
+Compression (`FUTSUB-P09`), and Liquidity Sweep / PA Structure (`FUTSUB-P10`).
+The P11 scaleout driver extension and value-free coverage preview are in place;
+the bounded-then-full execute command was attempted but this executor sandbox
+could not write `$ALPHA_DATA_ROOT/materialization`. Ralph owns any unsandboxed
+rerun, validation routing, staging, commit, review routing, PR, CI, merge, and
 done-check actions.
 
 Active / next work: remaining `feature_materialization` FeaturePack phases,
-beginning with `FUTSUB-P11` Volume / Activity FeaturePack Scaleout, then
-`FUTSUB-P12` through `FUTSUB-P13`.
+beginning with `FUTSUB-P12` BBO Tradability / Top-Book FeaturePack Scaleout,
+then `FUTSUB-P13`.
 
-New durable surfaces in this `FUTSUB-P10` snapshot:
+New durable surfaces in this `FUTSUB-P11` snapshot:
 
 - Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
 - CLI surface: `alpha scaleout feature-pack`
-- Liquidity Sweep / PA Structure scaleout config:
-  `configs/features/scaleout/liquidity_sweep_pa_structure.json`
-- Liquidity Sweep / PA Structure value-free coverage evidence under
-  `research/futures_substrate_scaleout_v1/feature_packs/liquidity_sweep_pa_structure/`
-- Liquidity / PA unit-executor dispatch in the scaleout driver, binding the
-  config labels to existing governed structure primitives only
+- Volume / Activity scaleout config:
+  `configs/features/scaleout/volume_activity.json`
+- Volume / Activity value-free coverage evidence under
+  `research/futures_substrate_scaleout_v1/feature_packs/volume_activity/`
+- Volume / Activity unit-executor dispatch in the scaleout driver, binding the
+  config labels to existing governed OHLCV and structure primitives only
 
-`FUTSUB-P10` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+`FUTSUB-P11` adds no raw/provider data reads, re-pulls, runtime diagnostics,
 broker surfaces, live surfaces, paper-trading surfaces, order routing, or
 deployment behavior. Feature values, registries, checkpoints, canonical data,
 and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed
-evidence is value-free. Liquidity/PA structure features are research substrate
-inputs only, not profitability or tradability evidence.
+evidence is value-free. Volume/activity features are research substrate inputs
+only, not profitability or tradability evidence.
 
 ## Source Of Truth
 

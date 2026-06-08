@@ -210,6 +210,18 @@ class _LiquidityPAStructureBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class _VolumeActivityBinding:
+    """One governed primitive bound to one or more P11 config labels."""
+
+    config_names: tuple[str, ...]
+    primitive_family: str
+    primitive_name: str
+    exposure_name: str
+    window_length: int = 20
+    horizon: int = 1
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleoutRunSummary:
     """Summary for a scaleout plan or execution run."""
 
@@ -1168,6 +1180,148 @@ def materialize_liquidity_sweep_pa_structure_unit(
     )
 
 
+def materialize_volume_activity_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one volume / activity unit through the sanctioned seam."""
+
+    from alpha_system.cli.seed_pack import (
+        FeatureSetConfig,
+        FeatureSpecConfig,
+        SeedPackConfig,
+        _build_accepted_context,
+    )
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if config.family != "volume_activity" or unit.family != "volume_activity":
+        raise ScaleoutError("FUTSUB-P11 executor supports only the volume_activity family")
+
+    bindings = _volume_activity_bindings(unit.feature_names)
+    seed_config = SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        feature_set=FeatureSetConfig(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            alpha_spec_id=config.alpha_spec_id,
+            features=tuple(
+                FeatureSpecConfig(
+                    name=binding.primitive_name,
+                    window_length=binding.window_length,
+                    horizon=binding.horizon,
+                )
+                for binding in bindings
+            ),
+        ),
+    )
+    context = _build_accepted_context(
+        seed_config,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=None,
+        repo_root=Path.cwd(),
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _volume_activity_feature_definitions(config, unit, store.registry)
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(_definition_feature_spec(definition) for definition in definitions),
+        description="FUTSUB-P11 volume / activity FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "activity_primitives_only_guard": "enforced",
+            "feature_bindings": [_volume_activity_binding_metadata(binding) for binding in bindings],
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "activity_primitives_only_guard": "enforced",
+        "feature_bindings": [_volume_activity_binding_metadata(binding) for binding in bindings],
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=context.bar_rows,
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no volume/activity feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("volume/activity FeatureRequest gate did not return a checked request")
+        feature_spec = _definition_feature_spec(definition)
+        if not isinstance(feature_spec, FeatureSpec):
+            raise ScaleoutError("volume/activity definition did not expose a FeatureSpec")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _unit_executor_for_family(family: str) -> UnitExecutor:
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
@@ -1179,6 +1333,8 @@ def _unit_executor_for_family(family: str) -> UnitExecutor:
         return materialize_regime_volatility_compression_unit
     if family == "liquidity_sweep_pa_structure":
         return materialize_liquidity_sweep_pa_structure_unit
+    if family == "volume_activity":
+        return materialize_volume_activity_unit
     raise ScaleoutError(f"unsupported scaleout family: {family}")
 
 
@@ -1323,6 +1479,37 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
             ]
         )
+    if summary.family == "volume_activity":
+        lines.extend(
+            [
+                "",
+                "## Volume / Activity Primitive Bindings",
+                "",
+                "- `participation` is represented by existing rolling-volume and",
+                "  volume-zscore primitives; no new participation formula is introduced.",
+                "- `time_of_day_relative_volume` binds to existing volume-zscore plus",
+                "  session-minute context.",
+                "- `volume_regime` binds to existing rolling-volume and volume-zscore",
+                "  primitives.",
+                "- `activity_bursts` binds to existing volume-zscore plus rolling-range",
+                "  activity context.",
+                "- `effort_result_proxies` binds to existing rolling-volume, range-position,",
+                "  trendiness, close-location, and wick-rejection primitives.",
+                "- All bindings are deterministic OHLCV-derived primitives emitted at",
+                "  the current row `available_ts`; no volume feature zoo is introduced.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row feature values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -1352,6 +1539,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         "vwap_session_auction",
         "regime_volatility_compression",
         "liquidity_sweep_pa_structure",
+        "volume_activity",
     }:
         lines.extend(
             [
@@ -1542,6 +1730,13 @@ def _preview_feature_version_ids(
         return tuple(definition.feature_version_id for definition in definitions)
     if config.family == "liquidity_sweep_pa_structure":
         definitions = _liquidity_pa_structure_feature_definitions(
+            config,
+            unit,
+            lambda: (),
+        )
+        return tuple(definition.feature_version_id for definition in definitions)
+    if config.family == "volume_activity":
+        definitions = _volume_activity_feature_definitions(
             config,
             unit,
             lambda: (),
@@ -2206,6 +2401,205 @@ def _liquidity_pa_binding_metadata(
         "window_length": binding.window_length,
         "causal_available_ts": True,
         "objective_ohlcv_derived": True,
+    }
+
+
+def _volume_activity_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.ohlcv import (
+        OHLCVFeatureName,
+        build_ohlcv_feature_definition,
+    )
+    from alpha_system.features.families.structure import (
+        StructureFeatureName,
+        build_structure_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for binding in _volume_activity_bindings(unit.feature_names):
+        input_scope = {
+            "symbol": unit.symbol.upper(),
+            "partition_id": unit.partition_id,
+            "partition_schema": unit.schema_id,
+            "feature_pack_family": config.family,
+            "config_feature_names": list(binding.config_names),
+        }
+        if binding.primitive_family == "ohlcv":
+            definitions.append(
+                build_ohlcv_feature_definition(
+                    OHLCVFeatureName(binding.primitive_name),
+                    _volume_activity_feature_request(config, unit, binding),
+                    registry_reader,
+                    dataset_version_ids=dataset_version_ids,
+                    window_length=binding.window_length,
+                    horizon=binding.horizon,
+                    reset_on_session=True,
+                    input_scope=input_scope,
+                )
+            )
+        elif binding.primitive_family == "structure":
+            definitions.append(
+                build_structure_feature_definition(
+                    StructureFeatureName(binding.primitive_name),
+                    _volume_activity_feature_request(config, unit, binding),
+                    registry_reader,
+                    dataset_version_ids=dataset_version_ids,
+                    window_length=binding.window_length,
+                    reset_on_session=True,
+                    input_scope=input_scope,
+                )
+            )
+        else:
+            raise ScaleoutError(
+                f"unsupported volume/activity primitive family: {binding.primitive_family}"
+            )
+    return tuple(definitions)
+
+
+def _volume_activity_feature_request(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    binding: _VolumeActivityBinding,
+) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    exposure_family = f"{config.family}_{binding.exposure_name}"
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "operation": binding.primitive_name,
+            "config_feature_names": list(binding.config_names),
+            "primitive_family": binding.primitive_family,
+            "window": binding.window_length,
+            "horizon": binding.horizon,
+            "scaleout_unit_id": unit.unit_id,
+        },
+        availability_assumptions={
+            "timing": "feature value is emitted at the current row available_ts",
+            "lookback": (
+                "volume, activity, and effort/result state uses only rows whose "
+                "available_ts is less than or equal to the output available_ts"
+            ),
+            "future_state": "future labels and final-session aggregates are not inputs",
+            "feature_zoo": "new volume/activity primitives are forbidden in FUTSUB-P11",
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "bar_start_ts",
+                "event_ts",
+                "available_ts",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "session_label",
+                "quality_flags",
+            ],
+            "source": "already-canonical accepted OHLCV DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _volume_activity_bindings(
+    feature_names: Sequence[str],
+) -> tuple[_VolumeActivityBinding, ...]:
+    merged: dict[tuple[str, str], _VolumeActivityBinding] = {}
+    order: list[tuple[str, str]] = []
+    for config_name in feature_names:
+        for item in _volume_activity_binding_items(config_name):
+            family, primitive_name, exposure_name, window_length, horizon = item
+            key = (family, primitive_name)
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = _VolumeActivityBinding(
+                    config_names=(config_name,),
+                    primitive_family=family,
+                    primitive_name=primitive_name,
+                    exposure_name=exposure_name,
+                    window_length=window_length,
+                    horizon=horizon,
+                )
+                order.append(key)
+                continue
+            merged[key] = _VolumeActivityBinding(
+                config_names=(*existing.config_names, config_name),
+                primitive_family=existing.primitive_family,
+                primitive_name=existing.primitive_name,
+                exposure_name=existing.exposure_name,
+                window_length=existing.window_length,
+                horizon=existing.horizon,
+            )
+    if not order:
+        raise ScaleoutError("volume/activity config did not select any primitives")
+    return tuple(merged[key] for key in order)
+
+
+def _volume_activity_binding_items(
+    name: str,
+) -> tuple[tuple[str, str, str, int, int], ...]:
+    token = _require_text(name, "volume_activity feature name")
+    normalized = token.strip().lower()
+    if normalized == "participation":
+        return (
+            ("ohlcv", "rolling_volume", "rolling_volume_participation", 20, 1),
+            ("ohlcv", "volume_zscore", "volume_participation_zscore", 20, 1),
+        )
+    if normalized == "time_of_day_relative_volume":
+        return (
+            ("ohlcv", "session_minute", "session_minute_volume_context", 1, 1),
+            ("ohlcv", "volume_zscore", "time_of_day_relative_volume_zscore", 20, 1),
+        )
+    if normalized == "volume_regime":
+        return (
+            ("ohlcv", "rolling_volume", "rolling_volume_regime", 20, 1),
+            ("ohlcv", "volume_zscore", "volume_regime_zscore", 20, 1),
+        )
+    if normalized == "activity_bursts":
+        return (
+            ("ohlcv", "volume_zscore", "activity_burst_volume_zscore", 20, 1),
+            ("ohlcv", "rolling_range", "activity_burst_range_context", 20, 1),
+        )
+    if normalized == "effort_result_proxies":
+        return (
+            ("ohlcv", "rolling_volume", "effort_rolling_volume", 20, 1),
+            ("ohlcv", "range_position", "result_range_position", 20, 1),
+            ("ohlcv", "trendiness", "result_trendiness", 20, 1),
+            ("structure", "close_location_value", "effort_result_close_location", 3, 1),
+            ("structure", "wick_rejection_score", "effort_result_wick_rejection", 3, 1),
+        )
+    raise ScaleoutError(f"unsupported volume/activity feature: {name}")
+
+
+def _volume_activity_binding_metadata(binding: _VolumeActivityBinding) -> dict[str, object]:
+    return {
+        "config_feature_names": list(binding.config_names),
+        "governed_primitive_family": binding.primitive_family,
+        "governed_primitive_name": binding.primitive_name,
+        "exposure_name": binding.exposure_name,
+        "window_length": binding.window_length,
+        "horizon": binding.horizon,
+        "causal_available_ts": True,
+        "existing_primitives_only": True,
     }
 
 
