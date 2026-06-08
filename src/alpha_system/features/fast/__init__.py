@@ -19,6 +19,11 @@ from alpha_system.features.fast.materializer import (
     SymbolYearFrameRequest,
 )
 from alpha_system.features.fast.packs import build_fast_feature_pack
+from alpha_system.features.fast.session_calendar_roll import (
+    SESSION_CALENDAR_ROLL_FEATURE_IDS,
+    build_session_calendar_roll_pack,
+    supports_session_calendar_roll_pack,
+)
 
 __all__ = [
     "BASE_OHLCV_DDOF",
@@ -32,8 +37,11 @@ __all__ = [
     "FastFeaturePack",
     "PackMaterializer",
     "PackMaterializerError",
+    "SESSION_CALENDAR_ROLL_FEATURE_IDS",
     "SymbolYearFrameRequest",
     "build_base_ohlcv_pack",
     "build_fast_feature_pack",
+    "build_session_calendar_roll_pack",
     "supports_base_ohlcv_pack",
+    "supports_session_calendar_roll_pack",
 ]

@@ -62,6 +62,28 @@ oracle. The committed evidence is value-free: per-feature parity status,
 max/median absolute diffs, gap counts, `available_ts` parity, and
 feature-version identity equality only.
 
+## P03 Session / Calendar / Roll Pack
+
+`FCFP-P03` adds `alpha_system.features.fast.session_calendar_roll` and wires the
+governed `SESSION_CALENDAR_ROLL` family through the same
+`build_fast_feature_pack()` resolver. The pack computes session ids, RTH clock
+minutes, RTH/ETH flags, day-of-week, and roll proximity from one Polars OHLCV
+frame. Roll proximity follows the reference grouping and ordering:
+`instrument_id`, then `(bar_start_ts, available_ts)`, with the next
+`(contract_id, series_id)` transition backward-filled inside each instrument.
+
+The synthetic parity gate is exact for these integer/string/list features. It
+covers RTH/ETH boundaries, pre-open and post-close clock clamping,
+contract-roll proximity and absent-roll flags, synthetic no-trade
+position-only flags, row timing, entity ids, and feature-version identity.
+
+The canonical fast frame does not yet carry the optional expiration/status
+metadata maps used by the reference family. The fast pack therefore implements
+the faithful absent-metadata behavior for `minutes_to_expiration` and
+`halt_status_flag`: `None` values plus `expiration_metadata_absent` or
+`status_metadata_absent` flags. Present-metadata values remain deferred to the
+reference engine until a governed frame metadata projection is added.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live
