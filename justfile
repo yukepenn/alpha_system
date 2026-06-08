@@ -36,6 +36,25 @@ frontier-status:
 frontier-doctor:
     python tools/frontier/bootstrap.py doctor
 
+# Authoritative "what campaign/phase are we on" from the live run state, with
+# pointer-drift and runtime-contract checks. Source of truth for status.
+status-doctor:
+    python tools/frontier/status_doctor.py
+
+# One command an agent (or human) runs before a handoff/merge: live-status truth,
+# fast checks, the canary gate, and the artifact/boundary guards over the diff.
+agent-preflight:
+    python tools/frontier/status_doctor.py
+    python tools/verify.py --smoke
+    python tools/hooks/canary_runner.py
+    @bash -c 'files="$(git diff --name-only HEAD)"; if [ -n "$files" ]; then python tools/hooks/artifact_guard.py $files && python tools/hooks/boundary_guard.py $files; else echo "no changed files to guard"; fi'
+
+# Is the deterministic floor intact? Quick smoke + canaries + status reconciliation.
+doctor:
+    python tools/frontier/status_doctor.py
+    python tools/verify.py --smoke
+    python tools/hooks/canary_runner.py
+
 frontier-check-config:
     python tools/frontier/bootstrap.py check-config
 
