@@ -839,15 +839,30 @@ def _causal_window_points(
     reset_on_session: bool,
 ) -> tuple[PrimitivePoint, ...]:
     current = points[index]
-    start = 0
+    if shape.kind is WindowKind.EXPANDING:
+        # Expanding windows span the whole (optionally session-scoped) history, so
+        # the session boundary must be searched back to the start.
+        start = 0
+        if reset_on_session:
+            for prior_index in range(index - 1, -1, -1):
+                if points[prior_index].session_label != current.session_label:
+                    start = prior_index + 1
+                    break
+        return tuple(points[start : index + 1])
+    # Rolling / point-in-time windows are bounded by ``shape.length``, so a session
+    # reset can only shrink the window within the last ``length`` bars. Bound the
+    # backward session scan to that span: scanning all the way to index 0 made
+    # reset_on_session rolling features (e.g. ATR rolling_mean) O(n^2) and hung a
+    # full-year unit. The result is identical -- the original took
+    # max(session_start, index - length + 1), which only depends on session
+    # boundaries inside the window.
+    lower = max(0, index - shape.length + 1)
+    start = lower
     if reset_on_session:
-        for prior_index in range(index - 1, -1, -1):
+        for prior_index in range(index - 1, lower - 1, -1):
             if points[prior_index].session_label != current.session_label:
                 start = prior_index + 1
                 break
-    if shape.kind is WindowKind.EXPANDING:
-        return tuple(points[start : index + 1])
-    start = max(start, index - shape.length + 1)
     return tuple(points[start : index + 1])
 
 
