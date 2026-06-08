@@ -8,20 +8,21 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the post-merge state for `FUTSUB-P00`: campaign
-bootstrap complete as phase 1 of 34, with the six-file campaign bundle verified
-and the durable docs/evidence scaffolding added. Ralph owns validation routing,
+active. This snapshot reflects the post-merge state for `FUTSUB-P01`: reality
+baseline lock complete within the `bootstrap_and_contract` gate as phase 2 of
+34. The measured substrate reality and Core Pilot scaleout handoff are
+reconciled into a locked, value-free baseline. Ralph owns validation routing,
 staging, commit, review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: the next phase is `FUTSUB-P01` - Reality Report Lock and
-Core Pilot Handoff Ingestion.
+Active / next work: the next phase is `FUTSUB-P02` - DatasetVersion Inventory
+and Acceptance-Lock Contract.
 
-New durable surfaces in this `FUTSUB-P00` snapshot:
+New durable surfaces in this `FUTSUB-P01` snapshot:
 
-- `docs/futures_substrate_scaleout/`
-- `research/futures_substrate_scaleout_v1/`
+- `docs/futures_substrate_scaleout/REALITY_LOCK.md`
+- `research/futures_substrate_scaleout_v1/preflight/reality_baseline.md`
 
-`FUTSUB-P00` adds no new modules, commands, data readers, runtime behavior,
+`FUTSUB-P01` adds no new modules, commands, data readers, runtime behavior,
 diagnostics, broker surfaces, live surfaces, paper-trading surfaces, order
 routing, or deployment behavior.
 
