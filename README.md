@@ -8,25 +8,38 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has `1/16` phases
-complete after `FCFP-P00` Campaign Bootstrap and Active Pointer.
+complete after `FCFP-P00` Campaign Bootstrap and Active Pointer. `FCFP-P01`
+executor work is present in the working tree and still requires Ralph
+validation, staging, and fresh Yellow-lane review before it can be marked
+complete.
 
 Active / next phase: `FCFP-P01` V1 Engine Core + Reference-Parity Harness. The
 root `ACTIVE_CAMPAIGN.md` pointer selects `FEATURE_COMPUTE_FAST_PATH_V1` and
-records `FCFP-P01` as the next phase.
+records `FCFP-P01` as the active phase. The next build phase after P01
+acceptance is `FCFP-P02` base_ohlcv Polars Pack + Parity.
 
-New durable surfaces in this `FCFP-P00` snapshot:
+New durable surfaces in this `FCFP-P01` executor snapshot:
 
-- Fast-path documentation index under `docs/feature_compute_fast_path/`
+- `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
+  `src/alpha_system/features/fast/`
+- Synthetic reference-parity harness under
+  `tests/unit/feature_compute_fast_path/`
+- Tiny documented synthetic fixtures under
+  `tests/fixtures/feature_compute_fast_path/`
+- Fast-path engine contract docs under `docs/feature_compute_fast_path/`
 - Value-free evidence-directory skeleton under
   `research/feature_compute_fast_path_v1/`
-- No engine modules, parity harness, CLI commands, registry writes, benchmarks,
-  feature values, or label values were added in this phase.
+- No production family pack, CLI command, real-data backfill, benchmark,
+  feature/label value artifact, broker/live/paper behavior, or heavy artifact was
+  added in this phase.
 
 ## Source Of Truth
 
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
 - Campaign bundle: `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/`
 - Fast-path docs: `docs/feature_compute_fast_path/`
+- Fast-path engine core: `src/alpha_system/features/fast/`
+- Fast-path parity tests: `tests/unit/feature_compute_fast_path/`
 - Value-free research evidence root:
   `research/feature_compute_fast_path_v1/`
 - Commit-eligible handoffs:
