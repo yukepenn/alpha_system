@@ -9,16 +9,17 @@ The repository-level campaign pointer targets
 
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
 core plus governed `base_ohlcv`, `session_calendar_roll`,
-`vwap_session_auction`, and `regime_vol_compression` fast-pack executor work
-available in this worktree. `FCFP-P05` includes synthetic-fixture parity
-evidence and still requires Ralph validation, staging, and fresh Yellow-lane
-review before any phase verdict.
+`vwap_session_auction`, `regime_vol_compression`, and
+`liquidity_pa_structure` fast-pack executor work available in this worktree.
+`FCFP-P06` includes synthetic-fixture parity evidence and still requires Ralph
+validation, staging, and fresh Yellow-lane review before any phase verdict.
 
-Active / next phase: `FCFP-P05` regime/vol/compression Polars Pack + Parity.
-The remaining family-pack phases build in parallel and merge serially: next
-packs include `FCFP-P06` through `FCFP-P09`, followed by `FCFP-P10` labels.
+Active / next phase after P06 review and merge: `FCFP-P07` volume/activity
+Polars Pack + Parity. The remaining family-pack phases build in parallel and
+merge serially: next packs include `FCFP-P07` through `FCFP-P09`, followed by
+`FCFP-P10` labels.
 
-New durable surfaces in this `FCFP-P04` executor snapshot:
+New durable surfaces in this `FCFP-P06` executor snapshot:
 
 - `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
   `src/alpha_system/features/fast/`
@@ -30,19 +31,22 @@ New durable surfaces in this `FCFP-P04` executor snapshot:
   wiring under `src/alpha_system/features/fast/`
 - The V1 `regime_vol_compression` Polars pack and resolver wiring under
   `src/alpha_system/features/fast/`
+- The V1 `liquidity_pa_structure` Polars pack and resolver wiring under
+  `src/alpha_system/features/fast/`
 - Synthetic reference-parity harness under
   `tests/unit/feature_compute_fast_path/`
 - Base OHLCV, Session / Calendar / Roll, and VWAP / Session-Auction synthetic
-  parity tests, plus the Regime / Volatility / Compression parity test, under
-  `tests/unit/feature_compute_fast_path/`
+  parity tests, plus the Regime / Volatility / Compression and Liquidity / PA
+  Structure parity tests, under `tests/unit/feature_compute_fast_path/`
 - Tiny documented synthetic fixtures, including the 32-row Base OHLCV pack
   fixture, the dense-grid Session / Calendar / Roll pack fixture, the VWAP /
-  Session-Auction pack fixture, and the Regime / Volatility / Compression pack
-  fixture, under `tests/fixtures/feature_compute_fast_path/`
+  Session-Auction pack fixture, the Regime / Volatility / Compression pack
+  fixture, and the Liquidity / PA Structure pack fixture, under
+  `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
-- Value-free Base OHLCV, Session / Calendar / Roll, and VWAP /
-  Session-Auction parity reports, plus the Regime / Volatility / Compression
-  parity report, under `research/feature_compute_fast_path_v1/parity/`
+- Value-free Base OHLCV, Session / Calendar / Roll, VWAP / Session-Auction, and
+  Regime / Volatility / Compression parity reports under
+  `research/feature_compute_fast_path_v1/parity/`
 - No CLI command, real-data backfill, benchmark, feature/label value artifact,
   broker/live/paper behavior, or heavy artifact was added in this phase.
 

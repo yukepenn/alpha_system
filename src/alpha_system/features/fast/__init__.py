@@ -18,6 +18,11 @@ from alpha_system.features.fast.materializer import (
     PackMaterializerError,
     SymbolYearFrameRequest,
 )
+from alpha_system.features.fast.liquidity_pa_structure import (
+    LIQUIDITY_PA_STRUCTURE_FEATURE_IDS,
+    build_liquidity_pa_structure_pack,
+    supports_liquidity_pa_structure_pack,
+)
 from alpha_system.features.fast.packs import build_fast_feature_pack
 from alpha_system.features.fast.regime_vol_compression import (
     REGIME_VOL_COMPRESSION_FEATURE_IDS,
@@ -46,6 +51,7 @@ __all__ = [
     "FAST_VALUE_SCHEMA_VERSION",
     "FastFeatureDeclaration",
     "FastFeaturePack",
+    "LIQUIDITY_PA_STRUCTURE_FEATURE_IDS",
     "PackMaterializer",
     "PackMaterializerError",
     "REGIME_VOL_COMPRESSION_FEATURE_IDS",
@@ -55,10 +61,12 @@ __all__ = [
     "VWAP_SESSION_AUCTION_FEATURE_NAMES",
     "build_base_ohlcv_pack",
     "build_fast_feature_pack",
+    "build_liquidity_pa_structure_pack",
     "build_regime_vol_compression_pack",
     "build_session_calendar_roll_pack",
     "build_vwap_session_auction_pack",
     "supports_base_ohlcv_pack",
+    "supports_liquidity_pa_structure_pack",
     "supports_regime_vol_compression_pack",
     "supports_session_calendar_roll_pack",
     "supports_vwap_session_auction_pack",

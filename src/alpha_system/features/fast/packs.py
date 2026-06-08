@@ -8,6 +8,10 @@ from alpha_system.features.fast.base_ohlcv import (
     supports_base_ohlcv_pack,
 )
 from alpha_system.features.fast.materializer import FastFeaturePack, PackMaterializerError
+from alpha_system.features.fast.liquidity_pa_structure import (
+    build_liquidity_pa_structure_pack,
+    supports_liquidity_pa_structure_pack,
+)
 from alpha_system.features.fast.regime_vol_compression import (
     build_regime_vol_compression_pack,
     supports_regime_vol_compression_pack,
@@ -33,6 +37,8 @@ def build_fast_feature_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
         return build_vwap_session_auction_pack(feature_set)
     if supports_regime_vol_compression_pack(feature_set):
         return build_regime_vol_compression_pack(feature_set)
+    if supports_liquidity_pa_structure_pack(feature_set):
+        return build_liquidity_pa_structure_pack(feature_set)
     raise PackMaterializerError("no V1 fast pack registered for this FeatureSetSpec")
 
 
