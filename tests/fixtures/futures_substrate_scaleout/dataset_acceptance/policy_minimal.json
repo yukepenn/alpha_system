@@ -1,0 +1,34 @@
+{
+  "policy_id": "dataset_acceptance_test_policy_v1",
+  "expected_source": "dsrc_databento_historical",
+  "expected_symbols": ["ES"],
+  "expected_years": [2024],
+  "expected_schemas": {
+    "ohlcv_1m": {
+      "bar_size": "1 min",
+      "what_to_show": "TRADES"
+    }
+  },
+  "partial_year_end_ts": {},
+  "required_field_groups": [
+    "canonical_timestamps",
+    "available_ts",
+    "exchange_trade_date",
+    "session_segment",
+    "continuous_provenance",
+    "roll_boundary_metadata",
+    "quality_flags",
+    "missingness_flags"
+  ],
+  "required_registry_metadata_keys": [
+    "continuous_provenance",
+    "partition_contamination_metadata"
+  ],
+  "row_count_evidence_required": true,
+  "gap_evidence_required": true,
+  "required_field_evidence_required": true,
+  "missingness_quality_evidence_required": true,
+  "continuous_provenance_required": true,
+  "roll_metadata_required": true,
+  "missing_evidence_policy": "BLOCKED"
+}
