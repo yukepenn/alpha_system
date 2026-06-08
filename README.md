@@ -10,14 +10,15 @@ The repository-level campaign pointer targets
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
 core plus governed `base_ohlcv`, `session_calendar_roll`,
 `vwap_session_auction`, `regime_vol_compression`, `liquidity_pa_structure`,
-`volume_activity`, `bbo_tradability`, and `cross_market` fast-pack executor
-work available in this worktree. This is the `FCFP-P09` executor snapshot within
-the `FCFP-P00` through `FCFP-P15` campaign. Ralph owns validation, staging,
-Yellow-lane review routing, and any phase verdict.
+`volume_activity`, `bbo_tradability`, `cross_market`, and multi-horizon
+fixed-horizon label-pack executor work available in this worktree. This is the
+`FCFP-P10` executor snapshot within the `FCFP-P00` through `FCFP-P15` campaign.
+Ralph owns validation, staging, Yellow-lane review routing, and any phase
+verdict.
 
-Active / next phase after P09 review and merge: `FCFP-P10` multi-horizon
-fixed-horizon Label Pack + Parity, followed by targeted/incremental CLI work.
-Remaining phases merge serially.
+Active / next phases after P10 review and merge: `FCFP-P11` Targeted /
+Incremental Materialization CLI, `FCFP-P12` Engine / Value-Schema Versioning +
+Reconciliation, and `FCFP-P13` Benchmark Gate. Remaining phases merge serially.
 
 New durable surfaces in this `FCFP-P09` executor snapshot:
 
@@ -39,25 +40,29 @@ New durable surfaces in this `FCFP-P09` executor snapshot:
   `src/alpha_system/features/fast/`
 - The V1 `cross_market` aligned-panel Polars pack and resolver wiring under
   `src/alpha_system/features/fast/`
+- The V1 fixed-horizon label `FastLabelMaterializer` and governed label pack
+  under `src/alpha_system/labels/fast/`
 - Synthetic reference-parity harness under
   `tests/unit/feature_compute_fast_path/`
 - Base OHLCV, Session / Calendar / Roll, and VWAP / Session-Auction synthetic
   parity tests, plus the Regime / Volatility / Compression and Liquidity / PA
-  Structure, Volume / Activity, BBO Tradability, and Cross-Market parity tests,
-  under
+  Structure, Volume / Activity, BBO Tradability, Cross-Market, and
+  fixed-horizon label parity tests, under
   `tests/unit/feature_compute_fast_path/`
 - Tiny documented synthetic fixtures, including the 32-row Base OHLCV pack
   fixture, the dense-grid Session / Calendar / Roll pack fixture, the VWAP /
   Session-Auction pack fixture, the Regime / Volatility / Compression pack
   fixture, the Liquidity / PA Structure pack fixture, the Volume / Activity pack
-  fixture, the BBO Tradability pack fixture, and the ES/NQ/RTY Cross-Market
-  aligned-panel fixture, under
+  fixture, the BBO Tradability pack fixture, the ES/NQ/RTY Cross-Market
+  aligned-panel fixture, and the fixed-horizon label fixture, under
   `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
 - Value-free Base OHLCV, Session / Calendar / Roll, VWAP / Session-Auction, and
   Regime / Volatility / Compression parity reports plus the Cross-Market parity
   note under
   `research/feature_compute_fast_path_v1/parity/`
+- Value-free fixed-horizon label parity report under
+  `research/feature_compute_fast_path_v1/label_packs/`
 - No CLI command, real-data backfill, benchmark, feature/label value artifact,
   broker/live/paper behavior, or heavy artifact was added in this phase.
 
@@ -83,9 +88,11 @@ trading behavior.
 The reference feature/label engine remains the correctness oracle. Resolver
 exact-id semantics, official keystone registry writes, and serial registry writes
 are unchanged. The fast engine produces values for existing governed identities;
-it never mints V1-specific feature ids. Polars remains an optional dependency
-guarded by `require_dependency("polars")`. The campaign uses Green/Yellow scope
-only and introduces no Red scope.
+it never mints V1-specific feature ids or label ids. Fixed-horizon
+`label_version_id` values match the reference contracts, and label
+values/registries remain local-only under `ALPHA_DATA_ROOT`. Polars remains an
+optional dependency guarded by `require_dependency("polars")`. The campaign uses
+Green/Yellow scope only and introduces no Red scope.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data, feature

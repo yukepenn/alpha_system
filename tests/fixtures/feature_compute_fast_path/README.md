@@ -33,3 +33,7 @@ harness exercises both `insufficient_window` and `input_gap` quality flags.
   covers strict same-event alignment, delayed instrument availability,
   exact-time missing BBO flags, a missing RTY event that must not be imputed,
   no-trade and session-reset return gaps, and rolling variance gap branches.
+- `fixed_horizon_label.py` generates the `FCFP-P10` fixed-horizon label fixture.
+  It covers every governed close and midprice fixed-horizon label, exact
+  terminal-row exclusion, no-trade roll/maintenance quality flags, missing and
+  quarantined BBO rows, and value-free N_eff / horizon-overlap metadata.
