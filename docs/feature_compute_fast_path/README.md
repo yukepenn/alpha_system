@@ -58,3 +58,9 @@ top-book proxy features. Its synthetic parity test covers spread, top-book
 depth and imbalance, microprice, missing/quarantined BBO flags, wide-spread and
 low-depth flags, session-reset spread z-score behavior, availability, quality
 flags, and reference identity.
+
+`FCFP-P09` adds the `cross_market` aligned-panel pack for the governed
+ES/NQ/RTY Cross-Market family. Its synthetic parity test covers the
+`strict_intersection` no-forward-fill policy, max-across-instruments
+`available_ts`, optional exact-time BBO flags, no-trade and session-reset return
+gaps, rolling beta-residual / correlation gap rows, and reference identity.

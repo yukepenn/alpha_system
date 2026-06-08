@@ -214,6 +214,29 @@ input gap, reset-window warm-up after a session boundary, zero-range structure
 guards, `available_ts`, quality flags, and reference feature-version identity.
 No feature values or real market data are committed.
 
+## Cross-Market Aligned-Panel Pack
+
+`FCFP-P09` adds the governed Cross-Market pack:
+`alpha_system.features.fast.cross_market_panel`. The resolver accepts the exact
+11-feature ES/NQ/RTY Cross-Market feature set, and each declaration derives its
+`feature_version_id` from the same `FeatureSpec` identity as the reference
+family.
+
+The pack's `prepare_frame` builds one aligned panel and all declarations read
+from that panel. Under the governed `strict_intersection` alignment policy, ES,
+NQ, and RTY rows are joined only by exact shared `event_ts`; output
+`available_ts` is the max contributing row / return availability timestamp, and
+no instrument's stale return is carried into another instrument's later event.
+The legacy `asof` policy remains supported for feature specs that select it.
+
+The panel computes synchronized returns, return spreads, rolling beta residuals,
+rolling correlations, confirmation/divergence flags, and rotation proxies while
+preserving reference gap reasons and optional exact-time BBO quality flags. The
+synthetic parity fixture covers leading history gaps, no-trade input gaps,
+session-reset behavior, zero-benchmark and zero-target variance gaps, delayed
+availability, missing-instrument no-imputation, `available_ts`, quality flags,
+and reference identity. No feature values or real market data are committed.
+
 ## Optional Dependency
 
 Polars remains optional. Importing `alpha_system.features.fast` does not import

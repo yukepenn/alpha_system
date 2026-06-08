@@ -20,4 +20,5 @@ bundles. Local run state remains under `runs/**` and is not commit-eligible.
 `parity/base_ohlcv/` report for the first governed V1 family pack. `FCFP-P03`
 adds `parity/session_calendar_roll/`, `FCFP-P04` adds
 `parity/vwap_session_auction/`, and `FCFP-P05` adds
-`parity/regime_vol_compression/`.
+`parity/regime_vol_compression/`. `FCFP-P09` adds
+`parity/cross_market/` for the ES/NQ/RTY aligned-panel pack.

@@ -11,6 +11,10 @@ from alpha_system.features.fast.base_ohlcv import (
     build_base_ohlcv_pack,
     supports_base_ohlcv_pack,
 )
+from alpha_system.features.fast.cross_market_panel import (
+    build_cross_market_pack,
+    supports_cross_market_pack,
+)
 from alpha_system.features.fast.materializer import FastFeaturePack, PackMaterializerError
 from alpha_system.features.fast.liquidity_pa_structure import (
     build_liquidity_pa_structure_pack,
@@ -41,6 +45,8 @@ def build_fast_feature_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
         return build_bbo_tradability_pack(feature_set)
     if supports_base_ohlcv_pack(feature_set):
         return build_base_ohlcv_pack(feature_set)
+    if supports_cross_market_pack(feature_set):
+        return build_cross_market_pack(feature_set)
     if supports_session_calendar_roll_pack(feature_set):
         return build_session_calendar_roll_pack(feature_set)
     if supports_vwap_session_auction_pack(feature_set):
