@@ -16,3 +16,8 @@ This directory is the durable documentation index for
 synthetic reference-parity harness under `tests/unit/feature_compute_fast_path/`.
 It adds no production family pack, no CLI command, no real-data backfill, no
 feature/label values, no broker/live/paper behavior, and no heavy artifacts.
+
+`FCFP-P02` adds the first production family pack, `base_ohlcv`, under
+`src/alpha_system/features/fast/`. Its synthetic parity test covers the six
+governed Base OHLCV features and its value-free report lives under
+`research/feature_compute_fast_path_v1/parity/base_ohlcv/`.

@@ -16,5 +16,5 @@ feature values, materialized label values, Parquet/Arrow/Feather files, SQLite
 registries or journals, logs, caches, model artifacts, or generated report
 bundles. Local run state remains under `runs/**` and is not commit-eligible.
 
-`FCFP-P00` anchors this directory only; later phases may add value-free evidence
-summaries when their specs authorize them.
+`FCFP-P00` anchors this directory. `FCFP-P02` adds the value-free
+`parity/base_ohlcv/` report for the first governed V1 family pack.
