@@ -7,20 +7,18 @@ The repository-level campaign pointer targets
 `FEATURE_COMPUTE_FAST_PATH_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
-core plus governed `base_ohlcv`, `session_calendar_roll`,
-`vwap_session_auction`, `regime_vol_compression`, `liquidity_pa_structure`,
-`volume_activity`, `bbo_tradability`, `cross_market`, and multi-horizon
-fixed-horizon label-pack executor work available in this worktree. This is the
-`FCFP-P10` executor snapshot within the `FCFP-P00` through `FCFP-P15` campaign.
-Ralph owns validation, staging, Yellow-lane review routing, and any phase
-verdict.
+Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has `FCFP-P12`
+executor work available in this worktree: engine / value-schema versioning and
+reference-output reconciliation. The feature registry write path records
+`producer_engine_id` and `value_schema_version`, the reconciliation policy is
+defined, and silent reference/V1 engine mixing is blocked. Ralph owns
+validation, staging, Yellow-lane review routing, and any phase verdict.
 
-Active / next phases after P10 review and merge: `FCFP-P11` Targeted /
-Incremental Materialization CLI, `FCFP-P12` Engine / Value-Schema Versioning +
-Reconciliation, and `FCFP-P13` Benchmark Gate. Remaining phases merge serially.
+Active / next phases after P12 review and merge: `FCFP-P13` Benchmark Gate,
+then `FCFP-P14` V1 Producer Path Integration + Resolver Smoke, and `FCFP-P15`
+Closeout + FUTSUB Resume Handoff. Remaining phases merge serially.
 
-New durable surfaces in this `FCFP-P09` executor snapshot:
+New durable surfaces in this `FCFP-P12` executor snapshot:
 
 - `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
   `src/alpha_system/features/fast/`
@@ -42,6 +40,12 @@ New durable surfaces in this `FCFP-P09` executor snapshot:
   `src/alpha_system/features/fast/`
 - The V1 fixed-horizon label `FastLabelMaterializer` and governed label pack
   under `src/alpha_system/labels/fast/`
+- Feature producer provenance fields on the official `FeatureStore` /
+  `FeatureRegistry` write path, with reference and V1 producer engine ids kept
+  out of `feature_version_id`
+- Reconciliation helpers under `src/alpha_system/features/fast/` that classify
+  reference versus V1 outputs using documented tolerances and emit value-free
+  decisions
 - Synthetic reference-parity harness under
   `tests/unit/feature_compute_fast_path/`
 - Base OHLCV, Session / Calendar / Roll, and VWAP / Session-Auction synthetic
@@ -57,12 +61,16 @@ New durable surfaces in this `FCFP-P09` executor snapshot:
   aligned-panel fixture, and the fixed-horizon label fixture, under
   `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
+- Engine provenance and reconciliation docs under
+  `docs/feature_compute_fast_path/`
 - Value-free Base OHLCV, Session / Calendar / Roll, VWAP / Session-Auction, and
   Regime / Volatility / Compression parity reports plus the Cross-Market parity
   note under
   `research/feature_compute_fast_path_v1/parity/`
 - Value-free fixed-horizon label parity report under
   `research/feature_compute_fast_path_v1/label_packs/`
+- Value-free reconciliation summary under
+  `research/feature_compute_fast_path_v1/reconciliation/`
 - No CLI command, real-data backfill, benchmark, feature/label value artifact,
   broker/live/paper behavior, or heavy artifact was added in this phase.
 
@@ -87,11 +95,13 @@ trading behavior.
 
 The reference feature/label engine remains the correctness oracle. Resolver
 exact-id semantics, official keystone registry writes, and serial registry writes
-are unchanged. The fast engine produces values for existing governed identities;
-it never mints V1-specific feature ids or label ids. Fixed-horizon
-`label_version_id` values match the reference contracts, and label
-values/registries remain local-only under `ALPHA_DATA_ROOT`. Polars remains an
-optional dependency guarded by `require_dependency("polars")`. The campaign uses
+are preserved. The fast engine produces values for existing governed identities;
+it never mints V1-specific feature ids or label ids, and producer provenance
+does not enter identity. Existing valid reference outputs remain preserved and
+reconciled by policy; no manual SQLite write, paper/live/broker/order behavior,
+or profitability/tradability claim is authorized. Feature/label values and
+registries remain local-only under `ALPHA_DATA_ROOT`. Polars remains an optional
+dependency guarded by `require_dependency("polars")`. The campaign uses
 Green/Yellow scope only and introduces no Red scope.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence

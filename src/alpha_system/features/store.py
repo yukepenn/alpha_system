@@ -22,6 +22,7 @@ from alpha_system.features.registry import (
     FeatureRegistry,
     FeatureRegistryError,
     FeatureRegistryRecord,
+    REFERENCE_FEATURE_PRODUCER_ENGINE_ID,
 )
 from alpha_system.features.request_gate import evaluate_feature_request_gate
 from alpha_system.governance.feature_request import FeatureRequest
@@ -78,6 +79,7 @@ class FeatureStore:
         feature_version: FeatureVersion,
         feature_request: FeatureRequest | Mapping[str, Any] | None,
         lineage: FeatureLineageRecord | None = None,
+        producer_engine_id: str | None = None,
         registry_metadata: Mapping[str, Any] | None = None,
     ) -> FeatureRegistryRecord:
         """Register one materialized feature version after governance checks."""
@@ -85,6 +87,11 @@ class FeatureStore:
         spec = _require_validated_feature_spec(feature_spec)
         version = _require_matching_feature_version(feature_version, spec)
         lineage_record = _bind_lineage(spec, version, lineage)
+        producer_id = _producer_engine_id(
+            producer_engine_id,
+            lineage=lineage_record,
+            registry_metadata=registry_metadata,
+        )
         existing = self.registry.resolve_feature(version.feature_version_id)
         if (
             existing is not None
@@ -112,6 +119,7 @@ class FeatureStore:
                     value_store_format=value_store["value_store_format"],
                     parquet_path=value_store["parquet_path"],
                     value_content_hash=value_store["value_content_hash"],
+                    producer_engine_id=producer_id,
                     value_schema_version=value_store["value_schema_version"],
                     value_record_count=summary.count,
                     first_event_ts=summary.first_event_ts,
@@ -156,6 +164,7 @@ class FeatureStore:
             value_store_format=value_store["value_store_format"],
             parquet_path=value_store["parquet_path"],
             value_content_hash=value_store["value_content_hash"],
+            producer_engine_id=producer_id,
             value_schema_version=value_store["value_schema_version"],
             value_record_count=summary.count,
             first_event_ts=summary.first_event_ts,
@@ -178,6 +187,7 @@ class FeatureStore:
         feature_version: FeatureVersion,
         feature_request: FeatureRequest | Mapping[str, Any] | None,
         lineage: FeatureLineageRecord | None = None,
+        producer_engine_id: str | None = None,
         registry_metadata: Mapping[str, Any] | None = None,
     ) -> FeatureRegistryRecord:
         """Alias for ``register_materialized_feature``."""
@@ -188,6 +198,7 @@ class FeatureStore:
             feature_version=feature_version,
             feature_request=feature_request,
             lineage=lineage,
+            producer_engine_id=producer_engine_id,
             registry_metadata=registry_metadata,
         )
 
@@ -273,6 +284,36 @@ def _bind_lineage(
     if lineage.feature_request_id != feature_spec.feature_request_id:
         raise FeatureStoreError("lineage FeatureRequest id does not match registration")
     return lineage
+
+
+def _producer_engine_id(
+    value: str | None,
+    *,
+    lineage: FeatureLineageRecord,
+    registry_metadata: Mapping[str, Any] | None,
+) -> str:
+    explicit = _optional_text(value, "producer_engine_id")
+    if explicit is not None:
+        return explicit
+    if registry_metadata is not None:
+        metadata_payload = (
+            registry_metadata.to_dict()
+            if hasattr(registry_metadata, "to_dict")
+            else registry_metadata
+        )
+        metadata_value = _optional_text(
+            metadata_payload.get("producer_engine_id"),
+            "registry_metadata.producer_engine_id",
+        )
+        if metadata_value is not None:
+            return metadata_value
+    lineage_value = _optional_text(
+        lineage.contract_provenance.to_dict().get("producer_engine_id"),
+        "lineage.contract_provenance.producer_engine_id",
+    )
+    if lineage_value is not None:
+        return lineage_value
+    return REFERENCE_FEATURE_PRODUCER_ENGINE_ID
 
 
 def _approved_request_handle_id(
@@ -393,6 +434,17 @@ def _require_materialization_result(
     if not isinstance(materialization_result, FeatureMaterializationResult):
         raise FeatureStoreError("registration requires a FeatureMaterializationResult")
     return materialization_result
+
+
+def _optional_text(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise FeatureStoreError(f"{field_name} must be a string")
+    text = value.strip()
+    if not text or "\n" in text or "\r" in text:
+        raise FeatureStoreError(f"{field_name} must be a non-empty single-line string")
+    return text
 
 
 __all__ = [

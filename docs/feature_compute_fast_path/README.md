@@ -7,6 +7,9 @@ This directory is the durable documentation index for
   hard boundaries.
 - `PACK_MATERIALIZER.md` documents the P01 fast engine contract, identity
   guarantee, persistence path, parity harness, and optional-dependency policy.
+- `ENGINE_PROVENANCE_RECONCILIATION.md` documents the P12
+  `producer_engine_id` / `value_schema_version` registry provenance fields and
+  the no-silent-engine-mixing reconciliation policy.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
@@ -72,3 +75,10 @@ label, exact `label_available_ts`, terminal-row exclusion, gap / guard flags,
 reference `label_version_id` identity, value-free N_eff / horizon-overlap
 metadata, and serial `LabelRegistry` registration through the existing label
 keystone path. Longer ungoverned horizons remain a governance gap.
+
+`FCFP-P12` records feature producer provenance as a first-class registry record
+field, keeps value-schema versioning separate from identity, and defines the
+reference-output reconciliation policy. Existing valid reference outputs remain
+the parity reference when V1 is identical or within documented tolerance; beyond
+tolerance blocks silent mixing until a V1 bug fix, explicit schema bump, or
+official keystone re-materialization path is used.

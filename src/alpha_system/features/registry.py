@@ -48,6 +48,7 @@ from alpha_system.governance.serialization import JsonValue, canonical_serialize
 FEATURE_REGISTRY_SCHEMA = "alpha_system.features.registry.v1"
 FEATURE_DEPRECATION_SCHEMA = "alpha_system.features.deprecation.v1"
 DEFAULT_FEATURE_REGISTRY_RELATIVE_PATH = Path("registry") / "features.sqlite"
+REFERENCE_FEATURE_PRODUCER_ENGINE_ID = "alpha_system.features.reference.materializer.v1"
 PROHIBITED_FEATURE_REGISTRY_STATES: frozenset[str] = frozenset(
     {
         "ALPHA_VALIDATED",
@@ -96,6 +97,7 @@ class FeatureRegistryRecord:
     value_store_format: str = ValueStoreFormat.JSONL.value
     parquet_path: str | None = None
     value_content_hash: str | None = None
+    producer_engine_id: str | None = None
     value_schema_version: str | None = None
     lifecycle_state: FeatureRegistryLifecycleState | str = (
         FeatureRegistryLifecycleState.REGISTERED
@@ -205,6 +207,15 @@ class FeatureRegistryRecord:
         )
         object.__setattr__(
             self,
+            "producer_engine_id",
+            _producer_engine_id_from_provenance(
+                self.producer_engine_id,
+                registry_metadata=self.registry_metadata,
+                lineage_provenance=self.lineage.contract_provenance,
+            ),
+        )
+        object.__setattr__(
+            self,
             "value_schema_version",
             _optional_text_or_none(self.value_schema_version, "value_schema_version"),
         )
@@ -273,6 +284,7 @@ class FeatureRegistryRecord:
                 "value_store_format": self.value_store_format,
                 "parquet_path": self.parquet_path,
                 "value_content_hash": self.value_content_hash,
+                "producer_engine_id": self.producer_engine_id,
                 "value_schema_version": self.value_schema_version,
                 "value_record_count": self.value_record_count,
                 "first_event_ts": self.first_event_ts.isoformat(),
@@ -403,6 +415,7 @@ class FeatureRegistry:
                     value_store_format,
                     parquet_path,
                     value_content_hash,
+                    producer_engine_id,
                     value_schema_version,
                     value_record_count,
                     first_event_ts,
@@ -413,7 +426,7 @@ class FeatureRegistry:
                     registered_at,
                     metadata_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.feature_version_id,
@@ -427,6 +440,7 @@ class FeatureRegistry:
                     record.value_store_format,
                     record.parquet_path,
                     record.value_content_hash,
+                    record.producer_engine_id,
                     record.value_schema_version,
                     record.value_record_count,
                     record.first_event_ts.isoformat(),
@@ -691,6 +705,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             value_store_format TEXT NOT NULL DEFAULT 'jsonl',
             parquet_path TEXT,
             value_content_hash TEXT,
+            producer_engine_id TEXT,
             value_schema_version TEXT,
             value_record_count INTEGER NOT NULL,
             first_event_ts TEXT NOT NULL,
@@ -710,6 +725,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             "value_store_format": "TEXT NOT NULL DEFAULT 'jsonl'",
             "parquet_path": "TEXT",
             "value_content_hash": "TEXT",
+            "producer_engine_id": "TEXT",
             "value_schema_version": "TEXT",
         },
     )
@@ -861,6 +877,11 @@ def _record_from_row(row: sqlite3.Row) -> FeatureRegistryRecord:
             if "value_content_hash" in keys and row["value_content_hash"] is not None
             else record.value_content_hash
         ),
+        producer_engine_id=(
+            row["producer_engine_id"]
+            if "producer_engine_id" in keys and row["producer_engine_id"] is not None
+            else record.producer_engine_id
+        ),
         value_schema_version=(
             row["value_schema_version"]
             if "value_schema_version" in keys and row["value_schema_version"] is not None
@@ -948,6 +969,10 @@ def _record_from_json(text: str) -> FeatureRegistryRecord:
         value_content_hash=_optional_text_or_none(
             materialization.get("value_content_hash"),
             "materialization.value_content_hash",
+        ),
+        producer_engine_id=_optional_text_or_none(
+            materialization.get("producer_engine_id"),
+            "materialization.producer_engine_id",
         ),
         value_schema_version=_optional_text_or_none(
             materialization.get("value_schema_version"),
@@ -1317,6 +1342,26 @@ def _coerce_value_store_format(value: object) -> ValueStoreFormat:
         raise FeatureRegistryError(f"value_store_format must be one of: {allowed}") from exc
 
 
+def _producer_engine_id_from_provenance(
+    value: object,
+    *,
+    registry_metadata: Mapping[str, Any] | FrozenJsonMapping,
+    lineage_provenance: Mapping[str, Any] | FrozenJsonMapping,
+) -> str:
+    explicit = _optional_text_or_none(value, "producer_engine_id")
+    if explicit is not None:
+        return explicit
+    for source_name, source in (
+        ("registry_metadata.producer_engine_id", registry_metadata),
+        ("lineage.contract_provenance.producer_engine_id", lineage_provenance),
+    ):
+        payload = source.to_dict() if isinstance(source, FrozenJsonMapping) else source
+        candidate = _optional_text_or_none(payload.get("producer_engine_id"), source_name)
+        if candidate is not None:
+            return candidate
+    return REFERENCE_FEATURE_PRODUCER_ENGINE_ID
+
+
 def _freeze_json_mapping(
     value: Mapping[str, Any] | FrozenJsonMapping,
     field_name: str,
@@ -1403,6 +1448,7 @@ __all__ = [
     "FEATURE_DEPRECATION_SCHEMA",
     "FEATURE_REGISTRY_SCHEMA",
     "PROHIBITED_FEATURE_REGISTRY_STATES",
+    "REFERENCE_FEATURE_PRODUCER_ENGINE_ID",
     "FeatureDeprecationRecord",
     "FeatureRegistry",
     "FeatureRegistryError",
