@@ -8,35 +8,38 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P09`:
-Regime / Volatility / Compression FeaturePack Scaleout within the
+active. This snapshot reflects the executor-complete state for `FUTSUB-P10`:
+Liquidity Sweep / PA Structure FeaturePack Scaleout within the
 `feature_materialization` gate, following base OHLCV (`FUTSUB-P06`), Session /
-Calendar / Maintenance (`FUTSUB-P07`), and VWAP / Session Auction
-(`FUTSUB-P08`). Ralph owns validation routing, staging, commit, review routing,
-PR, CI, merge, and done-check actions.
+Calendar / Maintenance (`FUTSUB-P07`), VWAP / Session Auction (`FUTSUB-P08`),
+and Regime / Volatility / Compression (`FUTSUB-P09`). The P10 scaleout driver
+extension and value-free coverage preview are in place; the bounded-then-full
+execute command was attempted but this executor sandbox could not write
+`$ALPHA_DATA_ROOT/materialization`. Ralph owns any unsandboxed rerun,
+validation routing, staging, commit, review routing, PR, CI, merge, and
+done-check actions.
 
 Active / next work: remaining `feature_materialization` FeaturePack phases,
-beginning with `FUTSUB-P10` Liquidity Sweep / PA Structure FeaturePack
-Scaleout, then `FUTSUB-P11` through `FUTSUB-P13`.
+beginning with `FUTSUB-P11` Volume / Activity FeaturePack Scaleout, then
+`FUTSUB-P12` through `FUTSUB-P13`.
 
-New durable surfaces in this `FUTSUB-P09` snapshot:
+New durable surfaces in this `FUTSUB-P10` snapshot:
 
 - Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
 - CLI surface: `alpha scaleout feature-pack`
-- Regime / volatility / compression scaleout config:
-  `configs/features/scaleout/regime_volatility_compression.json`
-- Regime / volatility / compression value-free coverage evidence under
-  `research/futures_substrate_scaleout_v1/feature_packs/regime_volatility_compression/`
-- Regime / volatility / compression unit-executor dispatch in the scaleout
-  driver, plus symbol-scoped structure identity metadata for mixed
-  OHLCV/structure FeaturePack bindings
+- Liquidity Sweep / PA Structure scaleout config:
+  `configs/features/scaleout/liquidity_sweep_pa_structure.json`
+- Liquidity Sweep / PA Structure value-free coverage evidence under
+  `research/futures_substrate_scaleout_v1/feature_packs/liquidity_sweep_pa_structure/`
+- Liquidity / PA unit-executor dispatch in the scaleout driver, binding the
+  config labels to existing governed structure primitives only
 
-`FUTSUB-P09` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+`FUTSUB-P10` adds no raw/provider data reads, re-pulls, runtime diagnostics,
 broker surfaces, live surfaces, paper-trading surfaces, order routing, or
 deployment behavior. Feature values, registries, checkpoints, canonical data,
 and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed
-evidence is value-free. Regime/volatility/compression features are research
-substrate inputs only, not profitability or tradability evidence.
+evidence is value-free. Liquidity/PA structure features are research substrate
+inputs only, not profitability or tradability evidence.
 
 ## Source Of Truth
 
