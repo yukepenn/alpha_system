@@ -8,33 +8,34 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
-core available in this worktree. `FCFP-P02` executor work for the first governed
-family pack, `base_ohlcv`, is present with synthetic-fixture parity evidence and
-still requires Ralph validation, staging, and fresh Yellow-lane review before any
-phase verdict.
+core and the governed `base_ohlcv` fast pack available in this worktree.
+`FCFP-P03` executor work for the Session / Calendar / Roll pack is present with
+synthetic-fixture parity evidence and still requires Ralph validation, staging,
+and fresh Yellow-lane review before any phase verdict.
 
-Active / next phase: `FCFP-P02` base_ohlcv Polars Pack + Parity. The remaining
-family-pack phases build in parallel and merge serially: next packs include
-`FCFP-P03` session/calendar/maintenance, `FCFP-P04` VWAP/session-auction,
-`FCFP-P05` regime/vol/compression, the rest through `FCFP-P09`, and `FCFP-P10`
-labels.
+Active / next phase: `FCFP-P03` session/calendar/maintenance Polars Pack +
+Parity. The remaining family-pack phases build in parallel and merge serially:
+next packs include `FCFP-P04` VWAP/session-auction, `FCFP-P05`
+regime/vol/compression, the rest through `FCFP-P09`, and `FCFP-P10` labels.
 
-New durable surfaces in this `FCFP-P02` executor snapshot:
+New durable surfaces in this `FCFP-P03` executor snapshot:
 
 - `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
   `src/alpha_system/features/fast/`
 - The V1 `base_ohlcv` Polars pack and fail-closed pack resolver under
   `src/alpha_system/features/fast/`
+- The V1 `session_calendar_roll` Polars pack and resolver wiring under
+  `src/alpha_system/features/fast/`
 - Synthetic reference-parity harness under
   `tests/unit/feature_compute_fast_path/`
-- Base OHLCV synthetic parity tests under
+- Base OHLCV and Session / Calendar / Roll synthetic parity tests under
   `tests/unit/feature_compute_fast_path/`
 - Tiny documented synthetic fixtures, including the 32-row Base OHLCV pack
-  fixture, under
+  fixture and the dense-grid Session / Calendar / Roll pack fixture, under
   `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
-- Value-free Base OHLCV parity report under
-  `research/feature_compute_fast_path_v1/parity/base_ohlcv/`
+- Value-free Base OHLCV and Session / Calendar / Roll parity reports under
+  `research/feature_compute_fast_path_v1/parity/`
 - No CLI command, real-data backfill, benchmark, feature/label value artifact,
   broker/live/paper behavior, or heavy artifact was added in this phase.
 

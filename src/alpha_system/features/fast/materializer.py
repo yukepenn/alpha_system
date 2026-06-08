@@ -538,6 +538,7 @@ def _coerce_frame(frame: Any, polars: Any) -> Any:
         frame = frame.collect()
     if not isinstance(frame, polars.DataFrame):
         raise PackMaterializerError("canonical_frame must be a Polars DataFrame or LazyFrame")
+    frame = _with_optional_semantic_columns(frame, polars)
     return frame.sort("available_ts")
 
 
@@ -545,6 +546,25 @@ def _require_columns(frame: Any, columns: Sequence[str]) -> None:
     missing = tuple(column for column in columns if column not in frame.columns)
     if missing:
         raise PackMaterializerError("canonical frame missing columns: " + ", ".join(missing))
+
+
+def _with_optional_semantic_columns(frame: Any, polars: Any) -> Any:
+    """Supply defaults for dense-grid semantic columns when canonical rows omit them."""
+
+    defaults = {
+        "has_trade": polars.lit(None, dtype=polars.Boolean),
+        "synthetic": polars.lit(False, dtype=polars.Boolean),
+        "fill_method": polars.lit(None, dtype=polars.Utf8),
+        "provider_bar_ref": polars.lit(None, dtype=polars.Utf8),
+    }
+    expressions = [
+        expression.alias(column)
+        for column, expression in defaults.items()
+        if column not in frame.columns
+    ]
+    if not expressions:
+        return frame
+    return frame.with_columns(expressions)
 
 
 def _expr_or_default(expr: Any | None, default: Any, *, polars: Any) -> Any:

@@ -92,6 +92,35 @@ rows, quality flags, and feature-version identity. Five features are exact on
 the fixture; `volume_zscore` uses the documented rolling-standard-deviation
 float tolerance.
 
+## Session / Calendar / Roll Pack
+
+`FCFP-P03` adds the governed Session / Calendar / Roll pack:
+`alpha_system.features.fast.session_calendar_roll`. The resolver accepts the
+exact ten-feature `SESSION_CALENDAR_ROLL` feature set and derives every
+`feature_version_id` from the same `FeatureSpec` identity as the reference
+family.
+
+The pack computes:
+
+- `session_id`, RTH/ETH segment flags, and `day_of_week`
+- RTH clock minutes with `outside_rth`, `before_rth_open`, and
+  `after_rth_close` flags
+- `bars_to_roll` and `minutes_to_roll` by grouping on `instrument_id`, ordering
+  by `(bar_start_ts, available_ts)`, detecting adjacent `(contract_id,
+  series_id)` transitions, and backward-filling the next transition boundary
+- absent-metadata behavior for `minutes_to_expiration` and `halt_status_flag`
+
+When dense-grid semantic columns are present, the pack reproduces
+`synthetic_no_trade_position_only`; canonical sparse no-trade rows retain the
+reference `no_trade_position_only` flag. If those optional dense-grid columns
+are absent, the materializer supplies null/false defaults so existing canonical
+OHLCV frames remain valid.
+
+Present expiration/status metadata values are intentionally deferred because the
+P01 frame contract does not yet project the reference metadata maps as Polars
+columns. The fast pack does not fabricate those values; it emits `None` plus the
+reference absent-metadata flags.
+
 ## Optional Dependency
 
 Polars remains optional. Importing `alpha_system.features.fast` does not import

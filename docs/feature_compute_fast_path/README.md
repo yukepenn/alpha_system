@@ -21,3 +21,9 @@ feature/label values, no broker/live/paper behavior, and no heavy artifacts.
 `src/alpha_system/features/fast/`. Its synthetic parity test covers the six
 governed Base OHLCV features and its value-free report lives under
 `research/feature_compute_fast_path_v1/parity/base_ohlcv/`.
+
+`FCFP-P03` adds the `session_calendar_roll` pack for the governed Session /
+Calendar / Roll family. Its synthetic parity test covers exact integer/string
+values, row timing, entity ids, feature-version identity, sorted quality flags,
+RTH/ETH session edges, roll proximity, synthetic no-trade position-only flags,
+and absent optional expiration/status metadata.

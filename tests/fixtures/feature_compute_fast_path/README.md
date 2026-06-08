@@ -11,3 +11,7 @@ harness exercises both `insufficient_window` and `input_gap` quality flags.
 - `base_ohlcv.py` generates the 32-row `FCFP-P02` Base OHLCV pack fixture. It
   includes enough rows to exercise `window=20` rolling gaps, no-trade gap
   propagation, and post-gap recovery without storing any real values.
+- `session_calendar_roll.py` generates the dense-grid `FCFP-P03` Session /
+  Calendar / Roll pack fixture. It covers RTH/ETH labels, pre-open and
+  post-close RTH-clock edges, a contract-roll transition, a synthetic no-trade
+  position-only row, and absent optional metadata flags.
