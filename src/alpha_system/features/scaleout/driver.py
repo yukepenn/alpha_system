@@ -584,6 +584,141 @@ def run_scaleout(
     )
 
 
+def _materialize_unit_per_feature(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    accepted: Any,
+    feature_definition_builders: Sequence[Callable[[object], Any]],
+    inputs_factory: Callable[[Mapping[str, Any]], Any],
+    feature_set_metadata: Mapping[str, Any],
+    governance_metadata: Mapping[str, Any],
+    description: str,
+    feature_set_version_suffix: Callable[[Any], str],
+    empty_values_message: str,
+) -> MaterializedUnitEvidence:
+    """Materialize and register every governed feature of one unit, per feature.
+
+    The FLF-P05 duplicate-exposure request gate is re-evaluated against the live
+    feature registry at registration time, and the request id is a function of the
+    registry state observed when the request is checked. A single combined
+    ``materialize_features`` call would freeze every FeatureSpec (and its request id)
+    against one registry snapshot, but each registration mutates the registry, so the
+    later siblings' frozen request ids no longer match the registration-time gate
+    (``checked FeatureRequest id must match FeatureSpec.feature_request_id``).
+
+    Mirroring the sanctioned ``run_seed_feature_pack`` seam, each feature is therefore
+    built against the current live registry and materialized + registered on its own
+    (one Parquet path per feature) so build-time and registration-time gate state
+    agree. Feature identity (``feature_version_id``) is content-addressed and
+    registry-state-independent, so the registered ids still equal the write-free
+    dry-run preview and keystone identity is preserved. The per-feature Parquet path
+    and content hash are verified through ``register_materialized_feature`` for each
+    registered FeatureVersion.
+    """
+
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec
+    from alpha_system.features.engine.materialization import (
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if not feature_definition_builders:
+        raise ScaleoutError(f"unit {unit.unit_id} did not select any governed features")
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    feature_version_ids: list[str] = []
+    parquet_paths: list[str] = []
+    content_hashes: list[str] = []
+    schema_versions: list[str | None] = []
+    total_rows = 0
+    for builder in feature_definition_builders:
+        # Build this one feature against the LIVE registry so its request gate
+        # decision (and request id) matches what register_materialized_feature
+        # re-checks immediately afterward.
+        definition = builder(store.registry)
+        feature_spec = _definition_feature_spec(definition)
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("FeatureRequest gate did not return a checked request")
+        # Feature-level idempotency. ``feature_version_id`` is content-addressed over
+        # the computational contract (FeatureSpec.to_identity_dict), so an already
+        # registered fver whose Parquet file still exists is the byte-identical
+        # feature this unit would otherwise recompute. Reuse it and skip
+        # re-materialization. This makes the driver restart-safe at feature
+        # granularity: a unit that was only partially registered by an earlier run
+        # (or that shares an already-registered feature) completes without
+        # recomputing finished features or tripping the FeatureStore identity guard
+        # on records that legitimately predate this run.
+        existing_fvid = definition.feature_version_id
+        existing_record = store.resolve_feature(existing_fvid)
+        existing_parquet = getattr(existing_record, "parquet_path", None)
+        if existing_record is not None and existing_parquet and Path(existing_parquet).exists():
+            feature_version_ids.append(existing_fvid)
+            parquet_paths.append(str(existing_parquet))
+            content_hashes.append(str(getattr(existing_record, "value_content_hash", "") or ""))
+            schema_versions.append(getattr(existing_record, "value_schema_version", None))
+            total_rows += int(getattr(existing_record, "value_record_count", 0) or 0)
+            continue
+        feature_set = FeatureSetSpec(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=f"{unit.feature_set_version}_{feature_set_version_suffix(definition)}",
+            features=(feature_spec,),
+            description=description,
+            metadata=dict(feature_set_metadata),
+        )
+        plan = build_feature_materialization_plan(
+            feature_set,
+            accepted,
+            partition_id=unit.partition_id,
+            alpha_data_root=alpha_data_root,
+            governance_metadata=governance_metadata,
+            output_namespace=config.value_namespace,
+        )
+        result = materialize_features(
+            plan,
+            inputs_factory(governance_metadata),
+            (definition,),
+            value_store_format=ValueStoreFormat.PARQUET,
+        )
+        if result.record_count == 0:
+            raise ScaleoutError(empty_values_message.format(unit_id=unit.unit_id))
+        handle = result.value_store_handle
+        if not isinstance(handle, ValueStoreHandle):
+            raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+        parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+        content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        _verify_feature_registry_roundtrip(
+            unit,
+            alpha_data_root=alpha_data_root,
+            feature_version_ids=(record.feature_version_id,),
+            parquet_path=parquet_path,
+            content_hash=content_hash,
+            value_schema_version=handle.schema_version,
+        )
+        feature_version_ids.append(record.feature_version_id)
+        parquet_paths.append(parquet_path)
+        content_hashes.append(content_hash)
+        schema_versions.append(handle.schema_version)
+        total_rows += handle.value_count
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_paths[0],
+        content_hash=content_hashes[0],
+        row_count=total_rows,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def materialize_base_ohlcv_unit(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
@@ -591,56 +726,109 @@ def materialize_base_ohlcv_unit(
     dataset_registry_path: Path,
     canonical_root: Path,
 ) -> MaterializedUnitEvidence:
-    """Materialize one Base OHLCV unit through the sanctioned seed-pack path."""
+    """Materialize one Base OHLCV unit through the sanctioned seam.
 
-    from alpha_system.cli.seed_pack import run_seed_feature_pack
+    Each governed Base OHLCV FeatureSpec is built through the SAME path as
+    ``run_seed_feature_pack`` (``_build_feature_request`` + ``_feature_input_scope`` +
+    ``build_ohlcv_feature_definition``) and materialized + registered per feature via
+    ``_materialize_unit_per_feature``, so the registered ``feature_version_id``s are
+    identical to the write-free dry-run preview and keystone identity is preserved.
+    """
+
+    from alpha_system.cli.seed_pack import (
+        _build_accepted_context,
+        _build_feature_request,
+        _coerce_feature_name,
+        _feature_input_scope,
+    )
+    from alpha_system.features.families.ohlcv import build_ohlcv_feature_definition
 
     if config.family != "base_ohlcv" or unit.family != "base_ohlcv":
         raise ScaleoutError("FUTSUB-P06 executor supports only the base_ohlcv family")
 
     seed_config = _seed_config(config, unit)
-    summary = run_seed_feature_pack(
+    context = _build_accepted_context(
         seed_config,
-        alpha_data_root=alpha_data_root,
         canonical_root=canonical_root,
         datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
-        value_store_format=ValueStoreFormat.PARQUET,
     )
-    handles = _value_store_handles(summary)
-    if not handles:
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_paths = {
-        _require_text(handle.get("parquet_path"), "value_store_handle.parquet_path")
-        for handle in handles
+
+    def _make_builder(entry: Any) -> Callable[[object], Any]:
+        def _build(registry_reader: object) -> Any:
+            request = _build_feature_request(
+                seed_config.feature_set, entry.name, exposure_scope=unit.partition_id
+            )
+            return build_ohlcv_feature_definition(
+                _coerce_feature_name(entry.name),
+                request,
+                registry_reader,
+                dataset_version_ids=(unit.dataset_version_id,),
+                window_length=entry.window_length,
+                horizon=entry.horizon,
+                reset_on_session=False,
+                input_scope=_feature_input_scope(seed_config),
+            )
+
+        return _build
+
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    content_hashes = {
-        _require_text(handle.get("content_hash"), "value_store_handle.content_hash")
-        for handle in handles
+    feature_set_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "family": config.family,
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    value_counts = [
-        _positive_int(handle.get("value_count"), "value_store_handle.value_count")
-        for handle in handles
-    ]
-    if len(parquet_paths) != 1:
-        raise ScaleoutError("unit produced multiple Parquet paths")
-    if len(content_hashes) != 1:
-        raise ScaleoutError("unit produced multiple content hashes")
-    feature_version_ids = tuple(
-        _require_text(value, "feature_version_id")
-        for value in _sequence(summary.get("feature_version_ids"), "feature_version_ids")
-    )
-    _verify_feature_registry_roundtrip(
+    return _materialize_unit_per_feature(
+        config,
         unit,
         alpha_data_root=alpha_data_root,
-        feature_version_ids=feature_version_ids,
-        parquet_path=next(iter(parquet_paths)),
+        accepted=context.accepted,
+        feature_definition_builders=[
+            _make_builder(entry) for entry in seed_config.feature_set.features
+        ],
+        inputs_factory=lambda gm: _ohlcv_inputs(context, gm),
+        feature_set_metadata=feature_set_metadata,
+        governance_metadata=governance_metadata,
+        description="FUTSUB-P06 Base OHLCV FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no base OHLCV feature values",
     )
-    return MaterializedUnitEvidence(
-        parquet_path=next(iter(parquet_paths)),
-        content_hash=next(iter(content_hashes)),
-        row_count=sum(value_counts),
-        feature_version_ids=feature_version_ids,
+
+
+def _ohlcv_inputs(context: Any, governance_metadata: Mapping[str, Any]) -> Any:
+    from alpha_system.features.engine.materialization import FeatureMaterializationInputs
+
+    return FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=context.bar_rows,
+        governance_metadata=governance_metadata,
+    )
+
+
+def _bar_or_dense_inputs(
+    config: ScaleoutConfig,
+    context: Any,
+    governance_metadata: Mapping[str, Any],
+) -> Any:
+    from alpha_system.features.engine.materialization import FeatureMaterializationInputs
+
+    return FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=() if config.dense_grid_required else context.bar_rows,
+        dense_grid_bar_rows=context.bar_rows if config.dense_grid_required else (),
+        governance_metadata=governance_metadata,
     )
 
 
@@ -659,14 +847,6 @@ def materialize_session_calendar_maintenance_unit(
         SeedPackConfig,
         _build_accepted_context,
     )
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if (
         config.family != "session_calendar_maintenance"
@@ -699,86 +879,32 @@ def materialize_session_calendar_maintenance_unit(
         datasets_registry_path=dataset_registry_path,
         bar_rows=None,
         bar_row_loader=_session_bar_row_loader,
-        quality_coverage_builder=None,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _session_feature_definitions(config, unit, store.registry)
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(definition.spec.feature_spec for definition in definitions),
-        description="FUTSUB-P07 session/calendar/maintenance FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "point_in_time_session_metadata_guard": "enforced",
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "point_in_time_session_metadata_guard": "enforced",
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
-        alpha_data_root=alpha_data_root,
-        governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
-    )
-    inputs = FeatureMaterializationInputs(
-        accepted_version=context.accepted,
-        bar_rows=() if config.dense_grid_required else context.bar_rows,
-        dense_grid_bar_rows=context.bar_rows if config.dense_grid_required else (),
-        governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no session feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("session FeatureRequest gate did not return a checked request")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=definition.spec.feature_spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
         unit,
         alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
+        accepted=context.accepted,
+        feature_definition_builders=_session_definition_builders(config, unit),
+        inputs_factory=lambda gm: _bar_or_dense_inputs(config, context, gm),
+        feature_set_metadata=base_metadata,
+        governance_metadata=governance_metadata,
+        description="FUTSUB-P07 session/calendar/maintenance FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no session feature values",
     )
 
 
@@ -797,14 +923,6 @@ def materialize_vwap_session_auction_unit(
         SeedPackConfig,
         _build_accepted_context,
     )
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if config.family != "vwap_session_auction" or unit.family != "vwap_session_auction":
         raise ScaleoutError("FUTSUB-P08 executor supports only the vwap_session_auction family")
@@ -833,89 +951,34 @@ def materialize_vwap_session_auction_unit(
         datasets_registry_path=dataset_registry_path,
         bar_rows=None,
         bar_row_loader=_session_bar_row_loader,
-        quality_coverage_builder=None,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _vwap_session_auction_feature_definitions(config, unit, store.registry)
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(definition.spec for definition in definitions),
-        description="FUTSUB-P08 VWAP / session-auction FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "running_vwap_point_in_time_guard": "enforced",
-            "final_session_aggregate_intraday_use": "forbidden",
-            "feature_bindings": [_vwap_binding_metadata(binding) for binding in bindings],
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "running_vwap_point_in_time_guard": "enforced",
         "final_session_aggregate_intraday_use": "forbidden",
         "feature_bindings": [_vwap_binding_metadata(binding) for binding in bindings],
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
-        alpha_data_root=alpha_data_root,
-        governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
-    )
-    inputs = FeatureMaterializationInputs(
-        accepted_version=context.accepted,
-        bar_rows=context.bar_rows,
-        governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no VWAP/session feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("VWAP/session FeatureRequest gate did not return a checked request")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=definition.spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
         unit,
         alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
+        accepted=context.accepted,
+        feature_definition_builders=_vwap_session_auction_definition_builders(config, unit),
+        inputs_factory=lambda gm: _ohlcv_inputs(context, gm),
+        feature_set_metadata=base_metadata,
+        governance_metadata=governance_metadata,
+        description="FUTSUB-P08 VWAP / session-auction FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no VWAP/session feature values",
     )
 
 
@@ -934,14 +997,6 @@ def materialize_regime_volatility_compression_unit(
         SeedPackConfig,
         _build_accepted_context,
     )
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if (
         config.family != "regime_volatility_compression"
@@ -979,94 +1034,35 @@ def materialize_regime_volatility_compression_unit(
         datasets_registry_path=dataset_registry_path,
         bar_rows=None,
         bar_row_loader=_session_bar_row_loader,
-        quality_coverage_builder=None,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _regime_volatility_compression_feature_definitions(
-        config,
-        unit,
-        store.registry,
-    )
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(_definition_feature_spec(definition) for definition in definitions),
-        description="FUTSUB-P09 regime / volatility / compression FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "available_ts_regime_guard": "enforced",
-            "feature_bindings": [_regime_binding_metadata(binding) for binding in bindings],
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "available_ts_regime_guard": "enforced",
         "feature_bindings": [_regime_binding_metadata(binding) for binding in bindings],
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
-        alpha_data_root=alpha_data_root,
-        governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
-    )
-    inputs = FeatureMaterializationInputs(
-        accepted_version=context.accepted,
-        bar_rows=context.bar_rows,
-        governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no regime feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("regime FeatureRequest gate did not return a checked request")
-        feature_spec = _definition_feature_spec(definition)
-        if not isinstance(feature_spec, FeatureSpec):
-            raise ScaleoutError("regime definition did not expose a FeatureSpec")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=feature_spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
         unit,
         alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
+        accepted=context.accepted,
+        feature_definition_builders=_regime_volatility_compression_definition_builders(
+            config, unit
+        ),
+        inputs_factory=lambda gm: _ohlcv_inputs(context, gm),
+        feature_set_metadata=base_metadata,
+        governance_metadata=governance_metadata,
+        description="FUTSUB-P09 regime / volatility / compression FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no regime feature values",
     )
 
 
@@ -1085,14 +1081,6 @@ def materialize_liquidity_sweep_pa_structure_unit(
         SeedPackConfig,
         _build_accepted_context,
     )
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if (
         config.family != "liquidity_sweep_pa_structure"
@@ -1130,96 +1118,34 @@ def materialize_liquidity_sweep_pa_structure_unit(
         datasets_registry_path=dataset_registry_path,
         bar_rows=None,
         bar_row_loader=_session_bar_row_loader,
-        quality_coverage_builder=None,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _liquidity_pa_structure_feature_definitions(
-        config,
-        unit,
-        store.registry,
-    )
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(_definition_feature_spec(definition) for definition in definitions),
-        description="FUTSUB-P10 liquidity-sweep / PA-structure FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "objective_pa_guard": "enforced",
-            "subjective_pa_encoding": "forbidden",
-            "feature_bindings": [_liquidity_pa_binding_metadata(binding) for binding in bindings],
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "objective_pa_guard": "enforced",
         "subjective_pa_encoding": "forbidden",
         "feature_bindings": [_liquidity_pa_binding_metadata(binding) for binding in bindings],
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
-        alpha_data_root=alpha_data_root,
-        governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
-    )
-    inputs = FeatureMaterializationInputs(
-        accepted_version=context.accepted,
-        bar_rows=context.bar_rows,
-        governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no liquidity/PA feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("liquidity/PA FeatureRequest gate did not return a checked request")
-        feature_spec = _definition_feature_spec(definition)
-        if not isinstance(feature_spec, FeatureSpec):
-            raise ScaleoutError("liquidity/PA definition did not expose a FeatureSpec")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=feature_spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
         unit,
         alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
+        accepted=context.accepted,
+        feature_definition_builders=_liquidity_pa_structure_definition_builders(config, unit),
+        inputs_factory=lambda gm: _ohlcv_inputs(context, gm),
+        feature_set_metadata=base_metadata,
+        governance_metadata=governance_metadata,
+        description="FUTSUB-P10 liquidity-sweep / PA-structure FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no liquidity/PA feature values",
     )
 
 
@@ -1238,14 +1164,6 @@ def materialize_volume_activity_unit(
         SeedPackConfig,
         _build_accepted_context,
     )
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if config.family != "volume_activity" or unit.family != "volume_activity":
         raise ScaleoutError("FUTSUB-P11 executor supports only the volume_activity family")
@@ -1278,90 +1196,33 @@ def materialize_volume_activity_unit(
         datasets_registry_path=dataset_registry_path,
         bar_rows=None,
         bar_row_loader=_session_bar_row_loader,
-        quality_coverage_builder=None,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _volume_activity_feature_definitions(config, unit, store.registry)
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(_definition_feature_spec(definition) for definition in definitions),
-        description="FUTSUB-P11 volume / activity FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "activity_primitives_only_guard": "enforced",
-            "feature_bindings": [_volume_activity_binding_metadata(binding) for binding in bindings],
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "activity_primitives_only_guard": "enforced",
         "feature_bindings": [_volume_activity_binding_metadata(binding) for binding in bindings],
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
-        alpha_data_root=alpha_data_root,
-        governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
-    )
-    inputs = FeatureMaterializationInputs(
-        accepted_version=context.accepted,
-        bar_rows=context.bar_rows,
-        governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no volume/activity feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("volume/activity FeatureRequest gate did not return a checked request")
-        feature_spec = _definition_feature_spec(definition)
-        if not isinstance(feature_spec, FeatureSpec):
-            raise ScaleoutError("volume/activity definition did not expose a FeatureSpec")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=feature_spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
         unit,
         alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
+        accepted=context.accepted,
+        feature_definition_builders=_volume_activity_definition_builders(config, unit),
+        inputs_factory=lambda gm: _ohlcv_inputs(context, gm),
+        feature_set_metadata=base_metadata,
+        governance_metadata=governance_metadata,
+        description="FUTSUB-P11 volume / activity FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no volume/activity feature values",
     )
 
 
@@ -1373,15 +1234,6 @@ def materialize_bbo_tradability_top_book_unit(
     canonical_root: Path,
 ) -> MaterializedUnitEvidence:
     """Materialize one BBO tradability / top-book unit through the sanctioned seam."""
-
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if (
         config.family != "bbo_tradability_top_book"
@@ -1398,32 +1250,9 @@ def materialize_bbo_tradability_top_book_unit(
         canonical_root=canonical_root,
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _bbo_tradability_top_book_feature_definitions(config, unit, store.registry)
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(_definition_feature_spec(definition) for definition in definitions),
-        description="FUTSUB-P12 BBO tradability / top-book FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
-            "execution_truth_claims": "forbidden",
-            "passive_fill_claims": "forbidden",
-            "queue_priority_claims": "forbidden",
-            "impact_claims": "forbidden",
-            "available_ts_forward_fill_guard": "preserve_canonical_bbo_available_ts",
-            "missingness_policy": "surface_flags_no_silent_imputation",
-            "feature_bindings": [_bbo_binding_metadata(binding) for binding in bindings],
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
         "execution_truth_claims": "forbidden",
@@ -1435,61 +1264,31 @@ def materialize_bbo_tradability_top_book_unit(
         "feature_bindings": [_bbo_binding_metadata(binding) for binding in bindings],
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
+        unit,
         alpha_data_root=alpha_data_root,
+        accepted=context.accepted,
+        feature_definition_builders=_bbo_tradability_top_book_definition_builders(config, unit),
+        inputs_factory=lambda gm: _bbo_inputs(context, gm),
+        feature_set_metadata=base_metadata,
         governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
+        description="FUTSUB-P12 BBO tradability / top-book FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no BBO feature values",
     )
-    inputs = FeatureMaterializationInputs(
+
+
+def _bbo_inputs(context: Any, governance_metadata: Mapping[str, Any]) -> Any:
+    from alpha_system.features.engine.materialization import FeatureMaterializationInputs
+
+    return FeatureMaterializationInputs(
         accepted_version=context.accepted,
         bbo_rows=context.bbo_rows,
         governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no BBO feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("BBO FeatureRequest gate did not return a checked request")
-        feature_spec = _definition_feature_spec(definition)
-        if not isinstance(feature_spec, FeatureSpec):
-            raise ScaleoutError("BBO definition did not expose a FeatureSpec")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=feature_spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
-        unit,
-        alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
     )
 
 
@@ -1501,15 +1300,6 @@ def materialize_cross_market_alignment_unit(
     canonical_root: Path,
 ) -> MaterializedUnitEvidence:
     """Materialize one cross-market alignment unit through the sanctioned seam."""
-
-    from alpha_system.core.value_store import ValueStoreHandle
-    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
-    from alpha_system.features.engine.materialization import (
-        FeatureMaterializationInputs,
-        build_feature_materialization_plan,
-        materialize_features,
-    )
-    from alpha_system.features.store import FeatureStore
 
     if (
         config.family != "cross_market_alignment"
@@ -1525,31 +1315,9 @@ def materialize_cross_market_alignment_unit(
         canonical_root=canonical_root,
     )
 
-    store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _cross_market_alignment_feature_definitions(config, unit, store.registry)
-    feature_set = FeatureSetSpec(
-        feature_set_id=unit.feature_set_id,
-        feature_set_version=unit.feature_set_version,
-        features=tuple(_definition_feature_spec(definition) for definition in definitions),
-        description="FUTSUB-P13 cross-market alignment FeaturePack scaleout unit",
-        metadata={
-            "campaign_id": config.campaign_id,
-            "phase_id": config.phase_id,
-            "family": config.family,
-            "target_symbol": unit.symbol.upper(),
-            "alignment_policy": "strict_intersection",
-            "per_instrument_available_ts": "preserved",
-            "cross_instrument_forward_fill": "forbidden",
-            "missing_instrument_imputation": "forbidden",
-            "feature_bindings": [_cross_market_binding_metadata(binding) for binding in bindings],
-            "row_counts_by_symbol": dict(context.row_counts_by_symbol),
-            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-        },
-    )
-    governance_metadata = {
+    base_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
         "family": config.family,
         "target_symbol": unit.symbol.upper(),
         "alignment_policy": "strict_intersection",
@@ -1560,61 +1328,31 @@ def materialize_cross_market_alignment_unit(
         "row_counts_by_symbol": dict(context.row_counts_by_symbol),
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    plan = build_feature_materialization_plan(
-        feature_set,
-        context.accepted,
-        partition_id=unit.partition_id,
+    governance_metadata = {**base_metadata, "unit_id": unit.unit_id}
+    return _materialize_unit_per_feature(
+        config,
+        unit,
         alpha_data_root=alpha_data_root,
+        accepted=context.accepted,
+        feature_definition_builders=_cross_market_alignment_definition_builders(config, unit),
+        inputs_factory=lambda gm: _cross_market_inputs(context, gm),
+        feature_set_metadata=base_metadata,
         governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
+        description="FUTSUB-P13 cross-market alignment FeaturePack scaleout unit",
+        feature_set_version_suffix=lambda definition: _definition_feature_spec(
+            definition
+        ).feature_id,
+        empty_values_message="unit {unit_id} produced no cross-market feature values",
     )
-    inputs = FeatureMaterializationInputs(
+
+
+def _cross_market_inputs(context: Any, governance_metadata: Mapping[str, Any]) -> Any:
+    from alpha_system.features.engine.materialization import FeatureMaterializationInputs
+
+    return FeatureMaterializationInputs(
         accepted_version=context.accepted,
         bar_rows=context.bar_rows,
         governance_metadata=governance_metadata,
-    )
-    result = materialize_features(
-        plan,
-        inputs,
-        definitions,
-        value_store_format=ValueStoreFormat.PARQUET,
-    )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no cross-market feature values")
-    handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    feature_version_ids: list[str] = []
-    for definition in definitions:
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("cross-market FeatureRequest gate did not return a checked request")
-        feature_spec = _definition_feature_spec(definition)
-        if not isinstance(feature_spec, FeatureSpec):
-            raise ScaleoutError("cross-market definition did not expose a FeatureSpec")
-        record = store.register_materialized_feature(
-            result,
-            feature_spec=feature_spec,
-            feature_version=definition.version,
-            feature_request=checked_request,
-            registry_metadata=governance_metadata,
-        )
-        feature_version_ids.append(record.feature_version_id)
-    _verify_feature_registry_roundtrip(
-        unit,
-        alpha_data_root=alpha_data_root,
-        feature_version_ids=tuple(feature_version_ids),
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
-    )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=tuple(feature_version_ids),
     )
 
 
@@ -2010,6 +1748,59 @@ class _ScaleoutLedger:
         return self.alpha_data_root / relative
 
 
+def _registry_completed_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+) -> ScaleoutUnitRecord | None:
+    """Detect a unit already fully materialized in the live feature registry.
+
+    The scaleout feature identity (``feature_version_id``) is content-addressed and
+    registry-state independent, so the write-free identity preview yields exactly the
+    ids a successful ``--execute`` would register. When every previewed id already
+    resolves to a registered FeatureVersion whose Parquet file exists, the unit is
+    already materialized: re-running it would (correctly) trip the FLF-P05
+    duplicate-exposure guard at registration time. Treating it as completed makes the
+    driver idempotent across runs even when the local checkpoint ledger was lost,
+    without bypassing the guard or hand-writing any registry records. A partially
+    registered unit (some ids missing or Parquet absent) returns ``None`` so the
+    executor runs normally and the guard remains the authority on duplicates.
+    """
+
+    try:
+        feature_version_ids = _preview_feature_version_ids(config, unit)
+    except (ValueError, ScaleoutError, KeyError, OSError):
+        return None
+    if not feature_version_ids:
+        return None
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    parquet_paths: list[str] = []
+    content_hashes: list[str] = []
+    total_rows = 0
+    for feature_version_id in feature_version_ids:
+        try:
+            record = store.resolve_feature(feature_version_id)
+        except Exception:  # noqa: BLE001 - any resolve failure => not completed
+            return None
+        if record is None:
+            return None
+        parquet_path = getattr(record, "parquet_path", None)
+        if not parquet_path or not Path(parquet_path).exists():
+            return None
+        parquet_paths.append(str(parquet_path))
+        content_hashes.append(str(getattr(record, "value_content_hash", "") or ""))
+        total_rows += int(getattr(record, "value_record_count", 0) or 0)
+    return ScaleoutUnitRecord(
+        unit=unit,
+        status="completed",
+        stage="registry_resume",
+        parquet_path=parquet_paths[0],
+        content_hash=content_hashes[0],
+        row_count=total_rows,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _execute_stage(
     config: ScaleoutConfig,
     units: tuple[ScaleoutUnit, ...],
@@ -2024,6 +1815,14 @@ def _execute_stage(
     records: list[ScaleoutUnitRecord] = []
     for unit in units:
         completed = ledger.latest_completed(unit)
+        if completed is None:
+            registry_completed = _registry_completed_unit(config, unit, alpha_data_root)
+            if registry_completed is not None:
+                # Persist a checkpoint marker so subsequent runs short-circuit via the
+                # ledger without re-querying the registry, then fall through to the
+                # shared skip path below.
+                ledger.append(registry_completed)
+                completed = registry_completed
         if completed is not None:
             status = "skipped" if completed.status == "completed" else "failed"
             record = ScaleoutUnitRecord(
@@ -2173,17 +1972,97 @@ def _feature_window(name: str) -> int:
     return 1
 
 
+def _on_disk_partition_schema(
+    canonical_root: str | Path,
+    dataset_version_id: str,
+    registry_schema: str,
+) -> str:
+    """Resolve the on-disk canonical partition schema for one DatasetVersion.
+
+    The registry/inventory schema name (e.g. ``ohlcv_dense_research_grid``) is not
+    always the on-disk partition directory name (e.g. ``ohlcv_1m_dense``). The
+    canonical layer records the real partition schema in each DatasetVersion's
+    ``manifest.json``; resolve it from there rather than hardcoding a map, so the
+    loader reads the actual ``schema=<...>`` directory. Falls back to the supplied
+    registry schema when no manifest partition schema is recorded.
+    """
+
+    registry_schema = _require_text(registry_schema, "registry_schema")
+    manifest_path = (
+        Path(canonical_root)
+        / _require_text(dataset_version_id, "dataset_version_id")
+        / "manifest.json"
+    )
+    if not manifest_path.exists():
+        return registry_schema
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return registry_schema
+    if not isinstance(manifest, Mapping):
+        return registry_schema
+    on_disk = manifest.get("partition_schema")
+    if isinstance(on_disk, str) and on_disk.strip():
+        return on_disk.strip()
+    return registry_schema
+
+
 def _session_bar_row_loader(**kwargs: Any) -> tuple[dict[str, Any], ...]:
     from alpha_system.data.foundation.canonical_loader import load_canonical_ohlcv_rows
 
-    return load_canonical_ohlcv_rows(**kwargs)
+    canonical_root = kwargs.get("canonical_root")
+    dataset_version_id = kwargs.get("dataset_version_id")
+    registry_schema = kwargs.get("partition_schema")
+    if (
+        canonical_root is not None
+        and isinstance(dataset_version_id, str)
+        and isinstance(registry_schema, str)
+    ):
+        kwargs = dict(kwargs)
+        kwargs["partition_schema"] = _on_disk_partition_schema(
+            canonical_root,
+            dataset_version_id,
+            registry_schema,
+        )
+    # Dense-grid partitions carry research-grid-only columns (has_trade, synthetic,
+    # fill_method, provider_bar_ref) on top of the canonical OHLCV field set; the
+    # dense-grid feature input view requires those columns, so loaded rows are
+    # returned unprojected here. Quality/coverage projection (which consumes the
+    # canonical-only CanonicalBarRecord contract) is handled by
+    # _scaleout_quality_coverage_builder.
+    return tuple(load_canonical_ohlcv_rows(**kwargs))
 
 
-def _session_feature_definitions(
+def _scaleout_quality_coverage_builder(
+    config: Any,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    repo_root: str | Path,
+) -> tuple[Any, Any]:
+    """Build real quality/coverage reports from canonical-projected OHLCV rows.
+
+    Dense-grid canonical partitions carry research-grid-only columns on top of the
+    canonical OHLCV field set. The seed operator's default quality/coverage builder
+    consumes the canonical-only ``CanonicalBarRecord`` contract, so project each row
+    to the canonical OHLCV fields before delegating to the sanctioned real builder.
+    This is a no-op for standard ``ohlcv_1m`` partitions (which already carry exactly
+    the canonical fields) and keeps the full dense rows available to the dense-grid
+    feature input view.
+    """
+
+    from alpha_system.cli.seed_pack import _build_real_quality_coverage
+    from alpha_system.data.foundation.canonical_loader import CANONICAL_OHLCV_FIELDS
+
+    projected = tuple(
+        _canonical_ohlcv_mapping(row, fields=CANONICAL_OHLCV_FIELDS) for row in rows
+    )
+    return _build_real_quality_coverage(config, projected, repo_root=repo_root)
+
+
+def _session_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.session import (
         SessionFeatureName,
         build_session_feature_definition,
@@ -2192,11 +2071,12 @@ def _session_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for feature_name in unit.feature_names:
+
+    def _make(feature_name: str) -> Callable[[object], Any]:
         name = SessionFeatureName(feature_name)
-        definitions.append(
-            build_session_feature_definition(
+
+        def _build(registry_reader: object) -> Any:
+            return build_session_feature_definition(
                 name,
                 _session_feature_request(config, unit, name),
                 registry_reader,
@@ -2210,8 +2090,39 @@ def _session_feature_definitions(
                     "partition_schema": unit.schema_id,
                 },
             )
-        )
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(_make(feature_name) for feature_name in unit.feature_names)
+
+
+def _session_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader) for builder in _session_definition_builders(config, unit)
+    )
+
+
+def _scaleout_exposure_family(family: str, unit: ScaleoutUnit, name: str) -> str:
+    """Build a per-unit duplicate-exposure family for one scaleout feature.
+
+    Scaleout materializes one feature definition across many (symbol, year) units.
+    Each (symbol, year) is a distinct research data asset -- the content-addressed
+    ``feature_version_id`` already differs per unit via ``input_scope`` -- so each
+    must declare a distinct FLF-P05 duplicate-exposure family. A symbol/year-agnostic
+    family makes the guard treat the second and later symbols/years of the same
+    feature as a BLOCKING duplicate of the first, which is exactly what stalled the
+    full-window scaleout after only the first symbol of each family registered. The
+    ``partition_id`` (e.g. ``ES_2024_full_year``) uniquely scopes symbol+year. The
+    exposure family is excluded from feature identity (``FeatureSpec.to_identity_dict``
+    omits ``feature_request_id``), so this scoping never alters ``feature_version_id``;
+    it only lets genuinely distinct per-instrument/per-year exposures co-register.
+    """
+
+    return f"{family}_{unit.partition_id}_{name}"
 
 
 def _session_feature_request(config: ScaleoutConfig, unit: ScaleoutUnit, name: Any) -> Any:
@@ -2225,7 +2136,7 @@ def _session_feature_request(config: ScaleoutConfig, unit: ScaleoutUnit, name: A
     )
 
     feature_name = _require_text(getattr(name, "value", str(name)), "session feature name")
-    exposure_family = f"{config.family}_{feature_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, feature_name)
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
@@ -2259,11 +2170,10 @@ def _session_feature_request(config: ScaleoutConfig, unit: ScaleoutUnit, name: A
     )
 
 
-def _vwap_session_auction_feature_definitions(
+def _vwap_session_auction_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.ohlcv import (
         OHLCVFeatureName,
         build_ohlcv_feature_definition,
@@ -2272,11 +2182,12 @@ def _vwap_session_auction_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for binding in _vwap_session_auction_bindings(unit.feature_names):
+
+    def _make(binding: _VWAPSessionAuctionBinding) -> Callable[[object], Any]:
         name = OHLCVFeatureName(binding.ohlcv_name)
-        definitions.append(
-            build_ohlcv_feature_definition(
+
+        def _build(registry_reader: object) -> Any:
+            return build_ohlcv_feature_definition(
                 name,
                 _vwap_session_auction_feature_request(config, unit, binding),
                 registry_reader,
@@ -2294,8 +2205,21 @@ def _vwap_session_auction_feature_definitions(
                     "config_feature_name": binding.config_name,
                 },
             )
-        )
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(_make(binding) for binding in _vwap_session_auction_bindings(unit.feature_names))
+
+
+def _vwap_session_auction_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _vwap_session_auction_definition_builders(config, unit)
+    )
 
 
 def _vwap_session_auction_feature_request(
@@ -2313,7 +2237,7 @@ def _vwap_session_auction_feature_request(
     )
 
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"{config.family}_{binding.exposure_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, binding.exposure_name)
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
         requested_inputs=[exposure_family],
@@ -2433,11 +2357,10 @@ def _vwap_binding_metadata(binding: _VWAPSessionAuctionBinding) -> dict[str, obj
     return payload
 
 
-def _regime_volatility_compression_feature_definitions(
+def _regime_volatility_compression_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.ohlcv import (
         OHLCVFeatureName,
         build_ohlcv_feature_definition,
@@ -2450,8 +2373,8 @@ def _regime_volatility_compression_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for binding in _regime_volatility_compression_bindings(unit.feature_names):
+
+    def _make(binding: _RegimeVolatilityCompressionBinding) -> Callable[[object], Any]:
         input_scope = {
             "symbol": unit.symbol.upper(),
             "partition_id": unit.partition_id,
@@ -2459,9 +2382,10 @@ def _regime_volatility_compression_feature_definitions(
             "feature_pack_family": config.family,
             "config_feature_name": binding.config_name,
         }
-        if binding.primitive_family == "ohlcv":
-            definitions.append(
-                build_ohlcv_feature_definition(
+
+        def _build(registry_reader: object) -> Any:
+            if binding.primitive_family == "ohlcv":
+                return build_ohlcv_feature_definition(
                     OHLCVFeatureName(binding.primitive_name),
                     _regime_volatility_compression_feature_request(config, unit, binding),
                     registry_reader,
@@ -2471,10 +2395,8 @@ def _regime_volatility_compression_feature_definitions(
                     reset_on_session=True,
                     input_scope=input_scope,
                 )
-            )
-        elif binding.primitive_family == "structure":
-            definitions.append(
-                build_structure_feature_definition(
+            if binding.primitive_family == "structure":
+                return build_structure_feature_definition(
                     StructureFeatureName(binding.primitive_name),
                     _regime_volatility_compression_feature_request(config, unit, binding),
                     registry_reader,
@@ -2483,10 +2405,27 @@ def _regime_volatility_compression_feature_definitions(
                     reset_on_session=True,
                     input_scope=input_scope,
                 )
+            raise ScaleoutError(
+                f"unsupported regime primitive family: {binding.primitive_family}"
             )
-        else:
-            raise ScaleoutError(f"unsupported regime primitive family: {binding.primitive_family}")
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(
+        _make(binding)
+        for binding in _regime_volatility_compression_bindings(unit.feature_names)
+    )
+
+
+def _regime_volatility_compression_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _regime_volatility_compression_definition_builders(config, unit)
+    )
 
 
 def _regime_volatility_compression_feature_request(
@@ -2504,7 +2443,7 @@ def _regime_volatility_compression_feature_request(
     )
 
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"{config.family}_{binding.exposure_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, binding.exposure_name)
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
         requested_inputs=[exposure_family],
@@ -2622,11 +2561,10 @@ def _regime_binding_metadata(
     }
 
 
-def _liquidity_pa_structure_feature_definitions(
+def _liquidity_pa_structure_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.structure import (
         StructureFeatureName,
         build_structure_feature_definition,
@@ -2635,8 +2573,8 @@ def _liquidity_pa_structure_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for binding in _liquidity_pa_structure_bindings(unit.feature_names):
+
+    def _make(binding: _LiquidityPAStructureBinding) -> Callable[[object], Any]:
         input_scope = {
             "symbol": unit.symbol.upper(),
             "partition_id": unit.partition_id,
@@ -2644,8 +2582,9 @@ def _liquidity_pa_structure_feature_definitions(
             "feature_pack_family": config.family,
             "config_feature_names": list(binding.config_names),
         }
-        definitions.append(
-            build_structure_feature_definition(
+
+        def _build(registry_reader: object) -> Any:
+            return build_structure_feature_definition(
                 StructureFeatureName(binding.primitive_name),
                 _liquidity_pa_structure_feature_request(config, unit, binding),
                 registry_reader,
@@ -2654,8 +2593,23 @@ def _liquidity_pa_structure_feature_definitions(
                 reset_on_session=True,
                 input_scope=input_scope,
             )
-        )
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(
+        _make(binding) for binding in _liquidity_pa_structure_bindings(unit.feature_names)
+    )
+
+
+def _liquidity_pa_structure_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _liquidity_pa_structure_definition_builders(config, unit)
+    )
 
 
 def _liquidity_pa_structure_feature_request(
@@ -2673,7 +2627,7 @@ def _liquidity_pa_structure_feature_request(
     )
 
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"{config.family}_{binding.exposure_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, binding.exposure_name)
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
         requested_inputs=[exposure_family],
@@ -2799,11 +2753,10 @@ def _liquidity_pa_binding_metadata(
     }
 
 
-def _volume_activity_feature_definitions(
+def _volume_activity_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.ohlcv import (
         OHLCVFeatureName,
         build_ohlcv_feature_definition,
@@ -2816,8 +2769,8 @@ def _volume_activity_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for binding in _volume_activity_bindings(unit.feature_names):
+
+    def _make(binding: _VolumeActivityBinding) -> Callable[[object], Any]:
         input_scope = {
             "symbol": unit.symbol.upper(),
             "partition_id": unit.partition_id,
@@ -2825,9 +2778,10 @@ def _volume_activity_feature_definitions(
             "feature_pack_family": config.family,
             "config_feature_names": list(binding.config_names),
         }
-        if binding.primitive_family == "ohlcv":
-            definitions.append(
-                build_ohlcv_feature_definition(
+
+        def _build(registry_reader: object) -> Any:
+            if binding.primitive_family == "ohlcv":
+                return build_ohlcv_feature_definition(
                     OHLCVFeatureName(binding.primitive_name),
                     _volume_activity_feature_request(config, unit, binding),
                     registry_reader,
@@ -2837,10 +2791,8 @@ def _volume_activity_feature_definitions(
                     reset_on_session=True,
                     input_scope=input_scope,
                 )
-            )
-        elif binding.primitive_family == "structure":
-            definitions.append(
-                build_structure_feature_definition(
+            if binding.primitive_family == "structure":
+                return build_structure_feature_definition(
                     StructureFeatureName(binding.primitive_name),
                     _volume_activity_feature_request(config, unit, binding),
                     registry_reader,
@@ -2849,12 +2801,24 @@ def _volume_activity_feature_definitions(
                     reset_on_session=True,
                     input_scope=input_scope,
                 )
-            )
-        else:
             raise ScaleoutError(
                 f"unsupported volume/activity primitive family: {binding.primitive_family}"
             )
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(_make(binding) for binding in _volume_activity_bindings(unit.feature_names))
+
+
+def _volume_activity_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _volume_activity_definition_builders(config, unit)
+    )
 
 
 def _volume_activity_feature_request(
@@ -2872,7 +2836,7 @@ def _volume_activity_feature_request(
     )
 
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"{config.family}_{binding.exposure_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, binding.exposure_name)
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
         requested_inputs=[exposure_family],
@@ -2998,11 +2962,10 @@ def _volume_activity_binding_metadata(binding: _VolumeActivityBinding) -> dict[s
     }
 
 
-def _bbo_tradability_top_book_feature_definitions(
+def _bbo_tradability_top_book_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.bbo import (
         BBOFeatureName,
         build_bbo_feature_definition,
@@ -3011,10 +2974,10 @@ def _bbo_tradability_top_book_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for binding in _bbo_tradability_top_book_bindings(unit.feature_names):
-        definitions.append(
-            build_bbo_feature_definition(
+
+    def _make(binding: _BBOTradabilityTopBookBinding) -> Callable[[object], Any]:
+        def _build(registry_reader: object) -> Any:
+            return build_bbo_feature_definition(
                 BBOFeatureName(binding.bbo_name),
                 _bbo_tradability_top_book_feature_request(config, unit, binding),
                 registry_reader,
@@ -3030,8 +2993,23 @@ def _bbo_tradability_top_book_feature_definitions(
                     "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
                 },
             )
-        )
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(
+        _make(binding) for binding in _bbo_tradability_top_book_bindings(unit.feature_names)
+    )
+
+
+def _bbo_tradability_top_book_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _bbo_tradability_top_book_definition_builders(config, unit)
+    )
 
 
 def _bbo_tradability_top_book_feature_request(
@@ -3049,7 +3027,7 @@ def _bbo_tradability_top_book_feature_request(
     )
 
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"{config.family}_{binding.exposure_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, binding.exposure_name)
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
         requested_inputs=[exposure_family],
@@ -3157,11 +3135,10 @@ def _bbo_binding_metadata(binding: _BBOTradabilityTopBookBinding) -> dict[str, o
     }
 
 
-def _cross_market_alignment_feature_definitions(
+def _cross_market_alignment_definition_builders(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     from alpha_system.features.families.cross_market import (
         CrossMarketFeatureName,
         build_cross_market_feature_definition,
@@ -3170,10 +3147,10 @@ def _cross_market_alignment_feature_definitions(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
-    definitions = []
-    for binding in _cross_market_alignment_bindings(unit.feature_names):
-        definitions.append(
-            build_cross_market_feature_definition(
+
+    def _make(binding: _CrossMarketAlignmentBinding) -> Callable[[object], Any]:
+        def _build(registry_reader: object) -> Any:
+            return build_cross_market_feature_definition(
                 CrossMarketFeatureName(binding.cross_market_name),
                 _cross_market_alignment_feature_request(config, unit, binding),
                 registry_reader,
@@ -3191,8 +3168,23 @@ def _cross_market_alignment_feature_definitions(
                     "cross_market_alignment_policy": "strict_intersection",
                 },
             )
-        )
-    return tuple(definitions)
+
+        return _build
+
+    return tuple(
+        _make(binding) for binding in _cross_market_alignment_bindings(unit.feature_names)
+    )
+
+
+def _cross_market_alignment_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _cross_market_alignment_definition_builders(config, unit)
+    )
 
 
 def _cross_market_alignment_feature_request(
@@ -3210,7 +3202,7 @@ def _cross_market_alignment_feature_request(
     )
 
     notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
-    exposure_family = f"{config.family}_{unit.symbol.lower()}_{binding.exposure_name}"
+    exposure_family = _scaleout_exposure_family(config.family, unit, binding.exposure_name)
     return create_feature_request(
         alpha_spec_id=config.alpha_spec_id,
         requested_inputs=[exposure_family],
@@ -3399,7 +3391,11 @@ def _build_cross_market_accepted_context(
 
     rows: list[Mapping[str, Any]] = []
     row_counts: dict[str, int] = {}
-    partition_schema = _cross_market_partition_schema(unit.schema_id)
+    partition_schema = _on_disk_partition_schema(
+        canonical_root,
+        unit.dataset_version_id,
+        unit.schema_id,
+    )
     for symbol in config.symbols:
         loaded = tuple(
             load_canonical_ohlcv_rows(
@@ -3475,14 +3471,6 @@ def _build_cross_market_accepted_context(
     )
 
 
-def _cross_market_partition_schema(schema_id: str) -> str:
-    if schema_id == "ohlcv_dense_research_grid":
-        return "ohlcv_1m_dense"
-    if schema_id == "ohlcv_1m":
-        return "ohlcv_1m"
-    raise ScaleoutError(f"unsupported cross-market primary schema: {schema_id}")
-
-
 def _canonical_ohlcv_mapping(
     row: Mapping[str, Any],
     *,
@@ -3535,7 +3523,11 @@ def _build_bbo_accepted_context(
             symbol=unit.symbol,
             start_ts=unit.window_start_ts,
             end_ts=unit.window_end_ts,
-            partition_schema=unit.schema_id,
+            partition_schema=_on_disk_partition_schema(
+                canonical_root,
+                unit.dataset_version_id,
+                unit.schema_id,
+            ),
         )
     )
     if not rows:
@@ -3993,7 +3985,17 @@ def _optional_repo_path(value: object) -> Path | None:
 
 
 def _render_partition(template: str, *, symbol: str, year: int) -> str:
-    return template.format(symbol=symbol, target_symbol=symbol, year=year)
+    rendered = template.format(symbol=symbol, target_symbol=symbol, year=year)
+    # partition_id must be a valid identifier for data/foundation/datasets.py
+    # (_normalize_id allows only alphanumeric, underscore, and hyphen). The config
+    # templates use dotted segments (e.g. "ES.2024.full_year"); normalize the
+    # dotted/whitespace separators to underscores generically so every current and
+    # future family (and label) config that reuses the dotted pattern resolves to a
+    # valid identifier without per-config edits.
+    sanitized = re.sub(r"[^0-9A-Za-z_-]+", "_", rendered).strip("_")
+    if not sanitized:
+        raise ScaleoutError(f"rendered partition id is empty after sanitization: {rendered!r}")
+    return sanitized
 
 
 def _require_mapping(value: object, field_name: str) -> Mapping[str, Any]:
