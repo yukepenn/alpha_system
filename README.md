@@ -8,40 +8,43 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P12`:
-BBO Tradability / Top-Book FeaturePack Scaleout within the
-`feature_materialization` gate, following base OHLCV (`FUTSUB-P06`), Session /
+active. This snapshot reflects the executor-complete state for `FUTSUB-P13`:
+Cross-Market Alignment FeaturePack Scaleout, the eighth and final family in the
+`feature_materialization` gate after base OHLCV (`FUTSUB-P06`), Session /
 Calendar / Maintenance (`FUTSUB-P07`), VWAP / Session Auction (`FUTSUB-P08`),
 Regime / Volatility / Compression (`FUTSUB-P09`), Liquidity Sweep / PA
-Structure (`FUTSUB-P10`), and Volume / Activity (`FUTSUB-P11`). The P12
-scaleout driver extension and value-free coverage preview are in place; the
-bounded-then-full execute command was attempted but this executor sandbox could
-not write the local materialization area. Ralph owns any unsandboxed rerun,
-validation routing, staging, commit, review routing, PR, CI, merge, and
-done-check actions.
+Structure (`FUTSUB-P10`), Volume / Activity (`FUTSUB-P11`), and BBO Tradability
+/ Top-Book (`FUTSUB-P12`). The P13 scaleout driver extension, strict
+cross-market alignment test, config, and value-free full-window coverage preview
+are in place; this executor sandbox could not write the local materialization
+area, so Ralph owns any unsandboxed bounded-then-full execute rerun, validation
+routing, staging, commit, review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: `FUTSUB-P13` Cross-Market Alignment FeaturePack Scaleout,
-then the `feature_integration` gate beginning with `FUTSUB-P14`.
+Active / next work: the `feature_integration` gate begins with `FUTSUB-P14`
+FeaturePack Registry Integration, Coverage Audit, and Resolver Smoke, followed
+by `FUTSUB-P15` Feature Coverage Matrix and Quality Report.
 
 New durable surfaces in this `FUTSUB-P12` snapshot:
 
 - Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
 - CLI surface: `alpha scaleout feature-pack`
-- BBO Tradability / Top-Book scaleout config:
-  `configs/features/scaleout/bbo_tradability_top_book.json`
-- BBO Tradability / Top-Book value-free coverage evidence under
-  `research/futures_substrate_scaleout_v1/feature_packs/bbo_tradability_top_book/`
-- BBO unit-executor dispatch in the scaleout driver, binding the config labels
-  to existing governed BBO top-book primitives only
-- Canonical BBO loader support in the local canonical loader
+- Cross-Market Alignment scaleout config:
+  `configs/features/scaleout/cross_market_alignment.json`
+- Cross-Market Alignment value-free coverage evidence under
+  `research/futures_substrate_scaleout_v1/feature_packs/cross_market_alignment/`
+- Cross-market unit-executor dispatch in the scaleout driver, binding config
+  labels to existing governed Cross-Market primitives only
+- Strict cross-market intersection support preserving per-instrument
+  `available_ts` with no cross-instrument forward-fill
 
-`FUTSUB-P12` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+`FUTSUB-P13` adds no raw/provider data reads, re-pulls, runtime diagnostics,
 broker surfaces, live surfaces, paper-trading surfaces, order routing, or
 deployment behavior. Feature values, registries, checkpoints, canonical data,
 and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed
-evidence is value-free. BBO-1m is treated strictly as a time-sampled and
-forward-filled tradability proxy, not execution truth. Passive-fill,
-queue-priority, impact, and execution-quality claims remain forbidden.
+evidence is value-free. Cross-market values must preserve per-instrument
+`available_ts`, use exact event-time intersection, and forbid cross-instrument
+forward-fill or missing-instrument imputation. No profitability or tradability
+claim is made.
 
 ## Source Of Truth
 

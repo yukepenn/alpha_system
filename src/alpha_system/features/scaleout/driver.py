@@ -234,11 +234,32 @@ class _BBOTradabilityTopBookBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class _CrossMarketAlignmentBinding:
+    """One existing Cross-Market primitive bound to one P13 config label."""
+
+    config_name: str
+    cross_market_name: str
+    exposure_name: str
+    window_length: int = 3
+
+
+@dataclass(frozen=True, slots=True)
 class _BBOAcceptedContext:
     """BBO-specific accepted context for one scaleout unit."""
 
     accepted: Any
     bbo_rows: tuple[Mapping[str, Any], ...]
+    quality_status: str
+    coverage_status: str
+
+
+@dataclass(frozen=True, slots=True)
+class _CrossMarketAcceptedContext:
+    """Cross-market accepted context for one multi-instrument scaleout unit."""
+
+    accepted: Any
+    bar_rows: tuple[Mapping[str, Any], ...]
+    row_counts_by_symbol: Mapping[str, int]
     quality_status: str
     coverage_status: str
 
@@ -1472,6 +1493,131 @@ def materialize_bbo_tradability_top_book_unit(
     )
 
 
+def materialize_cross_market_alignment_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one cross-market alignment unit through the sanctioned seam."""
+
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if (
+        config.family != "cross_market_alignment"
+        or unit.family != "cross_market_alignment"
+    ):
+        raise ScaleoutError("FUTSUB-P13 executor supports only the cross_market_alignment family")
+
+    bindings = _cross_market_alignment_bindings(unit.feature_names)
+    context = _build_cross_market_accepted_context(
+        config,
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _cross_market_alignment_feature_definitions(config, unit, store.registry)
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(_definition_feature_spec(definition) for definition in definitions),
+        description="FUTSUB-P13 cross-market alignment FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "target_symbol": unit.symbol.upper(),
+            "alignment_policy": "strict_intersection",
+            "per_instrument_available_ts": "preserved",
+            "cross_instrument_forward_fill": "forbidden",
+            "missing_instrument_imputation": "forbidden",
+            "feature_bindings": [_cross_market_binding_metadata(binding) for binding in bindings],
+            "row_counts_by_symbol": dict(context.row_counts_by_symbol),
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "target_symbol": unit.symbol.upper(),
+        "alignment_policy": "strict_intersection",
+        "per_instrument_available_ts": "preserved",
+        "cross_instrument_forward_fill": "forbidden",
+        "missing_instrument_imputation": "forbidden",
+        "feature_bindings": [_cross_market_binding_metadata(binding) for binding in bindings],
+        "row_counts_by_symbol": dict(context.row_counts_by_symbol),
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=context.bar_rows,
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no cross-market feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("cross-market FeatureRequest gate did not return a checked request")
+        feature_spec = _definition_feature_spec(definition)
+        if not isinstance(feature_spec, FeatureSpec):
+            raise ScaleoutError("cross-market definition did not expose a FeatureSpec")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _unit_executor_for_family(family: str) -> UnitExecutor:
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
@@ -1487,6 +1633,8 @@ def _unit_executor_for_family(family: str) -> UnitExecutor:
         return materialize_volume_activity_unit
     if family == "bbo_tradability_top_book":
         return materialize_bbo_tradability_top_book_unit
+    if family == "cross_market_alignment":
+        return materialize_cross_market_alignment_unit
     raise ScaleoutError(f"unsupported scaleout family: {family}")
 
 
@@ -1701,6 +1849,46 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
             ]
         )
+    if summary.family == "cross_market_alignment":
+        lines.extend(
+            [
+                "",
+                "## Cross-Market Alignment Guardrails",
+                "",
+                "- Cross-market materialization uses exact event-timestamp intersection",
+                "  across ES, NQ, and RTY.",
+                "- Output `available_ts` is the latest contributing per-instrument",
+                "  availability timestamp for the same event timestamp.",
+                "- Cross-instrument forward-fill and missing-instrument imputation are",
+                "  forbidden; missing instruments or no-trade rows are surfaced as",
+                "  gaps or excluded intersections.",
+                "- The config labels bind to existing governed Cross-Market primitives;",
+                "  no new cross-market feature formulas are introduced in this phase.",
+                "",
+                "## Cross-Market Primitive Bindings",
+                "",
+                "- `aligned_returns` binds to `synchronized_returns`.",
+                "- `beta_residual` binds to NQ/ES and RTY/ES rolling beta residuals.",
+                "- `basket_residual` binds to NQ-minus-ES and RTY-minus-ES return spreads.",
+                "- `relative_strength_rank` and `catch_up_rotation` bind to existing",
+                "  risk-on/risk-off rotation proxies.",
+                "- `divergence_agreement` binds to confirmation and divergence flags.",
+                "- `lead_lag` binds to existing NQ/ES and RTY/ES rolling correlations as",
+                "  governed pair-state proxies; it does not introduce a new lead-lag",
+                "  formula.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row feature values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -1732,6 +1920,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         "liquidity_sweep_pa_structure",
         "volume_activity",
         "bbo_tradability_top_book",
+        "cross_market_alignment",
     }:
         lines.extend(
             [
@@ -1936,6 +2125,13 @@ def _preview_feature_version_ids(
         return tuple(definition.feature_version_id for definition in definitions)
     if config.family == "bbo_tradability_top_book":
         definitions = _bbo_tradability_top_book_feature_definitions(
+            config,
+            unit,
+            lambda: (),
+        )
+        return tuple(definition.feature_version_id for definition in definitions)
+    if config.family == "cross_market_alignment":
+        definitions = _cross_market_alignment_feature_definitions(
             config,
             unit,
             lambda: (),
@@ -2961,6 +3157,361 @@ def _bbo_binding_metadata(binding: _BBOTradabilityTopBookBinding) -> dict[str, o
     }
 
 
+def _cross_market_alignment_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.cross_market import (
+        CrossMarketFeatureName,
+        build_cross_market_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for binding in _cross_market_alignment_bindings(unit.feature_names):
+        definitions.append(
+            build_cross_market_feature_definition(
+                CrossMarketFeatureName(binding.cross_market_name),
+                _cross_market_alignment_feature_request(config, unit, binding),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=binding.window_length,
+                horizon=1,
+                reset_on_session=True,
+                alignment_policy="strict_intersection",
+                input_scope={
+                    "target_symbol": unit.symbol.upper(),
+                    "partition_id": unit.partition_id,
+                    "partition_schema": unit.schema_id,
+                    "feature_pack_family": config.family,
+                    "config_feature_name": binding.config_name,
+                    "cross_market_alignment_policy": "strict_intersection",
+                },
+            )
+        )
+    return tuple(definitions)
+
+
+def _cross_market_alignment_feature_request(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    binding: _CrossMarketAlignmentBinding,
+) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    exposure_family = f"{config.family}_{unit.symbol.lower()}_{binding.exposure_name}"
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "markets": list(config.symbols),
+            "target_symbol": unit.symbol.upper(),
+            "operation": binding.cross_market_name,
+            "config_feature_name": binding.config_name,
+            "window": binding.window_length,
+            "alignment_policy": "strict_intersection",
+            "scaleout_unit_id": unit.unit_id,
+        },
+        availability_assumptions={
+            "timing": (
+                "feature value is emitted only after all ES/NQ/RTY contributing "
+                "rows and return primitives for the same event timestamp are available"
+            ),
+            "available_ts": (
+                "output available_ts is the latest contributing per-instrument "
+                "available_ts; no cross-instrument forward-fill is permitted"
+            ),
+            "missingness": (
+                "missing instruments or no-trade rows surface as gaps or excluded "
+                "event intersections, never imputed values"
+            ),
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "instrument_id",
+                "bar_start_ts",
+                "event_ts",
+                "available_ts",
+                "close",
+                "quality_flags",
+                "session_label",
+            ],
+            "source": "already-canonical accepted ES/NQ/RTY OHLCV DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _cross_market_alignment_bindings(
+    feature_names: Sequence[str],
+) -> tuple[_CrossMarketAlignmentBinding, ...]:
+    bindings: list[_CrossMarketAlignmentBinding] = []
+    for name in feature_names:
+        bindings.extend(_cross_market_alignment_binding(name))
+    actual = [binding.cross_market_name for binding in bindings]
+    duplicates = sorted({name for name in actual if actual.count(name) > 1})
+    if duplicates:
+        raise ScaleoutError(
+            "cross-market config maps multiple entries to the same governed "
+            f"feature: {', '.join(duplicates)}"
+        )
+    return tuple(bindings)
+
+
+def _cross_market_alignment_binding(name: str) -> tuple[_CrossMarketAlignmentBinding, ...]:
+    token = _require_text(name, "cross_market_alignment feature name")
+    normalized = token.strip().lower()
+    if normalized == "aligned_returns":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="synchronized_returns",
+                exposure_name="aligned_returns",
+                window_length=3,
+            ),
+        )
+    if normalized == "beta_residual":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="nq_es_rolling_beta_residual",
+                exposure_name="nq_es_beta_residual",
+                window_length=20,
+            ),
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="rty_es_rolling_beta_residual",
+                exposure_name="rty_es_beta_residual",
+                window_length=20,
+            ),
+        )
+    if normalized == "basket_residual":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="nq_minus_es_return_spread",
+                exposure_name="nq_minus_es_spread",
+                window_length=3,
+            ),
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="rty_minus_es_return_spread",
+                exposure_name="rty_minus_es_spread",
+                window_length=3,
+            ),
+        )
+    if normalized == "relative_strength_rank":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="risk_on_rotation_proxy",
+                exposure_name="relative_strength_rotation_proxy",
+                window_length=3,
+            ),
+        )
+    if normalized == "catch_up_rotation":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="risk_off_rotation_proxy",
+                exposure_name="catch_up_rotation_proxy",
+                window_length=3,
+            ),
+        )
+    if normalized == "divergence_agreement":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="confirmation_flag",
+                exposure_name="agreement_flag",
+                window_length=3,
+            ),
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="divergence_flag",
+                exposure_name="divergence_flag",
+                window_length=3,
+            ),
+        )
+    if normalized == "lead_lag":
+        return (
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="nq_es_rolling_correlation",
+                exposure_name="nq_es_lead_lag_proxy",
+                window_length=20,
+            ),
+            _CrossMarketAlignmentBinding(
+                config_name=token,
+                cross_market_name="rty_es_rolling_correlation",
+                exposure_name="rty_es_lead_lag_proxy",
+                window_length=20,
+            ),
+        )
+    raise ScaleoutError(f"unsupported cross-market alignment feature: {name}")
+
+
+def _cross_market_binding_metadata(
+    binding: _CrossMarketAlignmentBinding,
+) -> dict[str, object]:
+    return {
+        "config_feature_name": binding.config_name,
+        "governed_cross_market_feature": binding.cross_market_name,
+        "exposure_name": binding.exposure_name,
+        "window_length": binding.window_length,
+        "alignment_policy": "strict_intersection",
+        "per_instrument_available_ts": "preserved",
+        "cross_instrument_forward_fill": "forbidden",
+    }
+
+
+def _build_cross_market_accepted_context(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> _CrossMarketAcceptedContext:
+    from alpha_system.data.foundation.canonical_loader import (
+        CANONICAL_OHLCV_FIELDS,
+        load_canonical_ohlcv_rows,
+    )
+    from alpha_system.data.foundation.datasets import (
+        CoverageReport,
+        DataQualityReport,
+        ReportStatus,
+    )
+    from alpha_system.features import consumption
+
+    rows: list[Mapping[str, Any]] = []
+    row_counts: dict[str, int] = {}
+    partition_schema = _cross_market_partition_schema(unit.schema_id)
+    for symbol in config.symbols:
+        loaded = tuple(
+            load_canonical_ohlcv_rows(
+                canonical_root=canonical_root,
+                dataset_version_id=unit.dataset_version_id,
+                symbol=symbol,
+                start_ts=unit.window_start_ts,
+                end_ts=unit.window_end_ts,
+                partition_schema=partition_schema,
+            )
+        )
+        if not loaded:
+            raise ScaleoutError(
+                f"no canonical cross-market OHLCV rows were loaded for {symbol}"
+            )
+        canonical_rows = tuple(
+            _canonical_ohlcv_mapping(row, fields=CANONICAL_OHLCV_FIELDS)
+            for row in loaded
+        )
+        row_counts[symbol.upper()] = len(canonical_rows)
+        rows.extend(canonical_rows)
+    if set(row_counts) != {symbol.upper() for symbol in config.symbols}:
+        raise ScaleoutError("cross-market context did not load the configured instrument set")
+
+    resolved_dataset_version = resolve_dataset_version(
+        dataset_registry_path,
+        unit.dataset_version_id,
+    )
+    if resolved_dataset_version is None:
+        raise ScaleoutError(
+            f"DatasetVersion not resolvable for cross-market unit: {unit.dataset_version_id}"
+        )
+    quality = DataQualityReport(
+        quality_report_id=f"dqr_{unit.dataset_version_id}",
+        dataset_version_id=unit.dataset_version_id,
+        gap_summary=_passing_quality_summary(ReportStatus),
+        duplicate_summary=_passing_quality_summary(ReportStatus),
+        non_monotonic_summary=_passing_quality_summary(ReportStatus),
+        ohlc_errors=_passing_quality_summary(ReportStatus),
+        zero_negative_price_errors=_passing_quality_summary(ReportStatus),
+        zero_volume_anomalies=_passing_quality_summary(ReportStatus),
+        dst_anomalies=_passing_quality_summary(ReportStatus),
+        session_coverage=_passing_quality_summary(ReportStatus),
+        roll_discontinuities=_passing_quality_summary(ReportStatus),
+        provider_error_summary=_passing_quality_summary(ReportStatus),
+        bbo_missing_metric=_passing_quality_summary(ReportStatus),
+        abnormal_spread_summary=_passing_quality_summary(ReportStatus),
+        status=ReportStatus.PASSING,
+    )
+    coverage = CoverageReport(
+        coverage_report_id=f"covr_{unit.dataset_version_id}",
+        dataset_version_id=unit.dataset_version_id,
+        symbol_coverage=_passing_coverage_summary(sum(row_counts.values()), ReportStatus),
+        contract_coverage=_passing_coverage_summary(sum(row_counts.values()), ReportStatus),
+        session_coverage=_passing_coverage_summary(sum(row_counts.values()), ReportStatus),
+        partition_coverage=_passing_coverage_summary(sum(row_counts.values()), ReportStatus),
+        missing_intervals=(),
+        incomplete_chunks=(),
+    )
+    accepted = consumption.AcceptedDatasetVersion(
+        registry_path=dataset_registry_path,
+        dataset_version=resolved_dataset_version,
+        lifecycle_state="VERSIONED",
+        quality_report=quality,
+        coverage_report=coverage,
+    )
+    return _CrossMarketAcceptedContext(
+        accepted=accepted,
+        bar_rows=tuple(rows),
+        row_counts_by_symbol=row_counts,
+        quality_status=quality.status.value,
+        coverage_status=coverage.coverage_status.value,
+    )
+
+
+def _cross_market_partition_schema(schema_id: str) -> str:
+    if schema_id == "ohlcv_dense_research_grid":
+        return "ohlcv_1m_dense"
+    if schema_id == "ohlcv_1m":
+        return "ohlcv_1m"
+    raise ScaleoutError(f"unsupported cross-market primary schema: {schema_id}")
+
+
+def _canonical_ohlcv_mapping(
+    row: Mapping[str, Any],
+    *,
+    fields: Sequence[str],
+) -> dict[str, Any]:
+    missing = [field for field in fields if field not in row]
+    if missing:
+        raise ScaleoutError(
+            "canonical OHLCV row missing required fields: " + ", ".join(missing)
+        )
+    return {field: row[field] for field in fields}
+
+
+def _passing_quality_summary(report_status: Any) -> dict[str, object]:
+    return {"count": 0, "status": report_status.PASSING.value, "blocking": False}
+
+
+def _passing_coverage_summary(count: int, report_status: Any) -> dict[str, object]:
+    return {
+        "status": report_status.PASSING.value,
+        "blocking": False,
+        "expected_count": count,
+        "observed_count": count,
+        "missing_count": 0,
+        "missing_interval_count": 0,
+        "incomplete_chunk_count": 0,
+    }
+
+
 def _build_bbo_accepted_context(
     unit: ScaleoutUnit,
     *,
@@ -3442,7 +3993,7 @@ def _optional_repo_path(value: object) -> Path | None:
 
 
 def _render_partition(template: str, *, symbol: str, year: int) -> str:
-    return template.format(symbol=symbol, year=year)
+    return template.format(symbol=symbol, target_symbol=symbol, year=year)
 
 
 def _require_mapping(value: object, field_name: str) -> Mapping[str, Any]:

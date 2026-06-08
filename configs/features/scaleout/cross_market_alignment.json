@@ -89,6 +89,10 @@
   },
   "alignment_policy": {
     "per_instrument_available_ts_required": true,
-    "cross_instrument_forward_fill_forbidden": true
+    "strict_event_intersection_required": true,
+    "cross_instrument_forward_fill_forbidden": true,
+    "missing_instrument_imputation_forbidden": true,
+    "output_available_ts_rule": "latest_contributing_per_instrument_available_ts_for_same_event_ts",
+    "binding_policy": "config labels bind to existing governed cross-market primitives only"
   }
 }

@@ -344,6 +344,8 @@ def build_cross_market_feature_definition(
     reset_on_session: bool = True,
     ddof: int = 0,
     window: WindowSpec | None = None,
+    alignment_policy: str = "asof",
+    input_scope: Mapping[str, object] | None = None,
 ) -> CrossMarketFeatureDefinition:
     """Build one approved Cross-Market feature definition.
 
@@ -357,6 +359,7 @@ def build_cross_market_feature_definition(
     ddof = _non_negative_int(ddof, "ddof")
     if type(reset_on_session) is not bool:
         raise CrossMarketFeatureError("reset_on_session must be a bool")
+    alignment_policy = _alignment_policy(alignment_policy)
     dataset_family_id = _optional_text(dataset_family_id)
     _validate_dataset_version_id_family(dataset_version_ids, dataset_family_id)
 
@@ -374,6 +377,8 @@ def build_cross_market_feature_definition(
         reset_on_session=reset_on_session,
         ddof=ddof,
         window=window,
+        alignment_policy=alignment_policy,
+        input_scope=input_scope,
     )
     return CrossMarketFeatureDefinition(
         name=feature_name,
@@ -404,16 +409,20 @@ def align_cross_market_rows(
     *,
     horizon: int = 1,
     reset_on_session: bool = True,
+    alignment_policy: str = "asof",
 ) -> tuple[CrossMarketAlignedSnapshot, ...]:
-    """Build causal ES/NQ/RTY as-of snapshots ordered by ``available_ts``.
+    """Build causal ES/NQ/RTY snapshots ordered by output ``available_ts``.
 
-    A snapshot at time ``t`` uses, for each instrument, only the latest return
-    primitive whose own source rows have ``available_ts <= t``.
+    The legacy ``asof`` policy uses the latest eligible return for each market at
+    each availability timestamp. The governed scaleout policy is
+    ``strict_intersection``: rows are matched by exact event timestamp and a
+    snapshot is emitted only after all contributing instruments are available.
     """
 
     horizon = _positive_int(horizon, "horizon")
     if type(reset_on_session) is not bool:
         raise CrossMarketFeatureError("reset_on_session must be a bool")
+    alignment_policy = _alignment_policy(alignment_policy)
     bundle = _coerce_input_bundle(input_views)
     rows_by_market = {
         market: _validated_ohlcv_rows(bundle.ohlcv_by_instrument[market].rows)
@@ -427,6 +436,12 @@ def align_cross_market_rows(
         )
         for market, rows in rows_by_market.items()
     }
+    if alignment_policy == "strict_intersection":
+        return _align_cross_market_rows_strict_intersection(
+            bundle,
+            rows_by_market,
+            returns_by_market,
+        )
     timeline = tuple(
         sorted(
             {
@@ -490,6 +505,7 @@ def compute_cross_market_feature(
         input_views,
         horizon=_int_parameter(definition, "horizon"),
         reset_on_session=_bool_parameter(definition, "reset_on_session"),
+        alignment_policy=_text_parameter(definition, "alignment_policy", default="asof"),
     )
     if definition.name in _ROLLING_FEATURES:
         return _records_from_points(
@@ -528,6 +544,8 @@ def _feature_spec(
     reset_on_session: bool,
     ddof: int,
     window: WindowSpec | None,
+    alignment_policy: str,
+    input_scope: Mapping[str, object] | None,
 ) -> CrossMarketFeatureSpec:
     if gate_decision.feature_request_id is None:
         raise CrossMarketFeatureError("approved FeatureRequestGateDecision must expose freq_ id")
@@ -539,7 +557,48 @@ def _feature_spec(
         horizon=horizon,
         reset_on_session=reset_on_session,
         ddof=ddof,
+        alignment_policy=alignment_policy,
     )
+    if alignment_policy == "strict_intersection":
+        alignment_assumption = (
+            "ES, NQ, and RTY are aligned by exact event timestamp. A feature "
+            "value is emitted only after every contributing instrument row and "
+            "return primitive for that event timestamp is available."
+        )
+        available_rule = (
+            "feature.available_ts = max(latest source available_ts across ES, "
+            "NQ, and RTY for one exact event timestamp); no instrument return "
+            "is carried into another instrument's later timestamp"
+        )
+    else:
+        alignment_assumption = (
+            "ES, NQ, and RTY are aligned by as-of available_ts; each instrument "
+            "contributes only rows with available_ts <= output available_ts"
+        )
+        available_rule = (
+            "feature.available_ts = one timestamp from the union of "
+            "per-instrument OHLCV available_ts values; source rows and return "
+            "primitives for every instrument must have available_ts <= "
+            "feature.available_ts"
+        )
+    input_metadata: dict[str, object] = {
+        "markets": list(_MARKETS),
+        "consumption_surface": (
+            "alpha_system.features.input_views.OHLCVInputView per instrument"
+        ),
+        "accepted_dataset_version_gate": (
+            "input views are produced upstream from accepted DatasetVersions"
+        ),
+        "dataset_family_id": dataset_family_id,
+        "optional_bbo_quality_surface": (
+            "BBO rows may be supplied for exact available_ts quality flags; "
+            "they are never filled or interpolated"
+        ),
+        "trade_semantics": "FLF-P04 no_trade rows are gaps for return logic",
+    }
+    if input_scope:
+        input_metadata["input_scope"] = dict(input_scope)
+
     feature_spec = FeatureSpec(
         feature_id=f"cross_market_{name.value}",
         family=FeatureFamily.CROSS_MARKET,
@@ -548,21 +607,7 @@ def _feature_spec(
             input_views=("canonical_ohlcv",),
             fields=_input_fields(name),
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata={
-                "markets": list(_MARKETS),
-                "consumption_surface": (
-                    "alpha_system.features.input_views.OHLCVInputView per instrument"
-                ),
-                "accepted_dataset_version_gate": (
-                    "input views are produced upstream from accepted DatasetVersions"
-                ),
-                "dataset_family_id": dataset_family_id,
-                "optional_bbo_quality_surface": (
-                    "BBO rows may be supplied for exact available_ts quality flags; "
-                    "they are never filled or interpolated"
-                ),
-                "trade_semantics": "FLF-P04 no_trade rows are gaps for return logic",
-            },
+            input_metadata=input_metadata,
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -572,20 +617,13 @@ def _feature_spec(
         normalization=NormalizationSpec(normalization_id="identity"),
         availability_assumptions={
             "input": "per-instrument canonical OHLCV rows are accepted input-view rows",
-            "alignment": (
-                "ES, NQ, and RTY are aligned by as-of available_ts; each instrument "
-                "contributes only rows with available_ts <= output available_ts"
-            ),
+            "alignment": alignment_assumption,
             "missingness": (
                 "no_trade rows are return gaps; exact-time BBO missingness is flagged "
                 "without quote filling"
             ),
         },
-        available_ts_derivation_rule=(
-            "feature.available_ts = one timestamp from the union of per-instrument "
-            "OHLCV available_ts values; source rows and return primitives for every "
-            "instrument must have available_ts <= feature.available_ts"
-        ),
+        available_ts_derivation_rule=available_rule,
         live=True,
         implementation_eligible=True,
         contract_metadata={
@@ -654,12 +692,14 @@ def _transform_parameters(
     horizon: int,
     reset_on_session: bool,
     ddof: int,
+    alignment_policy: str,
 ) -> dict[str, object]:
     parameters: dict[str, object] = {
         "feature_name": name.value,
         "markets": list(_MARKETS),
         "horizon": horizon,
         "reset_on_session": reset_on_session,
+        "alignment_policy": alignment_policy,
     }
     if dataset_family_id:
         parameters["dataset_family_id"] = dataset_family_id
@@ -877,6 +917,107 @@ def _latest_row_as_of(
         else:
             break
     return latest
+
+
+def _align_cross_market_rows_strict_intersection(
+    bundle: CrossMarketInputBundle,
+    rows_by_market: Mapping[str, Sequence[OHLCVInputRow]],
+    returns_by_market: Mapping[str, Sequence[PrimitiveResult]],
+) -> tuple[CrossMarketAlignedSnapshot, ...]:
+    rows_by_event = {
+        market: _rows_by_event_ts(market, rows_by_market[market])
+        for market in _MARKETS
+    }
+    returns_by_event = {
+        market: _returns_by_event_ts(market, rows_by_market[market], returns_by_market[market])
+        for market in _MARKETS
+    }
+    event_sets = [set(rows_by_event[market]) for market in _MARKETS]
+    common_event_ts = tuple(sorted(set.intersection(*event_sets)))
+    snapshots: list[CrossMarketAlignedSnapshot] = []
+    for event_ts in common_event_ts:
+        rows_at_t = {
+            market: rows_by_event[market][event_ts]
+            for market in _MARKETS
+        }
+        returns_at_t = {
+            market: returns_by_event[market].get(event_ts)
+            for market in _MARKETS
+        }
+        available_ts = _strict_intersection_available_ts(rows_at_t, returns_at_t)
+        snapshots.append(
+            CrossMarketAlignedSnapshot(
+                available_ts=available_ts,
+                event_ts=event_ts,
+                rows=rows_at_t,
+                returns={
+                    market: None if result is None else result.value
+                    for market, result in returns_at_t.items()
+                },
+                source_available_ts={
+                    market: () if result is None else tuple(result.source_available_ts)
+                    for market, result in returns_at_t.items()
+                },
+                return_quality_flags={
+                    market: _return_result_flags(market, returns_at_t[market], rows_at_t[market])
+                    for market in _MARKETS
+                },
+                bbo_quality_flags=_bbo_quality_flags_at(bundle, available_ts),
+                session_label=_snapshot_session_label(rows_at_t),
+            )
+        )
+    return tuple(sorted(snapshots, key=lambda snapshot: snapshot.available_ts))
+
+
+def _rows_by_event_ts(
+    market: str,
+    rows: Sequence[OHLCVInputRow],
+) -> dict[datetime, OHLCVInputRow]:
+    by_event: dict[datetime, OHLCVInputRow] = {}
+    for row in rows:
+        event_ts = _require_aware_datetime(row.event_ts, "OHLCVInputRow.event_ts")
+        if event_ts in by_event:
+            raise CrossMarketFeatureError(
+                f"{market} OHLCV rows contain duplicate event_ts {event_ts.isoformat()}"
+            )
+        by_event[event_ts] = row
+    return by_event
+
+
+def _returns_by_event_ts(
+    market: str,
+    rows: Sequence[OHLCVInputRow],
+    returns: Sequence[PrimitiveResult],
+) -> dict[datetime, PrimitiveResult]:
+    if len(rows) != len(returns):
+        raise CrossMarketFeatureError(
+            f"{market} returns do not align one-for-one with OHLCV rows"
+        )
+    return {
+        _require_aware_datetime(row.event_ts, "OHLCVInputRow.event_ts"): result
+        for row, result in zip(rows, returns, strict=True)
+    }
+
+
+def _strict_intersection_available_ts(
+    rows_at_t: Mapping[str, OHLCVInputRow],
+    returns_at_t: Mapping[str, PrimitiveResult | None],
+) -> datetime:
+    timestamps: list[datetime] = [
+        _require_aware_datetime(row.available_ts, "OHLCVInputRow.available_ts")
+        for row in rows_at_t.values()
+    ]
+    for result in returns_at_t.values():
+        if result is None:
+            continue
+        timestamps.append(
+            _require_aware_datetime(result.available_ts, "PrimitiveResult.available_ts")
+        )
+        timestamps.extend(
+            _require_aware_datetime(source_ts, "PrimitiveResult.source_available_ts")
+            for source_ts in result.source_available_ts
+        )
+    return max(timestamps)
 
 
 def _latest_result_as_of(
@@ -1254,6 +1395,32 @@ def _bool_parameter(definition: CrossMarketFeatureDefinition, name: str) -> bool
     if type(value) is not bool:
         raise CrossMarketFeatureError(f"{name} parameter must be a bool")
     return value
+
+
+def _text_parameter(
+    definition: CrossMarketFeatureDefinition,
+    name: str,
+    *,
+    default: str | None = None,
+) -> str:
+    value = definition.spec.transform.parameters.to_dict().get(name, default)
+    return _require_text(value, name)
+
+
+def _alignment_policy(value: object) -> str:
+    text = _require_text(value, "alignment_policy").strip().lower()
+    if text in {"asof", "as_of"}:
+        return "asof"
+    if text in {
+        "strict_intersection",
+        "event_intersection",
+        "exact_event_intersection",
+        "no_cross_instrument_forward_fill",
+    }:
+        return "strict_intersection"
+    raise CrossMarketFeatureError(
+        "alignment_policy must be either asof or strict_intersection"
+    )
 
 
 def _positive_int(value: object, field_name: str) -> int:
