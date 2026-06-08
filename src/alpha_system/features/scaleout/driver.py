@@ -13,6 +13,7 @@ import os
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from alpha_system.data.foundation.datasets import (
     resolve_dataset_acceptance_lock,
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.version_registry import resolve_dataset_version
 from alpha_system.features.store import FeatureStore
 from alpha_system.governance.serialization import canonical_serialize
 
@@ -219,6 +221,26 @@ class _VolumeActivityBinding:
     exposure_name: str
     window_length: int = 20
     horizon: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class _BBOTradabilityTopBookBinding:
+    """One existing BBO primitive bound to one P12 config label."""
+
+    config_name: str
+    bbo_name: str
+    exposure_name: str
+    window_length: int = 3
+
+
+@dataclass(frozen=True, slots=True)
+class _BBOAcceptedContext:
+    """BBO-specific accepted context for one scaleout unit."""
+
+    accepted: Any
+    bbo_rows: tuple[Mapping[str, Any], ...]
+    quality_status: str
+    coverage_status: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -1322,6 +1344,134 @@ def materialize_volume_activity_unit(
     )
 
 
+def materialize_bbo_tradability_top_book_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one BBO tradability / top-book unit through the sanctioned seam."""
+
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if (
+        config.family != "bbo_tradability_top_book"
+        or unit.family != "bbo_tradability_top_book"
+    ):
+        raise ScaleoutError(
+            "FUTSUB-P12 executor supports only the bbo_tradability_top_book family"
+        )
+
+    bindings = _bbo_tradability_top_book_bindings(unit.feature_names)
+    context = _build_bbo_accepted_context(
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _bbo_tradability_top_book_feature_definitions(config, unit, store.registry)
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(_definition_feature_spec(definition) for definition in definitions),
+        description="FUTSUB-P12 BBO tradability / top-book FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
+            "execution_truth_claims": "forbidden",
+            "passive_fill_claims": "forbidden",
+            "queue_priority_claims": "forbidden",
+            "impact_claims": "forbidden",
+            "available_ts_forward_fill_guard": "preserve_canonical_bbo_available_ts",
+            "missingness_policy": "surface_flags_no_silent_imputation",
+            "feature_bindings": [_bbo_binding_metadata(binding) for binding in bindings],
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
+        "execution_truth_claims": "forbidden",
+        "passive_fill_claims": "forbidden",
+        "queue_priority_claims": "forbidden",
+        "impact_claims": "forbidden",
+        "available_ts_forward_fill_guard": "preserve_canonical_bbo_available_ts",
+        "missingness_policy": "surface_flags_no_silent_imputation",
+        "feature_bindings": [_bbo_binding_metadata(binding) for binding in bindings],
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bbo_rows=context.bbo_rows,
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no BBO feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("BBO FeatureRequest gate did not return a checked request")
+        feature_spec = _definition_feature_spec(definition)
+        if not isinstance(feature_spec, FeatureSpec):
+            raise ScaleoutError("BBO definition did not expose a FeatureSpec")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _unit_executor_for_family(family: str) -> UnitExecutor:
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
@@ -1335,6 +1485,8 @@ def _unit_executor_for_family(family: str) -> UnitExecutor:
         return materialize_liquidity_sweep_pa_structure_unit
     if family == "volume_activity":
         return materialize_volume_activity_unit
+    if family == "bbo_tradability_top_book":
+        return materialize_bbo_tradability_top_book_unit
     raise ScaleoutError(f"unsupported scaleout family: {family}")
 
 
@@ -1344,6 +1496,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
     states: dict[str, int] = {}
     for record in summary.records:
         states[record.unit.acceptance_state] = states.get(record.unit.acceptance_state, 0) + 1
+    blocked_2018_schema = "bbo_1m" if summary.family == "bbo_tradability_top_book" else "ohlcv_1m"
     lines = [
         f"# {summary.family} Scaleout Summary",
         "",
@@ -1375,7 +1528,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
             "## Window Policy",
             "",
             "- Eligible DatasetVersion states are `ACCEPTED` and `ACCEPTED_WITH_WARNINGS`.",
-            "- Dataset-level fallback is used for 2018: the blocked 2018 `ohlcv_1m`",
+            f"- Dataset-level fallback is used for 2018: the blocked 2018 `{blocked_2018_schema}`",
             "  DatasetVersion is excluded rather than fabricating per-symbol acceptance.",
             "- 2019 warning metadata and 2026 partial-year warning metadata are preserved",
             "  through the accepted/warned DatasetVersion state.",
@@ -1510,6 +1663,44 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
             ]
         )
+    if summary.family == "bbo_tradability_top_book":
+        lines.extend(
+            [
+                "",
+                "## BBO Proxy Guardrails",
+                "",
+                "- BBO-1m is treated strictly as a time-sampled and forward-filled",
+                "  tradability proxy, not execution truth.",
+                "- Passive-fill, queue-priority, market-impact, intra-minute path, and",
+                "  execution-quality claims are forbidden.",
+                "- Canonical BBO `available_ts` is preserved; no feature is emitted",
+                "  before the source quote row is available.",
+                "- Missing, quarantined, wide-spread, and low-depth conditions are",
+                "  surfaced as flags or value gaps; they are not silently imputed.",
+                "",
+                "## BBO Top-Book Bindings",
+                "",
+                "- `mid`, `spread`, `spread_ticks`, and `spread_zscore` bind to existing",
+                "  BBO spread primitives.",
+                "- `top_book_depth` and `top_book_imbalance` bind to existing top-book",
+                "  depth/imbalance primitives.",
+                "- `missing_bbo_flag`, `bad_quote_flag`, `wide_spread_flag`, and",
+                "  `low_depth_flag` bind to existing quote-quality flag primitives.",
+                "- `microprice_proxy` binds to the existing BBO `microprice` primitive",
+                "  and remains a proxy feature, not a fill or execution model.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row feature values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -1540,6 +1731,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         "regime_volatility_compression",
         "liquidity_sweep_pa_structure",
         "volume_activity",
+        "bbo_tradability_top_book",
     }:
         lines.extend(
             [
@@ -1737,6 +1929,13 @@ def _preview_feature_version_ids(
         return tuple(definition.feature_version_id for definition in definitions)
     if config.family == "volume_activity":
         definitions = _volume_activity_feature_definitions(
+            config,
+            unit,
+            lambda: (),
+        )
+        return tuple(definition.feature_version_id for definition in definitions)
+    if config.family == "bbo_tradability_top_book":
+        definitions = _bbo_tradability_top_book_feature_definitions(
             config,
             unit,
             lambda: (),
@@ -2601,6 +2800,334 @@ def _volume_activity_binding_metadata(binding: _VolumeActivityBinding) -> dict[s
         "causal_available_ts": True,
         "existing_primitives_only": True,
     }
+
+
+def _bbo_tradability_top_book_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.bbo import (
+        BBOFeatureName,
+        build_bbo_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for binding in _bbo_tradability_top_book_bindings(unit.feature_names):
+        definitions.append(
+            build_bbo_feature_definition(
+                BBOFeatureName(binding.bbo_name),
+                _bbo_tradability_top_book_feature_request(config, unit, binding),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=binding.window_length,
+                reset_on_session=True,
+                input_scope={
+                    "symbol": unit.symbol.upper(),
+                    "partition_id": unit.partition_id,
+                    "partition_schema": unit.schema_id,
+                    "feature_pack_family": config.family,
+                    "config_feature_name": binding.config_name,
+                    "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
+                },
+            )
+        )
+    return tuple(definitions)
+
+
+def _bbo_tradability_top_book_feature_request(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    binding: _BBOTradabilityTopBookBinding,
+) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    exposure_family = f"{config.family}_{binding.exposure_name}"
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "operation": binding.bbo_name,
+            "config_feature_name": binding.config_name,
+            "window": binding.window_length,
+            "scaleout_unit_id": unit.unit_id,
+            "proxy_semantics": "time_sampled_forward_filled_bbo_1m",
+        },
+        availability_assumptions={
+            "timing": "feature value is emitted at the current BBO row available_ts",
+            "forward_fill": (
+                "BBO-1m source rows are consumed as a time-sampled and forward-filled "
+                "tradability proxy; canonical row available_ts is preserved"
+            ),
+            "missingness": (
+                "missing_bbo, bbo_quarantined, wide_spread, and low_depth states "
+                "are surfaced as flags or value gaps, not silently imputed"
+            ),
+            "forbidden_claims": (
+                "passive-fill, queue-priority, market-impact, intra-minute path, "
+                "and execution-truth claims are forbidden"
+            ),
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "bar_start_ts",
+                "event_ts",
+                "available_ts",
+                "bid",
+                "ask",
+                "bid_size",
+                "ask_size",
+                "mid",
+                "spread",
+                "spread_ticks",
+                "microprice",
+                "quality_flags",
+                "session_label",
+            ],
+            "source": "already-canonical accepted BBO-1m DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _bbo_tradability_top_book_bindings(
+    feature_names: Sequence[str],
+) -> tuple[_BBOTradabilityTopBookBinding, ...]:
+    bindings = tuple(_bbo_tradability_top_book_binding(name) for name in feature_names)
+    actual = [binding.bbo_name for binding in bindings]
+    duplicates = sorted({name for name in actual if actual.count(name) > 1})
+    if duplicates:
+        raise ScaleoutError(
+            "BBO top-book config maps multiple entries to the same governed "
+            f"feature: {', '.join(duplicates)}"
+        )
+    return bindings
+
+
+def _bbo_tradability_top_book_binding(name: str) -> _BBOTradabilityTopBookBinding:
+    token = _require_text(name, "bbo_tradability_top_book feature name")
+    normalized = token.strip().lower()
+    if normalized in {
+        "mid",
+        "spread",
+        "spread_ticks",
+        "spread_zscore",
+        "top_book_depth",
+        "top_book_imbalance",
+        "missing_bbo_flag",
+        "bad_quote_flag",
+        "wide_spread_flag",
+        "low_depth_flag",
+    }:
+        return _BBOTradabilityTopBookBinding(
+            config_name=token,
+            bbo_name=normalized,
+            exposure_name=normalized,
+            window_length=20 if normalized == "spread_zscore" else 3,
+        )
+    if normalized in {"microprice_proxy", "microprice_ish_proxy"}:
+        return _BBOTradabilityTopBookBinding(
+            config_name=token,
+            bbo_name="microprice",
+            exposure_name="microprice_proxy",
+            window_length=3,
+        )
+    raise ScaleoutError(f"unsupported BBO tradability / top-book feature: {name}")
+
+
+def _bbo_binding_metadata(binding: _BBOTradabilityTopBookBinding) -> dict[str, object]:
+    return {
+        "config_feature_name": binding.config_name,
+        "governed_bbo_feature": binding.bbo_name,
+        "exposure_name": binding.exposure_name,
+        "window_length": binding.window_length,
+        "causal_available_ts": True,
+        "time_sampled_forward_filled_proxy": True,
+        "execution_truth_claim": "forbidden",
+    }
+
+
+def _build_bbo_accepted_context(
+    unit: ScaleoutUnit,
+    *,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> _BBOAcceptedContext:
+    from alpha_system.data.foundation.canonical_loader import load_canonical_bbo_rows
+    from alpha_system.data.foundation.datasets import (
+        CoverageReport,
+        DataQualityReport,
+        DatasetVersion,
+        compute_quality_report_hash,
+    )
+    from alpha_system.data.foundation.quotes import CanonicalBBORecord
+    from alpha_system.features import consumption
+
+    rows = tuple(
+        load_canonical_bbo_rows(
+            canonical_root=canonical_root,
+            dataset_version_id=unit.dataset_version_id,
+            symbol=unit.symbol,
+            start_ts=unit.window_start_ts,
+            end_ts=unit.window_end_ts,
+            partition_schema=unit.schema_id,
+        )
+    )
+    if not rows:
+        raise ScaleoutError("no canonical BBO rows were loaded for the scaleout window")
+
+    records = tuple(CanonicalBBORecord.from_mapping(row) for row in rows)
+    quality = DataQualityReport.from_canonical_bbos(
+        quality_report_id=f"dqr_{unit.dataset_version_id}",
+        dataset_version_id=unit.dataset_version_id,
+        bbos=records,
+        expected_sessions=tuple(sorted({record.session_label for record in records})),
+        abnormal_spread_threshold=None,
+    )
+    coverage = CoverageReport.from_canonical_bbos(
+        coverage_report_id=f"covr_{unit.dataset_version_id}",
+        dataset_version_id=unit.dataset_version_id,
+        bbos=records,
+        expected_intervals=_observed_bbo_intervals(records, partition_id=unit.partition_id),
+    )
+    if quality.blocks_versioning:
+        raise ScaleoutError("BBO quality report blocks versioning; refusing materialization")
+    if coverage.blocks_versioning:
+        raise ScaleoutError("BBO coverage report blocks versioning; refusing materialization")
+
+    # Resolve the provider source from the registered DatasetVersion rather than
+    # hardcoding a provider literal in feature-layer code (no-raw-provider boundary).
+    resolved_dataset_version = resolve_dataset_version(
+        dataset_registry_path, unit.dataset_version_id
+    )
+    if resolved_dataset_version is None:
+        raise ScaleoutError(
+            f"DatasetVersion not resolvable for BBO unit: {unit.dataset_version_id}"
+        )
+    dataset_version = DatasetVersion(
+        dataset_version_id=unit.dataset_version_id,
+        source=resolved_dataset_version.source,
+        symbol_universe=(unit.symbol.upper(),),
+        bar_size="1 min",
+        what_to_show="BBO",
+        start_ts=_parse_iso_datetime(unit.window_start_ts, "window_start_ts"),
+        end_ts=_parse_iso_datetime(unit.window_end_ts, "window_end_ts"),
+        contract_universe=(unit.symbol.upper(),),
+        roll_policy_id="roll_cme_index_futures_quarterly",
+        manifest_hash="0" * 64,
+        code_hash="0" * 64,
+        config_hash="0" * 64,
+        quality_report_hash=compute_quality_report_hash(quality),
+        created_at=_parse_iso_datetime(unit.window_end_ts, "window_end_ts"),
+    )
+    accepted = consumption.AcceptedDatasetVersion(
+        registry_path=dataset_registry_path,
+        dataset_version=dataset_version,
+        lifecycle_state="VERSIONED",
+        quality_report=quality,
+        coverage_report=coverage,
+    )
+    return _BBOAcceptedContext(
+        accepted=accepted,
+        bbo_rows=rows,
+        quality_status=quality.status.value,
+        coverage_status=coverage.coverage_status.value,
+    )
+
+
+def _observed_bbo_intervals(
+    records: Sequence[Any],
+    *,
+    partition_id: str,
+) -> tuple[Mapping[str, object], ...]:
+    by_group: dict[tuple[str, str, str], list[Any]] = {}
+    for record in records:
+        key = (record.instrument_id, record.contract_id, record.session_label)
+        by_group.setdefault(key, []).append(record)
+
+    intervals: list[Mapping[str, object]] = []
+    for (instrument_id, contract_id, session_label), group_rows in sorted(by_group.items()):
+        ordered = sorted(group_rows, key=lambda row: row.bar_start_ts)
+        if not ordered:
+            continue
+        run_start = ordered[0].bar_start_ts
+        previous_end = ordered[0].bar_end_ts
+        for row in ordered[1:]:
+            if row.bar_start_ts != previous_end:
+                intervals.append(
+                    _bbo_interval(
+                        symbol=instrument_id,
+                        instrument_id=instrument_id,
+                        contract_id=contract_id,
+                        session_label=session_label,
+                        partition_id=partition_id,
+                        start_ts=run_start,
+                        end_ts=previous_end,
+                    )
+                )
+                run_start = row.bar_start_ts
+            previous_end = row.bar_end_ts
+        intervals.append(
+            _bbo_interval(
+                symbol=instrument_id,
+                instrument_id=instrument_id,
+                contract_id=contract_id,
+                session_label=session_label,
+                partition_id=partition_id,
+                start_ts=run_start,
+                end_ts=previous_end,
+            )
+        )
+    if not intervals:
+        raise ScaleoutError("BBO coverage context requires at least one observed interval")
+    return tuple(intervals)
+
+
+def _bbo_interval(
+    *,
+    symbol: str,
+    instrument_id: str,
+    contract_id: str,
+    session_label: str,
+    partition_id: str,
+    start_ts: datetime,
+    end_ts: datetime,
+) -> Mapping[str, object]:
+    if end_ts <= start_ts:
+        raise ScaleoutError("BBO observed interval end_ts must be greater than start_ts")
+    return {
+        "symbol": symbol,
+        "instrument_id": instrument_id,
+        "contract_id": contract_id,
+        "session_label": session_label,
+        "partition_id": partition_id,
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+    }
+
+
+def _parse_iso_datetime(value: str, field_name: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ScaleoutError(f"{field_name} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ScaleoutError(f"{field_name} must be timezone-aware")
+    return parsed
 
 
 def _definition_feature_spec(definition: Any) -> Any:
