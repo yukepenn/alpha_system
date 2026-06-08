@@ -8,28 +8,28 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the post-merge state for `FUTSUB-P02`:
-DatasetVersion acceptance-lock contract complete within the
-`bootstrap_and_contract` gate as phase 3 of 34. Ralph owns validation routing,
+active. This snapshot reflects the post-merge state for `FUTSUB-P03`: the
+Continuous Series / Roll Metadata / Roll-Splice Guard Contract within the
+`bootstrap_and_contract` gate as phase 4 of 34. Ralph owns validation routing,
 staging, commit, review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: the next phase is `FUTSUB-P03` - Continuous Series / Roll
-Metadata / Roll-Splice Guard Contract.
+Active / next work: the next phase is `FUTSUB-P04` - Value Store / Registry /
+Keystone Identity Preflight.
 
-New durable surfaces in this `FUTSUB-P02` snapshot:
+New durable surfaces in this `FUTSUB-P03` snapshot:
 
-- DatasetVersion acceptance-lock contract in
-  `src/alpha_system/data/foundation/datasets.py`
-- Read/persist CLI surfaces in `src/alpha_system/cli/registry.py` and
-  `src/alpha_system/cli/data.py`
-- `configs/data/dataset_acceptance/futsub_p02_policy.json`
-- `docs/futures_substrate_scaleout/DATASET_ACCEPTANCE.md`
-- `research/futures_substrate_scaleout_v1/dataset_acceptance/acceptance_summary.md`
+- Approximate CME equity-index quarterly roll-calendar computation in
+  `src/alpha_system/data/foundation/rolls.py`
+- Roll-splice label guard primitive in `src/alpha_system/labels/roll_guard.py`
+- `configs/data/roll_calendar/futsub_p03_roll_guard.json`
+- `docs/futures_substrate_scaleout/ROLL_GUARD.md`
+- `research/futures_substrate_scaleout_v1/roll_guard/roll_guard_contract.md`
 
-`FUTSUB-P02` adds no raw/provider data readers, feature or label materializers,
+`FUTSUB-P03` adds no raw/provider data readers, feature or label materializers,
 diagnostics, broker surfaces, live surfaces, paper-trading surfaces, order
-routing, or deployment behavior. DatasetVersion verdicts remain local-only in
-the registry; committed evidence is value-free.
+routing, or deployment behavior. The roll calendar is analytic and approximate,
+not provider-exact splice truth. Values, registries, and persisted
+roll-calendar data remain local-only; committed evidence is value-free.
 
 ## Source Of Truth
 
