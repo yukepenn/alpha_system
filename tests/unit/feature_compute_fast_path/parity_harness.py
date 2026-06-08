@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from alpha_system.features.contracts import FeatureValueRecord
+from alpha_system.labels.version import LabelValueRecord
 
 GAP_FLAGS = frozenset(
     {
@@ -64,12 +65,60 @@ def assert_feature_records_match(
         _assert_values_match(reference.value, fast.value, tolerance=tolerance)
 
 
+@dataclass(frozen=True, slots=True)
+class LabelParityTolerance:
+    """Numeric tolerance for one label parity assertion."""
+
+    abs: float = 0.0
+    rel: float = 0.0
+    reason: str = "exact label parity expected"
+
+
+def assert_label_records_match(
+    reference_records: tuple[LabelValueRecord, ...],
+    fast_records: tuple[LabelValueRecord, ...],
+    *,
+    expected_label_version_id: str,
+    tolerance: LabelParityTolerance = LabelParityTolerance(),
+) -> None:
+    """Assert label value, availability, horizon, flags, and identity parity."""
+
+    assert reference_records, "reference engine produced no label records"
+    assert fast_records, "fast engine produced no label records"
+    assert {record.label_version_id for record in reference_records} == {
+        expected_label_version_id
+    }
+    assert {record.label_version_id for record in fast_records} == {
+        expected_label_version_id
+    }
+
+    reference_by_key = {_label_record_key(record): record for record in reference_records}
+    fast_by_key = {_label_record_key(record): record for record in fast_records}
+    assert fast_by_key.keys() == reference_by_key.keys()
+
+    for key, reference in reference_by_key.items():
+        fast = fast_by_key[key]
+        assert fast.horizon_end_ts == reference.horizon_end_ts
+        assert fast.label_available_ts == reference.label_available_ts
+        assert fast.quality_flags == reference.quality_flags
+        assert fast.label_spec_id == reference.label_spec_id
+        _assert_values_match(reference.value, fast.value, tolerance=tolerance)
+
+
 def _record_key(record: FeatureValueRecord) -> tuple[str, str, datetime, datetime]:
     return (
         record.feature_version_id,
         record.entity_id,
         record.event_ts,
         record.available_ts,
+    )
+
+
+def _label_record_key(record: LabelValueRecord) -> tuple[str, str, datetime]:
+    return (
+        record.label_version_id,
+        record.entity_id,
+        record.event_ts,
     )
 
 
