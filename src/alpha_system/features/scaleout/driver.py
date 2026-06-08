@@ -24,6 +24,7 @@ from alpha_system.data.foundation.datasets import (
     resolve_dataset_acceptance_lock,
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.version_registry import resolve_dataset_version
 from alpha_system.features.store import FeatureStore
 from alpha_system.governance.serialization import canonical_serialize
 
@@ -3008,9 +3009,18 @@ def _build_bbo_accepted_context(
     if coverage.blocks_versioning:
         raise ScaleoutError("BBO coverage report blocks versioning; refusing materialization")
 
+    # Resolve the provider source from the registered DatasetVersion rather than
+    # hardcoding a provider literal in feature-layer code (no-raw-provider boundary).
+    resolved_dataset_version = resolve_dataset_version(
+        dataset_registry_path, unit.dataset_version_id
+    )
+    if resolved_dataset_version is None:
+        raise ScaleoutError(
+            f"DatasetVersion not resolvable for BBO unit: {unit.dataset_version_id}"
+        )
     dataset_version = DatasetVersion(
         dataset_version_id=unit.dataset_version_id,
-        source="dsrc_databento_historical",
+        source=resolved_dataset_version.source,
         symbol_universe=(unit.symbol.upper(),),
         bar_size="1 min",
         what_to_show="BBO",
