@@ -1,0 +1,80 @@
+# PackMaterializer Contract
+
+`PackMaterializer` is the P01 fast-path engine core for feature values. It is a
+producer only: it computes governed values for existing `FeatureSpec` objects and
+never mints a new feature identity.
+
+## Engine Interface
+
+Family phases declare a `FastFeaturePack`:
+
+- `feature_set`: the governed `FeatureSetSpec`.
+- `declarations`: one `FastFeatureDeclaration` per feature, in feature-set order.
+- each declaration supplies Polars expressions for `value` and optional
+  `quality_flags`, plus optional overrides for `entity_id`, `event_ts`, and
+  `available_ts`.
+
+The materializer sorts canonical rows by `available_ts`, evaluates all declared
+expressions as a pack, converts the result to `FeatureValueRecord`, and validates
+that every record belongs to the plan's feature-version ids.
+
+## Canonical Loading
+
+`SymbolYearFrameRequest` loads one symbol-year OHLCV frame through the existing
+data-layer canonical loader. Callers provide the canonical root; the fast feature
+module does not encode provider literals or raw/canonical repository paths. The
+loaded frame is cached per request so a pack can compute all declarations from
+one in-memory frame.
+
+## Identity
+
+Fast identity is:
+
+```python
+FeatureVersion.derive(feature_spec)
+```
+
+This is the same content-addressed identity used by the reference engine. It
+hashes the computational contract and excludes request provenance such as
+`feature_request_id`; fast packs produce values for that identity, not a separate
+V1 identity.
+
+## Persistence And Registration
+
+Fast materialization builds the normal `FeatureMaterializationPlan`, writes
+values through the shared value-store helpers, and registers through
+`FeatureStore.register_materialized_feature()`.
+
+Registry writes are protected by a process-local serial lock and remain delegated
+to the official `FeatureStore` / `FeatureRegistry` path. The fast path does not
+write SQLite rows by hand. The default value-store mode is `dual`: Parquet value
+store plus JSONL audit output under `ALPHA_DATA_ROOT`.
+
+Fast-produced registry records include:
+
+- `producer_engine_id = alpha_system.features.fast.pack_materializer.v1`
+- `value_schema_version = alpha_system.features.fast.values.v1`
+
+These are provenance fields and do not participate in `feature_version_id`.
+
+## Parity Harness
+
+`tests/unit/feature_compute_fast_path/parity_harness.py` provides
+`assert_feature_records_match()`, which later pack phases can reuse. It compares:
+
+- exact feature-version id equality
+- feature values, with explicit tolerance only when documented
+- `available_ts`
+- gap rows, including `insufficient_window`, `input_gap`, and `session_reset`
+- quality flags
+
+The P01 demonstrator test computes a tiny synthetic Base OHLCV `returns` feature
+through both the reference family and a test-only fast declaration. It is not a
+production Base OHLCV pack.
+
+## Optional Dependency
+
+Polars remains optional. Importing `alpha_system.features.fast` does not import
+Polars. Runtime compute, canonical frame construction, and Parquet writes call
+the existing `require_dependency("polars")` guard, so environments without
+Polars fail closed or skip the synthetic parity tests cleanly.

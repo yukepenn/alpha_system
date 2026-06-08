@@ -5,11 +5,14 @@ This directory is the durable documentation index for
 
 - `OVERVIEW.md` summarizes the campaign purpose, parity-first discipline, and
   hard boundaries.
+- `PACK_MATERIALIZER.md` documents the P01 fast engine contract, identity
+  guarantee, persistence path, parity harness, and optional-dependency policy.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
   later parity, benchmark, and reconciliation summaries.
 
-`FCFP-P00` adds documentation and scaffolding only. It adds no engine code, no
-parity harness, no CLI command, no feature/label values, no SQLite writes, and no
-heavy artifacts.
+`FCFP-P01` adds the `src/alpha_system/features/fast/` engine core and the
+synthetic reference-parity harness under `tests/unit/feature_compute_fast_path/`.
+It adds no production family pack, no CLI command, no real-data backfill, no
+feature/label values, no broker/live/paper behavior, and no heavy artifacts.
