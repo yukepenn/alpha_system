@@ -131,6 +131,23 @@ def scenarios() -> list[Canary]:
             {"data/cache/cache.db": "cache\n"},
         ),
         Canary(
+            # AGENTS.md hard rule: runs/** is local-only and must never be staged.
+            # Locks the artifact guard against staging run-state, events, or values.
+            "forbidden_runs_staging",
+            [
+                py,
+                str(HOOKS / "artifact_guard.py"),
+                "runs/2026Z_DEMO/state.json",
+                "runs/2026Z_DEMO/events.jsonl",
+                "runs/2026Z_DEMO/phases/P00/values.parquet",
+            ],
+            {
+                "runs/2026Z_DEMO/state.json": "{}\n",
+                "runs/2026Z_DEMO/events.jsonl": "{}\n",
+                "runs/2026Z_DEMO/phases/P00/values.parquet": "x\n",
+            },
+        ),
+        Canary(
             "forbidden_local_artifacts",
             [
                 py,

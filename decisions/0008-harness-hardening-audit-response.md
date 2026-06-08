@@ -100,6 +100,43 @@ intentionally **not** undertaken here: it is cosmetic, carries cross-reference r
 repo already has `docs/_historical/` + `docs/AGENT_CONTEXT_MAP.md`, and it is unrelated
 to agent correctness. Tracked as low-priority cleanup.
 
+## Follow-up applied same day (operator: "apply all, don't defer; rerun risk accepted")
+
+The deferral above was reconsidered at operator request. The new checks were
+implemented in a way that is **safe for the live merge gate** because canaries run
+against temp-repo fixtures, not the live run's files; deterministic fixtures that
+pass once pass always.
+
+Applied (batch 2):
+- **`forbidden_runs_staging` canary** — locks that the artifact guard blocks
+  staging `runs/**` state/events/values. Closes the one gap in the existing
+  forbidden-artifact canary coverage.
+- **status doctor wired into `verify.py --all/--ci`** (`check_status_consistency`)
+  — CI now fails on a runtime-contract contradiction and reports pointer drift.
+- **`test_single_pnl_truth_invariant.py`** — the repo-appropriate "no second PnL
+  truth" enforcement: locks that the reference engine, fast path, and the
+  reference<->fast **parity harness** (`backtest/parity.py` + `tests/parity/**`,
+  incl. equity-curve parity and unsupported-feature fail-closed) all exist and are
+  wired. Removing the parity guarantee now fails CI.
+- **`test_lane_review_policy.py`** — locks that Yellow and Red require an
+  independent Claude review (executor cannot self-approve material/external work),
+  Red never blind auto-merges, and Green stays bounded/low-risk.
+
+Deliberate non-changes, with evidence (these would have done harm):
+- **No `second_pnl_truth` grep-guard.** Verified: PnL/equity is legitimately
+  *consumed* across ~15 modules (`backtest/{reference,equity,accounting,fast_path,
+  parity,results,trades}`, `experiments/*`, `management/*`, `cli/backtest`). A
+  pattern guard would false-positive en masse and block legitimate commits. The
+  real single-truth guarantee is the parity harness, now locked by a test.
+- **No test-tamper env-provenance change.** `test_tamper_guard` trusting
+  `FRONTIER_ALLOWED_TEST_PATHS` is by design for authorized test-touching phases;
+  rewiring it to require active-spec provenance is a driver change that could block
+  in-flight phases (P11-P15). Tracked as a driver-side follow-up, not a hot patch.
+- **`holdout_access` / `bbo_execution_truth` canaries** not added: both need a
+  precise pattern/partition model to avoid false-positives and are partly covered by
+  existing governance canaries + `BACKTEST_TRUTH_POLICY.md`. Tracked as follow-ups.
+- **Doc-bloat consolidation** still skipped (cosmetic, cross-ref risk).
+
 ## Consequences
 
 The single most important gap the audits identified — "live status is duplicated and
