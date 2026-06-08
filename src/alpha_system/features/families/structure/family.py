@@ -289,6 +289,7 @@ def build_structure_feature_definition(
     opening_session_label: str = "RTH",
     reset_on_session: bool = True,
     window: WindowSpec | None = None,
+    input_scope: Mapping[str, Any] | None = None,
 ) -> StructureFeatureDefinition:
     """Build one approved Liquidity Structure feature definition.
 
@@ -316,6 +317,7 @@ def build_structure_feature_definition(
         opening_session_label=opening_session_label,
         reset_on_session=reset_on_session,
         window=window,
+        input_scope=input_scope,
     )
     return StructureFeatureDefinition(
         name=feature_name,
@@ -389,6 +391,7 @@ def _feature_spec(
     opening_session_label: str,
     reset_on_session: bool,
     window: WindowSpec | None,
+    input_scope: Mapping[str, Any] | None,
 ) -> StructureFeatureSpec:
     if gate_decision.feature_request_id is None:
         raise StructureFeatureError("approved FeatureRequestGateDecision must expose freq_ id")
@@ -408,23 +411,7 @@ def _feature_spec(
             input_views=("canonical_ohlcv", "canonical_bbo"),
             fields=_input_fields(name),
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata={
-                "consumption_surface": (
-                    "alpha_system.features.input_views.StructureInputBundle-compatible "
-                    "OHLCVInputView with optional exact-time BBOInputView quality context"
-                ),
-                "accepted_dataset_version_gate": (
-                    "input views are produced upstream from accepted DatasetVersions"
-                ),
-                "trade_semantics": (
-                    "FLF-P04 no_trade rows are gaps for sweep, breakout, wick, "
-                    "opening-range, and compression logic"
-                ),
-                "bbo_quality_surface": (
-                    "missing_bbo and bbo_quarantined rows are surfaced only at exact "
-                    "available_ts; quotes are never filled or interpolated"
-                ),
-            },
+            input_metadata=_input_metadata(input_scope=input_scope),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -545,6 +532,29 @@ def _input_fields(name: StructureFeatureName) -> tuple[str, ...]:
         "bbo.quality_flags",
     )
     return tuple(dict.fromkeys((*base, *_FIELDS_BY_FEATURE[name])))
+
+
+def _input_metadata(*, input_scope: Mapping[str, Any] | None = None) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "consumption_surface": (
+            "alpha_system.features.input_views.StructureInputBundle-compatible "
+            "OHLCVInputView with optional exact-time BBOInputView quality context"
+        ),
+        "accepted_dataset_version_gate": (
+            "input views are produced upstream from accepted DatasetVersions"
+        ),
+        "trade_semantics": (
+            "FLF-P04 no_trade rows are gaps for sweep, breakout, wick, "
+            "opening-range, and compression logic"
+        ),
+        "bbo_quality_surface": (
+            "missing_bbo and bbo_quarantined rows are surfaced only at exact "
+            "available_ts; quotes are never filled or interpolated"
+        ),
+    }
+    if input_scope:
+        metadata["input_scope"] = {str(key): value for key, value in input_scope.items()}
+    return metadata
 
 
 def _coerce_input_bundle(
