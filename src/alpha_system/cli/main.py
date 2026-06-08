@@ -16,6 +16,7 @@ from alpha_system.cli.management import register_subparser as register_managemen
 from alpha_system.cli.ml import register_subparser as register_ml_subparser
 from alpha_system.cli.registry import register_subparser as register_registry_subparser
 from alpha_system.cli.runtime import register_subparser as register_runtime_subparser
+from alpha_system.cli.scaleout import register_subparser as register_scaleout_subparser
 from alpha_system.cli.study import register_subparser as register_study_subparser
 
 
@@ -43,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_report_subparser(subparsers)
     register_registry_subparser(subparsers)
     register_runtime_subparser(subparsers)
+    register_scaleout_subparser(subparsers)
     register_study_subparser(subparsers)
     return parser
 

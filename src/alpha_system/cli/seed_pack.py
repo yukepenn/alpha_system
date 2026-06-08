@@ -332,6 +332,7 @@ def run_seed_feature_pack(
             window_length=entry.window_length,
             horizon=entry.horizon,
             reset_on_session=False,
+            input_scope=_feature_input_scope(config),
         )
         checked_request = (
             definition.request_gate_decision.checked_feature_request or request
@@ -434,6 +435,7 @@ def preview_seed_feature_pack(config: SeedPackConfig) -> dict[str, Any]:
             window_length=entry.window_length,
             horizon=entry.horizon,
             reset_on_session=False,
+            input_scope=_feature_input_scope(config),
         )
         features.append(
             {
@@ -713,6 +715,14 @@ def _build_feature_request(feature_set: FeatureSetConfig, feature_name: str) -> 
         },
         approval_status=FeatureRequestApprovalStatus.APPROVED,
     )
+
+
+def _feature_input_scope(config: SeedPackConfig) -> dict[str, str]:
+    return {
+        "symbol": config.symbol.upper(),
+        "partition_id": config.partition_id,
+        "partition_schema": config.partition_schema,
+    }
 
 
 def _build_label_spec(config: SeedPackConfig, entry: LabelSpecConfig) -> LabelSpec:
