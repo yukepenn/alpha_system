@@ -1,0 +1,20 @@
+{
+  "schema": "alpha_system.roll_calendar_guard.v1",
+  "roll_policy_id": "roll_cme_index_futures_quarterly",
+  "roll_guard_version": "roll_guard_v1",
+  "roots": ["ES", "NQ", "RTY"],
+  "cycle_months": [3, 6, 9, 12],
+  "expiration_rule": "third_friday",
+  "roll_offset_rule": {
+    "method": "calendar_days_before_expiration",
+    "days_before_expiration": 8
+  },
+  "default_cross_roll_policy": "drop",
+  "missing_or_ambiguous_calendar_policy": "drop",
+  "roll_window": {
+    "days_before_roll": 2,
+    "days_after_roll": 1
+  },
+  "validation_status": "unvalidated",
+  "disclaimer": "Analytic approximate quarterly calendar; not provider-exact splice truth."
+}

@@ -1,0 +1,15 @@
+{
+  "fixture_id": "synthetic_known_roll_week_march_2024",
+  "description": "Tiny synthetic fixture for the analytic CME equity-index March 2024 roll week. It contains dates and identifiers only; no market prices, volumes, orders, or provider rows.",
+  "root_symbol": "ES",
+  "from_contract_month": "2024-03",
+  "to_contract_month": "2024-06",
+  "expiration_rule": "third_friday",
+  "expiration_date": "2024-03-15",
+  "roll_offset_days_before_expiration": 8,
+  "expected_roll_date": "2024-03-07",
+  "roll_policy_id": "roll_cme_index_futures_quarterly",
+  "roll_guard_version": "roll_guard_v1",
+  "default_cross_roll_policy": "drop",
+  "validation_status": "unvalidated"
+}

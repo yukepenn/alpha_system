@@ -8,10 +8,12 @@ rolls.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from math import isfinite
+from pathlib import Path
 from types import MappingProxyType
 
 from alpha_system.data.foundation.instruments import (
@@ -88,6 +90,16 @@ ROLL_VALIDATION_STATUSES: frozenset[str] = frozenset(
 )
 
 DERIVED_STITCHED_ROLL_PROVENANCE_LABEL = "derived_stitched_dated_contract_roll"
+CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID = "roll_cme_index_futures_quarterly"
+CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_SOURCE = (
+    "dsrc_analytic_cme_index_quarterly_roll_approx_v1"
+)
+CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS: tuple[int, ...] = (3, 6, 9, 12)
+CME_EQUITY_INDEX_QUARTERLY_ROLL_OFFSET_DAYS = 8
+CME_EQUITY_INDEX_QUARTERLY_VALIDATION_STATUS = "unvalidated"
+CME_EQUITY_INDEX_QUARTERLY_METHOD = "calendar_days_before_expiration"
+CME_EQUITY_INDEX_QUARTERLY_ROLL_TRIGGER = "calendar"
+CME_EQUITY_INDEX_QUARTERLY_EXPIRATION_RULE = "third_friday"
 
 _ROLL_METHOD_TRIGGER_REQUIREMENTS: Mapping[str, str] = MappingProxyType(
     {
@@ -698,6 +710,178 @@ class RollCalendarRecord:
         )
 
 
+def build_cme_equity_index_quarterly_roll_policy() -> RollPolicy:
+    """Return the stable analytic CME equity-index quarterly roll policy."""
+
+    return RollPolicy(
+        roll_policy_id=CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID,
+        method=CME_EQUITY_INDEX_QUARTERLY_METHOD,
+        roll_trigger=CME_EQUITY_INDEX_QUARTERLY_ROLL_TRIGGER,
+        adjustment_method=ROLL_ADJUSTMENT_METHOD_NONE,
+        fallback_rule="calendar_fallback_unvalidated",
+        uses_volume=False,
+        uses_open_interest=False,
+        source=CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_SOURCE,
+    )
+
+
+def third_friday(year: int, month: int) -> date:
+    """Return the third Friday for a concrete calendar month."""
+
+    _validate_year_month(year, month)
+    first_day = date(year, month, 1)
+    days_to_friday = (4 - first_day.weekday()) % 7
+    return first_day + timedelta(days=days_to_friday + 14)
+
+
+def cme_equity_index_quarterly_roll_date(
+    *,
+    year: int,
+    month: int,
+    roll_offset_days: int = CME_EQUITY_INDEX_QUARTERLY_ROLL_OFFSET_DAYS,
+) -> date:
+    """Return the approximate calendar roll date for one quarterly expiry."""
+
+    if roll_offset_days < 0:
+        msg = "roll_offset_days must be non-negative"
+        raise DataFoundationValidationError(msg)
+    if month not in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS:
+        allowed = ", ".join(
+            str(cycle_month) for cycle_month in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS
+        )
+        msg = f"month must be one of the quarterly cycle months: {allowed}"
+        raise DataFoundationValidationError(msg)
+    return third_friday(year, month) - timedelta(days=roll_offset_days)
+
+
+def build_cme_equity_index_quarterly_contract(
+    *,
+    root_symbol: str,
+    year: int,
+    month: int,
+) -> FuturesContractRecord:
+    """Build a synthetic dated-contract identity for analytic roll metadata."""
+
+    _validate_year_month(year, month)
+    root = _normalize_root_symbol(root_symbol)
+    master = load_futures_instrument_master_by_root()[root]
+    expiration = third_friday(year, month)
+    contract_month = f"{year:04d}-{month:02d}"
+    contract_token = f"{year:04d}{month:02d}"
+    return FuturesContractRecord(
+        contract_id=f"contract_cme_analytic_{root.lower()}_{contract_token}",
+        root_symbol=root,
+        contract_month=contract_month,
+        ib_symbol=master.ib_symbol,
+        trading_class=master.ib_symbol,
+        con_id=None,
+        last_trade_date_or_contract_month=expiration.isoformat(),
+        expiration=expiration,
+        multiplier=master.multiplier,
+        exchange=master.exchange,
+        currency=master.currency,
+        include_expired_support_status="not_checked",
+    )
+
+
+def build_analytic_cme_equity_index_quarterly_roll_calendar(
+    *,
+    root_symbols: Iterable[str] = ("ES", "NQ", "RTY"),
+    start_year: int = 2018,
+    end_year: int = 2026,
+    roll_offset_days: int = CME_EQUITY_INDEX_QUARTERLY_ROLL_OFFSET_DAYS,
+) -> tuple[RollCalendarRecord, ...]:
+    """Build approximate ES/NQ/RTY quarterly roll records for a year range.
+
+    The dates use the documented analytic heuristic only: quarterly cycle month,
+    third-Friday expiration, and a calendar-day offset. The result is explicitly
+    unvalidated and is not provider-exact splice truth.
+    """
+
+    if end_year < start_year:
+        msg = "end_year must be greater than or equal to start_year"
+        raise DataFoundationValidationError(msg)
+
+    records: list[RollCalendarRecord] = []
+    for raw_root in root_symbols:
+        root = _normalize_root_symbol(raw_root)
+        for year in range(start_year, end_year + 1):
+            for month in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS:
+                next_year, next_month = _next_quarterly_cycle_month(year, month)
+                roll_date = cme_equity_index_quarterly_roll_date(
+                    year=year,
+                    month=month,
+                    roll_offset_days=roll_offset_days,
+                )
+                from_contract = build_cme_equity_index_quarterly_contract(
+                    root_symbol=root,
+                    year=year,
+                    month=month,
+                )
+                to_contract = build_cme_equity_index_quarterly_contract(
+                    root_symbol=root,
+                    year=next_year,
+                    month=next_month,
+                )
+                records.append(
+                    RollCalendarRecord(
+                        roll_calendar_id=(
+                            "rollcal_cme_index_quarterly_"
+                            f"{root.lower()}_{year:04d}{month:02d}_to_"
+                            f"{next_year:04d}{next_month:02d}_approx_v1"
+                        ),
+                        root_symbol=root,
+                        from_contract=from_contract,
+                        to_contract=to_contract,
+                        roll_date=roll_date,
+                        method=CME_EQUITY_INDEX_QUARTERLY_METHOD,
+                        evidence={
+                            "source": "analytic_cme_equity_index_quarterly_heuristic",
+                            "approximate": True,
+                            "provider_exact_splice": False,
+                            "reconciled_to_provider": False,
+                            "cycle_months": CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS,
+                            "expiration_rule": CME_EQUITY_INDEX_QUARTERLY_EXPIRATION_RULE,
+                            "roll_offset_days_before_expiration": roll_offset_days,
+                            "provenance": DERIVED_STITCHED_ROLL_PROVENANCE_LABEL,
+                        },
+                        validation_status=CME_EQUITY_INDEX_QUARTERLY_VALIDATION_STATUS,
+                    )
+                )
+
+    return tuple(
+        sorted(records, key=lambda record: (record.root_symbol, record.roll_date))
+    )
+
+
+def persist_roll_calendar_records_jsonl(
+    records: Iterable[RollCalendarRecord | Mapping[str, object]],
+    path: str | Path,
+) -> Path:
+    """Persist roll records as JSONL for local-only audit or registry loaders."""
+
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_records = tuple(
+        record
+        if isinstance(record, RollCalendarRecord)
+        else RollCalendarRecord.from_mapping(record)
+        for record in records
+    )
+    with output_path.open("w", encoding="utf-8") as handle:
+        for record in normalized_records:
+            payload = _json_stable_roll_value(record.to_mapping())
+            encoded = json.dumps(
+                payload,
+                allow_nan=False,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            handle.write(encoded + "\n")
+    return output_path
+
+
 def require_roll_calendar_matches_policy(
     calendar: RollCalendarRecord | Mapping[str, object],
     policy: RollPolicy | Mapping[str, object],
@@ -712,7 +896,58 @@ def require_roll_calendar_matches_policy(
     return roll_calendar.validate_against_policy(policy)
 
 
+def _validate_year_month(year: int, month: int) -> None:
+    if isinstance(year, bool) or isinstance(month, bool):
+        msg = "year and month must be integers"
+        raise DataFoundationValidationError(msg)
+    if not isinstance(year, int) or not isinstance(month, int):
+        msg = "year and month must be integers"
+        raise DataFoundationValidationError(msg)
+    try:
+        date(year, month, 1)
+    except ValueError as exc:
+        msg = "year and month must form a valid calendar month"
+        raise DataFoundationValidationError(msg) from exc
+
+
+def _next_quarterly_cycle_month(year: int, month: int) -> tuple[int, int]:
+    if month not in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS:
+        allowed = ", ".join(
+            str(cycle_month) for cycle_month in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS
+        )
+        msg = f"month must be one of the quarterly cycle months: {allowed}"
+        raise DataFoundationValidationError(msg)
+    index = CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS.index(month)
+    next_index = (index + 1) % len(CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS)
+    next_year = year + 1 if next_index == 0 else year
+    return next_year, CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS[next_index]
+
+
+def _json_stable_roll_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_stable_roll_value(nested_value)
+            for key, nested_value in sorted(value.items(), key=lambda item: str(item[0]))
+        }
+    if isinstance(value, tuple | list):
+        return [_json_stable_roll_value(item) for item in value]
+    if isinstance(value, date):
+        return value.isoformat()
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    msg = f"roll calendar value {value!r} is not JSON-stable"
+    raise DataFoundationValidationError(msg)
+
+
 __all__ = [
+    "CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS",
+    "CME_EQUITY_INDEX_QUARTERLY_EXPIRATION_RULE",
+    "CME_EQUITY_INDEX_QUARTERLY_METHOD",
+    "CME_EQUITY_INDEX_QUARTERLY_ROLL_OFFSET_DAYS",
+    "CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID",
+    "CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_SOURCE",
+    "CME_EQUITY_INDEX_QUARTERLY_ROLL_TRIGGER",
+    "CME_EQUITY_INDEX_QUARTERLY_VALIDATION_STATUS",
     "DERIVED_STITCHED_ROLL_PROVENANCE_LABEL",
     "KNOWN_ROLL_ROOTS",
     "REQUIRED_ROLL_CALENDAR_FIELDS",
@@ -725,5 +960,11 @@ __all__ = [
     "ROLL_VALIDATION_STATUSES",
     "RollCalendarRecord",
     "RollPolicy",
+    "build_analytic_cme_equity_index_quarterly_roll_calendar",
+    "build_cme_equity_index_quarterly_contract",
+    "build_cme_equity_index_quarterly_roll_policy",
+    "cme_equity_index_quarterly_roll_date",
+    "persist_roll_calendar_records_jsonl",
     "require_roll_calendar_matches_policy",
+    "third_friday",
 ]
