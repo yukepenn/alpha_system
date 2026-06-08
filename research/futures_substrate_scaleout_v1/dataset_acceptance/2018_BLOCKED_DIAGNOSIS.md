@@ -70,16 +70,21 @@ or missing evidence:
 
 ## Decision
 
-- **Keep 2018 `ohlcv_1m` + `bbo_1m` excluded** from the full accepted
-  materialization window, documented as a coverage gap.
-- **Do NOT lower the blocking floor** to force 2018 inclusion.
-- **Do NOT block the campaign** on 2018.
-- The acceptance policy is **not** changed; the floors stand.
+- **Do NOT lower the blocking floor** to force 2018 inclusion; **do NOT fabricate
+  acceptance**; **do NOT block the campaign** on 2018. The acceptance policy and
+  floors are **unchanged**.
+- **Prefer schema × symbol × year eligibility** in the scaleout driver if the repo
+  supports it without a large refactor: materialize **ES 2018 and NQ 2018** (their
+  per-symbol coverage passes at >0.99), keep **RTY 2018 BLOCKED** (0.8746, below
+  the 0.90 floor), and ensure any all-3-symbol / cross-market feature that would
+  use RTY 2018 is blocked/warned or computed only on the explicit intersection
+  with missingness + coverage reporting (never treat RTY 2018 as complete history).
+- **Fallback** (if per-symbol eligibility is too invasive): exclude the whole 2018
+  `ohlcv_1m` / `bbo_1m` versions at the DatasetVersion level (acceptance is
+  per-version, bundling ES/NQ/RTY, so the RTY shortfall blocks them) and document
+  2018 as a coverage gap. The 2018 `ohlcv_dense_research_grid` version is ACCEPTED
+  and remains in scope regardless.
 - Full accepted materialization window = `ACCEPTED` + `ACCEPTED_WITH_WARNINGS`
-  versions (2019–2026; the 2018 `ohlcv_dense_research_grid` version is ACCEPTED
-  and remains in scope).
-
-Note: acceptance is per-DatasetVersion (each yearly version bundles ES/NQ/RTY),
-so the RTY 2018 shortfall blocks the whole 2018 `ohlcv_1m` / `bbo_1m` versions
-(ES/NQ 2018 are individually clean but share the version-level lock). Per-symbol
-acceptance is out of scope for this campaign; 2018 is simply excluded.
+  units (2019–2026 at minimum; ES/NQ 2018 included if per-symbol eligibility is
+  used). 2019 carries an `ACCEPTED_WITH_WARNINGS` (RTY < 0.95) flag; 2026 carries
+  a partial-year warning.
