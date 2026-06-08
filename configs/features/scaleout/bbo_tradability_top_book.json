@@ -1,0 +1,91 @@
+{
+  "schema": "alpha_system.futures_substrate_scaleout.feature_scaleout_config.v1",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "FUTSUB-P12",
+  "phase_source": "FUTSUB-P05",
+  "family": "bbo_tradability_top_book",
+  "governed_scope": [
+    "mid",
+    "spread",
+    "spread_ticks",
+    "spread_zscore",
+    "top_book_depth",
+    "top_book_imbalance",
+    "missing_bbo_flag",
+    "bad_quote_flag",
+    "wide_spread_flag",
+    "low_depth_flag",
+    "microprice_proxy"
+  ],
+  "batch_unit_grid": {
+    "unit_grain": [
+      "family",
+      "symbol",
+      "year"
+    ],
+    "symbols": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "input_schemas": [
+      "bbo_1m"
+    ],
+    "dense_grid_required": false
+  },
+  "budgets": {
+    "row_budget_per_unit": 550000,
+    "parquet_file_budget_per_unit": 1,
+    "batch_unit_count": 27,
+    "aggregate_row_budget": 14850000,
+    "aggregate_parquet_file_budget": 27
+  },
+  "dataset_selection": {
+    "inventory_ref": "configs/features/scaleout/dataset_version_inventory.json",
+    "required_schemas": [
+      "bbo_1m"
+    ],
+    "eligible_states": [
+      "ACCEPTED",
+      "ACCEPTED_WITH_WARNINGS"
+    ],
+    "fail_closed_on_blocked_or_missing_lock": true
+  },
+  "value_store": {
+    "format": "parquet",
+    "jsonl_research_scale_allowed": false,
+    "value_namespace": "features/materialized/futures_substrate_scaleout_v1/bbo_tradability_top_book"
+  },
+  "checkpoint": {
+    "checkpoint_root": "materialization/futures_substrate_scaleout_v1/checkpoints/features/bbo_tradability_top_book",
+    "completed_manifest": "materialization/futures_substrate_scaleout_v1/checkpoints/features/bbo_tradability_top_book/completed_units.jsonl",
+    "completion_marker_template": "materialization/futures_substrate_scaleout_v1/checkpoints/features/bbo_tradability_top_book/units/{unit_id}.json"
+  },
+  "resource_guard": {
+    "resource_class": "materialization_registry",
+    "parallel_safe": false,
+    "registry": "registry/features.sqlite"
+  },
+  "identity": {
+    "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,input_schemas,dataset_version_id,value_store_format))>",
+    "partition_template": "{symbol}.{year}.full_year",
+    "dry_run_preview_ref": "research/futures_substrate_scaleout_v1/materialization/batch_plan.md#dry-run-identity-preview"
+  },
+  "claims_policy": {
+    "bbo_is_tradability_proxy_not_execution_truth": true,
+    "passive_fill_claims_forbidden": true,
+    "queue_priority_claims_forbidden": true,
+    "intra_minute_impact_claims_forbidden": true
+  }
+}

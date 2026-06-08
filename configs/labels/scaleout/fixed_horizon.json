@@ -1,0 +1,95 @@
+{
+  "schema": "alpha_system.futures_substrate_scaleout.label_scaleout_config.v1",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "FUTSUB-P16",
+  "phase_source": "FUTSUB-P05",
+  "family": "fixed_horizon",
+  "governed_scope": [
+    "diagnostic_1m",
+    "diagnostic_3m",
+    "primary_5m",
+    "primary_10m",
+    "primary_15m",
+    "primary_30m"
+  ],
+  "batch_unit_grid": {
+    "unit_grain": [
+      "family",
+      "symbol",
+      "year",
+      "horizon"
+    ],
+    "symbols": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "horizons": [
+      "1m",
+      "3m",
+      "5m",
+      "10m",
+      "15m",
+      "30m"
+    ],
+    "input_schemas": [
+      "ohlcv_1m"
+    ]
+  },
+  "budgets": {
+    "row_budget_per_unit": 550000,
+    "parquet_file_budget_per_unit": 1,
+    "batch_unit_count": 162,
+    "aggregate_row_budget": 89100000,
+    "aggregate_parquet_file_budget": 162
+  },
+  "dataset_selection": {
+    "inventory_ref": "configs/labels/scaleout/dataset_version_inventory.json",
+    "required_schemas": [
+      "ohlcv_1m"
+    ],
+    "eligible_states": [
+      "ACCEPTED",
+      "ACCEPTED_WITH_WARNINGS"
+    ],
+    "fail_closed_on_blocked_or_missing_lock": true
+  },
+  "guards": {
+    "label_available_ts_required": true,
+    "roll_splice_guard_required": true,
+    "maintenance_crossing_guard_required": true,
+    "roll_policy_ref": "docs/futures_substrate_scaleout/ROLL_GUARD.md",
+    "maintenance_crossing_policy": "no_silent_crossing"
+  },
+  "value_store": {
+    "format": "parquet",
+    "jsonl_research_scale_allowed": false,
+    "value_namespace": "labels/materialized/futures_substrate_scaleout_v1/fixed_horizon"
+  },
+  "checkpoint": {
+    "checkpoint_root": "materialization/futures_substrate_scaleout_v1/checkpoints/labels/fixed_horizon",
+    "completed_manifest": "materialization/futures_substrate_scaleout_v1/checkpoints/labels/fixed_horizon/completed_units.jsonl",
+    "completion_marker_template": "materialization/futures_substrate_scaleout_v1/checkpoints/labels/fixed_horizon/units/{unit_id}.json"
+  },
+  "resource_guard": {
+    "resource_class": "materialization_registry",
+    "parallel_safe": false,
+    "registry": "registry/labels.sqlite"
+  },
+  "identity": {
+    "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,horizon,dataset_version_id,value_store_format))>",
+    "partition_template": "{symbol}.{year}.{horizon}",
+    "dry_run_preview_ref": "research/futures_substrate_scaleout_v1/materialization/batch_plan.md#dry-run-identity-preview"
+  }
+}

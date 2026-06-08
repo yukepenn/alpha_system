@@ -1,0 +1,79 @@
+{
+  "schema": "alpha_system.futures_substrate_scaleout.feature_scaleout_config.v1",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "FUTSUB-P11",
+  "phase_source": "FUTSUB-P05",
+  "family": "volume_activity",
+  "governed_scope": [
+    "participation",
+    "time_of_day_relative_volume",
+    "volume_regime",
+    "activity_bursts",
+    "effort_result_proxies"
+  ],
+  "batch_unit_grid": {
+    "unit_grain": [
+      "family",
+      "symbol",
+      "year"
+    ],
+    "symbols": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "input_schemas": [
+      "ohlcv_1m"
+    ],
+    "dense_grid_required": false
+  },
+  "budgets": {
+    "row_budget_per_unit": 550000,
+    "parquet_file_budget_per_unit": 1,
+    "batch_unit_count": 27,
+    "aggregate_row_budget": 14850000,
+    "aggregate_parquet_file_budget": 27
+  },
+  "dataset_selection": {
+    "inventory_ref": "configs/features/scaleout/dataset_version_inventory.json",
+    "required_schemas": [
+      "ohlcv_1m"
+    ],
+    "eligible_states": [
+      "ACCEPTED",
+      "ACCEPTED_WITH_WARNINGS"
+    ],
+    "fail_closed_on_blocked_or_missing_lock": true
+  },
+  "value_store": {
+    "format": "parquet",
+    "jsonl_research_scale_allowed": false,
+    "value_namespace": "features/materialized/futures_substrate_scaleout_v1/volume_activity"
+  },
+  "checkpoint": {
+    "checkpoint_root": "materialization/futures_substrate_scaleout_v1/checkpoints/features/volume_activity",
+    "completed_manifest": "materialization/futures_substrate_scaleout_v1/checkpoints/features/volume_activity/completed_units.jsonl",
+    "completion_marker_template": "materialization/futures_substrate_scaleout_v1/checkpoints/features/volume_activity/units/{unit_id}.json"
+  },
+  "resource_guard": {
+    "resource_class": "materialization_registry",
+    "parallel_safe": false,
+    "registry": "registry/features.sqlite"
+  },
+  "identity": {
+    "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,input_schemas,dataset_version_id,value_store_format))>",
+    "partition_template": "{symbol}.{year}.full_year",
+    "dry_run_preview_ref": "research/futures_substrate_scaleout_v1/materialization/batch_plan.md#dry-run-identity-preview"
+  }
+}
