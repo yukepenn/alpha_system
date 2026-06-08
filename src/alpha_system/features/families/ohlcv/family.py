@@ -175,6 +175,7 @@ def build_ohlcv_feature_definition(
     reset_on_session: bool = True,
     ddof: int = 0,
     window: WindowSpec | None = None,
+    input_scope: Mapping[str, Any] | None = None,
 ) -> OHLCVFeatureDefinition:
     """Build one approved Base OHLCV feature definition.
 
@@ -205,6 +206,7 @@ def build_ohlcv_feature_definition(
         reset_on_session=reset_on_session,
         ddof=ddof,
         window=window,
+        input_scope=input_scope,
     )
     return OHLCVFeatureDefinition(
         name=feature_name,
@@ -342,6 +344,7 @@ def _feature_spec(
     reset_on_session: bool,
     ddof: int,
     window: WindowSpec | None,
+    input_scope: Mapping[str, Any] | None,
 ) -> FeatureSpec:
     if gate_decision.feature_request_id is None:
         raise OHLCVFeatureError("approved FeatureRequestGateDecision must expose freq_ id")
@@ -364,7 +367,7 @@ def _feature_spec(
             input_views=("canonical_ohlcv",),
             fields=input_fields,
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata=_input_metadata(input_fields),
+            input_metadata=_input_metadata(input_fields, input_scope=input_scope),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -497,11 +500,17 @@ def _input_fields(name: OHLCVFeatureName) -> tuple[str, ...]:
     return tuple(dict.fromkeys((*base, *_OHLCV_FIELDS_BY_FEATURE[name])))
 
 
-def _input_metadata(fields: Sequence[str]) -> dict[str, object]:
+def _input_metadata(
+    fields: Sequence[str],
+    *,
+    input_scope: Mapping[str, Any] | None = None,
+) -> dict[str, object]:
     metadata: dict[str, object] = {
         "consumption_surface": "alpha_system.features.input_views.OHLCVInputView",
         "trade_semantics": "FLF-P04 no_trade rows are gaps for trade logic",
     }
+    if input_scope:
+        metadata["input_scope"] = {str(key): value for key, value in input_scope.items()}
     field_roles = {
         field: "SESSION_METADATA"
         for field in sorted(set(fields).intersection(_SESSION_METADATA_INPUT_FIELDS))

@@ -8,29 +8,28 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P02`:
-DatasetVersion Inventory and Acceptance-Lock Contract within the
-`bootstrap_and_contract` gate. Ralph owns validation routing, staging, commit,
+active. This snapshot reflects the executor-complete state for `FUTSUB-P06`:
+Scaleout Materialization Driver + Base OHLCV FeaturePack Scaleout within the
+`feature_materialization` gate. Ralph owns validation routing, staging, commit,
 review routing, PR, CI, merge, and done-check actions.
 
-Active / next work: the next phase is `FUTSUB-P03` - Continuous Series / Roll
-Metadata / Roll-Splice Guard Contract.
+Active / next work: the next phase is `FUTSUB-P07` - Session / Calendar /
+Maintenance FeaturePack Scaleout.
 
-New durable surfaces in this `FUTSUB-P02` snapshot:
+New durable surfaces in this `FUTSUB-P06` snapshot:
 
-- DatasetVersion acceptance-locks with computed canonical coverage evidence via
-  `alpha data accept-datasets`
-- Acceptance policy in `configs/data/dataset_acceptance/futsub_p02_policy.json`
-- Contract doc in
-  `docs/futures_substrate_scaleout/DATASET_ACCEPTANCE.md`
-- Value-free acceptance summary in
-  `research/futures_substrate_scaleout_v1/dataset_acceptance/acceptance_summary.md`
+- Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
+- CLI surface: `alpha scaleout feature-pack`
+- Scaleout driver doc in `docs/futures_substrate_scaleout/SCALEOUT_DRIVER.md`
+- Value-free base OHLCV scaleout summaries under
+  `research/futures_substrate_scaleout_v1/feature_packs/base_ohlcv/` and
+  `research/futures_substrate_scaleout_v1/scaleout_driver/`
 
-`FUTSUB-P02` adds no raw/provider data reads, re-pulls, feature/label
-materialization execution, runtime diagnostics, broker surfaces, live surfaces,
-paper-trading surfaces, order routing, or deployment behavior. Values,
-registries, checkpoints, canonical data, and registry backups remain local-only
-under `ALPHA_DATA_ROOT`; committed evidence is value-free.
+`FUTSUB-P06` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+broker surfaces, live surfaces, paper-trading surfaces, order routing, or
+deployment behavior. Feature values, registries, checkpoints, canonical data,
+and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed
+evidence is value-free.
 
 ## Source Of Truth
 
