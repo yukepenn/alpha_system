@@ -1,0 +1,1053 @@
+campaign_id: FEATURE_COMPUTE_FAST_PATH_V1
+campaign_name: 'Producer Compute Fast Path V1: a single-machine, local, columnar (Polars), batch/vectorized, incremental, reference-parity-gated, registry-safe producer compute engine for feature/label materialization, so large-scale backfill stops depending on the per-row Python reference engine (which remains the correctness oracle).'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: producer_compute_fast_path
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Substrate/infra engineering only. This campaign builds a vectorized Polars
+    producer compute path (ADR-0007) that reproduces the existing per-row Python
+    reference engine's feature/label values under a reference-parity gate, ~500x
+    faster, so the paused ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1 full-window
+    backfill can resume on V1. The reference engine is never deleted and stays the
+    oracle. It is NOT Ray/GPU/cluster, NOT a feature-compiler platform, NOT alpha
+    ideation, NOT FactorLibrary/AlphaBook/Strategy Reference, NOT paper/live/broker.
+    It makes no profitability or tradability claim.
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available but not the default for this campaign.
+  workflow2:
+    description: Ralph strict autonomous campaign loop with DAG-wave scheduling and a serial merge queue. Registry-writing / benchmark / integration phases are serialized by a shared registry resource_class.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  notes:
+  - Build phases in DAG order in isolated worktrees; merge one PR at a time.
+  - Phase branches must never write ACTIVE_CAMPAIGN.md; the coordinator owns it.
+  - Per-family pack phases (FCFP-P02..P10) edit distinct family modules + tests and
+    use synthetic fixtures, so they are parallel-safe BUILD but serial MERGE. They
+    do NOT write the production registry.
+  - Phases that touch the real local registry or run benchmarks against real data
+    (FCFP-P13 benchmark, FCFP-P12 reconciliation, FCFP-P14 driver integration) share
+    resource_class materialization_registry and are NOT parallel_safe; the scheduler
+    serializes them. No parallel SQLite writes.
+  - Bootstrap / engine-core / CLI / versioning / benchmark / integration / closeout
+    phases are must_run_alone.
+runtime:
+  python: '3.11'
+  package_root: src/alpha_system
+  test_root: tests
+  smoke_command: python tools/verify.py --smoke
+  full_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+  research_venv: ~/.venvs/alpha_system_research
+  data_root_env: ALPHA_DATA_ROOT
+  optional_dependency_pattern: 'require_dependency("polars") / _optional_module("pyarrow"); core dependencies stay empty.'
+  consumed_primitives:
+  - src/alpha_system/features/primitives/causal.py (REFERENCE oracle; never deleted)
+  - src/alpha_system/features/families/** (ohlcv, session, bbo, cross_market, structure) — reference compute the V1 packs must match
+  - src/alpha_system/features/engine/materialization.py (reference materialization + plan/identity)
+  - src/alpha_system/labels/families/** (fixed_horizon, cost_adjusted, path, event) — reference for label packs
+  - src/alpha_system/core/value_store.py (Parquet/JSONL sink+reader, content hash, available_ts)
+  - src/alpha_system/features/store.py + features/registry.py (official keystone registry write/resolve path)
+  - src/alpha_system/features/scaleout/driver.py (existing scaleout orchestration to integrate V1 into)
+  - src/alpha_system/cli/scaleout.py (CLI surface to extend with targeting)
+  editable_in_campaign:
+  - src/alpha_system/features/fast/** (NEW: V1 Polars pack engine + per-family packs + parity harness)
+  - src/alpha_system/labels/fast/** (NEW: V1 label pack engine)
+  - src/alpha_system/features/scaleout/driver.py (FCFP-P14: route to V1 producer path)
+  - src/alpha_system/cli/scaleout.py (FCFP-P11: targeting/incremental flags + dry-run estimates)
+  - tools/** and configs/** as needed; tests/** parity + benchmark fixtures
+models:
+  build_time_roles:
+    strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
+    specs_semantic_review_done_check: Claude Opus 4.8 xhigh
+    source_map_verifier_mechanical_audit: Claude Sonnet 4.6
+    execution_tests_repair_handoffs: Codex GPT-5.5 xhigh
+    orchestration_state_machine_dag_merge_queue: Ralph
+  notes:
+  - Build-time model roles write/review/merge the campaign.
+  - No in-product autonomous agents are instantiated; this is engineering work driven by the strict Workflow 2 loop.
+lane_policy:
+  green: Low-risk automatic work (campaign control docs, indexes, value-free scaffolding).
+  yellow: Material engineering work requiring fresh Claude Opus review.
+  red: External, destructive, live, production, costly, or broker-adjacent work; requires scoped authorization.
+  red_authorization_required:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  red_expected_in_campaign: false
+  default_lane: yellow
+state_machine:
+  driver: ralph
+  strict: true
+  stop_checks_before:
+  - provider calls
+  - phase selection
+  - codex execution
+  - validation
+  - review
+  - PR creation
+  - CI waiting
+  - merge gate
+  - merge
+  - done-check
+  - next-phase selection
+  resume: from recorded run state, never regenerating completed work
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - local SQLite registries (datasets/features/labels) and journals/WAL
+  - benchmark output values / heavy artifacts
+  - heavy artifacts (parquet/arrow/feather)
+  - research run logs and caches
+  never_commit_globs: &never_commit_globs
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - runs/**
+  - artifacts/**
+  - '**/*credential*'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - campaign control files
+  - docs
+  - V1 engine + per-family/label pack code
+  - reference-parity test code + tiny synthetic fixtures
+  - benchmark harness code + value-free benchmark summaries
+  - targeting/incremental CLI code + tests
+  - engine/value-schema versioning code + reconciliation summaries (value-free)
+  - handoffs
+  - reviews
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/feature_compute_fast_path/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+  research_evidence_artifacts:
+    note: >-
+      Evidence under research/feature_compute_fast_path_v1/** is commit-eligible ONLY
+      when value-free: parity reports (counts, max/median diffs, tolerances), benchmark
+      summaries (elapsed, rows/sec, speedup, estimates), and reconciliation summaries.
+      Per-row feature/label values, Parquet, SQLite registries, and provider responses
+      remain local-only under runs/** or $ALPHA_DATA_ROOT/** and are never committed.
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_local_db_commits: true
+    no_heavy_artifact_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  yellow_requires_fresh_review: true
+  green_review_optional: true
+  red_requires_scoped_authorization: true
+  review_artifacts:
+    commit_eligible: reviews/FEATURE_COMPUTE_FAST_PATH_V1/<phase_id>/**
+    run_local: runs/<run_id>/phases/<phase_id>/review.md and verdict.json
+  semantic_done_check_required: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - BLOCKED
+merge_policy:
+  merge_queue: serial
+  auto_merge_for_green: true
+  auto_merge_for_yellow_after_review: true
+  auto_merge_for_red: false
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  protected_branch: main
+  no_force_push: true
+  one_pr_at_a_time: true
+parity_policy:
+  reference_engine_is_oracle: true
+  reference_engine_never_deleted: true
+  parity_required_before_v1_is_production_for_a_family: true
+  parity_dimensions:
+  - feature value (exact where expected; documented numeric tolerance where float differences expected)
+  - available_ts
+  - label_available_ts (labels)
+  - insufficient_window / input_gap / session_reset gap rows
+  - missingness / quality flags
+  - roll-splice and maintenance-crossing guard behavior (labels)
+  unexplained_difference_is_blocker: true
+  synthetic_fixture_tests_required: true
+  ci_runnable_parity_required: true
+benchmark_policy:
+  bounded_real_benchmark_required_before_resume: true
+  report_fields_required:
+  - elapsed
+  - rows_per_sec
+  - canonical_reads_per_symbol_year
+  - output_features_or_labels_per_read
+  - full_accepted_window_runtime_estimate
+  - speedup_vs_reference
+  benchmark_values_local_only: true
+identity_and_registry_policy:
+  exact_feature_version_id_semantics_required: true
+  exact_label_version_id_semantics_required: true
+  keystone_identity_preserved: true
+  feature_version_id_excludes_request_provenance: true
+  serial_registry_writes_required: true
+  no_manual_sqlite_writes: true
+  official_keystone_write_path_required: true
+  parquet_first_required: true
+  jsonl_audit_tier_only: true
+engine_versioning_policy:
+  producer_engine_id_recorded: true
+  value_schema_version_recorded: true
+  reconcile_existing_reference_outputs_required: true
+  never_mix_engines_silently_in_one_value_series: true
+  on_within_tolerance_difference:
+  - keep existing valid reference outputs as parity reference
+  - record producer_engine_id so reference-vs-V1 provenance is explicit
+  on_beyond_tolerance_difference:
+  - treat as a V1 bug, OR
+  - version the value schema explicitly, OR
+  - re-materialize via the official path
+targeting_policy:
+  targeting_dimensions_required:
+  - family
+  - feature_id / feature_group
+  - label_id / label_group
+  - symbols
+  - years / dataset_version_ids
+  dry_run_estimate_required: true
+  execute_selected_units_only_required: true
+  skip_completed_via_checkpoint_and_registry_truth_required: true
+  adding_one_feature_must_not_recompute_all_families: true
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access by agents
+  - direct SQLite registry writes outside sanctioned tool/CLI APIs
+  - deleting or weakening the reference compute engine
+  - weakening resolver exact-id semantics
+  - new alpha ideation or new AlphaSpec batch
+  - new features/labels beyond existing governed families
+  - parameter optimization / param search
+  - Ray / GPU / distributed / cluster compute
+  - feature compiler / DSL platform
+  - factor library V1 ingestion pipeline
+  - strategy reference validation
+  - AlphaBook construction
+  - ML/DL/RL training
+  - edits to execution/broker/live/signals/strategies/portfolio/management/l2/backtest/agent_factory
+  - raw / canonical / feature value / label value / local DB / provider response / heavy artifact commit
+  - alpha/profitability/tradability/production claim
+  - test weakening or gaming
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/agent_factory/**
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.sqlite'
+  - '**/*.db'
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+phases:
+- id: FCFP-P00
+  name: Campaign Bootstrap and Active Pointer
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the campaign contract bundle, the root active pointer, and the fast-path docs/evidence scaffolding so Workflow 2 can plan and schedule.
+  scope:
+  - Confirm the 6-file campaign bundle is present and internally consistent.
+  - Create the fast-path docs index and the value-free evidence directory skeleton.
+  - Update the root ACTIVE_CAMPAIGN.md pointer (coordinator-owned).
+  non_goals:
+  - Any engine implementation, parity test, or value/DB writes.
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/GOAL.md
+  - test -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/PHASE_PLAN.md
+  - test -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/campaign.yaml
+  - test -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/ACCEPTANCE.md
+  - test -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/RISK_REGISTER.md
+  - test -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/RUNBOOK.md
+  - test '!' -f campaigns/FEATURE_COMPUTE_FAST_PATH_V1/ACTIVE_CAMPAIGN.md
+  - grep -q "FEATURE_COMPUTE_FAST_PATH_V1" ACTIVE_CAMPAIGN.md
+  - python -c "import yaml; yaml.safe_load(open('campaigns/FEATURE_COMPUTE_FAST_PATH_V1/campaign.yaml'))"
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/FEATURE_COMPUTE_FAST_PATH_V1/**
+  - docs/feature_compute_fast_path/README.md
+  - docs/feature_compute_fast_path/OVERVIEW.md
+  - research/feature_compute_fast_path_v1/README.md
+  - research/feature_compute_fast_path_v1/.gitkeep
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P00.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy: &ap
+    commit_only:
+    - campaign control + overview docs
+    - value-free evidence directory skeleton
+    - V1 code + parity/benchmark tests + tiny synthetic fixtures
+    - value-free parity/benchmark/reconciliation summaries
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle present and consistent; root pointer selects this campaign; no campaign-local ACTIVE_CAMPAIGN.md; YAML parses; smoke passes; runs/ untracked.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P00.md
+  review: green lane; review optional.
+- id: FCFP-P01
+  name: V1 Engine Core + Reference-Parity Harness
+  lane: YELLOW
+  dependencies:
+  - FCFP-P00
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build the Polars pack-materializer engine core (load symbol-year canonical once, compute a pack of features vectorized, write Parquet-first values + register via the official keystone path with serial registry writes, exact feature_version_id identity) and a synthetic-fixture, CI-runnable reference-parity harness.
+  scope:
+  - Add src/alpha_system/features/fast/** with a PackMaterializer abstraction- a vectorized engine that loads a symbol-year canonical frame once (Polars) and computes a family's whole governed feature pack, then registers each FeatureVersion through the OFFICIAL FeatureStore keystone path (no hand-written rows; serial registry writes; Parquet-first; JSONL audit only).
+  - Feature identity (feature_version_id) MUST equal the reference engine's content-addressed identity for the same FeatureSpec; the fast engine produces values, never new identities.
+  - Add a reference-parity harness (tests/unit/feature_compute_fast_path/ + fixtures): given a tiny synthetic canonical frame, compute via reference and via fast pack, compare value (exact or documented tolerance), available_ts, and gap rows; unexplained diffs fail.
+  - Record producer_engine_id + value_schema_version on fast-produced registry records (engine versioning hook).
+  non_goals:
+  - Implementing every family (later phases); real-data backfill; CLI targeting; touching the scaleout driver.
+  checks: &v1_checks
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/feature_compute_fast_path/ -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: engine_core
+  allowed_paths: &v1_paths
+  - src/alpha_system/features/fast/**
+  - tests/unit/feature_compute_fast_path/**
+  - tests/fixtures/feature_compute_fast_path/**
+  - research/feature_compute_fast_path_v1/**
+  - docs/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P01.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - PackMaterializer engine core + parity harness land; feature_version_id matches reference identity; serial registry writes via official path; Parquet-first; parity harness green on synthetic fixtures; boundary fail-closed test passes; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P01.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P02
+  name: base_ohlcv Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Productionize the proven base_ohlcv Polars pack (returns, log_returns, rolling_volatility, rolling_range, range_position, volume_zscore) inside the V1 engine, with a synthetic-fixture parity test against the reference engine.
+  scope:
+  - Implement the base_ohlcv pack as Polars expressions matching the reference semantics (horizon=1, window=20, ddof=0, reset_on_session=False); reuse the proof formulas in research/futures_substrate_scaleout_v1/producer_fast_path/v1_proof_base_ohlcv.py.
+  - Parity test on a tiny synthetic frame: 5/6 exact, volume_zscore within a documented float tolerance, insufficient_window gap rows exact.
+  non_goals:
+  - Other families; session-reset; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: &pack_done
+  - Family pack implemented in the V1 engine as Polars expressions; synthetic-fixture parity test passes (exact where expected, documented tolerance where float differences expected, gap rows exact); feature_version_id matches reference; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P02.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P03
+  name: session / calendar / maintenance Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the session/calendar/maintenance pack in the V1 engine (RTH/ETH flags, session-minute, maintenance flags, roll-session-id) with parity, including session-segment-aware logic.
+  scope:
+  - Vectorize session features over the dense/sparse frame; match the reference families/session semantics including the O(n) roll-session-id behavior.
+  - Synthetic-fixture parity test (values, available_ts, gap rows, quality flags).
+  non_goals:
+  - Other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P03.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P04
+  name: vwap / session-auction Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the VWAP / session-auction pack in the V1 engine (running/anchored VWAP, distance-to-VWAP, opening/overnight range) with session-reset grouping and parity.
+  scope:
+  - Vectorize session-anchored cumulative VWAP and ranges with session-segment grouping (group rolling/cumulative by session); match reference vwap_session_auction semantics.
+  - Synthetic-fixture parity test including session resets and gap rows.
+  non_goals:
+  - Other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P04.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P05
+  name: regime / volatility / compression Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the regime/vol/compression pack in the V1 engine (trendiness/efficiency-ratio, ATR-regime, range compression/expansion, momentum-reversion state) with session-reset rolling and parity.
+  scope:
+  - Vectorize ATR (true range + rolling mean), efficiency ratio, and compression/expansion ratios with session-reset grouping; match reference semantics (the O(n) reset-on-session window from ADR-0007 / causal.py).
+  - Synthetic-fixture parity test (values within documented tolerance for ATR/ratios, gap rows exact).
+  non_goals:
+  - Other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P05.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P06
+  name: liquidity-sweep / PA-structure Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the liquidity-sweep / price-action structure pack in the V1 engine (prior-high/low distance, sweep flags, opening-range distance) with parity; reuse shared prior-window primitives once.
+  scope:
+  - Vectorize prior-window high/low/range and sweep detection over rolling windows (session-reset where the reference resets); match features/families/structure semantics.
+  - Synthetic-fixture parity test (values exact where expected, gap rows exact).
+  non_goals:
+  - Other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P06.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P07
+  name: volume / activity Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the volume/activity pack in the V1 engine (participation, time-of-day relative volume, volume regime, activity bursts, effort/result proxies) with session-reset rolling and parity.
+  scope:
+  - Vectorize volume z-scores/regimes/time-of-day-relative stats with session grouping; match features/families volume semantics.
+  - Synthetic-fixture parity test (values within documented tolerance, gap rows exact).
+  non_goals:
+  - Other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P07.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P08
+  name: bbo tradability / top-book Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the BBO tradability / top-book pack in the V1 engine (spread, top-book imbalance, quote stability, missingness) over the bbo_1m schema with parity; BBO is a tradability proxy, not execution truth.
+  scope:
+  - Vectorize spread / imbalance / stability / missingness features from the BBO frame; match features/families/bbo semantics; preserve time-sampled forward-filled BBO semantics and missingness flags.
+  - Synthetic-fixture parity test (values exact where expected, missingness/quality flags exact).
+  non_goals:
+  - Passive-fill / queue-priority / intra-minute-impact claims; other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P08.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P09
+  name: cross_market Aligned-Panel Polars Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P02
+  - FCFP-P05
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement the cross-market pack in the V1 engine by building the ES/NQ/RTY aligned panel once (Polars asof join, per-instrument available_ts preserved, NO cross-instrument forward-fill) and computing all cross-market features (rolling correlation, lead-lag, confirmation/divergence) from it, with parity. This is the family the proof flagged as the worst per-row bottleneck.
+  scope:
+  - Build the aligned panel once per year/grid/session policy (Polars); preserve per-instrument available_ts; never forward-fill across instruments; compute rolling correlation/lead-lag/flags vectorized; match features/families/cross_market semantics.
+  - Synthetic-fixture parity test on a 3-instrument tiny frame (values within documented tolerance, available_ts + flags exact).
+  non_goals:
+  - Other families; real-data writes.
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths: *v1_paths
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria: *pack_done
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P09.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P10
+  name: Multi-Horizon Fixed-Horizon Label Pack + Parity
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement a V1 label pack that loads the price panel once and computes all fixed-horizon labels (1m,3m,5m,10m,15m,30m,60m,120m,240m) in one pass, applying roll-splice and maintenance-crossing guards once, preserving label_available_ts; with parity. Readiness for FUTSUB P16-P20.
+  scope:
+  - Add src/alpha_system/labels/fast/** label PackMaterializer; vectorize forward-return labels across all horizons in one pass; apply roll-splice + maintenance-crossing guards consistently once; preserve label_available_ts and horizon-overlap / N_eff metadata; register via official label keystone path (serial).
+  - Synthetic-fixture parity test (label values, label_available_ts, guard behavior, horizon-overlap metadata) vs reference labels/families/fixed_horizon.
+  non_goals:
+  - cost_adjusted/path/event labels (reference parity later if needed); real-data writes; running FUTSUB labels (that is FUTSUB P16-P20 on V1).
+  checks: *v1_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: family_packs
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - src/alpha_system/features/fast/**
+  - tests/unit/feature_compute_fast_path/**
+  - tests/fixtures/feature_compute_fast_path/**
+  - research/feature_compute_fast_path_v1/**
+  - docs/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P10.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P10/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Label pack computes all fixed horizons in one pass with guards applied once; label_available_ts + overlap metadata preserved; synthetic-fixture parity test passes; label_version_id matches reference; registry writes serial; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P10.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P11
+  name: Targeted / Incremental Materialization CLI
+  lane: YELLOW
+  dependencies:
+  - FCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Add targeted, incremental materialization to the scaleout CLI so a researcher can materialize one feature/feature-group/label/family for selected symbols/years without recomputing all families.
+  scope:
+  - Extend cli/scaleout.py and the driver unit-grid builder with --family, --feature-id, --feature-group, --label-id, --symbols, --years, --dataset-version-ids, --dry-run (row/unit/time estimate), --execute (selected units only), and skip-completed via checkpoint + registry truth.
+  - Tests proving targeted selection, dry-run estimate, execute-selected-only, and skip-completed.
+  non_goals:
+  - Real full-window backfill; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/feature_compute_fast_path/ -q
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: cli
+  allowed_paths:
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/features/scaleout/driver.py
+  - src/alpha_system/features/fast/**
+  - tests/unit/feature_compute_fast_path/**
+  - tests/unit/futures_substrate_scaleout/**
+  - tests/fixtures/feature_compute_fast_path/**
+  - docs/feature_compute_fast_path/**
+  - research/feature_compute_fast_path_v1/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P11.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P11/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - CLI supports family/feature/feature-group/label/symbols/years/dataset-version-id targeting + dry-run estimate + execute-selected-only + skip-completed; tests pass; adding one feature does not recompute all families; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P11.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P12
+  name: Engine / Value-Schema Versioning + Reference-Output Reconciliation
+  lane: YELLOW
+  dependencies:
+  - FCFP-P02
+  - FCFP-P03
+  - FCFP-P04
+  - FCFP-P05
+  - FCFP-P06
+  - FCFP-P07
+  - FCFP-P08
+  - FCFP-P09
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Record producer_engine_id + value_schema_version on registry records and define how V1 output reconciles with the existing reference-engine outputs (663 records) without silently mixing engines.
+  scope:
+  - Add producer_engine_id / value_schema_version handling so reference-vs-V1 provenance is explicit on each value series; never mix engines silently within one logical series.
+  - Define the reconciliation policy: within documented tolerance -> keep reference outputs as parity reference + tag provenance; beyond tolerance -> treat as bug / version schema / re-materialize via the official path. Produce a value-free reconciliation summary for the FUTSUB-already-materialized families (base_ohlcv/vwap/regime full window, liquidity partial, others 2024).
+  non_goals:
+  - Manual SQLite surgery; deleting valid outputs; real full backfill.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/feature_compute_fast_path/ -q
+  - test -f research/feature_compute_fast_path_v1/reconciliation/reconciliation_summary.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/features/fast/**
+  - src/alpha_system/labels/fast/**
+  - src/alpha_system/features/store.py
+  - src/alpha_system/features/registry.py
+  - src/alpha_system/core/value_store.py
+  - tests/unit/feature_compute_fast_path/**
+  - tests/fixtures/feature_compute_fast_path/**
+  - research/feature_compute_fast_path_v1/reconciliation/**
+  - docs/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P12.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P12/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - producer_engine_id + value_schema_version recorded; reconciliation policy defined + value-free summary committed; no engine mixed silently; no manual SQLite; existing valid outputs preserved; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P12.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P13
+  name: Benchmark Gate
+  lane: YELLOW
+  dependencies:
+  - FCFP-P02
+  - FCFP-P03
+  - FCFP-P04
+  - FCFP-P05
+  - FCFP-P06
+  - FCFP-P07
+  - FCFP-P08
+  - FCFP-P09
+  - FCFP-P10
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Bounded-real benchmark of the V1 packs vs the reference engine, with a committed value-free benchmark summary and a full-accepted-window runtime estimate.
+  scope:
+  - Benchmark each family pack (one symbol-year; cross_market one accepted full year ES/NQ/RTY; labels one symbol-year multi-horizon) recording elapsed, rows/sec, canonical reads per symbol-year, outputs per read, speedup vs reference, and the estimated full-window runtime.
+  - Commit only the value-free benchmark summary; benchmark values/Parquet stay local-only.
+  non_goals:
+  - Resuming the full backfill (that is FUTSUB on V1); alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/feature_compute_fast_path_v1/benchmark/benchmark_summary.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/features/fast/**
+  - tools/**
+  - research/feature_compute_fast_path_v1/benchmark/**
+  - docs/feature_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P13.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P13/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Bounded-real benchmark run; value-free summary committed with elapsed/rows-per-sec/reads-per-symbol-year/speedup/full-window-estimate; V1 materially faster than reference; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P13.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P14
+  name: V1 Producer Path Integration + Resolver Smoke
+  lane: YELLOW
+  dependencies:
+  - FCFP-P11
+  - FCFP-P12
+  - FCFP-P13
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Wire V1 into the scaleout driver as the default producer path (reference engine selectable as oracle/fallback), and prove resolver-smoke passes on V1-produced values for a representative slice.
+  scope:
+  - Route the scaleout driver to the V1 PackMaterializer by default with a documented reference fallback; keep serial registry writes + official keystone path; preserve checkpoint/restart + idempotency.
+  - Materialize a representative bounded-real slice via V1 and run resolver-smoke; record a value-free integration report.
+  non_goals:
+  - Full accepted-window backfill (that resumes under FUTSUB on V1); alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/ tests/unit/feature_compute_fast_path/ -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - test -f research/feature_compute_fast_path_v1/integration/integration_report.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/features/scaleout/driver.py
+  - src/alpha_system/features/fast/**
+  - src/alpha_system/labels/fast/**
+  - src/alpha_system/cli/scaleout.py
+  - tests/unit/futures_substrate_scaleout/**
+  - tests/unit/feature_compute_fast_path/**
+  - research/feature_compute_fast_path_v1/integration/**
+  - docs/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P14.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P14/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Scaleout driver routes to V1 by default with reference fallback; serial registry + official keystone path + checkpoint/idempotency preserved; representative V1 slice materialized and resolver-smoke passes; value-free integration report committed; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P14.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P15
+  name: Closeout + FUTSUB Resume Handoff
+  lane: YELLOW
+  dependencies:
+  - FCFP-P14
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Close out V1 with a CLOSEOUT verdict and a precise handoff to resume ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1 on V1 (amend FUTSUB so P06-P13/P16-P20 use V1; P14/P22 validate V1 output; resume P14-P33).
+  scope:
+  - Write CLOSEOUT.md with a {COMPLETE|COMPLETE_WITH_WARNINGS|BLOCKED} verdict and the producer_fast_path_v1_status, parity, and benchmark evidence.
+  - Write the FUTSUB resume handoff (which FUTSUB phases switch to V1, how to reset and resume, reconciliation of already-materialized reference outputs).
+  - Update ACTIVE_CAMPAIGN.md (coordinator-owned) is NOT done by a phase branch; the closeout records the recommended repoint.
+  non_goals:
+  - Resuming FUTSUB itself (coordinator action); alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - test -f research/feature_compute_fast_path_v1/closeout/CLOSEOUT.md
+  - test -f handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/feature_compute_fast_path_v1/closeout/**
+  - docs/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - CLOSEOUT.md with verdict + parity/benchmark evidence; FUTSUB resume-on-V1 handoff written; canaries pass; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
+  review: yellow lane; fresh Opus review required.
