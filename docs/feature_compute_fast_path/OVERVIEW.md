@@ -113,6 +113,35 @@ no-trade input-gap propagation, flat-close `zero_movement` trendiness rows, and
 the structure-family prior-window behavior. The committed evidence remains
 value-free: counts, tolerances, and max/median absolute diffs only.
 
+## P06 Liquidity / PA Structure Pack
+
+`FCFP-P06` adds `alpha_system.features.fast.liquidity_pa_structure` and wires
+the governed Liquidity Structure feature set through `build_fast_feature_pack()`.
+The pack computes prior high/low distances, opening-range distances, sweep and
+failed-breakout flags, close-location value, wick rejection, and range
+contraction from one Polars OHLCV frame.
+
+The synthetic parity gate covers session-scoped prior windows, opening-session
+boundaries, no-trade input gaps, sweep and failed-breakout branches,
+zero-range guards, and range-contraction values. It keeps the reference
+Liquidity Structure family as the oracle and commits no feature values.
+
+## P07 Volume / Activity Pack
+
+`FCFP-P07` adds `alpha_system.features.fast.volume_activity` and wires the
+governed volume/activity pack through `build_fast_feature_pack()`. The pack does
+not introduce new volume/activity definitions; it computes the existing governed
+bindings selected by the reference scaleout driver: rolling volume, volume
+z-score, session minute, rolling range, range position, trendiness,
+close-location value, and wick rejection.
+
+The pack prepares typed OHLCV columns, normalized input flags, and contiguous
+session segments once, then evaluates the reset-on-session rolling and
+point-in-time expressions for the whole feature set. The synthetic parity gate
+covers leading insufficient windows, a no-trade input gap, session-boundary
+reset behavior, zero-range structure guards, `available_ts`, quality flags, and
+reference feature-version identity.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live

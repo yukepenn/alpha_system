@@ -170,6 +170,50 @@ session reset, a no-trade input gap, flat-price `zero_movement` rows, and an
 exclusive prior-window range-contraction value. No feature values or real market
 data are committed.
 
+## Liquidity / PA Structure Pack
+
+`FCFP-P06` adds the governed liquidity-sweep / price-action structure pack:
+`alpha_system.features.fast.liquidity_pa_structure`. The resolver accepts the
+governed Liquidity Structure feature set, and each declaration derives its
+`feature_version_id` from the same `FeatureSpec` identity as the reference
+family.
+
+The pack prepares shared OHLCV, normalized quality-flag, contiguous session,
+prior-window, and opening-window columns once and then computes:
+
+- prior high/low distances and sweep / failed-breakout flags from exclusive
+  prior windows
+- opening-range distances with opening-session and no-opening-trade guards
+- close-location value and wick rejection as point-in-time structure proxies
+- range contraction with current no-trade, prior-window, and zero-range guards
+
+The synthetic parity fixture covers input gaps, session resets, opening-range
+boundaries, sweep branches, zero-range guards, and range-contraction values. No
+feature values or real market data are committed.
+
+## Volume / Activity Pack
+
+`FCFP-P07` adds the governed volume/activity pack:
+`alpha_system.features.fast.volume_activity`. The resolver accepts the exact
+mixed feature set selected by the reference scaleout driver: rolling volume,
+volume z-score, session minute, rolling range, range position, trendiness,
+close-location value, and wick rejection. The pack computes values for existing
+governed primitive identities only; it does not mint participation, regime, or
+effort/result feature ids.
+
+The pack prepares shared OHLCV, normalized input-flag, and contiguous session
+segment columns once and then computes:
+
+- reset-on-session rolling volume, rolling range, range position, and trendiness
+- reset-on-session volume z-score with the reference `ddof=0` normalization
+- session minute from the current contiguous `(series_id, session_label)` segment
+- point-in-time close-location value and wick rejection structure proxies
+
+The synthetic parity fixture covers leading insufficient windows, a no-trade
+input gap, reset-window warm-up after a session boundary, zero-range structure
+guards, `available_ts`, quality flags, and reference feature-version identity.
+No feature values or real market data are committed.
+
 ## Optional Dependency
 
 Polars remains optional. Importing `alpha_system.features.fast` does not import

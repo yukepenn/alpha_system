@@ -34,6 +34,15 @@ from alpha_system.features.fast.session_calendar_roll import (
     build_session_calendar_roll_pack,
     supports_session_calendar_roll_pack,
 )
+from alpha_system.features.fast.volume_activity import (
+    VOLUME_ACTIVITY_DDOF,
+    VOLUME_ACTIVITY_FEATURE_IDS,
+    VOLUME_ACTIVITY_HORIZON,
+    VOLUME_ACTIVITY_RESET_ON_SESSION,
+    VOLUME_ACTIVITY_WINDOW_LENGTH,
+    build_volume_activity_pack,
+    supports_volume_activity_pack,
+)
 from alpha_system.features.fast.vwap_session_auction import (
     VWAP_SESSION_AUCTION_FEATURE_IDS,
     VWAP_SESSION_AUCTION_FEATURE_NAMES,
@@ -57,6 +66,11 @@ __all__ = [
     "REGIME_VOL_COMPRESSION_FEATURE_IDS",
     "SESSION_CALENDAR_ROLL_FEATURE_IDS",
     "SymbolYearFrameRequest",
+    "VOLUME_ACTIVITY_DDOF",
+    "VOLUME_ACTIVITY_FEATURE_IDS",
+    "VOLUME_ACTIVITY_HORIZON",
+    "VOLUME_ACTIVITY_RESET_ON_SESSION",
+    "VOLUME_ACTIVITY_WINDOW_LENGTH",
     "VWAP_SESSION_AUCTION_FEATURE_IDS",
     "VWAP_SESSION_AUCTION_FEATURE_NAMES",
     "build_base_ohlcv_pack",
@@ -64,10 +78,12 @@ __all__ = [
     "build_liquidity_pa_structure_pack",
     "build_regime_vol_compression_pack",
     "build_session_calendar_roll_pack",
+    "build_volume_activity_pack",
     "build_vwap_session_auction_pack",
     "supports_base_ohlcv_pack",
     "supports_liquidity_pa_structure_pack",
     "supports_regime_vol_compression_pack",
     "supports_session_calendar_roll_pack",
+    "supports_volume_activity_pack",
     "supports_vwap_session_auction_pack",
 ]

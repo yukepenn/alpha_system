@@ -39,3 +39,16 @@ trendiness, and range-contraction features. Its synthetic parity test covers
 reset-on-session rolling warm-up, a no-trade input gap, flat-close
 `zero_movement` trendiness gaps, and the structure-family exclusive
 prior-window range-contraction path.
+
+`FCFP-P06` adds the `liquidity_pa_structure` pack for governed liquidity-sweep
+and price-action structure primitives. Its synthetic parity test covers prior
+extremes, opening-range distances, sweep and failed-breakout flags,
+close-location value, wick rejection, range contraction, session resets,
+input gaps, and zero-range guards.
+
+`FCFP-P07` adds the `volume_activity` pack as a composite over existing
+governed OHLCV and structure primitives: rolling volume, volume z-score,
+session minute, rolling range, range position, trendiness, close-location
+value, and wick rejection. Its synthetic parity test covers reset-on-session
+rolling warm-up, an input gap, session-boundary reset behavior, zero-range
+structure guards, values, availability, quality flags, and reference identity.
