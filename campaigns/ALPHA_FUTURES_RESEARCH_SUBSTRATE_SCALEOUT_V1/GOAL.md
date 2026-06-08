@@ -20,7 +20,7 @@
 pilot-scale substrate to a full research substrate**. It takes the existing,
 already-deep Databento ES/NQ/RTY OHLCV-1m + BBO-1m history and the existing
 feature/label/runtime code, and turns the current "code and data both present,
-but full-window values not materialized" state into a **full-window, BBO-aware,
+but full accepted-window values not materialized" state into a **full accepted-window, BBO-aware,
 roll-guarded, resolver-safe research substrate** that the next campaigns can
 consume directly.
 
@@ -109,7 +109,7 @@ blocker so `ALPHA_VALIDATION_GOVERNANCE_V1`, `ALPHA_FACTOR_LIBRARY_V1`, and
   analytically approximable but **not provider-exact**.
 - Feature family code exists for `ohlcv`, `bbo`, `session`, `cross_market`,
   `structure` (liquidity/PA); label family code exists for `fixed_horizon`,
-  `cost_adjusted`, `path`, `event`. Most families have **no full-window values**.
+  `cost_adjusted`, `path`, `event`. Most families have **no full accepted-window values**.
 - `experiments/splits.py` has `train_validation_split`, `walk_forward_splits`,
   `apply_purge_embargo` — but the **runtime diagnostics path does not call them**;
   N_eff / overlap-aware reporting is missing.
@@ -292,7 +292,7 @@ The campaign succeeds when:
 
 - full ES/NQ/RTY OHLCV+BBO DatasetVersions are accepted/locked or explicitly
   blocked with reasons (persisted coverage verdicts);
-- full-window FeaturePacks and LabelPacks are materialized and registered with
+- full accepted-window FeaturePacks and LabelPacks are materialized and registered with
   stable keystone identity;
 - registry-resolved Parquet values pass resolver-smoke (feature, label, and
   representative + Core Pilot StudySpecs);

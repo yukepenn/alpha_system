@@ -1,5 +1,5 @@
 campaign_id: ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1
-campaign_name: 'Futures Research Substrate Scaleout V1: turn the existing full-depth Databento ES/NQ/RTY OHLCV+BBO history and existing feature/label/runtime code into a full-window, BBO-aware, roll-guarded, resolver-safe research substrate; re-run the Core Pilot INCONCLUSIVE studies against real materialized inputs.'
+campaign_name: 'Futures Research Substrate Scaleout V1: turn the existing full-depth Databento ES/NQ/RTY OHLCV+BBO history and existing feature/label/runtime code into a full accepted-window, BBO-aware, roll-guarded, resolver-safe research substrate; re-run the Core Pilot INCONCLUSIVE studies against real materialized inputs.'
 repo_name: alpha_system
 repo_path: ~/projects/alpha_system
 project_profile:
@@ -826,7 +826,7 @@ phases:
   - Add any required registry metadata fields (value_store_format, parquet_path, value_content_hash, value_schema_version, dataset_version_id, version ids) if missing.
   - Record the keystone-identity preflight as a value-free report.
   non_goals:
-  - Materializing full-window values; editing runtime diagnostics; alpha work.
+  - Materializing full accepted-window values; editing runtime diagnostics; alpha work.
   checks:
   - git status --short
   - python tools/verify.py --smoke
@@ -874,7 +874,7 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Pin the bounded, chunked, restart-safe materialization plan (batch units, budgets, checkpoints, resource guard) before any full-window write.
+  purpose: Pin the bounded, chunked, restart-safe materialization plan (batch units, budgets, checkpoints, resource guard) before any full accepted-window write.
   scope:
   - Define per-family / per-symbol / per-year batch units with row/file budgets and checkpoints.
   - Define the serial registry-write resource guard (materialization_registry) and the restart-safe recovery procedure.
@@ -918,7 +918,7 @@ phases:
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P05.md
   review: yellow lane; fresh Opus review required.
 - id: FUTSUB-P06
-  name: Base OHLCV FeaturePack Scaleout
+  name: Scaleout Materialization Driver + Base OHLCV FeaturePack Scaleout
   lane: YELLOW
   dependencies:
   - FUTSUB-P05
@@ -926,13 +926,17 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window base OHLCV FeaturePack (returns, log-returns, rolling vol/range, range position, volume z-score) for ES/NQ/RTY.
+  purpose: Build the reusable multi-family scaleout materialization driver (the substrate tool for FUTSUB-P06..P13 features and P16..P20 labels) and use it to materialize the base OHLCV FeaturePack over the full accepted materialization window for ES/NQ/RTY.
   scope:
-  - Materialize + register base OHLCV features over the full available window via alpha feature materialize --execute (values local-only).
-  - Enforce available_ts, keystone identity, Parquet values, content hash, and registry metadata.
-  - Commit only the value-free coverage summary + config; minimal family-code scale repair only if needed.
+  - 'BUILD a reusable, generic multi-family scaleout materialization DRIVER (a sanctioned module + CLI subcommand). The current blocker is missing scaleout ORCHESTRATION, not missing market data: alpha feature materialize is a seed/smoke seed_pack.v1 operator and nothing iterates the family x symbol x accepted-year grid. The driver must iterate that grid and, per unit, REUSE the existing family engines (src/alpha_system/features/families/*), the sanctioned canonical/BBO loaders (data.foundation.canonical_loader), and the OFFICIAL keystone identity / registry write path (FeatureStore.register_materialized_feature, as in cli/seed_pack.run_seed_feature_pack). NEVER hand-write registry records; NEVER weaken resolver semantics; NEVER bypass DatasetVersion acceptance gates.'
+  - 'Materialization window = ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions only (NOT literal calendar). Resolve accepted versions from the FUTSUB-P02 acceptance inventory. The BLOCKED 2018 ohlcv_1m and bbo_1m versions are excluded and documented (research/futures_substrate_scaleout_v1/dataset_acceptance/2018_BLOCKED_DIAGNOSIS.md); do NOT lower acceptance thresholds to force inclusion and do NOT block the campaign on 2018.'
+  - 'Parquet-first output: scaleout writes ValueStoreFormat.PARQUET values; JSONL is limited to manifests / tiny samples / value-free audit summaries only. Do NOT emit full-history JSONL payloads. If existing dual-output tooling hardcodes JSONL, add a controlled value_store_format / audit_mode option so full accepted-window scaleout is Parquet-first. JSONL must never become the research-scale database.'
+  - 'Checkpoint / restart safety: the driver records progress by at least family, symbol, dataset_version_id/year, and feature_set; completed units must NOT be re-materialized on rerun; the checkpoint ledger is local-only under ALPHA_DATA_ROOT.'
+  - 'Serial keystone registry writes: shared SQLite/registry registration MUST be serialized (no parallel SQLite writes); compute/materialization may be batch-oriented but registration is serial.'
+  - 'Use the driver to materialize the base OHLCV family over the full accepted window with a BOUNDED-REAL rollout FIRST: one recent accepted full year (e.g. 2024) x ES/NQ/RTY, validated for keystone identity / registry / resolver / coverage, THEN expand to the full accepted window. Enforce available_ts, keystone identity, Parquet values, content hash, and registry metadata.'
+  - Commit only value-free driver code + CLI + tests + the value-free coverage summary + config; values, registries, and checkpoints stay local-only.
   non_goals:
-  - New features beyond the existing base OHLCV family; diagnostics; alpha work.
+  - New features beyond the existing base OHLCV family; diagnostics; alpha work; new AlphaSpecs; parameter search; profitability/tradability claims; full-history JSONL payloads; per-symbol acceptance (2018 excluded at version level).
   checks: &materialization_checks
   - git status --short
   - python tools/verify.py --smoke
@@ -949,10 +953,20 @@ phases:
   - materialization_registry
   merge_group: feature_materialization
   allowed_paths:
+  - src/alpha_system/features/scaleout/**
   - src/alpha_system/features/families/ohlcv/**
-  - configs/features/scaleout/base_ohlcv.json
+  - src/alpha_system/features/engine/**
+  - src/alpha_system/cli/feature.py
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/cli/seed_pack.py
+  - src/alpha_system/core/value_store.py
+  - configs/features/scaleout/**
   - research/futures_substrate_scaleout_v1/feature_packs/base_ohlcv/**
-  - tests/unit/futures_substrate_scaleout/features/test_base_ohlcv_scaleout.py
+  - research/futures_substrate_scaleout_v1/scaleout_driver/**
+  - research/futures_substrate_scaleout_v1/dataset_acceptance/**
+  - docs/futures_substrate_scaleout/SCALEOUT_DRIVER.md
+  - tests/unit/futures_substrate_scaleout/features/**
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06/**
   - runs/**
@@ -965,7 +979,7 @@ phases:
     never_commit: *never_commit
     explicit_staging_only: true
   done_criteria: &feature_done
-  - Family materialized + registered over the full window with available_ts, keystone identity, Parquet values, content hash, and registry metadata; coverage summary committed value-free; no value/SQLite/heavy artifact committed.
+  - Family materialized + registered via the FUTSUB-P06 scaleout materialization driver over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded and documented), Parquet-first values (JSONL audit/smoke only), with available_ts, keystone identity, content hash, and registry metadata; checkpoint/restart honored; registry writes serialized; bounded-real (one recent accepted year) validated before full accepted-window expansion; coverage summary committed value-free; no value/SQLite/heavy artifact committed.
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P06.md
   review: yellow lane; fresh Opus review required.
 - id: FUTSUB-P07
@@ -977,9 +991,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window session/calendar/maintenance FeaturePack (RTH/ETH flags, session-minute, maintenance-window flags, holiday/half-day, minutes-to-close/maintenance where available).
+  purpose: Materialize the full accepted-window session/calendar/maintenance FeaturePack (RTH/ETH flags, session-minute, maintenance-window flags, holiday/half-day, minutes-to-close/maintenance where available).
   scope:
-  - Materialize + register the session family over the full window; enforce point-in-time SESSION_METADATA / role-aware guard.
+  - Materialize + register the session family over the full accepted materialization window; enforce point-in-time SESSION_METADATA / role-aware guard.
   - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1017,7 +1031,7 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window VWAP / session-auction FeaturePack (running VWAP, anchored/ETH VWAP, distance-to-VWAP, opening/overnight range, RTH-open context).
+  purpose: Materialize the full accepted-window VWAP / session-auction FeaturePack (running VWAP, anchored/ETH VWAP, distance-to-VWAP, opening/overnight range, RTH-open context).
   scope:
   - Materialize + register the VWAP/session-auction features; distinguish running vs final VWAP (no final-session aggregate used intraday).
   - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
@@ -1058,9 +1072,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window regime FeaturePack (trendiness, ATR/volatility-regime buckets, range compression/expansion, momentum/reversion state) to unblock the pilot's regime study.
+  purpose: Materialize the full accepted-window regime FeaturePack (trendiness, ATR/volatility-regime buckets, range compression/expansion, momentum/reversion state) to unblock the pilot's regime study.
   scope:
-  - Materialize + register the regime/volatility/compression features over the full window.
+  - Materialize + register the regime/volatility/compression features over the full accepted materialization window.
   - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1099,9 +1113,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window liquidity-sweep / PA-structure FeaturePack (prior-high/low sweep, close-back-inside, wick rejection, displacement, compression breakout, failed breakout) to unblock the pilot's liquidity/PA study.
+  purpose: Materialize the full accepted-window liquidity-sweep / PA-structure FeaturePack (prior-high/low sweep, close-back-inside, wick rejection, displacement, compression breakout, failed breakout) to unblock the pilot's liquidity/PA study.
   scope:
-  - Materialize + register objective PA primitives only over the full window.
+  - Materialize + register objective PA primitives only over the full accepted materialization window.
   - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1139,9 +1153,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window volume/activity FeaturePack (participation, time-of-day relative volume, volume regime, activity bursts, effort/result proxies) where existing primitives exist.
+  purpose: Materialize the full accepted-window volume/activity FeaturePack (participation, time-of-day relative volume, volume regime, activity bursts, effort/result proxies) where existing primitives exist.
   scope:
-  - Materialize + register the volume/activity features over the full window using existing primitives only.
+  - Materialize + register the volume/activity features over the full accepted materialization window using existing primitives only.
   - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1180,9 +1194,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window BBO tradability / top-book FeaturePack from the existing BBO DatasetVersions to close the pilot's hardest data gap (P20).
+  purpose: Materialize the full accepted-window BBO tradability / top-book FeaturePack from the existing BBO DatasetVersions to close the pilot's hardest data gap (P20).
   scope:
-  - Materialize + register BBO top-book features (mid, spread, spread_ticks, spread_zscore, top-book depth/imbalance, missing_bbo/bad_quote/wide_spread/low_depth flags, microprice-ish proxy) over the full window.
+  - Materialize + register BBO top-book features (mid, spread, spread_ticks, spread_zscore, top-book depth/imbalance, missing_bbo/bad_quote/wide_spread/low_depth flags, microprice-ish proxy) over the full accepted materialization window.
   - Treat BBO-1m as a time-sampled + forward-filled tradability proxy; no execution-truth/passive-fill/queue claims.
   - Enforce available_ts, keystone identity, Parquet values, content hash, registry metadata; commit only the value-free coverage summary + config.
   non_goals:
@@ -1209,7 +1223,7 @@ phases:
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria:
-  - BBO top-book family materialized + registered over the full window as a tradability proxy (no execution-truth claim) with available_ts/keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite committed.
+  - BBO top-book family materialized + registered over the full accepted materialization window as a tradability proxy (no execution-truth claim) with available_ts/keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite committed.
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P12.md
   review: yellow lane; fresh Opus review required.
 - id: FUTSUB-P13
@@ -1222,9 +1236,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize the full-window cross-market alignment FeaturePack (ES/NQ/RTY aligned returns, beta residual, basket residual, relative-strength rank, catch-up/rotation, divergence/agreement, lead-lag) preserving per-instrument available_ts.
+  purpose: Materialize the full accepted-window cross-market alignment FeaturePack (ES/NQ/RTY aligned returns, beta residual, basket residual, relative-strength rank, catch-up/rotation, divergence/agreement, lead-lag) preserving per-instrument available_ts.
   scope:
-  - Materialize + register cross-market features over the full window with strict per-instrument available_ts (no cross-instrument forward-fill).
+  - Materialize + register cross-market features over the full accepted materialization window with strict per-instrument available_ts (no cross-instrument forward-fill).
   - Enforce keystone identity, Parquet values, content hash, registry metadata.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1251,7 +1265,7 @@ phases:
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria:
-  - Cross-market family materialized + registered over the full window with per-instrument available_ts preserved (no forward-fill across instruments), keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite committed.
+  - Cross-market family materialized + registered over the full accepted materialization window with per-instrument available_ts preserved (no forward-fill across instruments), keystone identity/Parquet/content hash/registry metadata; coverage summary value-free; no value/SQLite committed.
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P13.md
   review: yellow lane; fresh Opus review required.
 - id: FUTSUB-P14
@@ -1369,13 +1383,13 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize full-window fixed-horizon LabelPacks (diagnostic 1m/3m + primary 5m/10m/15m/30m) with label_available_ts and roll/maintenance guards applied.
+  purpose: Materialize full accepted-window fixed-horizon LabelPacks (diagnostic 1m/3m + primary 5m/10m/15m/30m) with label_available_ts and roll/maintenance guards applied.
   scope:
-  - Materialize + register fixed-horizon labels over the full window with the roll-splice + maintenance-crossing guards applied at materialization.
+  - 'Materialize + register fixed-horizon labels via the scaleout materialization driver over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded) with the roll-splice + maintenance-crossing guards applied at materialization. Extend the FUTSUB-P06 scaleout driver to a label mode (reusing the official label engine + registry write path, e.g. cli/seed_pack.run_seed_label_pack) if a label driver path is required; reuse the same checkpoint/restart, Parquet-first, and serial-registry guarantees.'
   - Enforce label_available_ts, horizon coverage report, and N_eff / overlap metadata.
-  - Commit only the value-free coverage summary + config.
+  - Commit only the value-free driver-label-mode code + tests + coverage summary + config; values/registries/checkpoints local-only.
   non_goals:
-  - New label families; diagnostics; alpha work; silent cross-roll/maintenance windows.
+  - New label families; diagnostics; alpha work; silent cross-roll/maintenance windows; full-history JSONL payloads.
   checks: &label_checks
   - git status --short
   - python tools/verify.py --smoke
@@ -1393,16 +1407,25 @@ phases:
   merge_group: label_materialization
   allowed_paths:
   - src/alpha_system/labels/families/fixed_horizon/**
+  - src/alpha_system/features/scaleout/**
+  - src/alpha_system/labels/scaleout/**
+  - src/alpha_system/labels/engine/**
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/cli/label.py
+  - src/alpha_system/cli/seed_pack.py
+  - src/alpha_system/core/value_store.py
   - configs/labels/scaleout/fixed_horizon.json
   - research/futures_substrate_scaleout_v1/label_packs/fixed_horizon/**
-  - tests/unit/futures_substrate_scaleout/labels/test_fixed_horizon_scaleout.py
+  - research/futures_substrate_scaleout_v1/scaleout_driver/**
+  - tests/unit/futures_substrate_scaleout/labels/**
+  - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16/**
   - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria: &label_done
-  - LabelPack materialized + registered over the full window with label_available_ts, roll-splice + maintenance-crossing guards applied, horizon coverage + N_eff/overlap metadata; coverage summary value-free; no value/SQLite/heavy artifact committed.
+  - LabelPack materialized + registered via the scaleout materialization driver (label mode; FUTSUB-P16 extends the FUTSUB-P06 driver to labels if a label path is required) over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded), Parquet-first values (JSONL audit/smoke only), with label_available_ts, roll-splice + maintenance-crossing guards applied, horizon coverage + N_eff/overlap metadata; checkpoint/restart honored; registry writes serialized; coverage summary value-free; no value/SQLite/heavy artifact committed.
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16.md
   review: yellow lane; fresh Opus review required.
 - id: FUTSUB-P17
@@ -1414,7 +1437,7 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize full-window extended-horizon LabelPacks (60m/120m/240m) with stronger roll/maintenance guards and overlap-aware N_eff metadata.
+  purpose: Materialize full accepted-window extended-horizon LabelPacks (60m/120m/240m) with stronger roll/maintenance guards and overlap-aware N_eff metadata.
   scope:
   - Materialize + register extended-horizon labels with roll-splice + maintenance-crossing guards (no silent crossing).
   - Enforce label_available_ts, horizon coverage report, and overlap-aware N_eff metadata (extended horizons must not overstate N_eff).
@@ -1454,7 +1477,7 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize full-window session-close and maintenance-flat LabelPacks with close-out semantics that never silently cross a maintenance break.
+  purpose: Materialize full accepted-window session-close and maintenance-flat LabelPacks with close-out semantics that never silently cross a maintenance break.
   scope:
   - Materialize + register to-session-close and to-maintenance-flat labels with explicit close-out semantics.
   - Enforce label_available_ts, the maintenance-crossing guard, and horizon coverage.
@@ -1496,7 +1519,7 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize full-window cost-adjusted LabelPacks (mid-to-mid, spread crossing, fee-adjusted where a cost model exists, slippage-stress adjusted where supported).
+  purpose: Materialize full accepted-window cost-adjusted LabelPacks (mid-to-mid, spread crossing, fee-adjusted where a cost model exists, slippage-stress adjusted where supported).
   scope:
   - Materialize + register cost-adjusted labels using the existing cost model and BBO spreads as a proxy (not execution truth).
   - Enforce label_available_ts, roll/maintenance guards, and horizon coverage; document cost/fee/slippage assumptions and versions.
@@ -1537,9 +1560,9 @@ phases:
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Materialize full-window path LabelPacks (MFE, MAE, target-before-stop, triple-barrier where feasible) with roll/maintenance guards.
+  purpose: Materialize full accepted-window path LabelPacks (MFE, MAE, target-before-stop, triple-barrier where feasible) with roll/maintenance guards.
   scope:
-  - Materialize + register path-dependent labels over the full window where feasible; flag where compute is too expensive/unstable and record the bound.
+  - Materialize + register path-dependent labels over the full accepted materialization window where feasible; flag where compute is too expensive/unstable and record the bound.
   - Enforce label_available_ts, roll/maintenance guards, and horizon coverage.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -2300,7 +2323,7 @@ acceptance_gates:
     - FUTSUB-P11
     - FUTSUB-P12
     - FUTSUB-P13
-    exit_requirement: All eight FeaturePack families materialized + registered over the full available window with available_ts, keystone identity, Parquet values, content hash, and registry metadata; BBO treated as tradability proxy; cross-market preserves per-instrument available_ts (no forward-fill); coverage summaries committed value-free; no value/SQLite/heavy artifact committed; registry writes serialized.
+    exit_requirement: All eight FeaturePack families materialized + registered over the full accepted materialization window with available_ts, keystone identity, Parquet values, content hash, and registry metadata; BBO treated as tradability proxy; cross-market preserves per-instrument available_ts (no forward-fill); coverage summaries committed value-free; no value/SQLite/heavy artifact committed; registry writes serialized.
     requires: *gate_requires
   feature_integration:
     phases:
