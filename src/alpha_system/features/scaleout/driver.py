@@ -200,6 +200,16 @@ class _RegimeVolatilityCompressionBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class _LiquidityPAStructureBinding:
+    """One approved structure primitive bound to one or more P10 config labels."""
+
+    config_names: tuple[str, ...]
+    primitive_name: str
+    exposure_name: str
+    window_length: int = 3
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleoutRunSummary:
     """Summary for a scaleout plan or execution run."""
 
@@ -1005,6 +1015,159 @@ def materialize_regime_volatility_compression_unit(
     )
 
 
+def materialize_liquidity_sweep_pa_structure_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one liquidity-sweep / PA-structure unit through the seam."""
+
+    from alpha_system.cli.seed_pack import (
+        FeatureSetConfig,
+        FeatureSpecConfig,
+        SeedPackConfig,
+        _build_accepted_context,
+    )
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if (
+        config.family != "liquidity_sweep_pa_structure"
+        or unit.family != "liquidity_sweep_pa_structure"
+    ):
+        raise ScaleoutError(
+            "FUTSUB-P10 executor supports only the liquidity_sweep_pa_structure family"
+        )
+
+    bindings = _liquidity_pa_structure_bindings(unit.feature_names)
+    seed_config = SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        feature_set=FeatureSetConfig(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            alpha_spec_id=config.alpha_spec_id,
+            features=tuple(
+                FeatureSpecConfig(
+                    name=binding.primitive_name,
+                    window_length=binding.window_length,
+                    horizon=1,
+                )
+                for binding in bindings
+            ),
+        ),
+    )
+    context = _build_accepted_context(
+        seed_config,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=None,
+        repo_root=Path.cwd(),
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _liquidity_pa_structure_feature_definitions(
+        config,
+        unit,
+        store.registry,
+    )
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(_definition_feature_spec(definition) for definition in definitions),
+        description="FUTSUB-P10 liquidity-sweep / PA-structure FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "objective_pa_guard": "enforced",
+            "subjective_pa_encoding": "forbidden",
+            "feature_bindings": [_liquidity_pa_binding_metadata(binding) for binding in bindings],
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "objective_pa_guard": "enforced",
+        "subjective_pa_encoding": "forbidden",
+        "feature_bindings": [_liquidity_pa_binding_metadata(binding) for binding in bindings],
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=context.bar_rows,
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no liquidity/PA feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("liquidity/PA FeatureRequest gate did not return a checked request")
+        feature_spec = _definition_feature_spec(definition)
+        if not isinstance(feature_spec, FeatureSpec):
+            raise ScaleoutError("liquidity/PA definition did not expose a FeatureSpec")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _unit_executor_for_family(family: str) -> UnitExecutor:
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
@@ -1014,6 +1177,8 @@ def _unit_executor_for_family(family: str) -> UnitExecutor:
         return materialize_vwap_session_auction_unit
     if family == "regime_volatility_compression":
         return materialize_regime_volatility_compression_unit
+    if family == "liquidity_sweep_pa_structure":
+        return materialize_liquidity_sweep_pa_structure_unit
     raise ScaleoutError(f"unsupported scaleout family: {family}")
 
 
@@ -1063,11 +1228,12 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
             "",
             "## Point-In-Time Guard",
             "",
-            "- Session metadata is treated as `SESSION_METADATA_POINT_IN_TIME`.",
-            "- Row-specific metadata with an explicit metadata availability timestamp",
-            "  later than the row `available_ts` fails closed.",
-            "- Static RTH clock parameters are schedule definitions, not future labels;",
-            "  optional expiration/status metadata is never fabricated when absent.",
+            "- Feature values are emitted at the current source row `available_ts`.",
+            "- Rolling, expanding, prior-boundary, and derived-state inputs may use only",
+            "  source rows whose `available_ts` is less than or equal to the output",
+            "  `available_ts`.",
+            "- Accepted DatasetVersion gates fail closed before canonical rows are",
+            "  loaded or values are written.",
         ]
     )
     if summary.family == "vwap_session_auction":
@@ -1125,6 +1291,38 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
             ]
         )
+    if summary.family == "liquidity_sweep_pa_structure":
+        lines.extend(
+            [
+                "",
+                "## Liquidity / PA Primitive Bindings",
+                "",
+                "- `prior_high_low_sweep` binds to prior-boundary distance plus",
+                "  sweep-high and sweep-low flags.",
+                "- `close_back_inside` and `failed_breakout` bind to failed-high and",
+                "  failed-low breakout flags.",
+                "- `wick_rejection` binds to close-location and wick-rejection scores.",
+                "- `displacement` is represented by the existing causal prior-boundary",
+                "  distance and close-location primitives; no new displacement feature",
+                "  is introduced.",
+                "- `compression_breakout` is represented by existing range-contraction",
+                "  plus sweep flags; no new compression-breakout feature is introduced.",
+                "- All bindings are deterministic OHLCV-derived primitives emitted at",
+                "  the current row `available_ts`; subjective/discretionary PA encodings",
+                "  are forbidden.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row feature values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -1150,7 +1348,11 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 rows=record.row_count,
             )
         )
-    if summary.family in {"vwap_session_auction", "regime_volatility_compression"}:
+    if summary.family in {
+        "vwap_session_auction",
+        "regime_volatility_compression",
+        "liquidity_sweep_pa_structure",
+    }:
         lines.extend(
             [
                 "",
@@ -1333,6 +1535,13 @@ def _preview_feature_version_ids(
         return tuple(definition.feature_version_id for definition in definitions)
     if config.family == "regime_volatility_compression":
         definitions = _regime_volatility_compression_feature_definitions(
+            config,
+            unit,
+            lambda: (),
+        )
+        return tuple(definition.feature_version_id for definition in definitions)
+    if config.family == "liquidity_sweep_pa_structure":
+        definitions = _liquidity_pa_structure_feature_definitions(
             config,
             unit,
             lambda: (),
@@ -1820,6 +2029,183 @@ def _regime_binding_metadata(
         "window_length": binding.window_length,
         "horizon": binding.horizon,
         "causal_available_ts": True,
+    }
+
+
+def _liquidity_pa_structure_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.structure import (
+        StructureFeatureName,
+        build_structure_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for binding in _liquidity_pa_structure_bindings(unit.feature_names):
+        input_scope = {
+            "symbol": unit.symbol.upper(),
+            "partition_id": unit.partition_id,
+            "partition_schema": unit.schema_id,
+            "feature_pack_family": config.family,
+            "config_feature_names": list(binding.config_names),
+        }
+        definitions.append(
+            build_structure_feature_definition(
+                StructureFeatureName(binding.primitive_name),
+                _liquidity_pa_structure_feature_request(config, unit, binding),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=binding.window_length,
+                reset_on_session=True,
+                input_scope=input_scope,
+            )
+        )
+    return tuple(definitions)
+
+
+def _liquidity_pa_structure_feature_request(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    binding: _LiquidityPAStructureBinding,
+) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    exposure_family = f"{config.family}_{binding.exposure_name}"
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "operation": binding.primitive_name,
+            "config_feature_names": list(binding.config_names),
+            "primitive_family": "liquidity_structure",
+            "window": binding.window_length,
+            "scaleout_unit_id": unit.unit_id,
+        },
+        availability_assumptions={
+            "timing": "feature value is emitted at the current row available_ts",
+            "lookback": (
+                "prior-boundary, sweep, failed-breakout, wick, and compression "
+                "state uses only rows whose available_ts is less than or equal to "
+                "the output available_ts"
+            ),
+            "future_state": "future labels and final-session aggregates are not inputs",
+            "subjective_pa": "subjective or discretionary price-action encodings are forbidden",
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "bar_start_ts",
+                "event_ts",
+                "available_ts",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "session_label",
+                "quality_flags",
+            ],
+            "source": "already-canonical accepted OHLCV DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _liquidity_pa_structure_bindings(
+    feature_names: Sequence[str],
+) -> tuple[_LiquidityPAStructureBinding, ...]:
+    merged: dict[str, _LiquidityPAStructureBinding] = {}
+    order: list[str] = []
+    for config_name in feature_names:
+        for primitive_name, exposure_name in _liquidity_pa_structure_binding_items(config_name):
+            existing = merged.get(primitive_name)
+            if existing is None:
+                merged[primitive_name] = _LiquidityPAStructureBinding(
+                    config_names=(config_name,),
+                    primitive_name=primitive_name,
+                    exposure_name=exposure_name,
+                )
+                order.append(primitive_name)
+                continue
+            merged[primitive_name] = _LiquidityPAStructureBinding(
+                config_names=(*existing.config_names, config_name),
+                primitive_name=existing.primitive_name,
+                exposure_name=existing.exposure_name,
+                window_length=existing.window_length,
+            )
+    if not order:
+        raise ScaleoutError("liquidity/PA structure config did not select any primitives")
+    return tuple(merged[name] for name in order)
+
+
+def _liquidity_pa_structure_binding_items(
+    name: str,
+) -> tuple[tuple[str, str], ...]:
+    token = _require_text(name, "liquidity_sweep_pa_structure feature name")
+    normalized = token.strip().lower()
+    if normalized == "prior_high_low_sweep":
+        return (
+            ("prior_high_distance", "prior_high_distance"),
+            ("prior_low_distance", "prior_low_distance"),
+            ("sweep_high_flag", "sweep_high_flag"),
+            ("sweep_low_flag", "sweep_low_flag"),
+        )
+    if normalized == "close_back_inside":
+        return (
+            ("failed_high_breakout_flag", "close_back_inside_high"),
+            ("failed_low_breakout_flag", "close_back_inside_low"),
+        )
+    if normalized == "wick_rejection":
+        return (
+            ("close_location_value", "close_location_value"),
+            ("wick_rejection_score", "wick_rejection_score"),
+        )
+    if normalized == "displacement":
+        return (
+            ("prior_high_distance", "prior_high_displacement"),
+            ("prior_low_distance", "prior_low_displacement"),
+            ("close_location_value", "close_location_displacement_context"),
+        )
+    if normalized == "compression_breakout":
+        return (
+            ("range_contraction", "range_contraction"),
+            ("sweep_high_flag", "compression_high_sweep"),
+            ("sweep_low_flag", "compression_low_sweep"),
+        )
+    if normalized == "failed_breakout":
+        return (
+            ("failed_high_breakout_flag", "failed_high_breakout_flag"),
+            ("failed_low_breakout_flag", "failed_low_breakout_flag"),
+        )
+    raise ScaleoutError(f"unsupported liquidity-sweep / PA-structure feature: {name}")
+
+
+def _liquidity_pa_binding_metadata(
+    binding: _LiquidityPAStructureBinding,
+) -> dict[str, object]:
+    return {
+        "config_feature_names": list(binding.config_names),
+        "governed_primitive_family": "liquidity_structure",
+        "governed_primitive_name": binding.primitive_name,
+        "exposure_name": binding.exposure_name,
+        "window_length": binding.window_length,
+        "causal_available_ts": True,
+        "objective_ohlcv_derived": True,
     }
 
 
