@@ -57,6 +57,22 @@ def check_required_files() -> int:
     return 0
 
 
+def check_status_consistency() -> int:
+    """Fail when the runtime contract or status pointers contradict the live run.
+
+    Reuses the status doctor. In CI (no runs/ dir) this still catches the
+    campaign.yaml-vs-pyproject runtime mismatch; pointer drift is a soft warning
+    there and does not fail the build.
+    """
+    print("+ status doctor (runtime contract + status reconciliation)")
+    try:
+        from tools.frontier.status_doctor import main as status_doctor_main
+    except Exception as exc:  # pragma: no cover - import guard
+        print(f"status doctor unavailable: {exc}", file=sys.stderr)
+        return 0
+    return status_doctor_main([])
+
+
 def check_artifacts() -> int:
     from tools.hooks import artifact_guard
 
@@ -151,6 +167,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.smoke or selected:
         status |= check_required_files()
+    if selected:
+        status |= check_status_consistency()
     if selected:
         git_environment_status = check_git_environment()
         status |= git_environment_status

@@ -73,3 +73,10 @@ feature group, label selector, symbols, years, and DatasetVersion ids. Dry-run
 emits value-free unit, row, and time estimates; execute mode runs selected units
 only; completed units are skipped through checkpoint plus official registry
 truth.
+`FCFP-P10` adds `src/alpha_system/labels/fast/`, including the V1
+multi-horizon fixed-horizon label pack and label materializer. Its synthetic
+parity test covers every currently governed fixed-horizon close and midprice
+label, exact `label_available_ts`, terminal-row exclusion, gap / guard flags,
+reference `label_version_id` identity, value-free N_eff / horizon-overlap
+metadata, and serial `LabelRegistry` registration through the existing label
+keystone path. Longer ungoverned horizons remain a governance gap.
