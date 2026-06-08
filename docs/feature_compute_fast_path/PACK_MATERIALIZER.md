@@ -147,6 +147,29 @@ opening-window boundary, leading no-trade input, zero-volume input, and a
 synthetic zero-VWAP edge row. No feature values or real market data are
 committed.
 
+## Regime / Volatility / Compression Pack
+
+`FCFP-P05` adds the governed regime / volatility / compression pack:
+`alpha_system.features.fast.regime_vol_compression`. The resolver accepts the
+exact three-feature set for `atr`, `trendiness`, and `range_contraction`; each
+declaration derives its `feature_version_id` from the same `FeatureSpec`
+identity as the reference family.
+
+The pack prepares shared OHLCV, normalized quality-flag, and contiguous session
+segment columns once and then computes:
+
+- ATR true range, including previous valid close and reset-on-session behavior,
+  followed by the reference rolling mean and primitive gap flags
+- trendiness as the rolling efficiency ratio with `insufficient_window`,
+  `input_gap`, and `zero_movement` branches
+- structure-family range contraction using an exclusive prior window, current
+  no-trade handling, and zero-range guards
+
+The synthetic parity fixture covers two session segments, warm-up after a
+session reset, a no-trade input gap, flat-price `zero_movement` rows, and an
+exclusive prior-window range-contraction value. No feature values or real market
+data are committed.
+
 ## Optional Dependency
 
 Polars remains optional. Importing `alpha_system.features.fast` does not import

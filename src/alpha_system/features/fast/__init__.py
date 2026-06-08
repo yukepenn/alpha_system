@@ -19,6 +19,11 @@ from alpha_system.features.fast.materializer import (
     SymbolYearFrameRequest,
 )
 from alpha_system.features.fast.packs import build_fast_feature_pack
+from alpha_system.features.fast.regime_vol_compression import (
+    REGIME_VOL_COMPRESSION_FEATURE_IDS,
+    build_regime_vol_compression_pack,
+    supports_regime_vol_compression_pack,
+)
 from alpha_system.features.fast.session_calendar_roll import (
     SESSION_CALENDAR_ROLL_FEATURE_IDS,
     build_session_calendar_roll_pack,
@@ -43,15 +48,18 @@ __all__ = [
     "FastFeaturePack",
     "PackMaterializer",
     "PackMaterializerError",
+    "REGIME_VOL_COMPRESSION_FEATURE_IDS",
     "SESSION_CALENDAR_ROLL_FEATURE_IDS",
     "SymbolYearFrameRequest",
     "VWAP_SESSION_AUCTION_FEATURE_IDS",
     "VWAP_SESSION_AUCTION_FEATURE_NAMES",
     "build_base_ohlcv_pack",
     "build_fast_feature_pack",
+    "build_regime_vol_compression_pack",
     "build_session_calendar_roll_pack",
     "build_vwap_session_auction_pack",
     "supports_base_ohlcv_pack",
+    "supports_regime_vol_compression_pack",
     "supports_session_calendar_roll_pack",
     "supports_vwap_session_auction_pack",
 ]

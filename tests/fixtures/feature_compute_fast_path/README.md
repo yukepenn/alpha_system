@@ -21,3 +21,7 @@ harness exercises both `insufficient_window` and `input_gap` quality flags.
   zero-volume, before-anchor, and zero-VWAP gap cases. It includes one
   synthetic zero-price edge row solely to exercise the reference `zero_vwap`
   branch; it is not production canonical data or alpha evidence.
+- `regime_vol_compression.py` generates the `FCFP-P05` regime / volatility /
+  compression fixture. It covers two session segments, reset-on-session warm-up,
+  a no-trade input gap, flat-close `zero_movement` trendiness gaps, ATR rolling
+  mean parity, and exclusive prior-window range-contraction behavior.
