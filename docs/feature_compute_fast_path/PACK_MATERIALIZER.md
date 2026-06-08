@@ -59,6 +59,16 @@ Fast-produced registry records include:
 - `value_schema_version = alpha_system.features.fast.values.v1`
 
 These are provenance fields and do not participate in `feature_version_id`.
+Reference-produced feature records default to
+`producer_engine_id = alpha_system.features.reference.materializer.v1` through
+the same `FeatureStore` path.
+
+When an existing reference-produced logical series already has valid output, V1
+does not overwrite it merely because values are identical or within tolerance.
+The reconciliation policy keeps the reference output, records producer
+provenance, and blocks silent engine mixing. Beyond-tolerance differences must
+be handled as a V1 bug, an explicit value-schema-version boundary, or an
+official keystone re-materialization path.
 
 ## Parity Harness
 

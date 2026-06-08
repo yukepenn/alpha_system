@@ -152,6 +152,12 @@ def test_fixed_horizon_label_pack_materializes_and_registers_serially(
     assert {
         record.registry_metadata.to_dict()["producer_engine_id"] for record in records
     } == {FAST_LABEL_PRODUCER_ENGINE_ID}
+    assert {record.value_schema_version for record in records} == {
+        FAST_LABEL_VALUE_SCHEMA_VERSION
+    }
+    assert {
+        record.registry_metadata.to_dict()["value_schema_version"] for record in records
+    } == {FAST_LABEL_VALUE_SCHEMA_VERSION}
     assert {
         record.lineage.contract_provenance.to_dict()["value_schema_version"]
         for record in records

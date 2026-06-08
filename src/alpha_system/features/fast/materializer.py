@@ -397,6 +397,7 @@ class PackMaterializer:
                         feature_version=version,
                         feature_request=request,
                         lineage=lineage,
+                        producer_engine_id=FAST_PRODUCER_ENGINE_ID,
                         registry_metadata=metadata,
                     )
                 )

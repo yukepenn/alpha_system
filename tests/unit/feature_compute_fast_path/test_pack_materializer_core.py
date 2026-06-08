@@ -111,6 +111,7 @@ def test_pack_materializer_persists_and_registers_through_feature_store(
     record = records[0]
     assert record.feature_version_id == definition.version.feature_version_id
     assert record.value_store_format == "dual"
+    assert record.producer_engine_id == FAST_PRODUCER_ENGINE_ID
     assert record.value_schema_version == FAST_VALUE_SCHEMA_VERSION
     assert record.registry_metadata.to_dict()["producer_engine_id"] == FAST_PRODUCER_ENGINE_ID
     assert record.registry_metadata.to_dict()["value_schema_version"] == FAST_VALUE_SCHEMA_VERSION

@@ -42,8 +42,10 @@ hypotheses.
 - Value persistence writes through the shared value-store helpers and
   registration goes through `FeatureStore`; the fast path does not write
   registry rows directly.
-- Fast-produced registry records carry `producer_engine_id` in registry metadata
-  and `value_schema_version` through the value-store handle.
+- Fast-produced feature registry records carry `producer_engine_id` as a
+  registry record field and `value_schema_version` through the value-store
+  handle. Fast-produced label records carry the same provenance through the
+  existing label registry metadata and lineage path.
 
 The P01 tests provide a reusable parity harness for later pack phases. It
 compares feature values, `available_ts`, gap rows, quality flags, and
@@ -112,6 +114,22 @@ The synthetic parity gate covers two session segments, reset-on-session warm-up,
 no-trade input-gap propagation, flat-close `zero_movement` trendiness rows, and
 the structure-family prior-window behavior. The committed evidence remains
 value-free: counts, tolerances, and max/median absolute diffs only.
+
+## P12 Engine Provenance / Reconciliation
+
+`FCFP-P12` makes producer provenance explicit on the official feature registry
+write path. Reference feature registrations default to
+`alpha_system.features.reference.materializer.v1`; V1 feature registrations use
+`alpha_system.features.fast.pack_materializer.v1`. The provenance field and
+`value_schema_version` remain descriptive registry metadata and do not enter
+`feature_version_id` or `label_version_id`.
+
+The reconciliation policy is value-free and fail-closed: identical or
+within-tolerance V1 output keeps the existing valid reference output and tags
+provenance; beyond-tolerance output is treated as a V1 bug, an explicit
+value-schema-version boundary, or a future official keystone re-materialization
+case. The fast path never silently overwrites or interleaves engines inside one
+logical value series.
 
 ## P06 Liquidity / PA Structure Pack
 
