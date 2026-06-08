@@ -8,33 +8,35 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is
-active. This snapshot reflects the executor-complete state for `FUTSUB-P08`:
-VWAP / Session Auction FeaturePack Scaleout within the
-`feature_materialization` gate, following base OHLCV (`FUTSUB-P06`) and
-Session / Calendar / Maintenance (`FUTSUB-P07`). Ralph owns validation routing,
-staging, commit, review routing, PR, CI, merge, and done-check actions.
+active. This snapshot reflects the executor-complete state for `FUTSUB-P09`:
+Regime / Volatility / Compression FeaturePack Scaleout within the
+`feature_materialization` gate, following base OHLCV (`FUTSUB-P06`), Session /
+Calendar / Maintenance (`FUTSUB-P07`), and VWAP / Session Auction
+(`FUTSUB-P08`). Ralph owns validation routing, staging, commit, review routing,
+PR, CI, merge, and done-check actions.
 
 Active / next work: remaining `feature_materialization` FeaturePack phases,
-beginning with `FUTSUB-P09` Regime / Volatility / Compression FeaturePack
-Scaleout, then `FUTSUB-P10` through `FUTSUB-P13`.
+beginning with `FUTSUB-P10` Liquidity Sweep / PA Structure FeaturePack
+Scaleout, then `FUTSUB-P11` through `FUTSUB-P13`.
 
-New durable surfaces in this `FUTSUB-P08` snapshot:
+New durable surfaces in this `FUTSUB-P09` snapshot:
 
 - Generic FeaturePack scaleout driver in `alpha_system.features.scaleout`
 - CLI surface: `alpha scaleout feature-pack`
-- VWAP / session-auction scaleout config:
-  `configs/features/scaleout/vwap_session_auction.json`
-- VWAP / session-auction value-free coverage evidence under
-  `research/futures_substrate_scaleout_v1/feature_packs/vwap_session_auction/`
-- VWAP / session-auction unit-executor dispatch in the scaleout driver, with
-  running-vs-final VWAP and `available_ts` discipline tests
+- Regime / volatility / compression scaleout config:
+  `configs/features/scaleout/regime_volatility_compression.json`
+- Regime / volatility / compression value-free coverage evidence under
+  `research/futures_substrate_scaleout_v1/feature_packs/regime_volatility_compression/`
+- Regime / volatility / compression unit-executor dispatch in the scaleout
+  driver, plus symbol-scoped structure identity metadata for mixed
+  OHLCV/structure FeaturePack bindings
 
-`FUTSUB-P08` adds no raw/provider data reads, re-pulls, runtime diagnostics,
+`FUTSUB-P09` adds no raw/provider data reads, re-pulls, runtime diagnostics,
 broker surfaces, live surfaces, paper-trading surfaces, order routing, or
 deployment behavior. Feature values, registries, checkpoints, canonical data,
 and registry backups remain local-only under `ALPHA_DATA_ROOT`; committed
-evidence is value-free. VWAP/session aggregates are point-in-time research
-features, not execution truth.
+evidence is value-free. Regime/volatility/compression features are research
+substrate inputs only, not profitability or tradability evidence.
 
 ## Source Of Truth
 

@@ -188,6 +188,18 @@ class _VWAPSessionAuctionBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class _RegimeVolatilityCompressionBinding:
+    """One config-facing P09 label bound to an approved governed primitive."""
+
+    config_name: str
+    primitive_family: str
+    primitive_name: str
+    exposure_name: str
+    window_length: int = 20
+    horizon: int = 1
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleoutRunSummary:
     """Summary for a scaleout plan or execution run."""
 
@@ -842,6 +854,157 @@ def materialize_vwap_session_auction_unit(
     )
 
 
+def materialize_regime_volatility_compression_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one regime / volatility / compression unit through the seam."""
+
+    from alpha_system.cli.seed_pack import (
+        FeatureSetConfig,
+        FeatureSpecConfig,
+        SeedPackConfig,
+        _build_accepted_context,
+    )
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec, FeatureSpec
+    from alpha_system.features.engine.materialization import (
+        FeatureMaterializationInputs,
+        build_feature_materialization_plan,
+        materialize_features,
+    )
+    from alpha_system.features.store import FeatureStore
+
+    if (
+        config.family != "regime_volatility_compression"
+        or unit.family != "regime_volatility_compression"
+    ):
+        raise ScaleoutError(
+            "FUTSUB-P09 executor supports only the regime_volatility_compression family"
+        )
+
+    bindings = _regime_volatility_compression_bindings(unit.feature_names)
+    seed_config = SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        feature_set=FeatureSetConfig(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            alpha_spec_id=config.alpha_spec_id,
+            features=tuple(
+                FeatureSpecConfig(
+                    name=binding.primitive_name,
+                    window_length=binding.window_length,
+                    horizon=binding.horizon,
+                )
+                for binding in bindings
+            ),
+        ),
+    )
+    context = _build_accepted_context(
+        seed_config,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=None,
+        repo_root=Path.cwd(),
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _regime_volatility_compression_feature_definitions(
+        config,
+        unit,
+        store.registry,
+    )
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(_definition_feature_spec(definition) for definition in definitions),
+        description="FUTSUB-P09 regime / volatility / compression FeaturePack scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "available_ts_regime_guard": "enforced",
+            "feature_bindings": [_regime_binding_metadata(binding) for binding in bindings],
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "available_ts_regime_guard": "enforced",
+        "feature_bindings": [_regime_binding_metadata(binding) for binding in bindings],
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    plan = build_feature_materialization_plan(
+        feature_set,
+        context.accepted,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+    )
+    inputs = FeatureMaterializationInputs(
+        accepted_version=context.accepted,
+        bar_rows=context.bar_rows,
+        governance_metadata=governance_metadata,
+    )
+    result = materialize_features(
+        plan,
+        inputs,
+        definitions,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no regime feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids: list[str] = []
+    for definition in definitions:
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("regime FeatureRequest gate did not return a checked request")
+        feature_spec = _definition_feature_spec(definition)
+        if not isinstance(feature_spec, FeatureSpec):
+            raise ScaleoutError("regime definition did not expose a FeatureSpec")
+        record = store.register_materialized_feature(
+            result,
+            feature_spec=feature_spec,
+            feature_version=definition.version,
+            feature_request=checked_request,
+            registry_metadata=governance_metadata,
+        )
+        feature_version_ids.append(record.feature_version_id)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=tuple(feature_version_ids),
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=tuple(feature_version_ids),
+    )
+
+
 def _unit_executor_for_family(family: str) -> UnitExecutor:
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
@@ -849,6 +1012,8 @@ def _unit_executor_for_family(family: str) -> UnitExecutor:
         return materialize_session_calendar_maintenance_unit
     if family == "vwap_session_auction":
         return materialize_vwap_session_auction_unit
+    if family == "regime_volatility_compression":
+        return materialize_regime_volatility_compression_unit
     raise ScaleoutError(f"unsupported scaleout family: {family}")
 
 
@@ -932,6 +1097,34 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
             ]
         )
+    if summary.family == "regime_volatility_compression":
+        lines.extend(
+            [
+                "",
+                "## Regime Primitive Bindings",
+                "",
+                "- `trendiness` binds to the existing `base_ohlcv_trendiness` primitive.",
+                "- `atr_volatility_regime` binds to the existing `base_ohlcv_atr` primitive.",
+                "- `range_compression` binds to the existing",
+                "  `liquidity_structure_range_contraction` primitive.",
+                "- `range_expansion` binds to the existing `base_ohlcv_rolling_range` primitive.",
+                "- `momentum_reversion_state` binds to the existing `base_ohlcv_returns`",
+                "  primitive.",
+                "- All bindings use causal windows and emit values at the current row",
+                "  `available_ts`; no final-session state or future labels are used.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row feature values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -957,7 +1150,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 rows=record.row_count,
             )
         )
-    if summary.family == "vwap_session_auction":
+    if summary.family in {"vwap_session_auction", "regime_volatility_compression"}:
         lines.extend(
             [
                 "",
@@ -1137,6 +1330,13 @@ def _preview_feature_version_ids(
         return tuple(definition.feature_version_id for definition in definitions)
     if config.family == "vwap_session_auction":
         definitions = _vwap_session_auction_feature_definitions(config, unit, lambda: ())
+        return tuple(definition.feature_version_id for definition in definitions)
+    if config.family == "regime_volatility_compression":
+        definitions = _regime_volatility_compression_feature_definitions(
+            config,
+            unit,
+            lambda: (),
+        )
         return tuple(definition.feature_version_id for definition in definitions)
     raise ScaleoutError(f"unsupported scaleout family: {config.family}")
 
@@ -1432,6 +1632,201 @@ def _vwap_binding_metadata(binding: _VWAPSessionAuctionBinding) -> dict[str, obj
     if binding.ohlcv_name == "opening_range":
         payload["opening_range_minutes"] = binding.opening_range_minutes
     return payload
+
+
+def _regime_volatility_compression_feature_definitions(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    from alpha_system.features.families.ohlcv import (
+        OHLCVFeatureName,
+        build_ohlcv_feature_definition,
+    )
+    from alpha_system.features.families.structure import (
+        StructureFeatureName,
+        build_structure_feature_definition,
+    )
+
+    dataset_version_ids = tuple(
+        dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
+    )
+    definitions = []
+    for binding in _regime_volatility_compression_bindings(unit.feature_names):
+        input_scope = {
+            "symbol": unit.symbol.upper(),
+            "partition_id": unit.partition_id,
+            "partition_schema": unit.schema_id,
+            "feature_pack_family": config.family,
+            "config_feature_name": binding.config_name,
+        }
+        if binding.primitive_family == "ohlcv":
+            definitions.append(
+                build_ohlcv_feature_definition(
+                    OHLCVFeatureName(binding.primitive_name),
+                    _regime_volatility_compression_feature_request(config, unit, binding),
+                    registry_reader,
+                    dataset_version_ids=dataset_version_ids,
+                    window_length=binding.window_length,
+                    horizon=binding.horizon,
+                    reset_on_session=True,
+                    input_scope=input_scope,
+                )
+            )
+        elif binding.primitive_family == "structure":
+            definitions.append(
+                build_structure_feature_definition(
+                    StructureFeatureName(binding.primitive_name),
+                    _regime_volatility_compression_feature_request(config, unit, binding),
+                    registry_reader,
+                    dataset_version_ids=dataset_version_ids,
+                    window_length=binding.window_length,
+                    reset_on_session=True,
+                    input_scope=input_scope,
+                )
+            )
+        else:
+            raise ScaleoutError(f"unsupported regime primitive family: {binding.primitive_family}")
+    return tuple(definitions)
+
+
+def _regime_volatility_compression_feature_request(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    binding: _RegimeVolatilityCompressionBinding,
+) -> Any:
+    from alpha_system.governance.duplicate_exposure import (
+        ExposureCheckResult,
+        ExposureRegistryStatus,
+    )
+    from alpha_system.governance.feature_request import (
+        FeatureRequestApprovalStatus,
+        create_feature_request,
+    )
+
+    notes = ExposureCheckResult((), ExposureRegistryStatus.EMPTY, 0).to_notes()
+    exposure_family = f"{config.family}_{binding.exposure_name}"
+    return create_feature_request(
+        alpha_spec_id=config.alpha_spec_id,
+        requested_inputs=[exposure_family],
+        formula_sketch={
+            "exposure_family": exposure_family,
+            "inputs": list(config.input_schemas),
+            "operation": binding.primitive_name,
+            "config_feature_name": binding.config_name,
+            "primitive_family": binding.primitive_family,
+            "window": binding.window_length,
+            "horizon": binding.horizon,
+            "scaleout_unit_id": unit.unit_id,
+        },
+        availability_assumptions={
+            "timing": "feature value is emitted at the current row available_ts",
+            "lookback": (
+                "rolling regime, volatility, and compression state uses only rows "
+                "whose available_ts is less than or equal to the output available_ts"
+            ),
+            "future_state": "future labels and final-session aggregates are not inputs",
+        },
+        duplicate_or_equivalent_exposure_notes=notes,
+        data_requirements={
+            "fields": [
+                "bar_start_ts",
+                "event_ts",
+                "available_ts",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "session_label",
+                "quality_flags",
+            ],
+            "source": "already-canonical accepted OHLCV DatasetVersions",
+        },
+        approval_status=FeatureRequestApprovalStatus.APPROVED,
+    )
+
+
+def _regime_volatility_compression_bindings(
+    feature_names: Sequence[str],
+) -> tuple[_RegimeVolatilityCompressionBinding, ...]:
+    bindings = tuple(_regime_volatility_compression_binding(name) for name in feature_names)
+    actual = [
+        (binding.primitive_family, binding.primitive_name)
+        for binding in bindings
+    ]
+    duplicates = sorted({item for item in actual if actual.count(item) > 1})
+    if duplicates:
+        rendered = ", ".join(f"{family}:{name}" for family, name in duplicates)
+        raise ScaleoutError(
+            "regime config maps multiple entries to the same governed primitive: "
+            f"{rendered}"
+        )
+    return bindings
+
+
+def _regime_volatility_compression_binding(
+    name: str,
+) -> _RegimeVolatilityCompressionBinding:
+    token = _require_text(name, "regime_volatility_compression feature name")
+    normalized = token.strip().lower()
+    if normalized == "trendiness":
+        return _RegimeVolatilityCompressionBinding(
+            config_name=token,
+            primitive_family="ohlcv",
+            primitive_name="trendiness",
+            exposure_name="trendiness",
+        )
+    if normalized == "atr_volatility_regime":
+        return _RegimeVolatilityCompressionBinding(
+            config_name=token,
+            primitive_family="ohlcv",
+            primitive_name="atr",
+            exposure_name="atr_volatility_regime",
+        )
+    if normalized == "range_compression":
+        return _RegimeVolatilityCompressionBinding(
+            config_name=token,
+            primitive_family="structure",
+            primitive_name="range_contraction",
+            exposure_name="range_compression",
+        )
+    if normalized == "range_expansion":
+        return _RegimeVolatilityCompressionBinding(
+            config_name=token,
+            primitive_family="ohlcv",
+            primitive_name="rolling_range",
+            exposure_name="range_expansion",
+        )
+    if normalized == "momentum_reversion_state":
+        return _RegimeVolatilityCompressionBinding(
+            config_name=token,
+            primitive_family="ohlcv",
+            primitive_name="returns",
+            exposure_name="momentum_reversion_state",
+            window_length=1,
+        )
+    raise ScaleoutError(f"unsupported regime/volatility/compression feature: {name}")
+
+
+def _regime_binding_metadata(
+    binding: _RegimeVolatilityCompressionBinding,
+) -> dict[str, object]:
+    return {
+        "config_feature_name": binding.config_name,
+        "governed_primitive_family": binding.primitive_family,
+        "governed_primitive_name": binding.primitive_name,
+        "exposure_name": binding.exposure_name,
+        "window_length": binding.window_length,
+        "horizon": binding.horizon,
+        "causal_available_ts": True,
+    }
+
+
+def _definition_feature_spec(definition: Any) -> Any:
+    spec = getattr(definition, "spec", None)
+    feature_spec = getattr(spec, "feature_spec", None)
+    return feature_spec if feature_spec is not None else spec
 
 
 def _unit_input_datasets(unit: ScaleoutUnit) -> tuple[ScaleoutInputDataset, ...]:
