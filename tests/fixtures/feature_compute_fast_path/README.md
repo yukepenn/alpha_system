@@ -25,3 +25,7 @@ harness exercises both `insufficient_window` and `input_gap` quality flags.
   compression fixture. It covers two session segments, reset-on-session warm-up,
   a no-trade input gap, flat-close `zero_movement` trendiness gaps, ATR rolling
   mean parity, and exclusive prior-window range-contraction behavior.
+- `bbo_tradability.py` generates the `FCFP-P08` BBO tradability / top-book
+  fixture. It covers leading rolling warm-up, missing and quarantined BBO rows,
+  wide-spread and low-depth flags, session-reset z-score behavior, and a
+  missing spread-ticks gap without storing real market data or feature values.
