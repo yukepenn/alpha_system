@@ -1,15 +1,19 @@
 ---
-description: Create or refine a Frontier campaign contract: GOAL, PHASE_PLAN, campaign.yaml, ACCEPTANCE, RISK_REGISTER, RUNBOOK.
+description: "Create or refine a Frontier campaign contract (GOAL, PHASE_PLAN, campaign.yaml, ACCEPTANCE, RISK_REGISTER, RUNBOOK)."
 ---
 
 Read:
 
+- `CRITICAL.md`
 - `AGENTS.md`
 - `frontier.yaml`
+- `ACTIVE_CAMPAIGN.md`
 - existing `campaigns/`
 - `docs/ARCHITECTURE.md`
-- `PROJECT_STATUS.md`
-- `PROGRESS.md`
+
+For current campaign/phase status, run `just status-doctor` (or read
+`runs/<run_id>/state.json`). Do not read `PROJECT_STATUS.md` / `PROGRESS.md` for
+live status; they are historical and lag the running campaign.
 
 Write:
 

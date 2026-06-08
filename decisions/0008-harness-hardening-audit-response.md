@@ -137,6 +137,45 @@ Deliberate non-changes, with evidence (these would have done harm):
   existing governance canaries + `BACKTEST_TRUTH_POLICY.md`. Tracked as follow-ups.
 - **Doc-bloat consolidation** still skipped (cosmetic, cross-ref risk).
 
+## Batch 3 — third audit response (skills/secret-scan/doc-staleness)
+
+A third audit (which had read the batch-1/2 changes) surfaced a few genuinely new,
+verified items; several of its other findings were wrong and were skipped with evidence.
+
+Applied:
+- **`frontier-campaign/SKILL.md`** — quoted the frontmatter description (the unquoted
+  colon made the YAML fragile) and removed the stale `PROJECT_STATUS.md` / `PROGRESS.md`
+  reads, replacing them with `CRITICAL.md` / `ACTIVE_CAMPAIGN.md` / `just status-doctor`.
+- **`frontier-ralph/SKILL.md`** — replaced the stale "scaffold until provider
+  integrations are implemented" line with the accurate "provider-wired and live".
+- **`secret_scan.py`** — added a narrow, high-confidence **content** scan (private-key
+  PEM headers, `AKIA…`, `xoxb-…`, `ghp_…`) on top of the path-name scan, with the same
+  security-tooling exemption the path scan uses (so the scanner's own canary/test
+  fixtures don't self-flag). Verified the entire tracked tree is clean. Locked by
+  `tests/unit/test_secret_content_scan.py` + a `forbidden_secret_content` canary
+  (innocuous filename → only the content scan catches it).
+- **`verify.py --all/--ci`** now runs the **canary gate** (`check_canaries`), so "--all"
+  no longer under-reports coverage.
+- **`verifier.md`** subagent rewritten from a one-liner into concrete commands
+  (status-doctor, agent-preflight, narrowest-test-first, parity/no-lookahead) with a
+  "never paraphrase a red as green" rule.
+- **Stale-status banners** added to `PROJECT_STATUS.md`, `PROGRESS.md`, and
+  `docs/AGENT_CONTEXT_MAP.md` pointing to `CRITICAL.md` + `just status-doctor` (lighter
+  and reference-safe vs. moving the files).
+
+Skipped (audit was wrong — verified):
+- **README Workflow-2 command drift**: the named commands (`just frontier-run-campaign`,
+  `frontier-run-next`, …) do **not** appear in the README. Fabricated finding.
+- **Wiring `random_target` into `canary_runner`**: `random_target` is a *study-level*
+  negative-control type recorded in evidence bundles, **not** a runnable hook canary —
+  the governance harness only accepts `future_shift/permuted_labels/optimistic_fill`, so
+  wiring it would raise `invalid choice` and break the canary gate. Tested first.
+- **`status_doctor --strict` in `agent-preflight`**: drift is expected during a live run
+  (the committed pointer legitimately lags), so strict-mode preflight would fail
+  spuriously. Left non-strict.
+- Mass deletion of one-line subagents / `notification.sh`, `trading_enabled` rename,
+  `max_estimated_usd` removal: cosmetic or already handled; not worth churn/risk.
+
 ## Consequences
 
 The single most important gap the audits identified — "live status is duplicated and

@@ -1,5 +1,9 @@
 # Project Status
 
+> **HISTORICAL — not live status.** This file lags the running campaign. For the
+> authoritative campaign/phase, run `just status-doctor` (or read
+> `runs/<run_id>/state.json`). Entry point for agents: `CRITICAL.md`.
+
 Project: `alpha_system`
 
 ## Current State

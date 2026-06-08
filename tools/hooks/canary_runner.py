@@ -96,6 +96,18 @@ def scenarios() -> list[Canary]:
             {".env": "TOKEN=example\n", "credentials/token.txt": "example\n"},
         ),
         Canary(
+            # Innocuous filename so the path scan would miss it; only the content
+            # scan catches the committed private-key material.
+            "forbidden_secret_content",
+            [py, str(HOOKS / "secret_scan.py"), "src/helpers/config_loader.py"],
+            {
+                "src/helpers/config_loader.py": (
+                    "KEY = '''-----BEGIN OPENSSH PRIVATE KEY-----\n"
+                    "b3BlbnNzaC1rZXk=\n-----END OPENSSH PRIVATE KEY-----'''\n"
+                )
+            },
+        ),
+        Canary(
             "forbidden_large_binary",
             [py, str(HOOKS / "artifact_guard.py"), "models/model.onnx"],
             {"models/model.onnx": "not really binary\n"},

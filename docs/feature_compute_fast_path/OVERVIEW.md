@@ -195,6 +195,16 @@ flags, no-forward-fill strict-intersection behavior, `available_ts`, quality
 flags, and reference feature-version identity. No feature values or real market
 data are committed.
 
+## P11 Targeted / Incremental CLI
+
+`FCFP-P11` extends the existing local scaleout CLI and unit-grid builder with
+targeted / incremental selection. `alpha scaleout feature-pack` can now target
+family, feature id, configured feature group, label selector, symbols, years,
+and DatasetVersion ids. Dry-run emits value-free unit, row, and time estimates;
+execute mode runs selected units only; completed units are skipped only through
+checkpoint plus official registry truth. The driver is not routed to the V1
+producer path in this phase.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live

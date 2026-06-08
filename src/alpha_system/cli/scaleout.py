@@ -13,6 +13,7 @@ from alpha_system.features.scaleout import (
 )
 from alpha_system.features.scaleout.driver import (
     ScaleoutError,
+    ScaleoutTarget,
     load_scaleout_config,
     render_scaleout_summary_markdown,
     run_scaleout,
@@ -46,6 +47,8 @@ def run_feature_pack(args: argparse.Namespace) -> int:
     """Run ``alpha scaleout feature-pack``."""
 
     try:
+        if args.execute and args.dry_run:
+            raise ScaleoutError("--dry-run and --execute cannot be combined")
         config = load_scaleout_config(args.config)
         summary = run_scaleout(
             config,
@@ -57,6 +60,7 @@ def run_feature_pack(args: argparse.Namespace) -> int:
             rollout=args.rollout,
             execute=args.execute,
             bounded_year=args.bounded_year,
+            target=_target_from_args(args),
         )
         if args.summary_out:
             path = Path(args.summary_out)
@@ -96,6 +100,50 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Write Parquet values, ledger entries, and registry metadata.",
     )
     feature_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Plan selected units and emit a value-free row/unit/time estimate.",
+    )
+    feature_parser.add_argument(
+        "--family",
+        help="Target one family; nonmatching configs select no units.",
+    )
+    feature_parser.add_argument(
+        "--feature-id",
+        action="append",
+        help="Target a governed feature id/name; repeat or comma-separate.",
+    )
+    feature_parser.add_argument(
+        "--feature-group",
+        action="append",
+        help="Target a configured feature group; repeat or comma-separate.",
+    )
+    feature_parser.add_argument(
+        "--label-id",
+        action="append",
+        help="Target a governed label id/name when a label scaleout surface exists.",
+    )
+    feature_parser.add_argument(
+        "--label-group",
+        action="append",
+        help="Target a configured label group when a label scaleout surface exists.",
+    )
+    feature_parser.add_argument(
+        "--symbols",
+        action="append",
+        help="Target symbols; repeat or comma-separate (for example ES,NQ).",
+    )
+    feature_parser.add_argument(
+        "--years",
+        action="append",
+        help="Target accepted years; repeat or comma-separate.",
+    )
+    feature_parser.add_argument(
+        "--dataset-version-ids",
+        action="append",
+        help="Target accepted DatasetVersion ids; repeat or comma-separate.",
+    )
+    feature_parser.add_argument(
         "--rollout",
         choices=("bounded-real", "full-window", "bounded-then-full"),
         default="bounded-then-full",
@@ -127,11 +175,50 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     feature_parser.set_defaults(handler=run_feature_pack)
 
 
+def _target_from_args(args: argparse.Namespace) -> ScaleoutTarget:
+    return ScaleoutTarget(
+        family=args.family,
+        feature_ids=_split_text_targets(args.feature_id),
+        feature_groups=_split_text_targets(args.feature_group),
+        label_ids=_split_text_targets(args.label_id),
+        label_groups=_split_text_targets(args.label_group),
+        symbols=_split_text_targets(args.symbols, uppercase=True),
+        years=_split_year_targets(args.years),
+        dataset_version_ids=_split_text_targets(args.dataset_version_ids),
+    )
+
+
+def _split_text_targets(values: list[str] | None, *, uppercase: bool = False) -> tuple[str, ...]:
+    if not values:
+        return ()
+    targets: list[str] = []
+    for value in values:
+        for part in value.split(","):
+            text = part.strip()
+            if not text:
+                continue
+            targets.append(text.upper() if uppercase else text)
+    return tuple(dict.fromkeys(targets))
+
+
+def _split_year_targets(values: list[str] | None) -> tuple[int, ...]:
+    years: list[int] = []
+    for text in _split_text_targets(values):
+        try:
+            years.append(int(text))
+        except ValueError as exc:
+            raise ScaleoutError(f"--years target must be an integer: {text}") from exc
+    return tuple(dict.fromkeys(years))
+
+
 def _emit_text(payload: dict[str, object]) -> None:
     print("Scaleout feature-pack")
     print(f"Campaign: {payload['campaign_id']}")
     print(f"Phase: {payload['phase_id']}")
     print(f"Family: {payload['family']}")
+    target = payload.get("target")
+    if isinstance(target, dict) and target.get("active"):
+        print(f"Target: {json.dumps(target, sort_keys=True)}")
     print(f"Rollout: {payload['rollout']}")
     print(f"Dry run: {'yes' if payload['dry_run'] else 'no'}")
     print(f"Accepted units: {payload['accepted_unit_count']}")
@@ -140,6 +227,12 @@ def _emit_text(payload: dict[str, object]) -> None:
     print(f"Completed: {payload['completed_count']}")
     print(f"Skipped: {payload['skipped_count']}")
     print(f"Failed: {payload['failed_count']}")
+    estimate = payload.get("dry_run_estimate")
+    if isinstance(estimate, dict):
+        print(f"Estimated rows/unit: {estimate['estimated_rows_per_unit']}")
+        print(f"Estimated total rows: {estimate['estimated_total_rows']}")
+        print(f"Estimated seconds/unit: {estimate['estimated_seconds_per_unit']}")
+        print(f"Estimated total seconds: {estimate['estimated_total_seconds']}")
 
 
 __all__ = ["register_subparser", "run_feature_pack"]

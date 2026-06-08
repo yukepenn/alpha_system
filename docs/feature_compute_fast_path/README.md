@@ -10,6 +10,8 @@ This directory is the durable documentation index for
 - `ENGINE_PROVENANCE_RECONCILIATION.md` documents the P12
   `producer_engine_id` / `value_schema_version` registry provenance fields and
   the no-silent-engine-mixing reconciliation policy.
+- `TARGETED_SCALEOUT.md` documents the P11 targeting flags, dry-run estimate,
+  execute-selected-only contract, and skip-completed semantics.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
@@ -68,6 +70,12 @@ ES/NQ/RTY Cross-Market family. Its synthetic parity test covers the
 `available_ts`, optional exact-time BBO flags, no-trade and session-reset return
 gaps, rolling beta-residual / correlation gap rows, and reference identity.
 
+`FCFP-P11` adds targeted / incremental selection to `alpha scaleout
+feature-pack`. Materialization can be selected by family, feature id, configured
+feature group, label selector, symbols, years, and DatasetVersion ids. Dry-run
+emits value-free unit, row, and time estimates; execute mode runs selected units
+only; completed units are skipped through checkpoint plus official registry
+truth.
 `FCFP-P10` adds `src/alpha_system/labels/fast/`, including the V1
 multi-horizon fixed-horizon label pack and label materializer. Its synthetic
 parity test covers every currently governed fixed-horizon close and midprice
