@@ -7,31 +7,36 @@ The repository-level campaign pointer targets
 `FEATURE_COMPUTE_FAST_PATH_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has `1/16` phases
-complete after `FCFP-P00` Campaign Bootstrap and Active Pointer. `FCFP-P01`
-executor work is present in the working tree and still requires Ralph
-validation, staging, and fresh Yellow-lane review before it can be marked
-complete.
+Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
+core available in this worktree. `FCFP-P02` executor work for the first governed
+family pack, `base_ohlcv`, is present with synthetic-fixture parity evidence and
+still requires Ralph validation, staging, and fresh Yellow-lane review before any
+phase verdict.
 
-Active / next phase: `FCFP-P01` V1 Engine Core + Reference-Parity Harness. The
-root `ACTIVE_CAMPAIGN.md` pointer selects `FEATURE_COMPUTE_FAST_PATH_V1` and
-records `FCFP-P01` as the active phase. The next build phase after P01
-acceptance is `FCFP-P02` base_ohlcv Polars Pack + Parity.
+Active / next phase: `FCFP-P02` base_ohlcv Polars Pack + Parity. The remaining
+family-pack phases build in parallel and merge serially: next packs include
+`FCFP-P03` session/calendar/maintenance, `FCFP-P04` VWAP/session-auction,
+`FCFP-P05` regime/vol/compression, the rest through `FCFP-P09`, and `FCFP-P10`
+labels.
 
-New durable surfaces in this `FCFP-P01` executor snapshot:
+New durable surfaces in this `FCFP-P02` executor snapshot:
 
 - `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
   `src/alpha_system/features/fast/`
+- The V1 `base_ohlcv` Polars pack and fail-closed pack resolver under
+  `src/alpha_system/features/fast/`
 - Synthetic reference-parity harness under
   `tests/unit/feature_compute_fast_path/`
-- Tiny documented synthetic fixtures under
+- Base OHLCV synthetic parity tests under
+  `tests/unit/feature_compute_fast_path/`
+- Tiny documented synthetic fixtures, including the 32-row Base OHLCV pack
+  fixture, under
   `tests/fixtures/feature_compute_fast_path/`
 - Fast-path engine contract docs under `docs/feature_compute_fast_path/`
-- Value-free evidence-directory skeleton under
-  `research/feature_compute_fast_path_v1/`
-- No production family pack, CLI command, real-data backfill, benchmark,
-  feature/label value artifact, broker/live/paper behavior, or heavy artifact was
-  added in this phase.
+- Value-free Base OHLCV parity report under
+  `research/feature_compute_fast_path_v1/parity/base_ohlcv/`
+- No CLI command, real-data backfill, benchmark, feature/label value artifact,
+  broker/live/paper behavior, or heavy artifact was added in this phase.
 
 ## Source Of Truth
 
@@ -54,8 +59,10 @@ trading behavior.
 
 The reference feature/label engine remains the correctness oracle. Resolver
 exact-id semantics, official keystone registry writes, and serial registry writes
-are unchanged. The campaign uses Green/Yellow scope only and introduces no Red
-scope.
+are unchanged. The fast engine produces values for existing governed identities;
+it never mints V1-specific feature ids. Polars remains an optional dependency
+guarded by `require_dependency("polars")`. The campaign uses Green/Yellow scope
+only and introduces no Red scope.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data, feature

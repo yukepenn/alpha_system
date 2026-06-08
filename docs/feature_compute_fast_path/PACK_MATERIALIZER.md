@@ -72,6 +72,26 @@ The P01 demonstrator test computes a tiny synthetic Base OHLCV `returns` feature
 through both the reference family and a test-only fast declaration. It is not a
 production Base OHLCV pack.
 
+## Base OHLCV Pack
+
+`FCFP-P02` adds the first governed family pack:
+`alpha_system.features.fast.build_fast_feature_pack()` resolves the exact
+six-feature `base_ohlcv` feature set to the Polars pack in
+`alpha_system.features.fast.base_ohlcv`.
+
+The pack is fixed to the reference parameters used by the proof and parity gate:
+`horizon=1`, `window=20`, `ddof=0`, and `reset_on_session=False`. It computes
+`returns`, `log_returns`, `rolling_volatility`, `rolling_range`,
+`range_position`, and `volume_zscore` from one canonical OHLCV frame. Feature
+identity still comes from `FeatureVersion.derive(feature_spec)`; the pack
+declares values and quality flags only.
+
+The synthetic parity test under `tests/unit/feature_compute_fast_path/` compares
+the pack against the reference Base OHLCV family for values, `available_ts`, gap
+rows, quality flags, and feature-version identity. Five features are exact on
+the fixture; `volume_zscore` uses the documented rolling-standard-deviation
+float tolerance.
+
 ## Optional Dependency
 
 Polars remains optional. Importing `alpha_system.features.fast` does not import

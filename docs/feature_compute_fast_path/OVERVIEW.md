@@ -49,6 +49,19 @@ The P01 tests provide a reusable parity harness for later pack phases. It
 compares feature values, `available_ts`, gap rows, quality flags, and
 feature-version identity on tiny synthetic fixtures.
 
+## P02 Base OHLCV Pack
+
+`FCFP-P02` wires the first governed family pack into the V1 path. The
+`base_ohlcv` pack resolves through `build_fast_feature_pack()` and computes the
+six fixed-parameter Base OHLCV features from one Polars OHLCV frame:
+`returns`, `log_returns`, `rolling_volatility`, `rolling_range`,
+`range_position`, and `volume_zscore`.
+
+Its synthetic fixture parity gate keeps the reference Base OHLCV family as the
+oracle. The committed evidence is value-free: per-feature parity status,
+max/median absolute diffs, gap counts, `available_ts` parity, and
+feature-version identity equality only.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live
