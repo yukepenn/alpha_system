@@ -258,7 +258,12 @@ workflow2:
   max_repair_attempts_default: 2
   max_run_minutes: 14400
   max_phase_minutes: 1440
-  max_estimated_usd: 0.0
+  # Forward-looking dollar ceiling. NOTE: currently INERT - the driver only trips
+  # this when state.estimated_cost_usd > max_estimated_usd > 0, and real provider
+  # cost is not yet populated (estimated_cost_usd stays 0.0). Until cost tracking
+  # is wired, the effective AFK ceiling is max_run_minutes / max_phase_minutes plus
+  # human supervision. This value arms automatically once cost tracking lands.
+  max_estimated_usd: 50.0
   worktree_mode: false
   worktree_mode_recommended: true
   default_worktree_mode: false

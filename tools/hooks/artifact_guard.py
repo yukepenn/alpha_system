@@ -4,8 +4,35 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import re
+import sys
 from pathlib import PurePosixPath
+
+# Tools that write files; only these carry a forbidden-artifact risk in hook mode.
+WRITE_CLASS_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+
+
+def _paths_from_claude_stdin() -> list[str]:
+    """Extract write-target paths from a Claude PostToolUse stdin payload.
+
+    Fails open (returns ``[]``) on any error. Only write-class tools are inspected.
+    """
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return []
+    if not isinstance(payload, dict) or payload.get("tool_name") not in WRITE_CLASS_TOOLS:
+        return []
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return []
+    out: list[str] = []
+    for key in ("file_path", "notebook_path", "path"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            out.append(value)
+    return out
 
 FORBIDDEN_SUFFIXES = {
     ".key",
@@ -153,15 +180,39 @@ def forbidden(path: str) -> bool:
     return any(clean == prefix or clean.startswith(prefix + "/") for prefix in LOCAL_ONLY_PREFIXES)
 
 
+def _relativize(path: str) -> str:
+    """Best-effort convert an absolute in-repo path to a repo-relative one so the
+    forbidden-prefix patterns (e.g. ``runs/``) match. Non-repo / relative paths
+    pass through unchanged."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    try:
+        p = Path(path)
+        if p.is_absolute():
+            return str(p.resolve().relative_to(root))
+    except (ValueError, OSError):
+        return path
+    return path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Block forbidden generated or heavy artifacts.")
     parser.add_argument("--claude-post-tool-use", action="store_true")
     parser.add_argument("paths", nargs="*")
     args = parser.parse_args(argv)
-    violations = [path for path in args.paths if forbidden(path)]
+
+    paths = list(args.paths)
+    if args.claude_post_tool_use:
+        paths.extend(_relativize(p) for p in _paths_from_claude_stdin())
+
+    violations = [path for path in paths if forbidden(path)]
     for violation in violations:
-        print(f"Forbidden artifact path: {violation}")
-    return 1 if violations else 0
+        print(f"Forbidden artifact path: {violation}", file=sys.stderr)
+    if not violations:
+        return 0
+    # Claude surfaces exit-code-2 stderr back to the model; pre_commit treats nonzero as fail.
+    return 2 if args.claude_post_tool_use else 1
 
 
 if __name__ == "__main__":
