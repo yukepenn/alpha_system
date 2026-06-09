@@ -234,6 +234,7 @@ def test_v1_force_recompute_reuses_existing_specs_and_updates_only_stale_hash(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    pytest.importorskip("polars")
     config = load_scaleout_config()
     unit = build_scaleout_units(
         config,

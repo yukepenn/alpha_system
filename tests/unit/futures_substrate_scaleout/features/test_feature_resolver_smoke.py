@@ -26,6 +26,7 @@ BASE_TS = datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
 def test_feature_resolver_smoke_resolves_exact_lock_to_current_parquet(
     tmp_path: Path,
 ) -> None:
+    pytest.importorskip("polars")
     records = (
         {
             "feature_version_id": FEATURE_VERSION_ID,
