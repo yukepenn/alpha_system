@@ -5,6 +5,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from alpha_system.cli.seed_pack import (
     SeedPackConfig,
     parse_seed_pack_config,
@@ -35,6 +37,7 @@ WINDOW_END = "2024-01-02T16:45:00+00:00"
 def test_extended_horizon_parquet_registry_fields_and_label_available_ts(
     tmp_path: Path,
 ) -> None:
+    pytest.importorskip("polars")  # seed label-pack materialization hits the polars data layer
     config = _seed_config()
 
     summary = run_seed_label_pack(

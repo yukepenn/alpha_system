@@ -53,7 +53,10 @@ def test_all_fixed_horizon_labels_are_governed_versioned_and_label_only() -> Non
         assert definition.name in results
         horizon = _horizon_minutes(definition.name)
         records = results[definition.name]
-        assert len(records) == 35 - horizon
+        # A forward-horizon label is undefined for the final `horizon` bars, so a
+        # horizon >= the fixture length yields zero records (floor at 0 rather than
+        # going negative for the extended 60m/120m/240m horizons).
+        assert len(records) == max(0, 35 - horizon)
         assert all(record.label_version_id == definition.label_version_id for record in records)
         assert all(record.label_spec_id == definition.label_spec_id for record in records)
 
