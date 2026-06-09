@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import json
-import os
 import re
 
 from tools.frontier.command_runner import CommandResult, CommandRunner
@@ -172,13 +171,13 @@ class CodexProviderAdapter(ProviderAdapter):
 
         data_root = self.config.codex_data_root
         if data_root is not None:
-            # Force-set ALPHA_DATA_ROOT in the executor's environment even if the
+            # Force-set ALPHA_DATA_ROOT in the EXECUTOR's environment even if the
             # process that launched the driver forgot to export it. Without this,
             # `inherit=all` forwards an env that simply lacks the var and the
             # executor reports "ALPHA_DATA_ROOT is not set" (the FCFP-P13 / FUTSUB
-            # blocker). Also export it into the driver process tree so claude
-            # review, validation, and the canonical loaders resolve it too.
-            os.environ.setdefault("ALPHA_DATA_ROOT", str(data_root))
+            # blocker). This is scoped to the codex command via config; we do NOT
+            # mutate this process's os.environ (that would leak ALPHA_DATA_ROOT
+            # into unrelated code paths -- e.g. the runtime cache-policy resolver).
             command += [
                 "-c",
                 f"shell_environment_policy.set.ALPHA_DATA_ROOT={json.dumps(str(data_root))}",
