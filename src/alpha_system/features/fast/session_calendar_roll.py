@@ -65,7 +65,7 @@ def build_session_calendar_roll_pack(feature_set: FeatureSetSpec) -> FastFeature
 
 
 def supports_session_calendar_roll_pack(feature_set: FeatureSetSpec) -> bool:
-    """Return true when a feature set is exactly the governed session pack."""
+    """Return true when a feature set is a governed session pack subset."""
 
     if not isinstance(feature_set, FeatureSetSpec):
         return False
@@ -78,13 +78,20 @@ def supports_session_calendar_roll_pack(feature_set: FeatureSetSpec) -> bool:
 
 def _validate_session_calendar_roll_feature_set(feature_set: FeatureSetSpec) -> None:
     features = tuple(feature_set.features)
+    if not features:
+        raise PackMaterializerError("session_calendar_roll fast pack requires features")
     feature_ids = tuple(feature.feature_id for feature in features)
-    if set(feature_ids) != set(SESSION_CALENDAR_ROLL_FEATURE_IDS) or len(feature_ids) != len(
-        SESSION_CALENDAR_ROLL_FEATURE_IDS
-    ):
+    if len(set(feature_ids)) != len(feature_ids):
+        raise PackMaterializerError("session_calendar_roll fast pack rejects duplicate features")
+    unknown = tuple(
+        feature_id
+        for feature_id in feature_ids
+        if feature_id not in SESSION_CALENDAR_ROLL_FEATURE_IDS
+    )
+    if unknown:
         raise PackMaterializerError(
-            "session_calendar_roll fast pack requires exactly the governed Session / "
-            "Calendar / Roll features"
+            "session_calendar_roll fast pack requires governed Session / Calendar / "
+            "Roll features: " + ", ".join(unknown)
         )
     for feature in features:
         _validate_session_calendar_roll_feature(feature)

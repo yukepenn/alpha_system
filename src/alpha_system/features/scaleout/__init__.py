@@ -1,8 +1,11 @@
 """Scaleout materialization orchestration for governed feature families."""
 
 from alpha_system.features.scaleout.driver import (
+    DEFAULT_SCALEOUT_ENGINE,
     DEFAULT_SCALEOUT_CONFIG,
     MaterializedUnitEvidence,
+    SCALEOUT_ENGINE_REFERENCE,
+    SCALEOUT_ENGINE_V1,
     ScaleoutConfig,
     ScaleoutDryRunEstimate,
     ScaleoutError,
@@ -19,6 +22,7 @@ from alpha_system.features.scaleout.driver import (
     materialize_liquidity_sweep_pa_structure_unit,
     materialize_regime_volatility_compression_unit,
     materialize_session_calendar_maintenance_unit,
+    materialize_v1_feature_unit,
     materialize_volume_activity_unit,
     materialize_vwap_session_auction_unit,
     render_scaleout_summary_markdown,
@@ -27,7 +31,10 @@ from alpha_system.features.scaleout.driver import (
 
 __all__ = [
     "MaterializedUnitEvidence",
+    "DEFAULT_SCALEOUT_ENGINE",
     "DEFAULT_SCALEOUT_CONFIG",
+    "SCALEOUT_ENGINE_REFERENCE",
+    "SCALEOUT_ENGINE_V1",
     "ScaleoutConfig",
     "ScaleoutDryRunEstimate",
     "ScaleoutError",
@@ -44,6 +51,7 @@ __all__ = [
     "materialize_liquidity_sweep_pa_structure_unit",
     "materialize_regime_volatility_compression_unit",
     "materialize_session_calendar_maintenance_unit",
+    "materialize_v1_feature_unit",
     "materialize_volume_activity_unit",
     "materialize_vwap_session_auction_unit",
     "render_scaleout_summary_markdown",

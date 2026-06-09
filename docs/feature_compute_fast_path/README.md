@@ -14,6 +14,9 @@ This directory is the durable documentation index for
   execute-selected-only contract, and skip-completed semantics.
 - `BENCHMARK_GATE.md` documents the P13 bounded-real benchmark command,
   registry backup step, value-free summary contract, and interpretation fields.
+- `PRODUCER_PATH_INTEGRATION.md` documents the P14 default V1 producer route,
+  `--engine {v1,reference}` selection, engine-aware idempotency, and
+  resolver-smoke procedure.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
@@ -99,3 +102,10 @@ feature and label packs on a self-validating roll-month slice, reconfirms
 real-data parity against the reference engines before reporting speedup, and
 writes a value-free benchmark summary under
 `research/feature_compute_fast_path_v1/benchmark/`.
+
+`FCFP-P14` routes the scaleout driver to the V1 `PackMaterializer` by default
+with `--engine reference` retained as the selectable oracle/fallback. The
+integration smoke materializes representative bounded-real V1 feature and label
+locks, resolves them through the official runtime resolver, verifies stale and
+fuzzy controls fail closed, and writes the value-free report under
+`research/feature_compute_fast_path_v1/integration/`.

@@ -112,7 +112,7 @@ def build_volume_activity_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
 
 
 def supports_volume_activity_pack(feature_set: FeatureSetSpec) -> bool:
-    """Return true when a feature set is exactly the governed volume/activity pack."""
+    """Return true when a feature set is a governed volume/activity pack subset."""
 
     if not isinstance(feature_set, FeatureSetSpec):
         return False
@@ -125,13 +125,18 @@ def supports_volume_activity_pack(feature_set: FeatureSetSpec) -> bool:
 
 def _validate_volume_activity_feature_set(feature_set: FeatureSetSpec) -> None:
     features = tuple(feature_set.features)
+    if not features:
+        raise PackMaterializerError("volume_activity fast pack requires features")
     feature_ids = tuple(feature.feature_id for feature in features)
-    if set(feature_ids) != set(VOLUME_ACTIVITY_FEATURE_IDS) or len(feature_ids) != len(
-        VOLUME_ACTIVITY_FEATURE_IDS
-    ):
+    if len(set(feature_ids)) != len(feature_ids):
+        raise PackMaterializerError("volume_activity fast pack rejects duplicate features")
+    unknown = tuple(
+        feature_id for feature_id in feature_ids if feature_id not in VOLUME_ACTIVITY_FEATURE_IDS
+    )
+    if unknown:
         raise PackMaterializerError(
-            "volume_activity fast pack requires exactly the governed volume/activity "
-            "primitive bindings"
+            "volume_activity fast pack requires governed volume/activity features: "
+            + ", ".join(unknown)
         )
     for feature in features:
         _validate_volume_activity_feature(feature)

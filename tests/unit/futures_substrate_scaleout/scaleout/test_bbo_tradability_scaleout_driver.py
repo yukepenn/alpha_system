@@ -3,6 +3,7 @@ from __future__ import annotations
 from alpha_system.features.scaleout import load_scaleout_config, render_scaleout_summary_markdown
 from alpha_system.features.scaleout.driver import (
     _unit_executor_for_family,
+    materialize_v1_feature_unit,
     materialize_bbo_tradability_top_book_unit,
     run_scaleout,
 )
@@ -10,9 +11,10 @@ from alpha_system.features.scaleout.driver import (
 CONFIG_PATH = "configs/features/scaleout/bbo_tradability_top_book.json"
 
 
-def test_bbo_tradability_scaleout_driver_dispatches_to_p12_executor() -> None:
+def test_bbo_tradability_scaleout_driver_defaults_to_v1_with_reference_fallback() -> None:
+    assert _unit_executor_for_family("bbo_tradability_top_book") is materialize_v1_feature_unit
     assert (
-        _unit_executor_for_family("bbo_tradability_top_book")
+        _unit_executor_for_family("bbo_tradability_top_book", engine="reference")
         is materialize_bbo_tradability_top_book_unit
     )
 

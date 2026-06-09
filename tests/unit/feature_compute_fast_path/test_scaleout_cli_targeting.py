@@ -18,7 +18,11 @@ def test_scaleout_feature_pack_cli_builds_targeting_request(
 
     def fake_run_scaleout(_config: object, **kwargs: Any) -> _Summary:
         captured.update(kwargs)
-        return _Summary(target=kwargs["target"], execute=bool(kwargs["execute"]))
+        return _Summary(
+            target=kwargs["target"],
+            execute=bool(kwargs["execute"]),
+            engine=kwargs["engine"],
+        )
 
     monkeypatch.setattr(scaleout_cli, "run_scaleout", fake_run_scaleout)
 
@@ -43,6 +47,8 @@ def test_scaleout_feature_pack_cli_builds_targeting_request(
             "2024,2025",
             "--dataset-version-ids",
             "dsv_one,dsv_two",
+            "--engine",
+            "reference",
             "--json",
         ]
     )
@@ -59,8 +65,10 @@ def test_scaleout_feature_pack_cli_builds_targeting_request(
     assert target.symbols == ("ES", "NQ")
     assert target.years == (2024, 2025)
     assert target.dataset_version_ids == ("dsv_one", "dsv_two")
+    assert captured["engine"] == "reference"
     assert captured["execute"] is False
     assert payload["target"]["feature_ids"] == ["returns", "log_returns"]
+    assert payload["engine"] == "reference"
 
 
 def test_scaleout_feature_pack_cli_rejects_dry_run_execute_combo(capsys: Any) -> None:
@@ -72,9 +80,10 @@ def test_scaleout_feature_pack_cli_rejects_dry_run_execute_combo(capsys: Any) ->
 
 
 class _Summary:
-    def __init__(self, *, target: ScaleoutTarget, execute: bool) -> None:
+    def __init__(self, *, target: ScaleoutTarget, execute: bool, engine: str) -> None:
         self.target = target
         self.execute = execute
+        self.engine = engine
         self.failed_count = 0
 
     def to_dict(self) -> dict[str, object]:
@@ -82,6 +91,7 @@ class _Summary:
             "campaign_id": "TEST",
             "phase_id": "FCFP-P11",
             "family": self.target.family or "base_ohlcv",
+            "engine": self.engine,
             "target": self.target.to_dict(),
             "rollout": "bounded-then-full",
             "dry_run": not self.execute,

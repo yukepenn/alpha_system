@@ -194,7 +194,11 @@ class PackMaterializer:
         normalized = tuple(dict(row) for row in rows)
         if not normalized:
             raise PackMaterializerError("canonical frame rows must be non-empty")
-        frame = pl.DataFrame(list(normalized))
+        # Real dense-grid rows can widen or populate optional columns after the
+        # first inference window (for example a late string missingness flag).
+        # Scan all rows so schema inference is deterministic for bounded-real
+        # integrated materialization.
+        frame = pl.DataFrame(list(normalized), infer_schema_length=None)
         _require_columns(frame, ("series_id", "event_ts", "available_ts"))
         return frame.sort("available_ts")
 

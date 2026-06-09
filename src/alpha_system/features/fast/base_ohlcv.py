@@ -87,7 +87,7 @@ def build_base_ohlcv_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
 
 
 def supports_base_ohlcv_pack(feature_set: FeatureSetSpec) -> bool:
-    """Return true when a feature set is exactly the V1 Base OHLCV pack."""
+    """Return true when a feature set is a governed V1 Base OHLCV pack subset."""
 
     if not isinstance(feature_set, FeatureSetSpec):
         return False
@@ -100,12 +100,16 @@ def supports_base_ohlcv_pack(feature_set: FeatureSetSpec) -> bool:
 
 def _validate_base_ohlcv_feature_set(feature_set: FeatureSetSpec) -> None:
     features = tuple(feature_set.features)
+    if not features:
+        raise PackMaterializerError("base_ohlcv fast pack requires at least one feature")
     feature_ids = tuple(feature.feature_id for feature in features)
-    if set(feature_ids) != set(BASE_OHLCV_FEATURE_IDS) or len(feature_ids) != len(
-        BASE_OHLCV_FEATURE_IDS
-    ):
+    if len(set(feature_ids)) != len(feature_ids):
+        raise PackMaterializerError("base_ohlcv fast pack rejects duplicate features")
+    unknown = tuple(feature_id for feature_id in feature_ids if feature_id not in BASE_OHLCV_FEATURE_IDS)
+    if unknown:
         raise PackMaterializerError(
-            "base_ohlcv fast pack requires exactly the six governed Base OHLCV features"
+            "base_ohlcv fast pack requires governed Base OHLCV features: "
+            + ", ".join(unknown)
         )
     for feature in features:
         _validate_base_ohlcv_feature(feature)
