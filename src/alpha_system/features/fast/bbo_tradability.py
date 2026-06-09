@@ -107,7 +107,7 @@ def build_bbo_tradability_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
 
 
 def supports_bbo_tradability_pack(feature_set: FeatureSetSpec) -> bool:
-    """Return true when a feature set is exactly the governed BBO pack."""
+    """Return true when a feature set is a governed BBO pack subset."""
 
     if not isinstance(feature_set, FeatureSetSpec):
         return False
@@ -120,12 +120,18 @@ def supports_bbo_tradability_pack(feature_set: FeatureSetSpec) -> bool:
 
 def _validate_bbo_feature_set(feature_set: FeatureSetSpec) -> None:
     features = tuple(feature_set.features)
+    if not features:
+        raise PackMaterializerError("bbo_tradability fast pack requires features")
     feature_ids = tuple(feature.feature_id for feature in features)
-    if set(feature_ids) != set(BBO_TRADABILITY_FEATURE_IDS) or len(feature_ids) != len(
-        BBO_TRADABILITY_FEATURE_IDS
-    ):
+    if len(set(feature_ids)) != len(feature_ids):
+        raise PackMaterializerError("bbo_tradability fast pack rejects duplicate features")
+    unknown = tuple(
+        feature_id for feature_id in feature_ids if feature_id not in BBO_TRADABILITY_FEATURE_IDS
+    )
+    if unknown:
         raise PackMaterializerError(
-            "bbo_tradability fast pack requires exactly the governed BBO features"
+            "bbo_tradability fast pack requires governed BBO features: "
+            + ", ".join(unknown)
         )
     for feature in features:
         _validate_bbo_feature(feature)

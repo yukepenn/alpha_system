@@ -10,26 +10,25 @@ The repository-level campaign pointer targets
 Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1
 engine core, governed feature packs through `cross_market`, the governed
 fixed-horizon label pack, targeted / incremental scaleout selection, producer
-provenance reconciliation, and the `FCFP-P13` bounded benchmark gate available
-in this worktree. Ralph owns validation, staging, Yellow-lane review routing,
-and any phase verdict.
+provenance reconciliation, the `FCFP-P13` bounded benchmark gate, and the
+`FCFP-P14` V1 producer path integration + resolver smoke available in this
+worktree. Ralph owns validation, staging, Yellow-lane review routing, and any
+phase verdict.
 
-Active / next integration path after P13 review and merge: `FCFP-P14` V1
-Producer Path Integration + Resolver Smoke, then `FCFP-P15` Closeout + FUTSUB
-Resume Handoff. Remaining phases merge serially.
+Active / next integration path after P14 review and merge: `FCFP-P15`
+benchmark-driven CPU worker parallelism, then `FCFP-P16` closeout + FUTSUB
+resume handoff. Remaining phases merge serially.
 
-New durable surfaces in this `FCFP-P13` executor snapshot:
+New durable surfaces in this `FCFP-P14` executor snapshot:
 
-- `tools/feature_compute_fast_path/benchmark_gate.py`, a bounded-real benchmark
-  entrypoint that invokes the real reference runners and V1 pack runners on a
-  self-validating roll-month slice.
-- `research/feature_compute_fast_path_v1/benchmark/benchmark_summary.md`, a
-  value-free benchmark summary with timing, throughput, scan-reduction,
-  speedup, extrapolation, and real-data parity confirmation fields.
-- `docs/feature_compute_fast_path/BENCHMARK_GATE.md`, documenting how to back up
-  the local registry, run the bounded benchmark, and interpret the summary.
-- Synthetic benchmark-harness tests under
-  `tests/unit/feature_compute_fast_path/`.
+- `src/alpha_system/features/scaleout/driver.py` now routes execute-mode
+  feature scaleout to V1 by default while preserving `--engine reference`.
+- `src/alpha_system/cli/scaleout.py` exposes `--engine {v1,reference}`.
+- `research/feature_compute_fast_path_v1/integration/integration_report.md`
+  records the value-free integration and resolver-smoke counts.
+- `docs/feature_compute_fast_path/PRODUCER_PATH_INTEGRATION.md` documents the
+  default engine route, reference fallback, engine-aware idempotency, and
+  resolver-smoke procedure.
 - No full-window backfill, feature/label value artifact, broker/live/paper
   behavior, deployment behavior, or alpha/profitability claim is added.
 

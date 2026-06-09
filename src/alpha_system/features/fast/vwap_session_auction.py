@@ -96,7 +96,7 @@ def build_vwap_session_auction_pack(feature_set: FeatureSetSpec) -> FastFeatureP
 
 
 def supports_vwap_session_auction_pack(feature_set: FeatureSetSpec) -> bool:
-    """Return true when a feature set is exactly the governed VWAP pack."""
+    """Return true when a feature set is a governed VWAP pack subset."""
 
     if not isinstance(feature_set, FeatureSetSpec):
         return False
@@ -109,13 +109,20 @@ def supports_vwap_session_auction_pack(feature_set: FeatureSetSpec) -> bool:
 
 def _validate_vwap_session_auction_feature_set(feature_set: FeatureSetSpec) -> None:
     features = tuple(feature_set.features)
+    if not features:
+        raise PackMaterializerError("vwap_session_auction fast pack requires features")
     feature_ids = tuple(feature.feature_id for feature in features)
-    if set(feature_ids) != set(VWAP_SESSION_AUCTION_FEATURE_IDS) or len(feature_ids) != len(
-        VWAP_SESSION_AUCTION_FEATURE_IDS
-    ):
+    if len(set(feature_ids)) != len(feature_ids):
+        raise PackMaterializerError("vwap_session_auction fast pack rejects duplicate features")
+    unknown = tuple(
+        feature_id
+        for feature_id in feature_ids
+        if feature_id not in VWAP_SESSION_AUCTION_FEATURE_IDS
+    )
+    if unknown:
         raise PackMaterializerError(
-            "vwap_session_auction fast pack requires exactly the five governed "
-            "VWAP / session-auction features"
+            "vwap_session_auction fast pack requires governed VWAP / "
+            "session-auction features: " + ", ".join(unknown)
         )
     for feature in features:
         _validate_vwap_session_auction_feature(feature)

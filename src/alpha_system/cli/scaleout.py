@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from alpha_system.features.scaleout import (
+    DEFAULT_SCALEOUT_ENGINE,
     DEFAULT_SCALEOUT_CONFIG,
 )
 from alpha_system.features.scaleout.driver import (
@@ -60,6 +61,7 @@ def run_feature_pack(args: argparse.Namespace) -> int:
             rollout=args.rollout,
             execute=args.execute,
             bounded_year=args.bounded_year,
+            engine=args.engine,
             target=_target_from_args(args),
         )
         if args.summary_out:
@@ -156,6 +158,12 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Accepted full year used for bounded-real rollout.",
     )
     feature_parser.add_argument(
+        "--engine",
+        choices=("v1", "reference"),
+        default=DEFAULT_SCALEOUT_ENGINE,
+        help="Producer engine for execute mode; defaults to V1 with reference selectable as oracle.",
+    )
+    feature_parser.add_argument(
         "--alpha-data-root",
         help="Local data root for values, registry, ledger, and checkpoints.",
     )
@@ -216,6 +224,7 @@ def _emit_text(payload: dict[str, object]) -> None:
     print(f"Campaign: {payload['campaign_id']}")
     print(f"Phase: {payload['phase_id']}")
     print(f"Family: {payload['family']}")
+    print(f"Engine: {payload.get('engine', 'v1')}")
     target = payload.get("target")
     if isinstance(target, dict) and target.get("active"):
         print(f"Target: {json.dumps(target, sort_keys=True)}")

@@ -3,15 +3,17 @@ from __future__ import annotations
 from alpha_system.features.scaleout import load_scaleout_config, run_scaleout
 from alpha_system.features.scaleout.driver import (
     _unit_executor_for_family,
+    materialize_v1_feature_unit,
     materialize_regime_volatility_compression_unit,
 )
 
 CONFIG_PATH = "configs/features/scaleout/regime_volatility_compression.json"
 
 
-def test_regime_scaleout_driver_dispatches_to_p09_executor() -> None:
+def test_regime_scaleout_driver_defaults_to_v1_with_reference_fallback() -> None:
+    assert _unit_executor_for_family("regime_volatility_compression") is materialize_v1_feature_unit
     assert (
-        _unit_executor_for_family("regime_volatility_compression")
+        _unit_executor_for_family("regime_volatility_compression", engine="reference")
         is materialize_regime_volatility_compression_unit
     )
 

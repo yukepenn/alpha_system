@@ -202,8 +202,26 @@ targeted / incremental selection. `alpha scaleout feature-pack` can now target
 family, feature id, configured feature group, label selector, symbols, years,
 and DatasetVersion ids. Dry-run emits value-free unit, row, and time estimates;
 execute mode runs selected units only; completed units are skipped only through
-checkpoint plus official registry truth. The driver is not routed to the V1
-producer path in this phase.
+checkpoint plus official registry truth.
+
+## P14 Producer Path Integration
+
+`FCFP-P14` makes the V1 `PackMaterializer` the default scaleout producer path.
+The CLI exposes `--engine {v1,reference}` with `v1` as the default and keeps the
+reference engine selectable as the oracle/fallback. The selected engine does not
+enter governed identity: V1 still writes values for existing
+`feature_version_id` and `label_version_id` locks only.
+
+The driver preserves checkpoint/restart behavior with engine-aware registry
+truth. A completed unit skips only when the official registry resolves the
+previewed feature identities to existing values for the selected producer
+engine; reference-produced records are not silently treated as V1 completion.
+
+The P14 resolver smoke materializes representative bounded-real feature and
+label locks through the integrated V1 path, resolves exact locks through the
+official runtime resolver, and verifies stale or fuzzy controls fail closed.
+The committed report is value-free and lives under
+`research/feature_compute_fast_path_v1/integration/`.
 
 ## Boundaries
 

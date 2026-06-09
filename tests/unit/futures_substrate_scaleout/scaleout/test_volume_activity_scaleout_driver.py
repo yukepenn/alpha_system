@@ -3,14 +3,19 @@ from __future__ import annotations
 from alpha_system.features.scaleout import load_scaleout_config, run_scaleout
 from alpha_system.features.scaleout.driver import (
     _unit_executor_for_family,
+    materialize_v1_feature_unit,
     materialize_volume_activity_unit,
 )
 
 CONFIG_PATH = "configs/features/scaleout/volume_activity.json"
 
 
-def test_volume_activity_scaleout_driver_dispatches_to_p11_executor() -> None:
-    assert _unit_executor_for_family("volume_activity") is materialize_volume_activity_unit
+def test_volume_activity_scaleout_driver_defaults_to_v1_with_reference_fallback() -> None:
+    assert _unit_executor_for_family("volume_activity") is materialize_v1_feature_unit
+    assert (
+        _unit_executor_for_family("volume_activity", engine="reference")
+        is materialize_volume_activity_unit
+    )
 
 
 def test_volume_activity_scaleout_full_window_preview_has_accepted_units() -> None:

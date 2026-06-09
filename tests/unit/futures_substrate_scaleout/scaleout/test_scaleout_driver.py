@@ -126,6 +126,7 @@ class _FakeFeatureRecord:
         self.parquet_path = parquet_path
         self.value_content_hash = content_hash
         self.value_record_count = row_count
+        self.producer_engine_id = "alpha_system.features.fast.pack_materializer.v1"
 
 
 def _registry_with_accepted_2024(tmp_path: Path) -> Path:

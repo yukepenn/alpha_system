@@ -47,8 +47,8 @@ def build_fixed_horizon_label_pack(
     """Build the governed fixed-horizon label pack.
 
     The governed reference family is the oracle boundary. This builder accepts
-    exactly the current ``FixedHorizonLabelName`` set and derives no new labels
-    or identities.
+    non-empty subsets of the current ``FixedHorizonLabelName`` set and derives
+    no new labels or identities.
     """
 
     ordered = _ordered_fixed_horizon_definitions(definitions)
@@ -63,7 +63,7 @@ def build_fixed_horizon_label_pack(
 def supports_fixed_horizon_label_pack(
     definitions: Sequence[FixedHorizonLabelDefinition],
 ) -> bool:
-    """Return true when definitions are exactly the governed fixed-horizon set."""
+    """Return true when definitions are a governed fixed-horizon subset."""
 
     try:
         _ordered_fixed_horizon_definitions(definitions)
@@ -107,6 +107,8 @@ def _ordered_fixed_horizon_definitions(
 ) -> tuple[FixedHorizonLabelDefinition, ...]:
     if isinstance(definitions, str) or not isinstance(definitions, Sequence):
         raise FastLabelPackError("fixed-horizon label pack requires a sequence of definitions")
+    if not definitions:
+        raise FastLabelPackError("fixed-horizon label pack requires at least one definition")
     by_name: dict[FixedHorizonLabelName, FixedHorizonLabelDefinition] = {}
     for definition in definitions:
         if not isinstance(definition, FixedHorizonLabelDefinition):
@@ -122,19 +124,13 @@ def _ordered_fixed_horizon_definitions(
 
     expected_names = tuple(supported_fixed_horizon_labels())
     actual_names = frozenset(by_name)
-    missing = tuple(name.value for name in expected_names if name not in actual_names)
     extra = tuple(name.value for name in actual_names if name not in set(expected_names))
-    if missing or extra:
-        details: list[str] = []
-        if missing:
-            details.append("missing " + ", ".join(missing))
-        if extra:
-            details.append("extra " + ", ".join(sorted(extra)))
+    if extra:
         raise FastLabelPackError(
-            "fixed-horizon label pack must match the governed label set exactly: "
-            + "; ".join(details)
+            "fixed-horizon label pack requires governed labels: "
+            + ", ".join(sorted(extra))
         )
-    return tuple(by_name[name] for name in expected_names)
+    return tuple(by_name[name] for name in expected_names if name in by_name)
 
 
 def _horizon_minutes(label_name: FixedHorizonLabelName) -> int:

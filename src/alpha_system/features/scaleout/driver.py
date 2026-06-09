@@ -33,6 +33,10 @@ DEFAULT_SCALEOUT_CONFIG = "configs/features/scaleout/base_ohlcv.json"
 DEFAULT_POLICY_CONFIG = "configs/data/dataset_acceptance/futsub_p02_policy.json"
 DEFAULT_ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 DEFAULT_BOUNDED_YEAR = 2024
+SCALEOUT_ENGINE_V1 = "v1"
+SCALEOUT_ENGINE_REFERENCE = "reference"
+DEFAULT_SCALEOUT_ENGINE = SCALEOUT_ENGINE_V1
+SCALEOUT_ENGINES = frozenset({SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE})
 ELIGIBLE_ACCEPTANCE_STATES = frozenset(
     {
         DatasetAcceptanceState.ACCEPTED.value,
@@ -362,6 +366,7 @@ class ScaleoutRunSummary:
     campaign_id: str
     phase_id: str
     family: str
+    engine: str
     target: ScaleoutTarget
     rollout: str
     dry_run: bool
@@ -394,6 +399,7 @@ class ScaleoutRunSummary:
             "campaign_id": self.campaign_id,
             "phase_id": self.phase_id,
             "family": self.family,
+            "engine": self.engine,
             "target": self.target.to_dict(),
             "rollout": self.rollout,
             "dry_run": self.dry_run,
@@ -665,6 +671,7 @@ def run_scaleout(
     rollout: str = "bounded-then-full",
     execute: bool = False,
     bounded_year: int | None = None,
+    engine: str = DEFAULT_SCALEOUT_ENGINE,
     unit_executor: UnitExecutor | None = None,
     target: ScaleoutTarget | None = None,
 ) -> ScaleoutRunSummary:
@@ -675,6 +682,7 @@ def run_scaleout(
     """
 
     rollout_token = _normalize_rollout(rollout)
+    engine_token = _normalize_engine(engine)
     target = target or ScaleoutTarget()
     units = build_scaleout_units(config, target=target)
     bounded = _bounded_units(units, bounded_year or config.bounded_year)
@@ -690,6 +698,7 @@ def run_scaleout(
             campaign_id=config.campaign_id,
             phase_id=config.phase_id,
             family=config.family,
+            engine=engine_token,
             target=target,
             rollout=rollout_token,
             dry_run=True,
@@ -708,7 +717,7 @@ def run_scaleout(
     dataset_registry = _required_path(dataset_registry_path, "dataset_registry_path")
     canonical = _canonical_root(canonical_root)
     ledger = _ScaleoutLedger(alpha_root, config)
-    executor = unit_executor or _unit_executor_for_family(config.family)
+    executor = unit_executor or _unit_executor_for_family(config.family, engine=engine_token)
 
     for stage, stage_units in _execution_stages(units, bounded, rollout_token):
         stage_records = _execute_stage(
@@ -720,6 +729,7 @@ def run_scaleout(
             canonical_root=canonical,
             ledger=ledger,
             executor=executor,
+            engine=engine_token,
         )
         records.extend(stage_records)
         if stage == "bounded_real" and any(record.status == "failed" for record in stage_records):
@@ -729,6 +739,7 @@ def run_scaleout(
         campaign_id=config.campaign_id,
         phase_id=config.phase_id,
         family=config.family,
+        engine=engine_token,
         target=target,
         rollout=rollout_token,
         dry_run=False,
@@ -1511,7 +1522,247 @@ def _cross_market_inputs(context: Any, governance_metadata: Mapping[str, Any]) -
     )
 
 
-def _unit_executor_for_family(family: str) -> UnitExecutor:
+def materialize_v1_feature_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one scaleout unit through the V1 fast-pack producer path."""
+
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.contracts import FeatureSetSpec
+    from alpha_system.features.fast import (
+        FAST_PRODUCER_ENGINE_ID,
+        FAST_VALUE_SCHEMA_VERSION,
+        PackMaterializer,
+        build_fast_feature_pack,
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    definitions = _feature_definitions_for_unit(config, unit, store.registry)
+    if not definitions:
+        raise ScaleoutError(f"unit {unit.unit_id} did not select any governed features")
+    feature_specs = tuple(_definition_feature_spec(definition) for definition in definitions)
+    feature_requests: dict[str, Any] = {}
+    for definition, feature_spec in zip(definitions, feature_specs, strict=True):
+        checked_request = definition.request_gate_decision.checked_feature_request
+        if checked_request is None:
+            raise ScaleoutError("FeatureRequest gate did not return a checked request")
+        if feature_spec.feature_id in feature_requests:
+            raise ScaleoutError(
+                f"duplicate V1 feature selection for {feature_spec.feature_id}"
+            )
+        feature_requests[feature_spec.feature_id] = checked_request
+
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=feature_specs,
+        description=f"FCFP-P14 V1 {config.family} scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "producer_engine_id": FAST_PRODUCER_ENGINE_ID,
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    pack = build_fast_feature_pack(feature_set)
+    materializer = PackMaterializer()
+    accepted, canonical_frame = _v1_context_and_frame(
+        config,
+        unit,
+        materializer=materializer,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    governance_metadata = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "producer_engine_id": FAST_PRODUCER_ENGINE_ID,
+        "value_schema_version": FAST_VALUE_SCHEMA_VERSION,
+        "engine_selection": SCALEOUT_ENGINE_V1,
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    result = materializer.materialize_pack(
+        pack,
+        accepted,
+        partition_id=unit.partition_id,
+        canonical_frame=canonical_frame,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no V1 feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    records = materializer.register_pack(
+        result,
+        pack,
+        feature_requests=feature_requests,
+        store=store,
+        registry_metadata=governance_metadata,
+    )
+    feature_version_ids = tuple(record.feature_version_id for record in records)
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=feature_version_ids,
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=feature_version_ids,
+    )
+
+
+def _v1_context_and_frame(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    materializer: Any,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> tuple[Any, Any]:
+    if config.family == "bbo_tradability_top_book":
+        context = _build_bbo_accepted_context(
+            unit,
+            dataset_registry_path=dataset_registry_path,
+            canonical_root=canonical_root,
+        )
+        return context.accepted, materializer.frame_from_rows(context.bbo_rows)
+    if config.family == "cross_market_alignment":
+        context = _build_cross_market_accepted_context(
+            config,
+            unit,
+            dataset_registry_path=dataset_registry_path,
+            canonical_root=canonical_root,
+        )
+        return context.accepted, materializer.frame_from_rows(context.bar_rows)
+    context = _build_ohlcv_accepted_context(
+        config,
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    return context.accepted, materializer.frame_from_rows(context.bar_rows)
+
+
+def _build_ohlcv_accepted_context(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> Any:
+    from alpha_system.cli.seed_pack import (
+        FeatureSetConfig,
+        FeatureSpecConfig,
+        SeedPackConfig,
+        _build_accepted_context,
+    )
+
+    seed_config = SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        feature_set=FeatureSetConfig(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            alpha_spec_id=config.alpha_spec_id,
+            features=tuple(
+                FeatureSpecConfig(name=name, window_length=_feature_window(name), horizon=1)
+                for name in unit.feature_names
+            ),
+        ),
+    )
+    return _build_accepted_context(
+        seed_config,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
+        repo_root=Path.cwd(),
+    )
+
+
+def _feature_definitions_for_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    if config.family == "base_ohlcv":
+        from alpha_system.cli.seed_pack import (
+            _build_feature_request,
+            _coerce_feature_name,
+            _feature_input_scope,
+        )
+        from alpha_system.features.families.ohlcv import build_ohlcv_feature_definition
+
+        seed_config = _seed_config(config, unit)
+        return tuple(
+            build_ohlcv_feature_definition(
+                _coerce_feature_name(entry.name),
+                _build_feature_request(
+                    seed_config.feature_set,
+                    entry.name,
+                    exposure_scope=unit.partition_id,
+                ),
+                registry_reader,
+                dataset_version_ids=(unit.dataset_version_id,),
+                window_length=entry.window_length,
+                horizon=entry.horizon,
+                reset_on_session=False,
+                input_scope=_feature_input_scope(seed_config),
+            )
+            for entry in seed_config.feature_set.features
+        )
+    if config.family == "session_calendar_maintenance":
+        return _session_feature_definitions(config, unit, registry_reader)
+    if config.family == "vwap_session_auction":
+        return _vwap_session_auction_feature_definitions(config, unit, registry_reader)
+    if config.family == "regime_volatility_compression":
+        return _regime_volatility_compression_feature_definitions(
+            config,
+            unit,
+            registry_reader,
+        )
+    if config.family == "liquidity_sweep_pa_structure":
+        return _liquidity_pa_structure_feature_definitions(config, unit, registry_reader)
+    if config.family == "volume_activity":
+        return _volume_activity_feature_definitions(config, unit, registry_reader)
+    if config.family == "bbo_tradability_top_book":
+        return _bbo_tradability_top_book_feature_definitions(config, unit, registry_reader)
+    if config.family == "cross_market_alignment":
+        return _cross_market_alignment_feature_definitions(config, unit, registry_reader)
+    raise ScaleoutError(f"unsupported scaleout family: {config.family}")
+
+
+def _unit_executor_for_family(
+    family: str,
+    *,
+    engine: str = DEFAULT_SCALEOUT_ENGINE,
+) -> UnitExecutor:
+    engine_token = _normalize_engine(engine)
+    if engine_token == SCALEOUT_ENGINE_V1:
+        return materialize_v1_feature_unit
     if family == "base_ohlcv":
         return materialize_base_ohlcv_unit
     if family == "session_calendar_maintenance":
@@ -1546,6 +1797,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         "",
         f"- Campaign: `{summary.campaign_id}`",
         f"- Phase: `{summary.phase_id}`",
+        f"- Engine: `{summary.engine}`",
         f"- Rollout: `{summary.rollout}`",
         f"- Dry run: `{'yes' if summary.dry_run else 'no'}`",
         f"- Targeting active: `{'yes' if summary.target.active else 'no'}`",
@@ -1934,6 +2186,8 @@ def _registry_completed_unit(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
     alpha_data_root: Path,
+    *,
+    engine: str,
 ) -> ScaleoutUnitRecord | None:
     """Detect a unit already fully materialized in the live feature registry.
 
@@ -1966,6 +2220,8 @@ def _registry_completed_unit(
             return None
         if record is None:
             return None
+        if not _registry_record_matches_engine(record, engine):
+            return None
         parquet_path = getattr(record, "parquet_path", None)
         if not parquet_path or not Path(parquet_path).exists():
             return None
@@ -1986,6 +2242,8 @@ def _registry_completed_unit(
 def _completed_record_has_registry_truth(
     record: ScaleoutUnitRecord,
     alpha_data_root: Path,
+    *,
+    engine: str,
 ) -> bool:
     if record.status != "completed" or not record.feature_version_ids:
         return False
@@ -2000,10 +2258,28 @@ def _completed_record_has_registry_truth(
             return False
         if registry_record is None:
             return False
+        if not _registry_record_matches_engine(registry_record, engine):
+            return False
         parquet_path = getattr(registry_record, "parquet_path", None)
         if not parquet_path or not Path(parquet_path).exists():
             return False
     return True
+
+
+def _registry_record_matches_engine(record: Any, engine: str) -> bool:
+    expected = _producer_engine_id_for_engine(engine)
+    return getattr(record, "producer_engine_id", None) == expected
+
+
+def _producer_engine_id_for_engine(engine: str) -> str:
+    engine_token = _normalize_engine(engine)
+    if engine_token == SCALEOUT_ENGINE_V1:
+        from alpha_system.features.fast import FAST_PRODUCER_ENGINE_ID
+
+        return FAST_PRODUCER_ENGINE_ID
+    from alpha_system.features.registry import REFERENCE_FEATURE_PRODUCER_ENGINE_ID
+
+    return REFERENCE_FEATURE_PRODUCER_ENGINE_ID
 
 
 def _execute_stage(
@@ -2016,6 +2292,7 @@ def _execute_stage(
     canonical_root: Path,
     ledger: _ScaleoutLedger,
     executor: UnitExecutor,
+    engine: str,
 ) -> tuple[ScaleoutUnitRecord, ...]:
     records: list[ScaleoutUnitRecord] = []
     for unit in units:
@@ -2023,11 +2300,20 @@ def _execute_stage(
         if (
             completed is not None
             and completed.status == "completed"
-            and not _completed_record_has_registry_truth(completed, alpha_data_root)
+            and not _completed_record_has_registry_truth(
+                completed,
+                alpha_data_root,
+                engine=engine,
+            )
         ):
             completed = None
         if completed is None:
-            registry_completed = _registry_completed_unit(config, unit, alpha_data_root)
+            registry_completed = _registry_completed_unit(
+                config,
+                unit,
+                alpha_data_root,
+                engine=engine,
+            )
             if registry_completed is not None:
                 # Persist a checkpoint marker so subsequent runs short-circuit via the
                 # ledger without re-querying the registry, then fall through to the
@@ -4222,6 +4508,15 @@ def _normalize_rollout(value: str) -> str:
     raise ScaleoutError(
         "rollout must be one of: bounded-real, full-window, bounded-then-full"
     )
+
+
+def _normalize_engine(value: str) -> str:
+    token = value.strip().lower().replace("_", "-")
+    if token == SCALEOUT_ENGINE_V1:
+        return SCALEOUT_ENGINE_V1
+    if token == SCALEOUT_ENGINE_REFERENCE:
+        return SCALEOUT_ENGINE_REFERENCE
+    raise ScaleoutError("engine must be one of: v1, reference")
 
 
 def _alpha_data_root(value: str | Path | None) -> Path:

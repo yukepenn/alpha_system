@@ -167,7 +167,7 @@ def build_cross_market_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
 
 
 def supports_cross_market_pack(feature_set: FeatureSetSpec) -> bool:
-    """Return true when a feature set is exactly the governed cross-market pack."""
+    """Return true when a feature set is a governed cross-market pack subset."""
 
     if not isinstance(feature_set, FeatureSetSpec):
         return False
@@ -180,12 +180,18 @@ def supports_cross_market_pack(feature_set: FeatureSetSpec) -> bool:
 
 def _validate_cross_market_feature_set(feature_set: FeatureSetSpec) -> _CrossMarketPackConfig:
     features = tuple(feature_set.features)
+    if not features:
+        raise PackMaterializerError("cross_market fast pack requires features")
     feature_ids = tuple(feature.feature_id for feature in features)
-    if set(feature_ids) != set(CROSS_MARKET_FEATURE_IDS) or len(feature_ids) != len(
-        CROSS_MARKET_FEATURE_IDS
-    ):
+    if len(set(feature_ids)) != len(feature_ids):
+        raise PackMaterializerError("cross_market fast pack rejects duplicate features")
+    unknown = tuple(
+        feature_id for feature_id in feature_ids if feature_id not in CROSS_MARKET_FEATURE_IDS
+    )
+    if unknown:
         raise PackMaterializerError(
-            "cross_market fast pack requires exactly the 11 governed Cross-Market features"
+            "cross_market fast pack requires governed Cross-Market features: "
+            + ", ".join(unknown)
         )
     configs = tuple(_validate_cross_market_feature(feature) for feature in features)
     first = configs[0]
