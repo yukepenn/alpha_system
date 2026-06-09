@@ -12,6 +12,7 @@ from alpha_system.features.contracts import (
     FeatureLineageRecord,
     FeatureSetSpec,
     FeatureValueRecord,
+    FrozenJsonMapping,
 )
 from alpha_system.features.engine import (
     FeatureMaterializationResult,
@@ -333,7 +334,10 @@ def test_v1_force_recompute_reuses_existing_specs_and_updates_only_stale_hash(
             feature_spec=spec,
             feature_version=version,
             lineage=lineage,
-            feature_request_payload=checked_request.to_dict(),
+            feature_request_payload=FrozenJsonMapping.from_mapping(
+                checked_request.to_dict(),
+                field_name="feature_request_payload",
+            ),
             producer_engine_id=FAST_PRODUCER_ENGINE_ID,
             parquet_path=parquet_path.as_posix(),
             value_content_hash=existing_hash,

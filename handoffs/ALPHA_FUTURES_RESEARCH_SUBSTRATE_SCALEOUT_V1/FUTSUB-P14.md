@@ -48,13 +48,20 @@ Registry consistency audit: `research/futures_substrate_scaleout_v1/feature_pack
 - Producer provenance: `alpha_system.features.fast.pack_materializer.v1`
 - Value schema: `alpha_system.features.fast.values.v1`
 - Store format: Parquet-backed rows with matching sidecar hashes
-- Registry rows: 1,408 total across the eight families
+- Registry rows: 1,360 trusted current-config rows audited across the eight
+  families; 48 offline-only session roll-countdown registry rows remain
+  local-only but are not certified by the trusted substrate audit
+- Required generic `session_metadata_role` markers are present for trusted
+  session/liquidity/cross-market rows
 - No reference/V1 mixing detected within the audited series
 
 Resolver smoke: `research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`
 
 - Overall status: `PASS`
-- Representative exact `fver_...` locks resolved for all eight families
+- Representative exact `fver_...` locks resolved for all eight trusted
+  current-config families
+- Session representative is `session_calendar_roll_session_id`; the offline-only
+  `bars_to_roll`/`minutes_to_roll` rows are not used as resolver-smoke evidence
 - Resolved handles matched DatasetVersion, FeatureRequest id, and partition
 - Parquet sidecar hash checks passed for representative rows
 - Absent exact lock failed closed with `feature_pack_not_found`
@@ -135,10 +142,13 @@ Affected already-materialized `base_ohlcv_returns` FeatureVersion ids
 | 2026 | `NQ` | `fver_0e1316dffcb840bc0d8aeda5c9bd9b76116f349769a6e9d8e8f54bbfe62ce5e0` |
 | 2026 | `RTY` | `fver_6300441ac8edda664cb2bdab4853ecd4948eeed7d2055f3325e27ec745ebb350` |
 
-Coordinator action still required: re-materialize these 24 local-only units
-through the patched V1 driver before regenerating final registry/resolver
-evidence. This repair attempt did not mutate local SQLite registries or value
-Parquet.
+REWORK repair completed: this repair attempt re-materialized through the patched
+V1 driver. The targeted `momentum_reversion_state` recompute completed 24/24
+units, then a full `regime_volatility_compression` force-recompute completed
+24/24 units because the family writes a shared per-unit Parquet sidecar and all
+five current-config regime rows needed current sidecar hashes. Final regenerated
+registry/resolver evidence no longer requires coordinator rematerialization for
+these rows.
 
 ## Commit-Eligible Files For Ralph
 
@@ -169,7 +179,9 @@ Parquet.
 - `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
 
 No review artifact was created by this executor, per instruction. Ralph/reviewer
-own review, verdict, staging, commit, PR, CI, merge, and phase PASS decisions.
+own review, verdict, PR, CI, merge, and phase PASS decisions. Explicit
+repair-path staging/commit actions are recorded in the bounded repair sections
+below.
 
 ## Validation
 
@@ -179,12 +191,11 @@ own review, verdict, staging, commit, PR, CI, merge, and phase PASS decisions.
 - `python -m pytest tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py -q`: PASS, 4 passed.
 - `python -m pytest tests/no_lookahead/test_session_label_guard.py tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py -q`: PASS, 19 passed.
 - Review-repair focused rerun of `python -m pytest tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py tests/no_lookahead/test_session_label_guard.py -q`: PASS, 19 passed.
-- Repair-local read-only representative-lock check with `PYTHONPATH=src`:
+- Repair-local representative-lock check with `PYTHONPATH=src`:
   base/session/VWAP/regime representative rows resolved under the repaired
-  guard; existing local liquidity/cross-market registry rows still lack the new
-  generic `session_metadata_role` marker and fail with `label_as_feature_input`.
-  This repair did not mutate local SQLite; rerun/re-register those rows through
-  the patched V1 driver before regenerating resolver-smoke evidence.
+  guard. Superseded by the final REWORK evidence-regeneration attempt below,
+  which reran and re-registered liquidity/cross-market rows through the patched
+  V1 driver so the generic `session_metadata_role` markers are present.
 - Focused source-regression set for V1 registration, VWAP, regime, and FUTSUB scaleout tests: PASS, 8 passed.
 - Checkpoint/resolver guard focused set: PASS, 22 passed.
 - `python tools/verify.py --lint`: exit 0 with environment skip, `ruff is not installed`.
@@ -354,9 +365,90 @@ Validation for this bounded repair:
 - `M tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
 - `M tests/unit/futures_substrate_scaleout/scaleout/test_scaleout_driver.py`
 
+## Bounded Repair Attempt - Evidence Regeneration After REWORK
+
+Review findings repaired:
+
+- B1: regenerated `feature_resolver_smoke.md` no longer certifies
+  `session_calendar_roll_bars_to_roll`; the trusted session representative is
+  `session_calendar_roll_session_id`.
+- B2: re-materialized/re-registered the stale local V1 rows through the patched
+  scaleout driver, then regenerated registry/resolver evidence against the
+  current code and local registry state.
+
+Local materialization performed through the patched V1 driver:
+
+- `regime_volatility_compression`: targeted `momentum_reversion_state`
+  force-recompute completed 24/24 units; superseded by full-family
+  force-recompute completed 24/24 units to bring all shared sidecar hashes
+  current.
+- `liquidity_sweep_pa_structure`: full-family force-recompute completed 24/24
+  units and re-registered rows with the generic session metadata marker.
+- `cross_market_alignment`: full-family force-recompute completed 8/8 units and
+  re-registered rows with the generic session metadata marker.
+
+Minimal driver repair for this attempt:
+
+- `src/alpha_system/features/scaleout/driver.py` now thaws an existing
+  `FrozenJsonMapping` feature request payload with `to_dict()` before passing it
+  back through `FeatureStore.register_materialized_feature` during forced
+  existing-`FeatureVersion` updates. This preserves the official keystone
+  registry path and fixes the registration replay failure encountered during
+  recompute.
+- `tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
+  covers that replay path with a frozen existing request payload.
+
+Regenerated evidence:
+
+- `research/futures_substrate_scaleout_v1/feature_packs/registry_consistency_audit.md`:
+  PASS, 1,360 trusted current-config rows audited, 48 offline-only session
+  roll-countdown rows excluded from trusted certification, no issues.
+- Session/liquidity/cross-market marker coverage in the audit:
+  `192/192`, `216/216`, and `88/88`, respectively.
+- `research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`:
+  PASS, eight trusted representative locks resolved to Parquet-backed rows, and
+  absent exact lock failed closed with `feature_pack_not_found`.
+
+Repair file list for this attempt:
+
+- `src/alpha_system/features/scaleout/driver.py`
+- `tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
+- `research/futures_substrate_scaleout_v1/feature_packs/registry_consistency_audit.md`
+- `research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+
+Validation for this attempt:
+
+- `PYTHONPATH=src python -m pytest tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py::test_v1_force_recompute_reuses_existing_specs_and_updates_only_stale_hash -q`: PASS, 1 passed.
+- `PYTHONPATH=src python -m pytest tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py -q`: PASS, 4 passed.
+- `git diff --check`: PASS.
+- `python tools/verify.py --smoke`: PASS.
+- `python tools/verify.py --lint`: exit 0 with environment skip, `ruff is not installed; run pip install -e ".[dev]" to enable lint. Skipping.`
+- `python tools/verify.py --typecheck`: PASS, compileall completed.
+- `python tools/hooks/canary_runner.py`: PASS, all Frontier canaries passed.
+- `python tools/verify.py --test`: FAIL, 4 failed / 2979 passed. The failures are outside this repair scope:
+  - `tests/integration/test_duckdb_query_fixture.py::test_duckdb_query_over_tiny_csv_fixture`: tuple/list assertion mismatch.
+  - `tests/integration/test_polars_lazy_fixture.py::test_polars_lazy_transformation_over_tiny_fixture`: tuple/list assertion mismatch.
+  - `tests/unit/data/test_databento_canonicalize.py::test_databento_canonicalize_quality_coverage_and_register_offline`: fixture JSONL rows empty.
+  - `tests/unit/runtime/test_cache_policy.py::test_run_artifact_cache_root_is_explicit_local_only`: local `ALPHA_DATA_ROOT` selects the alpha-data cache root.
+- `git ls-files runs`: PASS, empty output.
+- `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.db'`: PASS, empty output.
+- `git diff --cached --name-only`: PASS before staging, empty output.
+- `python tools/frontier/status_doctor.py`: WARN, no live run dir with
+  `state.json` found for the active campaign; runtime contract is consistent.
+
+`git status --short` before explicit staging for this attempt:
+
+- `M handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+- `M research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`
+- `M research/futures_substrate_scaleout_v1/feature_packs/registry_consistency_audit.md`
+- `M src/alpha_system/features/scaleout/driver.py`
+- `M tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
+
 ## Notes
 
 Local-only values, SQLite registries, checkpoints, backups, and run artifacts
-remain under `ALPHA_DATA_ROOT` or `runs/**`. Nothing was staged or committed by
-this executor. No broker, live, paper, order-routing, deployment, provider-call,
-alpha, profitability, tradability, or capital-allocation work was performed.
+remain under `ALPHA_DATA_ROOT` or `runs/**`. No review artifact, verdict, PR,
+merge, phase PASS, broker, live, paper, order-routing, deployment,
+provider-call, alpha, profitability, tradability, or capital-allocation work was
+performed.

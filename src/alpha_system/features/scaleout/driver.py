@@ -1922,11 +1922,19 @@ def _register_existing_v1_feature_update(
         result,
         feature_spec=existing.feature_spec,
         feature_version=existing.feature_version,
-        feature_request=existing.feature_request_payload,
+        feature_request=_feature_request_payload_mapping(existing.feature_request_payload),
         lineage=existing.lineage,
         producer_engine_id=FAST_PRODUCER_ENGINE_ID,
         registry_metadata=registry_metadata,
     )
+
+
+def _feature_request_payload_mapping(value: Any) -> Mapping[str, Any]:
+    if hasattr(value, "to_dict"):
+        value = value.to_dict()
+    if not isinstance(value, Mapping):
+        raise ScaleoutError("existing feature request payload is not a mapping")
+    return value
 
 
 def _fresh_v1_declaration_for_version(
