@@ -11,6 +11,7 @@ from pathlib import Path
 
 from alpha_system.features.scaleout import (
     DEFAULT_SCALEOUT_ENGINE,
+    DEFAULT_LABEL_SCALEOUT_CONFIG,
     DEFAULT_SCALEOUT_CONFIG,
 )
 from alpha_system.features.scaleout.driver import (
@@ -64,6 +65,41 @@ def run_feature_pack(args: argparse.Namespace) -> int:
             bounded_year=args.bounded_year,
             engine=args.engine,
             workers=_resolve_workers(args.workers, env=os.environ),
+            force_recompute=args.force_recompute or None,
+            log=lambda message: print(message, file=sys.stderr),
+            target=_target_from_args(args),
+        )
+        if args.summary_out:
+            path = Path(args.summary_out)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(render_scaleout_summary_markdown(summary), encoding="utf-8")
+        if args.json:
+            print(json.dumps(summary.to_dict(), sort_keys=True, indent=2))
+        else:
+            _emit_text(summary.to_dict())
+        return 0 if summary.failed_count == 0 else 2
+    except (OSError, ScaleoutError, ValueError) as exc:
+        print(f"scaleout command error: {exc}", file=sys.stderr)
+        return 2
+
+
+def run_label_pack(args: argparse.Namespace) -> int:
+    """Run ``alpha scaleout label-pack``."""
+
+    try:
+        if args.execute and args.dry_run:
+            raise ScaleoutError("--dry-run and --execute cannot be combined")
+        config = load_scaleout_config(args.config)
+        summary = run_scaleout(
+            config,
+            alpha_data_root=args.alpha_data_root,
+            dataset_registry_path=args.dataset_registry,
+            canonical_root=_resolve_canonical_root(args.canonical_root, args.alpha_data_root),
+            rollout=args.rollout,
+            execute=args.execute,
+            bounded_year=args.bounded_year,
+            engine="reference",
+            workers=1,
             force_recompute=args.force_recompute or None,
             log=lambda message: print(message, file=sys.stderr),
             target=_target_from_args(args),
@@ -201,17 +237,101 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     feature_parser.add_argument("--json", action="store_true", help="Emit JSON.")
     feature_parser.set_defaults(handler=run_feature_pack)
 
+    label_parser = scaleout_subparsers.add_parser(
+        "label-pack",
+        help="Plan or execute governed LabelPack scaleout.",
+    )
+    label_parser.add_argument(
+        "--config",
+        default=DEFAULT_LABEL_SCALEOUT_CONFIG,
+        help="Label scaleout config path.",
+    )
+    label_parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Write Parquet label values, ledger entries, and registry metadata.",
+    )
+    label_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Plan selected label units and emit a value-free row/unit/time estimate.",
+    )
+    label_parser.add_argument(
+        "--family",
+        help="Target one label family; nonmatching configs select no units.",
+    )
+    label_parser.add_argument(
+        "--label-id",
+        action="append",
+        help="Target a governed label id/name; repeat or comma-separate.",
+    )
+    label_parser.add_argument(
+        "--label-group",
+        action="append",
+        help="Target a configured label group; repeat or comma-separate.",
+    )
+    label_parser.add_argument(
+        "--symbols",
+        action="append",
+        help="Target symbols; repeat or comma-separate (for example ES,NQ).",
+    )
+    label_parser.add_argument(
+        "--years",
+        action="append",
+        help="Target accepted years; repeat or comma-separate.",
+    )
+    label_parser.add_argument(
+        "--dataset-version-ids",
+        action="append",
+        help="Target accepted DatasetVersion ids; repeat or comma-separate.",
+    )
+    label_parser.add_argument(
+        "--rollout",
+        choices=("bounded-real", "full-window", "bounded-then-full"),
+        default="bounded-then-full",
+        help="Rollout mode; default validates bounded-real before full expansion.",
+    )
+    label_parser.add_argument(
+        "--bounded-year",
+        type=int,
+        default=None,
+        help="Accepted full year used for bounded-real rollout.",
+    )
+    label_parser.add_argument(
+        "--force-recompute",
+        action="store_true",
+        help="Recompute targeted units even when checkpoint and registry evidence are complete.",
+    )
+    label_parser.add_argument(
+        "--alpha-data-root",
+        help="Local data root for values, registry, ledger, and checkpoints.",
+    )
+    label_parser.add_argument(
+        "--dataset-registry",
+        help="Local DatasetVersion registry path; required with --execute.",
+    )
+    label_parser.add_argument(
+        "--canonical-root",
+        help="Canonical Parquet root; defaults below ALPHA_DATA_ROOT.",
+    )
+    label_parser.add_argument(
+        "--summary-out",
+        help="Optional value-free Markdown summary output path.",
+    )
+    label_parser.add_argument("--json", action="store_true", help="Emit JSON.")
+    label_parser.set_defaults(handler=run_label_pack)
+
 
 def _target_from_args(args: argparse.Namespace) -> ScaleoutTarget:
     return ScaleoutTarget(
-        family=args.family,
-        feature_ids=_split_text_targets(args.feature_id),
-        feature_groups=_split_text_targets(args.feature_group),
-        label_ids=_split_text_targets(args.label_id),
-        label_groups=_split_text_targets(args.label_group),
-        symbols=_split_text_targets(args.symbols, uppercase=True),
-        years=_split_year_targets(args.years),
-        dataset_version_ids=_split_text_targets(args.dataset_version_ids),
+        family=getattr(args, "family", None),
+        feature_ids=_split_text_targets(getattr(args, "feature_id", None)),
+        feature_groups=_split_text_targets(getattr(args, "feature_group", None)),
+        label_ids=_split_text_targets(getattr(args, "label_id", None)),
+        label_groups=_split_text_targets(getattr(args, "label_group", None)),
+        symbols=_split_text_targets(getattr(args, "symbols", None), uppercase=True),
+        years=_split_year_targets(getattr(args, "years", None)),
+        dataset_version_ids=_split_text_targets(getattr(args, "dataset_version_ids", None)),
     )
 
 

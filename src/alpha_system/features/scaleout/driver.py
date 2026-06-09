@@ -32,7 +32,9 @@ from alpha_system.features.store import FeatureStore
 from alpha_system.governance.serialization import canonical_serialize
 
 SCALEOUT_CONFIG_SCHEMA = "alpha_system.futures_substrate_scaleout.feature_scaleout_config.v1"
+LABEL_SCALEOUT_CONFIG_SCHEMA = "alpha_system.futures_substrate_scaleout.label_scaleout_config.v1"
 DEFAULT_SCALEOUT_CONFIG = "configs/features/scaleout/base_ohlcv.json"
+DEFAULT_LABEL_SCALEOUT_CONFIG = "configs/labels/scaleout/fixed_horizon.json"
 DEFAULT_POLICY_CONFIG = "configs/data/dataset_acceptance/futsub_p02_policy.json"
 DEFAULT_ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 DEFAULT_BOUNDED_YEAR = 2024
@@ -281,6 +283,7 @@ class MaterializedUnitEvidence:
     content_hash: str
     row_count: int
     feature_version_ids: tuple[str, ...] = ()
+    label_version_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +297,7 @@ class ScaleoutUnitRecord:
     content_hash: str | None = None
     row_count: int = 0
     feature_version_ids: tuple[str, ...] = ()
+    label_version_ids: tuple[str, ...] = ()
     message: str = ""
 
     def to_dict(self) -> dict[str, object]:
@@ -307,6 +311,7 @@ class ScaleoutUnitRecord:
             "content_hash": self.content_hash,
             "row_count": self.row_count,
             "feature_version_ids": list(self.feature_version_ids),
+            "label_version_ids": list(self.label_version_ids),
             "message": self.message,
         }
 
@@ -485,8 +490,13 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
         raise ScaleoutError(f"scaleout config is not valid JSON: {config_path}") from exc
     if not isinstance(payload, Mapping):
         raise ScaleoutError("scaleout config root must be a mapping")
-    if payload.get("schema") != SCALEOUT_CONFIG_SCHEMA:
-        raise ScaleoutError(f"scaleout config schema must be {SCALEOUT_CONFIG_SCHEMA}")
+    schema = payload.get("schema")
+    if schema not in {SCALEOUT_CONFIG_SCHEMA, LABEL_SCALEOUT_CONFIG_SCHEMA}:
+        raise ScaleoutError(
+            "scaleout config schema must be one of: "
+            f"{SCALEOUT_CONFIG_SCHEMA}, {LABEL_SCALEOUT_CONFIG_SCHEMA}"
+        )
+    is_label_config = schema == LABEL_SCALEOUT_CONFIG_SCHEMA
 
     grid = _require_mapping(payload.get("batch_unit_grid"), "batch_unit_grid")
     budgets = _optional_mapping(payload.get("budgets"), "budgets")
@@ -502,8 +512,15 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
         raise ScaleoutError("scaleout research-scale value_store.format must be parquet")
 
     checkpoint_root = Path(_require_text(checkpoint.get("checkpoint_root"), "checkpoint_root"))
-    feature_names = _text_tuple(payload.get("governed_scope"), "governed_scope")
-    label_names = _optional_text_tuple(payload.get("governed_label_scope"), "governed_label_scope")
+    if is_label_config:
+        feature_names = ()
+        label_names = _text_tuple(payload.get("governed_scope"), "governed_scope")
+    else:
+        feature_names = _text_tuple(payload.get("governed_scope"), "governed_scope")
+        label_names = _optional_text_tuple(
+            payload.get("governed_label_scope"),
+            "governed_label_scope",
+        )
     row_budget_per_unit = _optional_positive_int(
         budgets.get("row_budget_per_unit"),
         "budgets.row_budget_per_unit",
@@ -579,8 +596,8 @@ def build_scaleout_units(
         return ()
     if target.label_targeted and not config.label_names:
         return ()
-    feature_names = _selected_feature_names(config, target)
-    if not feature_names:
+    selected_names = _selected_names_for_config(config, target)
+    if not selected_names:
         return ()
     selected_symbols = _unit_symbols_for_config(config, target)
     selected_years = _selected_years(config, target)
@@ -633,41 +650,58 @@ def build_scaleout_units(
             continue
         primary = _primary_input_dataset(config, tuple(input_datasets))
         for symbol in selected_symbols:
-            partition_id = _render_partition(config.partition_template, symbol=symbol, year=year)
-            feature_set_id = f"feature_set_futures_scaleout_{config.family}"
-            feature_set_version = f"v1_{symbol.lower()}_{year}"
-            unit_payload = _unit_identity_payload(
-                config,
-                symbol=symbol,
-                year=year,
-                primary=primary,
-                input_datasets=tuple(input_datasets),
-                feature_set_id=feature_set_id,
-                feature_set_version=feature_set_version,
-                feature_names=feature_names,
+            name_groups = (
+                tuple((name,) for name in selected_names)
+                if _is_label_scaleout_config(config)
+                else (selected_names,)
             )
-            units.append(
-                ScaleoutUnit(
-                    unit_id=f"mbu_{hash_config(unit_payload)[:24]}",
-                    family=config.family,
-                    schema_id=primary.schema_id,
+            for names in name_groups:
+                horizon = names[0] if _is_label_scaleout_config(config) else ""
+                partition_id = _render_partition(
+                    config.partition_template,
                     symbol=symbol,
                     year=year,
-                    dataset_version_id=primary.dataset_version_id,
-                    acceptance_state=primary.acceptance_state,
-                    acceptance_state_source=primary.acceptance_state_source,
-                    partition_id=partition_id,
-                    window_start_ts=f"{year:04d}-01-01T00:00:00+00:00",
-                    window_end_ts=partial_year_end_ts.get(
-                        year,
-                        f"{year + 1:04d}-01-01T00:00:00+00:00",
-                    ),
-                    feature_set_id=feature_set_id,
-                    feature_set_version=feature_set_version,
-                    feature_names=feature_names,
-                    input_datasets=tuple(input_datasets),
+                    horizon=horizon,
                 )
-            )
+                set_kind = "label_set" if _is_label_scaleout_config(config) else "feature_set"
+                set_id = f"{set_kind}_futures_scaleout_{config.family}"
+                if _is_label_scaleout_config(config):
+                    set_id = f"{set_id}_{horizon}"
+                set_version = f"v1_{symbol.lower()}_{year}"
+                if _is_label_scaleout_config(config):
+                    set_version = f"{set_version}_{horizon}"
+                unit_payload = _unit_identity_payload(
+                    config,
+                    symbol=symbol,
+                    year=year,
+                    primary=primary,
+                    input_datasets=tuple(input_datasets),
+                    feature_set_id=set_id,
+                    feature_set_version=set_version,
+                    feature_names=names,
+                )
+                units.append(
+                    ScaleoutUnit(
+                        unit_id=f"mbu_{hash_config(unit_payload)[:24]}",
+                        family=config.family,
+                        schema_id=primary.schema_id,
+                        symbol=symbol,
+                        year=year,
+                        dataset_version_id=primary.dataset_version_id,
+                        acceptance_state=primary.acceptance_state,
+                        acceptance_state_source=primary.acceptance_state_source,
+                        partition_id=partition_id,
+                        window_start_ts=f"{year:04d}-01-01T00:00:00+00:00",
+                        window_end_ts=partial_year_end_ts.get(
+                            year,
+                            f"{year + 1:04d}-01-01T00:00:00+00:00",
+                        ),
+                        feature_set_id=set_id,
+                        feature_set_version=set_version,
+                        feature_names=names,
+                        input_datasets=tuple(input_datasets),
+                    )
+                )
     return tuple(sorted(units, key=lambda item: (item.year, item.symbol, item.schema_id)))
 
 
@@ -705,8 +739,10 @@ def _unit_identity_payload(
         "feature_set_id": feature_set_id,
         "feature_set_version": feature_set_version,
     }
-    if feature_names != config.feature_names:
-        payload["selected_feature_names"] = list(feature_names)
+    configured_names = config.label_names if _is_label_scaleout_config(config) else config.feature_names
+    if feature_names != configured_names:
+        key = "selected_label_names" if _is_label_scaleout_config(config) else "selected_feature_names"
+        payload[key] = list(feature_names)
     if len(input_datasets) > 1:
         payload["input_dataset_versions"] = [dataset.to_dict() for dataset in input_datasets]
     return payload
@@ -737,7 +773,12 @@ def run_scaleout(
     """
 
     rollout_token = _normalize_rollout(rollout)
-    engine_token = _normalize_engine(engine)
+    requested_engine_token = _normalize_engine(engine)
+    engine_token = (
+        SCALEOUT_ENGINE_REFERENCE
+        if _is_label_scaleout_config(config)
+        else requested_engine_token
+    )
     requested_workers = _normalize_workers(workers)
     force_recompute_token = _normalize_force_recompute(force_recompute)
     target = target or ScaleoutTarget()
@@ -787,7 +828,11 @@ def run_scaleout(
     worker_plan = _resolve_worker_plan(
         requested_workers,
         unit_count=len(planned),
-        parallel_allowed=use_default_executor and engine_token == SCALEOUT_ENGINE_V1,
+        parallel_allowed=(
+            use_default_executor
+            and engine_token == SCALEOUT_ENGINE_V1
+            and not _is_label_scaleout_config(config)
+        ),
     )
 
     for stage, stage_units in _execution_stages(units, bounded, rollout_token):
@@ -802,7 +847,11 @@ def run_scaleout(
             executor=executor,
             engine=engine_token,
             requested_workers=requested_workers,
-            parallel_v1_compute=use_default_executor and engine_token == SCALEOUT_ENGINE_V1,
+            parallel_v1_compute=(
+                use_default_executor
+                and engine_token == SCALEOUT_ENGINE_V1
+                and not _is_label_scaleout_config(config)
+            ),
             force_recompute=force_recompute_token,
             log=log,
         )
@@ -1063,6 +1112,88 @@ def _ohlcv_inputs(context: Any, governance_metadata: Mapping[str, Any]) -> Any:
         bar_rows=context.bar_rows,
         governance_metadata=governance_metadata,
     )
+
+
+def materialize_fixed_horizon_label_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one fixed-horizon LabelPack unit through ``run_seed_label_pack``."""
+
+    from alpha_system.cli.seed_pack import run_seed_label_pack
+
+    if config.family != "fixed_horizon" or unit.family != "fixed_horizon":
+        raise ScaleoutError("FUTSUB-P16 executor supports only the fixed_horizon label family")
+
+    metadata = _label_scaleout_metadata(config, unit)
+    summary = run_seed_label_pack(
+        _label_seed_config(config, unit),
+        alpha_data_root=alpha_data_root,
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
+        repo_root=Path.cwd(),
+        value_store_format=ValueStoreFormat.PARQUET,
+        output_namespace=config.value_namespace,
+        governance_metadata=metadata,
+        registry_metadata=metadata,
+    )
+    handle = _require_mapping(summary.get("value_store_handle"), "value_store_handle")
+    parquet_path = _require_text(handle.get("parquet_path"), "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.get("content_hash"), "value_store_handle.content_hash")
+    label_version_ids = tuple(
+        _require_text(value, "label_version_id")
+        for value in _sequence(summary.get("label_version_ids"), "label_version_ids")
+    )
+    row_count = int(summary.get("value_record_count") or handle.get("value_count") or 0)
+    if row_count <= 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no fixed-horizon label values")
+    _verify_label_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        label_version_ids=label_version_ids,
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=str(handle.get("schema_version") or ""),
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=row_count,
+        label_version_ids=label_version_ids,
+    )
+
+
+def _label_scaleout_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict[str, Any]:
+    from alpha_system.labels.families.fixed_horizon import (
+        MAINTENANCE_GUARD_VERSION,
+        MAINTENANCE_POLICY_ID,
+    )
+    from alpha_system.labels.roll_guard import ROLL_GUARD_VERSION, ROLL_POLICY_ID
+
+    return {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "label_set_id": unit.feature_set_id,
+        "label_names": list(unit.feature_names),
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        "value_store_format": ValueStoreFormat.PARQUET.value,
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": "drop",
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+        "terminal_key": "series_id+contract_id+event_ts",
+        "producer_engine_id": "alpha_system.labels.reference_engine.v1",
+    }
 
 
 def _bar_or_dense_inputs(
@@ -2332,6 +2463,8 @@ def _unit_executor_for_family(
     engine: str = DEFAULT_SCALEOUT_ENGINE,
 ) -> UnitExecutor:
     engine_token = _normalize_engine(engine)
+    if family == "fixed_horizon":
+        return materialize_fixed_horizon_label_unit
     if engine_token == SCALEOUT_ENGINE_V1:
         return materialize_v1_feature_unit
     if family == "base_ohlcv":
@@ -2364,7 +2497,7 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         f"# {summary.family} Scaleout Summary",
         "",
         "Value-free scaleout summary. It contains no raw rows, canonical values,",
-        "feature values, provider responses, SQLite content, or Parquet payloads.",
+        "feature values, label values, provider responses, SQLite content, or Parquet payloads.",
         "",
         f"- Campaign: `{summary.campaign_id}`",
         f"- Phase: `{summary.phase_id}`",
@@ -2437,7 +2570,8 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
             "",
             "## Point-In-Time Guard",
             "",
-            "- Feature values are emitted at the current source row `available_ts`.",
+            "- Feature values are emitted at the current source row `available_ts`;",
+            "  label values carry `label_available_ts` at or after the forward terminal.",
             "- Rolling, expanding, prior-boundary, and derived-state inputs may use only",
             "  source rows whose `available_ts` is less than or equal to the output",
             "  `available_ts`.",
@@ -2641,6 +2775,31 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 "  `feature_version_id` through `FeatureStore.register_materialized_feature`.",
             ]
         )
+    if summary.family == "fixed_horizon":
+        lines.extend(
+            [
+                "",
+                "## Fixed-Horizon Label Guards",
+                "",
+                "- Label compute uses the reference label engine via `run_seed_label_pack`.",
+                "- Forward terminals are keyed by `series_id+contract_id+event_ts`.",
+                "- Roll-splice windows use the wired roll guard with policy `drop`.",
+                "- Daily maintenance-break crossings use policy `drop`.",
+                "- Label materialization is Parquet-first; JSONL is not used for",
+                "  research-scale values in this phase.",
+                "",
+                "## Materialized Value Evidence",
+                "",
+                "- This summary is value-free and does not include per-row label values.",
+                "- In dry-run mode, Parquet paths, value content hashes, registry row",
+                "  fields, materialized row counts, checkpoint markers, and observed",
+                "  `label_available_ts` min/max are unavailable.",
+                "- When `--execute` succeeds, the driver verifies Parquet-backed registry",
+                "  rows for `value_store_format`, `parquet_path`, `value_content_hash`,",
+                "  `value_schema_version`, `dataset_version_id`, and",
+                "  `label_version_id` through `LabelRegistry.register_materialized_label`.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -2693,6 +2852,27 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
                 continue
             version_ids = ", ".join(f"`{version_id}`" for version_id in record.feature_version_ids)
             lines.append(f"| `{record.unit.symbol}` | {version_ids} |")
+    if summary.family == "fixed_horizon":
+        lines.extend(
+            [
+                "",
+                "## Bounded-Real LabelVersion Preview",
+                "",
+                "The bounded-real dry-run preview is write-free. It records deterministic",
+                "LabelVersion ids that execution is expected to register for the same",
+                "unit identities; content hashes are unavailable until Parquet values are",
+                "written.",
+                "",
+                "| Symbol | Label | LabelVersion ids |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for record in summary.records:
+            if record.unit.year != summary.bounded_year:
+                continue
+            version_ids = ", ".join(f"`{version_id}`" for version_id in record.label_version_ids)
+            labels = ", ".join(f"`{name}`" for name in record.unit.feature_names)
+            lines.append(f"| `{record.unit.symbol}` | {labels} | {version_ids} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -2783,6 +2963,8 @@ def _registry_completed_unit(
     executor runs normally and the guard remains the authority on duplicates.
     """
 
+    if _is_label_scaleout_config(config):
+        return _registry_completed_label_unit(config, unit, alpha_data_root)
     try:
         feature_version_ids = _preview_feature_version_ids(config, unit)
     except (ValueError, ScaleoutError, KeyError, OSError):
@@ -2820,11 +3002,20 @@ def _registry_completed_unit(
 
 
 def _completed_record_has_registry_truth(
+    config: ScaleoutConfig,
     record: ScaleoutUnitRecord,
     alpha_data_root: Path,
     *,
     engine: str,
 ) -> bool:
+    if _is_label_scaleout_config(config):
+        try:
+            current_label_version_ids = _preview_label_version_ids(config, record.unit)
+        except (ValueError, ScaleoutError, KeyError, OSError):
+            return False
+        if record.label_version_ids != current_label_version_ids:
+            return False
+        return _completed_label_record_has_registry_truth(record, alpha_data_root)
     if record.status != "completed" or not record.feature_version_ids:
         return False
     try:
@@ -2839,6 +3030,87 @@ def _completed_record_has_registry_truth(
         if registry_record is None:
             return False
         if not _registry_record_matches_engine(registry_record, engine):
+            return False
+        parquet_path = getattr(registry_record, "parquet_path", None)
+        if not parquet_path or not Path(parquet_path).exists():
+            return False
+    return True
+
+
+def _registry_completed_label_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+) -> ScaleoutUnitRecord | None:
+    try:
+        label_version_ids = _preview_label_version_ids(config, unit)
+    except (ValueError, ScaleoutError, KeyError, OSError):
+        return None
+    if not label_version_ids:
+        return None
+    try:
+        from alpha_system.labels.registry import LabelRegistry
+
+        registry = LabelRegistry.from_alpha_data_root(alpha_data_root)
+    except Exception:  # noqa: BLE001 - registry truth unavailable => not completed
+        return None
+    parquet_paths: list[str] = []
+    content_hashes: list[str] = []
+    total_rows = 0
+    for label_version_id in label_version_ids:
+        try:
+            record = registry.resolve_label(label_version_id)
+        except Exception:  # noqa: BLE001 - any resolve failure => not completed
+            return None
+        if record is None:
+            return None
+        if record.dataset_version_id != unit.dataset_version_id:
+            return None
+        if record.partition_id != unit.partition_id:
+            return None
+        if record.value_store_format != ValueStoreFormat.PARQUET.value:
+            return None
+        parquet_path = getattr(record, "parquet_path", None)
+        if not parquet_path or not Path(parquet_path).exists():
+            return None
+        parquet_paths.append(str(parquet_path))
+        content_hashes.append(str(getattr(record, "value_content_hash", "") or ""))
+        total_rows += int(getattr(record, "value_record_count", 0) or 0)
+    return ScaleoutUnitRecord(
+        unit=unit,
+        status="completed",
+        stage="registry_resume",
+        parquet_path=parquet_paths[0],
+        content_hash=content_hashes[0],
+        row_count=total_rows,
+        label_version_ids=tuple(label_version_ids),
+    )
+
+
+def _completed_label_record_has_registry_truth(
+    record: ScaleoutUnitRecord,
+    alpha_data_root: Path,
+) -> bool:
+    if record.status != "completed" or not record.label_version_ids:
+        return False
+    try:
+        from alpha_system.labels.registry import LabelRegistry
+
+        registry = LabelRegistry.from_alpha_data_root(alpha_data_root)
+    except Exception:  # noqa: BLE001 - registry truth unavailable => not completed
+        return False
+    for label_version_id in record.label_version_ids:
+        try:
+            registry_record = registry.resolve_label(label_version_id)
+        except Exception:  # noqa: BLE001 - registry truth unavailable => not completed
+            return False
+        if registry_record is None:
+            return False
+        if registry_record.dataset_version_id != record.unit.dataset_version_id:
+            return False
+        if registry_record.partition_id != record.unit.partition_id:
+            return False
+        if registry_record.value_store_format != ValueStoreFormat.PARQUET.value:
             return False
         parquet_path = getattr(registry_record, "parquet_path", None)
         if not parquet_path or not Path(parquet_path).exists():
@@ -2888,6 +3160,7 @@ def _execute_stage(
                 completed is not None
                 and completed.status == "completed"
                 and not _completed_record_has_registry_truth(
+                    config,
                     completed,
                     alpha_data_root,
                     engine=engine,
@@ -2917,6 +3190,7 @@ def _execute_stage(
                 content_hash=completed.content_hash,
                 row_count=completed.row_count,
                 feature_version_ids=completed.feature_version_ids,
+                label_version_ids=completed.label_version_ids,
                 message=(
                     "completed unit skipped from checkpoint + registry truth"
                     if status == "skipped"
@@ -2990,6 +3264,7 @@ def _execute_stage(
                         content_hash=evidence.content_hash,
                         row_count=evidence.row_count,
                         feature_version_ids=evidence.feature_version_ids,
+                        label_version_ids=evidence.label_version_ids,
                         message=(
                             "worker compute registered by serial writer; "
                             f"registry_queue_wait_seconds={queue_wait:.6f}"
@@ -3022,6 +3297,7 @@ def _execute_stage(
                         content_hash=evidence.content_hash,
                         row_count=evidence.row_count,
                         feature_version_ids=evidence.feature_version_ids,
+                        label_version_ids=evidence.label_version_ids,
                     )
                 except (
                     DataFoundationValidationError,
@@ -3342,6 +3618,15 @@ def _pin_native_threads(threads_per_worker: int) -> None:
 
 def _preview_record(config: ScaleoutConfig, unit: ScaleoutUnit, *, stage: str) -> ScaleoutUnitRecord:
     try:
+        if _is_label_scaleout_config(config):
+            label_version_ids = _preview_label_version_ids(config, unit)
+            return ScaleoutUnitRecord(
+                unit=unit,
+                status="planned",
+                stage=stage,
+                label_version_ids=label_version_ids,
+                message="write-free identity preview",
+            )
         feature_version_ids = _preview_feature_version_ids(config, unit)
         return ScaleoutUnitRecord(
             unit=unit,
@@ -3410,6 +3695,21 @@ def _preview_feature_version_ids(
     raise ScaleoutError(f"unsupported scaleout family: {config.family}")
 
 
+def _preview_label_version_ids(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+) -> tuple[str, ...]:
+    if config.family != "fixed_horizon":
+        raise ScaleoutError(f"unsupported label scaleout family: {config.family}")
+    from alpha_system.cli.seed_pack import preview_seed_label_pack
+
+    preview = preview_seed_label_pack(_label_seed_config(config, unit))
+    return tuple(
+        _require_text(value, "label_version_id")
+        for value in _sequence(preview.get("label_version_ids"), "label_version_ids")
+    )
+
+
 def _seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
     from alpha_system.cli.seed_pack import (
         FeatureSetConfig,
@@ -3435,6 +3735,33 @@ def _seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
             features=features,
         ),
     )
+
+
+def _label_seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
+    from alpha_system.cli.seed_pack import LabelSetConfig, LabelSpecConfig, SeedPackConfig
+
+    labels = tuple(
+        LabelSpecConfig(name=name, horizon=_label_horizon(name)) for name in unit.feature_names
+    )
+    return SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        label_set=LabelSetConfig(
+            label_set_id=unit.feature_set_id,
+            labels=labels,
+        ),
+    )
+
+
+def _label_horizon(name: str) -> str:
+    token = name.removeprefix("mid_fwd_ret_").removeprefix("fwd_ret_")
+    if token.endswith("m") and token[:-1].isdigit():
+        return token
+    raise ScaleoutError(f"fixed-horizon label name does not encode a minute horizon: {name}")
 
 
 def _feature_window(name: str) -> int:
@@ -5224,6 +5551,42 @@ def _verify_feature_registry_roundtrip(
             )
 
 
+def _verify_label_registry_roundtrip(
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    label_version_ids: tuple[str, ...],
+    parquet_path: str,
+    content_hash: str,
+    value_schema_version: str | None = None,
+) -> None:
+    from alpha_system.labels.registry import LabelRegistry
+
+    registry = LabelRegistry.from_alpha_data_root(alpha_data_root)
+    for label_version_id in label_version_ids:
+        record = registry.resolve_label(label_version_id)
+        if record is None:
+            raise ScaleoutError(f"registered label did not resolve: {label_version_id}")
+        if record.dataset_version_id != unit.dataset_version_id:
+            raise ScaleoutError("registered label DatasetVersion does not match scaleout unit")
+        if record.partition_id != unit.partition_id:
+            raise ScaleoutError("registered label partition does not match scaleout unit")
+        if record.value_store_format != ValueStoreFormat.PARQUET.value:
+            raise ScaleoutError("registered label is not Parquet-backed")
+        if record.parquet_path != parquet_path:
+            raise ScaleoutError("registered label Parquet path does not match materialization")
+        if not record.value_content_hash:
+            raise ScaleoutError("registered label is missing value_content_hash")
+        if record.value_content_hash != content_hash:
+            raise ScaleoutError("registered label content hash does not match materialization")
+        if not record.value_schema_version:
+            raise ScaleoutError("registered label is missing value_schema_version")
+        if value_schema_version and record.value_schema_version != value_schema_version:
+            raise ScaleoutError(
+                "registered label value schema version does not match materialization"
+            )
+
+
 def _completed_record_is_valid(record: ScaleoutUnitRecord) -> bool:
     return bool(
         record.parquet_path
@@ -5276,6 +5639,10 @@ def _record_from_payload(payload: Mapping[str, object]) -> ScaleoutUnitRecord:
         feature_version_ids=tuple(
             _require_text(value, "feature_version_id")
             for value in _sequence(payload.get("feature_version_ids", ()), "feature_version_ids")
+        ),
+        label_version_ids=tuple(
+            _require_text(value, "label_version_id")
+            for value in _sequence(payload.get("label_version_ids", ()), "label_version_ids")
         ),
         message=str(payload.get("message", "")),
     )
@@ -5377,6 +5744,40 @@ def _selected_feature_names(
             raise ScaleoutError(f"unknown feature_group target: {group}")
         selected.update(config.feature_groups[group])
     return tuple(name for name in config.feature_names if name in selected)
+
+
+def _selected_label_names(
+    config: ScaleoutConfig,
+    target: ScaleoutTarget,
+) -> tuple[str, ...]:
+    if target.feature_ids or target.feature_groups:
+        return ()
+    if not target.label_ids and not target.label_groups:
+        return config.label_names
+    selected: set[str] = set()
+    known_labels = set(config.label_names)
+    unknown_labels = sorted(set(target.label_ids).difference(known_labels))
+    if unknown_labels:
+        raise ScaleoutError("unknown label_id target(s): " + ", ".join(unknown_labels))
+    selected.update(target.label_ids)
+    for group in target.label_groups:
+        if group not in config.label_groups:
+            raise ScaleoutError(f"unknown label_group target: {group}")
+        selected.update(config.label_groups[group])
+    return tuple(name for name in config.label_names if name in selected)
+
+
+def _selected_names_for_config(
+    config: ScaleoutConfig,
+    target: ScaleoutTarget,
+) -> tuple[str, ...]:
+    if _is_label_scaleout_config(config):
+        return _selected_label_names(config, target)
+    return _selected_feature_names(config, target)
+
+
+def _is_label_scaleout_config(config: ScaleoutConfig) -> bool:
+    return bool(config.label_names and not config.feature_names)
 
 
 def _selected_symbols(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[str, ...]:
@@ -5641,8 +6042,13 @@ def _optional_repo_path(value: object) -> Path | None:
     return path.resolve(strict=False)
 
 
-def _render_partition(template: str, *, symbol: str, year: int) -> str:
-    rendered = template.format(symbol=symbol, target_symbol=symbol, year=year)
+def _render_partition(template: str, *, symbol: str, year: int, horizon: str = "") -> str:
+    rendered = template.format(
+        symbol=symbol,
+        target_symbol=symbol,
+        year=year,
+        horizon=horizon,
+    )
     # partition_id must be a valid identifier for data/foundation/datasets.py
     # (_normalize_id allows only alphanumeric, underscore, and hyphen). The config
     # templates use dotted segments (e.g. "ES.2024.full_year"); normalize the

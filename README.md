@@ -7,53 +7,29 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `FUTSUB-P15` is complete. The `feature_integration`
-gate (`FUTSUB-P14` through `FUTSUB-P15`) is closed with the V1 feature
-substrate materialized and integrated, resolver-smoke discipline preserved, and
-feature-family coverage mapped cell-by-cell.
+Current campaign progress:
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` has reached fixed-horizon
+LabelPack scaleout. `FUTSUB-P16` is active in the `label_materialization` gate.
 
-Active / next phase: `FUTSUB-P16` - Fixed-Horizon LabelPack Scaleout, opening
-the `label_materialization` gate (`FUTSUB-P16` through `FUTSUB-P20`).
+Active / next phase: active `FUTSUB-P16` - Fixed-Horizon LabelPack Scaleout.
+Next are the remaining `label_materialization` phases, starting with
+`FUTSUB-P17` extended horizons.
 
-New durable surfaces in this `FUTSUB-P15` executor snapshot:
+New durable surfaces in this `FUTSUB-P16` executor snapshot:
 
-- `docs/futures_substrate_scaleout/FEATURE_COVERAGE.md` records the value-free
-  coverage summary and downstream consumption contract.
-- `research/futures_substrate_scaleout_v1/matrices/feature_family_coverage.md`
-  records the machine-reviewable feature-family coverage matrix, registered row
-  count context, quality/missingness summary, BBO flag rates, and explicit gap
-  list.
-- No production code, tests, materialization, label values, feature values,
-  benchmark, broker/live/paper behavior, deployment behavior, or
-  alpha/profitability claim is added.
+- `src/alpha_system/labels/roll_guard.py` is wired into the shared
+  fixed-horizon label terminal-resolution path.
+- `alpha scaleout label-pack` provides a thin reference-engine dispatch through
+  the existing scaleout driver and `run_seed_label_pack`.
+- `configs/labels/scaleout/fixed_horizon.json` defines the fixed-horizon
+  LabelPack scaleout grid and guard policy.
+- `research/futures_substrate_scaleout_v1/label_packs/fixed_horizon/coverage_summary.md`
+  records the value-free horizon coverage and guard summary.
+
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run
 `python tools/frontier/status_doctor.py` rather than relying on committed
 snapshot text.
-
-Current campaign progress:
-`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is through executor work for
-`FUTSUB-P14`, entering the `feature_integration` gate. The eight governed
-FeaturePack families have local V1 fast-engine materialization evidence,
-registry consistency evidence, and resolver-smoke evidence with representative
-locks resolving to Parquet-backed registry rows. Phase review and final verdict
-remain Workflow 2 responsibilities.
-
-Active / next phase: active `FUTSUB-P14` - FeaturePack Registry Integration,
-Coverage Audit, and Resolver Smoke. Next `FUTSUB-P15` - Feature Coverage Matrix
-and Quality Report.
-
-New durable surfaces in this `FUTSUB-P14` executor snapshot:
-
-- `docs/futures_substrate_scaleout/FEATURE_INTEGRATION.md` records the
-  value-free FeaturePack integration and resolver contract.
-- `research/futures_substrate_scaleout_v1/feature_packs/registry_consistency_audit.md`
-  records the value-free registry consistency audit.
-- `research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`
-  records the value-free resolver-smoke evidence.
-- `tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py`
-  gates exact feature-lock resolution, current Parquet sidecar evidence, and
-  fail-closed absent-lock behavior.
 
 ## Source Of Truth
 
@@ -77,15 +53,15 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-The reference feature/label engine remains the parity oracle. Resolver exact-id
-semantics, official keystone registry writes, and serial registry writes are
-preserved; worker processes compute values only and never write SQLite registry
-rows. The fast engine produces values for existing governed identities, and
-producer provenance does not enter identity. No manual SQLite write,
-paper/live/broker/order behavior, or profitability/tradability claim is
-authorized. Feature/label values and registries remain local-only under
-`ALPHA_DATA_ROOT`. The campaign uses Green/Yellow scope only and introduces no
-Red scope.
+The reference feature/label engine remains the parity oracle. Fast path !=
+Reference truth. BBO proxy != execution truth. Approximate roll calendar !=
+provider-exact. Resolver exact-id semantics, official keystone registry writes,
+and serial registry writes are preserved; worker processes compute values only
+and never write SQLite registry rows. Producer provenance does not enter
+identity. No manual SQLite write, paper/live/broker/order behavior, or
+profitability/tradability claim is authorized. Feature/label values and
+registries remain local-only under `ALPHA_DATA_ROOT`. The campaign uses
+Green/Yellow scope only and introduces no Red scope.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data, feature

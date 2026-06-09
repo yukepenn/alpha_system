@@ -76,9 +76,12 @@ from alpha_system.labels.engine import (
 )
 from alpha_system.labels.families.fixed_horizon import (
     FixedHorizonLabelName,
+    MAINTENANCE_GUARD_VERSION,
+    MAINTENANCE_POLICY_ID,
     build_fixed_horizon_label_definition,
 )
 from alpha_system.labels.registry import LabelRegistry
+from alpha_system.labels.roll_guard import ROLL_GUARD_VERSION, ROLL_POLICY_ID
 
 SEED_PACK_SCHEMA = "alpha_system.seed_pack.v1"
 _DEFAULT_PARTITION_ID = "development_partition"
@@ -100,6 +103,7 @@ _TRADE_PRICE_LABELS: frozenset[str] = frozenset(
         FixedHorizonLabelName.FWD_RET_3M.value,
         FixedHorizonLabelName.FWD_RET_5M.value,
         FixedHorizonLabelName.FWD_RET_10M.value,
+        FixedHorizonLabelName.FWD_RET_15M.value,
         FixedHorizonLabelName.FWD_RET_30M.value,
     }
 )
@@ -110,6 +114,7 @@ _LABEL_HORIZON_MINUTES: dict[str, int] = {
     FixedHorizonLabelName.FWD_RET_3M.value: 3,
     FixedHorizonLabelName.FWD_RET_5M.value: 5,
     FixedHorizonLabelName.FWD_RET_10M.value: 10,
+    FixedHorizonLabelName.FWD_RET_15M.value: 15,
     FixedHorizonLabelName.FWD_RET_30M.value: 30,
 }
 
@@ -470,6 +475,9 @@ def run_seed_label_pack(
     quality_coverage_builder: QualityCoverageBuilder | None = None,
     repo_root: str | Path = ".",
     value_store_format: ValueStoreFormat = ValueStoreFormat.DUAL,
+    output_namespace: str = "labels/materialized",
+    governance_metadata: Mapping[str, Any] | None = None,
+    registry_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Materialize and register a seed LabelPack from real canonical bars."""
 
@@ -491,6 +499,7 @@ def run_seed_label_pack(
             _coerce_label_name(entry.name),
             _build_label_spec(config, entry),
             dataset_version_ids=(config.dataset_version_id,),
+            materialization_scope=_label_materialization_scope(config),
         )
         for entry in config.label_set.labels
     )
@@ -505,6 +514,8 @@ def run_seed_label_pack(
         partition_id=config.partition_id,
         instrument_ids=(),
         alpha_data_root=alpha_root,
+        governance_metadata=governance_metadata or _label_guard_metadata(config),
+        output_namespace=output_namespace,
     )
     inputs = LabelMaterializationInputs(
         accepted_version=context.accepted,
@@ -528,6 +539,7 @@ def run_seed_label_pack(
             result,
             label_contract=definition.contract,
             label_version=definition.version,
+            registry_metadata=registry_metadata or _label_guard_metadata(config),
         )
         registered_label_version_ids.append(record.label_version_id)
 
@@ -552,6 +564,48 @@ def run_seed_label_pack(
     }
 
 
+def preview_seed_label_pack(config: SeedPackConfig) -> dict[str, Any]:
+    """Compute prospective fixed-horizon LabelVersion ids without reading or writing state."""
+
+    if config.label_set is None:
+        raise SeedPackError("seed config does not define a label_set")
+    definitions = tuple(
+        build_fixed_horizon_label_definition(
+            _coerce_label_name(entry.name),
+            _build_label_spec(config, entry),
+            dataset_version_ids=(config.dataset_version_id,),
+            materialization_scope=_label_materialization_scope(config),
+        )
+        for entry in config.label_set.labels
+    )
+    for entry in config.label_set.labels:
+        if entry.name not in _TRADE_PRICE_LABELS:
+            raise SeedPackError(
+                f"seed label pack supports trade-price labels only; got {entry.name}"
+            )
+    labels = [
+        {
+            "name": definition.name.value,
+            "label_id": definition.label_id,
+            "label_version_id": definition.label_version_id,
+        }
+        for definition in definitions
+    ]
+    return {
+        "schema": SEED_PACK_SCHEMA,
+        "pack_kind": "label",
+        "preview": True,
+        "writes_values": False,
+        "dataset_version_id": config.dataset_version_id,
+        "symbol": config.symbol.upper(),
+        "label_set_id": config.label_set.label_set_id,
+        "label_count": len(definitions),
+        "labels": labels,
+        "label_version_ids": [item["label_version_id"] for item in labels],
+        "guard_metadata": _label_guard_metadata(config),
+    }
+
+
 def _value_store_handle_summary(result: Any) -> dict[str, str | int | None] | None:
     handle = getattr(result, "value_store_handle", None)
     if handle is None:
@@ -561,6 +615,7 @@ def _value_store_handle_summary(result: Any) -> dict[str, str | int | None] | No
         "jsonl_path": handle.jsonl_path,
         "parquet_path": handle.parquet_path,
         "content_hash": handle.content_hash,
+        "schema_version": handle.schema_version,
         "value_count": handle.value_count,
     }
 
@@ -759,7 +814,15 @@ def _build_label_spec(config: SeedPackConfig, entry: LabelSpecConfig) -> LabelSp
         path_rules={
             "path": "trade_price_forward_return",
             "horizon_minutes": horizon_minutes,
-            "terminal_rule": "exact event_ts row at fixed forward horizon",
+            "terminal_rule": (
+                "exact event_ts row at fixed forward horizon keyed by "
+                "series_id+contract_id; roll and maintenance crossings are guarded"
+            ),
+            "terminal_key": "series_id+contract_id+event_ts",
+            "roll_policy_id": ROLL_POLICY_ID,
+            "roll_guard_version": ROLL_GUARD_VERSION,
+            "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+            "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
         },
         cost_model={
             "model": "gross_unadjusted_forward_return",
@@ -779,6 +842,31 @@ def _build_label_spec(config: SeedPackConfig, entry: LabelSpecConfig) -> LabelSp
         },
         leakage_checks=["label_as_feature", "availability_time"],
     )
+
+
+def _label_guard_metadata(config: SeedPackConfig) -> dict[str, object]:
+    return {
+        "label_set_id": config.label_set.label_set_id if config.label_set else "",
+        "materialization_scope": _label_materialization_scope(config),
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": "drop",
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+        "terminal_key": "series_id+contract_id+event_ts",
+    }
+
+
+def _label_materialization_scope(config: SeedPackConfig) -> dict[str, str]:
+    return {
+        "dataset_version_id": config.dataset_version_id,
+        "partition_id": config.partition_id,
+        "partition_schema": config.partition_schema,
+        "symbol": config.symbol.upper(),
+        "window_end_ts": config.window_end_ts,
+        "window_start_ts": config.window_start_ts,
+    }
 
 
 def _coerce_feature_name(name: str) -> OHLCVFeatureName:
@@ -858,6 +946,7 @@ __all__ = [
     "load_seed_pack_config",
     "parse_seed_pack_config",
     "preview_seed_feature_pack",
+    "preview_seed_label_pack",
     "run_seed_feature_pack",
     "run_seed_label_pack",
 ]

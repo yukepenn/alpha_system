@@ -5,13 +5,36 @@
   "phase_source": "FUTSUB-P05",
   "family": "fixed_horizon",
   "governed_scope": [
-    "diagnostic_1m",
-    "diagnostic_3m",
-    "primary_5m",
-    "primary_10m",
-    "primary_15m",
-    "primary_30m"
+    "fwd_ret_1m",
+    "fwd_ret_3m",
+    "fwd_ret_5m",
+    "fwd_ret_10m",
+    "fwd_ret_15m",
+    "fwd_ret_30m"
   ],
+  "targeting": {
+    "label_groups": {
+      "diagnostic": [
+        "fwd_ret_1m",
+        "fwd_ret_3m"
+      ],
+      "primary": [
+        "fwd_ret_5m",
+        "fwd_ret_10m",
+        "fwd_ret_15m",
+        "fwd_ret_30m"
+      ],
+      "all": [
+        "fwd_ret_1m",
+        "fwd_ret_3m",
+        "fwd_ret_5m",
+        "fwd_ret_10m",
+        "fwd_ret_15m",
+        "fwd_ret_30m"
+      ]
+    },
+    "estimated_seconds_per_unit": 90
+  },
   "batch_unit_grid": {
     "unit_grain": [
       "family",
@@ -70,7 +93,17 @@
     "roll_splice_guard_required": true,
     "maintenance_crossing_guard_required": true,
     "roll_policy_ref": "docs/futures_substrate_scaleout/ROLL_GUARD.md",
-    "maintenance_crossing_policy": "no_silent_crossing"
+    "roll_cross_policy": "drop",
+    "roll_policy_id": "roll_cme_index_futures_quarterly",
+    "roll_guard_version": "roll_guard_v1",
+    "roll_window": {
+      "days_before": 2,
+      "days_after": 1
+    },
+    "maintenance_crossing_policy": "drop",
+    "maintenance_policy_id": "cme_index_futures_daily_maintenance_break_v1",
+    "maintenance_guard_version": "maintenance_crossing_guard_v1",
+    "terminal_key": "series_id+contract_id+event_ts"
   },
   "value_store": {
     "format": "parquet",
