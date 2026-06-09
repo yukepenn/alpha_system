@@ -66,10 +66,11 @@ cp $ALPHA_DATA_ROOT/registry/features.sqlite $ALPHA_DATA_ROOT/registry/features.
 
 ## After campaign closes
 
-FCFP-P15 writes `handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md`. The coordinator
-then: amends FUTSUB so P06–P13 (features) and P16–P20 (labels) materialize via V1 and P14/P22
-validate V1 output; reconciles the already-materialized reference outputs per ADR-0007; resets
-FUTSUB-P14 → PENDING, clears STOP, and resumes FUTSUB P14 → P33 on V1.
+FCFP-P16 writes `handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md`. The coordinator
+then: amends FUTSUB so P06–P13 (features) and P16–P20 (labels) materialize via V1 (with the
+FCFP-P15 CPU worker parallelism) and P14/P22 validate V1 output; reconciles the
+already-materialized reference outputs per ADR-0007; resets FUTSUB-P14 → PENDING, clears STOP,
+and resumes FUTSUB P14 → P33 on V1.
 
 ## Stop conditions (request human input)
 
