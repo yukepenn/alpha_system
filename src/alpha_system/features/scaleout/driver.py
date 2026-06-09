@@ -9,12 +9,15 @@ the seed operator, and registry writes go through ``FeatureStore`` via
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import re
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from alpha_system.core.hashing import hash_config
@@ -37,6 +40,7 @@ SCALEOUT_ENGINE_V1 = "v1"
 SCALEOUT_ENGINE_REFERENCE = "reference"
 DEFAULT_SCALEOUT_ENGINE = SCALEOUT_ENGINE_V1
 SCALEOUT_ENGINES = frozenset({SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE})
+DEFAULT_CPU_WORKERS = 1
 ELIGIBLE_ACCEPTANCE_STATES = frozenset(
     {
         DatasetAcceptanceState.ACCEPTED.value,
@@ -137,6 +141,31 @@ class ScaleoutDryRunEstimate:
             "estimated_seconds_per_unit": self.estimated_seconds_per_unit,
             "estimated_total_seconds": self.estimated_total_seconds,
             "units": [dict(unit) for unit in self.unit_estimates],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ScaleoutWorkerPlan:
+    """Effective CPU worker plan for one scaleout run or stage."""
+
+    requested_workers: int
+    effective_workers: int
+    threads_per_worker: int
+    available_cores: int
+    reductions: tuple[str, ...] = ()
+
+    @property
+    def parallel_enabled(self) -> bool:
+        return self.effective_workers > 1
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "requested_workers": self.requested_workers,
+            "effective_workers": self.effective_workers,
+            "threads_per_worker": self.threads_per_worker,
+            "available_cores": self.available_cores,
+            "parallel_enabled": self.parallel_enabled,
+            "reductions": list(self.reductions),
         }
 
 
@@ -360,6 +389,14 @@ class _CrossMarketAcceptedContext:
 
 
 @dataclass(frozen=True, slots=True)
+class _V1PreparedWorkerJob:
+    unit: ScaleoutUnit
+    feature_set: Any
+    feature_request_payloads: Mapping[str, Mapping[str, Any]]
+    registry_metadata: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleoutRunSummary:
     """Summary for a scaleout plan or execution run."""
 
@@ -373,6 +410,7 @@ class ScaleoutRunSummary:
     bounded_year: int
     accepted_unit_count: int
     bounded_unit_count: int
+    worker_plan: ScaleoutWorkerPlan
     dry_run_estimate: ScaleoutDryRunEstimate | None = None
     records: tuple[ScaleoutUnitRecord, ...] = field(default_factory=tuple)
 
@@ -406,6 +444,7 @@ class ScaleoutRunSummary:
             "bounded_year": self.bounded_year,
             "accepted_unit_count": self.accepted_unit_count,
             "bounded_unit_count": self.bounded_unit_count,
+            "worker_plan": self.worker_plan.to_dict(),
             "dry_run_estimate": (
                 self.dry_run_estimate.to_dict() if self.dry_run_estimate is not None else None
             ),
@@ -532,7 +571,7 @@ def build_scaleout_units(
     feature_names = _selected_feature_names(config, target)
     if not feature_names:
         return ()
-    selected_symbols = _selected_symbols(config, target)
+    selected_symbols = _unit_symbols_for_config(config, target)
     selected_years = _selected_years(config, target)
     selected_dataset_version_ids = set(target.dataset_version_ids)
     inventory = _load_json_mapping(config.inventory_path, "dataset inventory")
@@ -674,15 +713,20 @@ def run_scaleout(
     engine: str = DEFAULT_SCALEOUT_ENGINE,
     unit_executor: UnitExecutor | None = None,
     target: ScaleoutTarget | None = None,
+    workers: int | None = DEFAULT_CPU_WORKERS,
+    log: Callable[[str], None] | None = None,
 ) -> ScaleoutRunSummary:
     """Plan or execute scaleout units.
 
-    Execution is serial. Bounded-then-full runs the bounded accepted year first;
-    full-window expansion is skipped when any bounded unit fails.
+    ``workers=1`` preserves the serial path. For V1 execute-mode runs with more
+    than one effective worker, canonical loading and value computation happen in
+    worker processes and registry registration is replayed by this process in
+    deterministic unit order.
     """
 
     rollout_token = _normalize_rollout(rollout)
     engine_token = _normalize_engine(engine)
+    requested_workers = _normalize_workers(workers)
     target = target or ScaleoutTarget()
     units = build_scaleout_units(config, target=target)
     bounded = _bounded_units(units, bounded_year or config.bounded_year)
@@ -690,6 +734,11 @@ def run_scaleout(
 
     if not execute:
         planned = _planned_units_for_rollout(units, bounded, rollout_token)
+        worker_plan = _resolve_worker_plan(
+            requested_workers,
+            unit_count=len(planned),
+            parallel_allowed=False,
+        )
         records.extend(
             _preview_record(config, unit, stage=stage)
             for stage, unit in planned
@@ -705,6 +754,7 @@ def run_scaleout(
             bounded_year=bounded_year or config.bounded_year,
             accepted_unit_count=len(units),
             bounded_unit_count=len(bounded),
+            worker_plan=worker_plan,
             dry_run_estimate=_dry_run_estimate(
                 config,
                 units=units,
@@ -717,7 +767,14 @@ def run_scaleout(
     dataset_registry = _required_path(dataset_registry_path, "dataset_registry_path")
     canonical = _canonical_root(canonical_root)
     ledger = _ScaleoutLedger(alpha_root, config)
+    use_default_executor = unit_executor is None
     executor = unit_executor or _unit_executor_for_family(config.family, engine=engine_token)
+    planned = _planned_units_for_rollout(units, bounded, rollout_token)
+    worker_plan = _resolve_worker_plan(
+        requested_workers,
+        unit_count=len(planned),
+        parallel_allowed=use_default_executor and engine_token == SCALEOUT_ENGINE_V1,
+    )
 
     for stage, stage_units in _execution_stages(units, bounded, rollout_token):
         stage_records = _execute_stage(
@@ -730,6 +787,9 @@ def run_scaleout(
             ledger=ledger,
             executor=executor,
             engine=engine_token,
+            requested_workers=requested_workers,
+            parallel_v1_compute=use_default_executor and engine_token == SCALEOUT_ENGINE_V1,
+            log=log,
         )
         records.extend(stage_records)
         if stage == "bounded_real" and any(record.status == "failed" for record in stage_records):
@@ -746,6 +806,7 @@ def run_scaleout(
         bounded_year=bounded_year or config.bounded_year,
         accepted_unit_count=len(units),
         bounded_unit_count=len(bounded),
+        worker_plan=worker_plan,
         records=tuple(records),
     )
 
@@ -1531,13 +1592,227 @@ def materialize_v1_feature_unit(
 ) -> MaterializedUnitEvidence:
     """Materialize one scaleout unit through the V1 fast-pack producer path."""
 
+    output = _compute_v1_feature_unit_output(
+        config,
+        unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=False,
+        include_records=True,
+    )
+    return _register_v1_worker_output(
+        config,
+        unit,
+        alpha_data_root=alpha_data_root,
+        output=output,
+    )
+
+
+def _compute_v1_feature_unit_output(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    *,
+    write_manifest: bool,
+    include_records: bool,
+    prepared_feature_set: Any | None = None,
+    prepared_feature_request_payloads: Mapping[str, Mapping[str, Any]] | None = None,
+    prepared_registry_metadata: Mapping[str, Any] | None = None,
+) -> Any:
+    """Compute and persist one V1 unit without mutating the feature registry."""
+
     from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.features.fast import (
+        FAST_PRODUCER_ENGINE_ID,
+        FAST_VALUE_SCHEMA_VERSION,
+        FastWorkerUnitOutput,
+        PackMaterializer,
+        build_fast_feature_pack,
+        worker_manifest_from_result,
+        worker_manifest_path,
+        write_worker_manifest,
+    )
+
+    if prepared_feature_set is None:
+        prepared = _prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root)
+        feature_set = prepared.feature_set
+        request_payloads = prepared.feature_request_payloads
+        governance_metadata = prepared.registry_metadata
+    else:
+        feature_set = prepared_feature_set
+        if prepared_feature_request_payloads is None or prepared_registry_metadata is None:
+            raise ScaleoutError("prepared V1 worker job is incomplete")
+        request_payloads = prepared_feature_request_payloads
+        governance_metadata = prepared_registry_metadata
+    pack = build_fast_feature_pack(feature_set)
+    materializer = PackMaterializer()
+    accepted, canonical_frame = _v1_context_and_frame(
+        config,
+        unit,
+        materializer=materializer,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    result = materializer.materialize_pack(
+        pack,
+        accepted,
+        partition_id=unit.partition_id,
+        canonical_frame=canonical_frame,
+        alpha_data_root=alpha_data_root,
+        governance_metadata=governance_metadata,
+        output_namespace=config.value_namespace,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no V1 feature values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    _require_text(handle.content_hash, "value_store_handle.content_hash")
+    feature_version_ids = tuple(declaration.feature_version_id for declaration in pack.declarations)
+    manifest_path = worker_manifest_path(
+        alpha_data_root,
+        checkpoint_root=config.checkpoint_root,
+        unit_id=unit.unit_id,
+    )
+    manifest = worker_manifest_from_result(
+        unit_key=_worker_unit_key(unit),
+        result=result,
+        feature_version_ids=feature_version_ids,
+        producer_engine_id=FAST_PRODUCER_ENGINE_ID,
+        value_schema_version=FAST_VALUE_SCHEMA_VERSION,
+        manifest_path=manifest_path,
+    )
+    if write_manifest:
+        write_worker_manifest(manifest_path, manifest)
+    if not include_records:
+        from alpha_system.features.engine import FeatureMaterializationResult
+
+        result = FeatureMaterializationResult(
+            plan=result.plan,
+            records=(),
+            dry_run=result.dry_run,
+            wrote_output=result.wrote_output,
+            output_path=result.output_path,
+            value_store_handle=result.value_store_handle,
+        )
+    return FastWorkerUnitOutput(
+        materialization_result=result,
+        feature_set=feature_set,
+        feature_request_payloads=request_payloads,
+        registry_metadata=governance_metadata,
+        manifest=manifest,
+    )
+
+
+def _register_v1_worker_output(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    output: Any,
+    rebuild_request_against_live_registry: bool = False,
+) -> MaterializedUnitEvidence:
+    """Serially register one worker-computed V1 unit through FeatureStore.
+
+    ``rebuild_request_against_live_registry`` is set only by the PARALLEL worker
+    stage. The serial executor computes each unit's request immediately before it
+    registers that same unit, so the request still matches the live registry and
+    no rebuild is needed. The parallel stage instead prepares every unit's request
+    up front (against the initial registry) and registers them one-by-one through
+    this single writer, which mutates the registry per unit -- so a later unit's
+    pre-computed request id no longer matches its spec
+    ("checked FeatureRequest id must match FeatureSpec.feature_request_id"). When
+    the flag is set, re-run the FLF-P05 duplicate-exposure request gate against the
+    LIVE registry here and rebuild this unit's plan with the resulting fresh
+    feature_set, mirroring how _materialize_unit_per_feature builds each feature
+    against the live registry. feature_version_id is content-addressed independent
+    of registry state, so the worker's already-computed values still register under
+    the same identity and at the same Parquet output path (the path does not depend
+    on the request id); only the registry-state-dependent request provenance and the
+    plan content hash change, rebuilt from the worker plan's own dataset/partition/
+    output_path with no second canonical read or accepted-version handle.
+    """
+
+    from alpha_system.features.engine.materialization import (
+        _feature_version_ids,
+        _plan_content_hash,
+    )
+    from alpha_system.features.fast import PackMaterializer, build_fast_feature_pack
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    materializer = PackMaterializer()
+    result = _v1_result_with_records(output.materialization_result)
+    if rebuild_request_against_live_registry:
+        fresh = _prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root)
+        worker_plan = result.plan
+        fresh_idempotency_key = _plan_content_hash(
+            fresh.feature_set,
+            dataset_version_id=worker_plan.dataset_version_id,
+            partition_id=worker_plan.partition_id,
+            output_path=worker_plan.output_path,
+            governance_metadata=worker_plan.governance_metadata,
+        )
+        fresh_plan = replace(
+            worker_plan,
+            feature_set=fresh.feature_set,
+            plan_id=f"fmat_{fresh_idempotency_key}",
+            idempotency_key=fresh_idempotency_key,
+            feature_version_ids=_feature_version_ids(fresh.feature_set),
+        )
+        result = replace(result, plan=fresh_plan)
+        feature_set = fresh.feature_set
+        feature_requests = fresh.feature_request_payloads
+    else:
+        feature_set = output.feature_set
+        feature_requests = output.feature_request_payloads
+    pack = build_fast_feature_pack(feature_set)
+    records = materializer.register_pack(
+        result,
+        pack,
+        feature_requests=feature_requests,
+        store=store,
+        registry_metadata=output.registry_metadata,
+    )
+    feature_version_ids = tuple(record.feature_version_id for record in records)
+    handle = result.value_store_handle
+    if handle is None:
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    _verify_feature_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        feature_version_ids=feature_version_ids,
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        feature_version_ids=feature_version_ids,
+    )
+
+
+def _prepare_v1_worker_job(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+) -> _V1PreparedWorkerJob:
+    """Build V1 identity/request context in the serial parent process."""
+
     from alpha_system.features.contracts import FeatureSetSpec
     from alpha_system.features.fast import (
         FAST_PRODUCER_ENGINE_ID,
         FAST_VALUE_SCHEMA_VERSION,
-        PackMaterializer,
-        build_fast_feature_pack,
+        feature_request_payloads,
     )
 
     store = FeatureStore.from_alpha_data_root(alpha_data_root)
@@ -1555,12 +1830,11 @@ def materialize_v1_feature_unit(
                 f"duplicate V1 feature selection for {feature_spec.feature_id}"
             )
         feature_requests[feature_spec.feature_id] = checked_request
-
     feature_set = FeatureSetSpec(
         feature_set_id=unit.feature_set_id,
         feature_set_version=unit.feature_set_version,
         features=feature_specs,
-        description=f"FCFP-P14 V1 {config.family} scaleout unit",
+        description=f"FCFP-P15 V1 {config.family} scaleout unit",
         metadata={
             "campaign_id": config.campaign_id,
             "phase_id": config.phase_id,
@@ -1569,16 +1843,7 @@ def materialize_v1_feature_unit(
             "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
         },
     )
-    pack = build_fast_feature_pack(feature_set)
-    materializer = PackMaterializer()
-    accepted, canonical_frame = _v1_context_and_frame(
-        config,
-        unit,
-        materializer=materializer,
-        dataset_registry_path=dataset_registry_path,
-        canonical_root=canonical_root,
-    )
-    governance_metadata = {
+    registry_metadata = {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
         "unit_id": unit.unit_id,
@@ -1588,45 +1853,62 @@ def materialize_v1_feature_unit(
         "engine_selection": SCALEOUT_ENGINE_V1,
         "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
     }
-    result = materializer.materialize_pack(
-        pack,
-        accepted,
-        partition_id=unit.partition_id,
-        canonical_frame=canonical_frame,
-        alpha_data_root=alpha_data_root,
-        governance_metadata=governance_metadata,
-        output_namespace=config.value_namespace,
-        value_store_format=ValueStoreFormat.PARQUET,
+    return _V1PreparedWorkerJob(
+        unit=unit,
+        feature_set=feature_set,
+        feature_request_payloads=feature_request_payloads(feature_requests),
+        registry_metadata=registry_metadata,
     )
-    if result.record_count == 0:
-        raise ScaleoutError(f"unit {unit.unit_id} produced no V1 feature values")
+
+
+def _worker_unit_key(unit: ScaleoutUnit) -> dict[str, object]:
+    return {
+        "unit_id": unit.unit_id,
+        "family": unit.family,
+        "symbol": unit.symbol,
+        "year": unit.year,
+        "dataset_version_id": unit.dataset_version_id,
+        "partition_id": unit.partition_id,
+        "input_datasets": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+
+
+def _v1_result_with_records(result: Any) -> Any:
+    if not hasattr(result, "records") or getattr(result, "records", ()):
+        return result
+    from alpha_system.core.value_store import load_parquet_values
+    from alpha_system.features.contracts import FeatureValueRecord
+    from alpha_system.features.engine import FeatureMaterializationResult
+
     handle = result.value_store_handle
-    if not isinstance(handle, ValueStoreHandle):
-        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
-    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
-    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
-    records = materializer.register_pack(
-        result,
-        pack,
-        feature_requests=feature_requests,
-        store=store,
-        registry_metadata=governance_metadata,
+    if handle is None or not handle.parquet_path:
+        raise ScaleoutError("worker output is missing a Parquet value-store handle")
+    records = tuple(
+        FeatureValueRecord(
+            feature_version_id=_require_text(row.get("feature_version_id"), "feature_version_id"),
+            entity_id=_require_text(row.get("entity_id"), "entity_id"),
+            event_ts=_datetime_from_value(row.get("event_ts"), "event_ts"),
+            available_ts=_datetime_from_value(row.get("available_ts"), "available_ts"),
+            value=row.get("value"),
+            quality_flags=tuple(row.get("quality_flags") or ()),
+        )
+        for row in load_parquet_values(handle.parquet_path)
     )
-    feature_version_ids = tuple(record.feature_version_id for record in records)
-    _verify_feature_registry_roundtrip(
-        unit,
-        alpha_data_root=alpha_data_root,
-        feature_version_ids=feature_version_ids,
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        value_schema_version=handle.schema_version,
+    return FeatureMaterializationResult(
+        plan=result.plan,
+        records=records,
+        dry_run=result.dry_run,
+        wrote_output=result.wrote_output,
+        output_path=result.output_path,
+        value_store_handle=handle,
     )
-    return MaterializedUnitEvidence(
-        parquet_path=parquet_path,
-        content_hash=content_hash,
-        row_count=handle.value_count,
-        feature_version_ids=feature_version_ids,
-    )
+
+
+def _datetime_from_value(value: object, field_name: str) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    text = _require_text(value, field_name)
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
 def _v1_context_and_frame(
@@ -1808,7 +2090,16 @@ def render_scaleout_summary_markdown(summary: ScaleoutRunSummary) -> str:
         f"- Completed: `{summary.completed_count}`",
         f"- Skipped: `{summary.skipped_count}`",
         f"- Failed: `{summary.failed_count}`",
+        f"- Requested workers: `{summary.worker_plan.requested_workers}`",
+        f"- Effective workers: `{summary.worker_plan.effective_workers}`",
+        f"- Threads per worker: `{summary.worker_plan.threads_per_worker}`",
     ]
+    if summary.worker_plan.reductions:
+        lines.append(
+            "- Worker reductions: `"
+            + "; ".join(summary.worker_plan.reductions)
+            + "`"
+        )
     if summary.dry_run_estimate is not None:
         estimate = summary.dry_run_estimate
         lines.extend(
@@ -2293,8 +2584,12 @@ def _execute_stage(
     ledger: _ScaleoutLedger,
     executor: UnitExecutor,
     engine: str,
+    requested_workers: int,
+    parallel_v1_compute: bool,
+    log: Callable[[str], None] | None,
 ) -> tuple[ScaleoutUnitRecord, ...]:
-    records: list[ScaleoutUnitRecord] = []
+    records_by_unit: dict[str, ScaleoutUnitRecord] = {}
+    runnable_units: list[ScaleoutUnit] = []
     for unit in units:
         completed = ledger.latest_completed(unit)
         if (
@@ -2336,20 +2631,10 @@ def _execute_stage(
                     else completed.message
                 ),
             )
-            records.append(record)
+            records_by_unit[unit.unit_id] = record
             continue
         try:
             _require_persisted_acceptance_lock(unit, dataset_registry_path)
-            evidence = executor(config, unit, alpha_data_root, dataset_registry_path, canonical_root)
-            record = ScaleoutUnitRecord(
-                unit=unit,
-                status="completed",
-                stage=stage,
-                parquet_path=evidence.parquet_path,
-                content_hash=evidence.content_hash,
-                row_count=evidence.row_count,
-                feature_version_ids=evidence.feature_version_ids,
-            )
         except (
             DataFoundationValidationError,
             OSError,
@@ -2361,9 +2646,186 @@ def _execute_stage(
                 stage=stage,
                 message=str(exc),
             )
-        ledger.append(record)
-        records.append(record)
-    return tuple(records)
+            ledger.append(record)
+            records_by_unit[unit.unit_id] = record
+            continue
+        runnable_units.append(unit)
+
+    if runnable_units:
+        worker_plan = _resolve_worker_plan(
+            requested_workers,
+            unit_count=len(runnable_units),
+            parallel_allowed=parallel_v1_compute,
+        )
+        _log_worker_reductions(worker_plan, log)
+        if worker_plan.parallel_enabled:
+            computed = _compute_v1_stage_outputs_in_workers(
+                config,
+                tuple(runnable_units),
+                alpha_data_root=alpha_data_root,
+                dataset_registry_path=dataset_registry_path,
+                canonical_root=canonical_root,
+                worker_plan=worker_plan,
+            )
+            for unit in runnable_units:
+                outcome = computed[unit.unit_id]
+                if isinstance(outcome, BaseException):
+                    record = ScaleoutUnitRecord(
+                        unit=unit,
+                        status="failed",
+                        stage=stage,
+                        message=str(outcome),
+                    )
+                    ledger.append(record)
+                    records_by_unit[unit.unit_id] = record
+                    continue
+                start_wait = perf_counter()
+                try:
+                    evidence = _register_v1_worker_output(
+                        config,
+                        unit,
+                        alpha_data_root=alpha_data_root,
+                        output=outcome,
+                        rebuild_request_against_live_registry=True,
+                    )
+                    queue_wait = perf_counter() - start_wait
+                    record = ScaleoutUnitRecord(
+                        unit=unit,
+                        status="completed",
+                        stage=stage,
+                        parquet_path=evidence.parquet_path,
+                        content_hash=evidence.content_hash,
+                        row_count=evidence.row_count,
+                        feature_version_ids=evidence.feature_version_ids,
+                        message=(
+                            "worker compute registered by serial writer; "
+                            f"registry_queue_wait_seconds={queue_wait:.6f}"
+                        ),
+                    )
+                except (OSError, ValueError) as exc:
+                    record = ScaleoutUnitRecord(
+                        unit=unit,
+                        status="failed",
+                        stage=stage,
+                        message=str(exc),
+                    )
+                ledger.append(record)
+                records_by_unit[unit.unit_id] = record
+        else:
+            for unit in runnable_units:
+                try:
+                    evidence = executor(
+                        config,
+                        unit,
+                        alpha_data_root,
+                        dataset_registry_path,
+                        canonical_root,
+                    )
+                    record = ScaleoutUnitRecord(
+                        unit=unit,
+                        status="completed",
+                        stage=stage,
+                        parquet_path=evidence.parquet_path,
+                        content_hash=evidence.content_hash,
+                        row_count=evidence.row_count,
+                        feature_version_ids=evidence.feature_version_ids,
+                    )
+                except (
+                    DataFoundationValidationError,
+                    OSError,
+                    ValueError,
+                ) as exc:
+                    record = ScaleoutUnitRecord(
+                        unit=unit,
+                        status="failed",
+                        stage=stage,
+                        message=str(exc),
+                    )
+                ledger.append(record)
+                records_by_unit[unit.unit_id] = record
+    return tuple(
+        records_by_unit[unit.unit_id]
+        for unit in units
+        if unit.unit_id in records_by_unit
+    )
+
+
+def _compute_v1_stage_outputs_in_workers(
+    config: ScaleoutConfig,
+    units: tuple[ScaleoutUnit, ...],
+    *,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    worker_plan: ScaleoutWorkerPlan,
+) -> dict[str, Any | BaseException]:
+    outputs: dict[str, Any | BaseException] = {}
+    jobs: tuple[_V1PreparedWorkerJob, ...] = tuple(
+        _prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root)
+        for unit in units
+    )
+    # Use the "spawn" start method, NOT the Linux default "fork". The parent
+    # process has already imported polars and run canonical loads/job prep, which
+    # initializes polars' global Rayon thread pool. Forking after a thread pool
+    # exists leaves the child with an inconsistent copy of those threads/locks, so
+    # the child deadlocks on its first polars call -- the benchmark stalled even at
+    # workers=2 for exactly this reason. spawn starts each worker as a fresh
+    # interpreter that re-imports polars cleanly; because driver.py imports polars
+    # lazily, _pin_native_threads() (called first in the entrypoint) also takes
+    # effect before that fresh import, so per-worker thread caps actually apply.
+    spawn_context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=worker_plan.effective_workers, mp_context=spawn_context
+    ) as pool:
+        futures = {
+            pool.submit(
+                _v1_worker_compute_entrypoint,
+                config,
+                job,
+                alpha_data_root,
+                dataset_registry_path,
+                canonical_root,
+                worker_plan.threads_per_worker,
+            ): job.unit
+            for job in jobs
+        }
+        for future in as_completed(futures):
+            unit = futures[future]
+            try:
+                outputs[unit.unit_id] = future.result()
+            except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
+                outputs[unit.unit_id] = exc
+    return outputs
+
+
+def _v1_worker_compute_entrypoint(
+    config: ScaleoutConfig,
+    job: _V1PreparedWorkerJob,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    threads_per_worker: int,
+) -> Any:
+    _pin_native_threads(threads_per_worker)
+    return _compute_v1_feature_unit_output(
+        config,
+        job.unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=True,
+        include_records=False,
+        prepared_feature_set=job.feature_set,
+        prepared_feature_request_payloads=job.feature_request_payloads,
+        prepared_registry_metadata=job.registry_metadata,
+    )
+
+
+def _pin_native_threads(threads_per_worker: int) -> None:
+    token = str(max(1, threads_per_worker))
+    os.environ["POLARS_MAX_THREADS"] = token
+    os.environ["OMP_NUM_THREADS"] = token
+    os.environ["RAYON_NUM_THREADS"] = token
 
 
 def _preview_record(config: ScaleoutConfig, unit: ScaleoutUnit, *, stage: str) -> ScaleoutUnitRecord:
@@ -4406,6 +4868,15 @@ def _selected_symbols(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[s
     return tuple(symbol for symbol in config.symbols if symbol in target.symbols)
 
 
+def _unit_symbols_for_config(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[str, ...]:
+    selected = _selected_symbols(config, target)
+    if config.family != "cross_market_alignment":
+        return selected
+    if not selected:
+        return ()
+    return ("_".join(symbol.upper() for symbol in config.symbols),)
+
+
 def _selected_years(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[int, ...]:
     if not target.years:
         return config.years
@@ -4517,6 +4988,66 @@ def _normalize_engine(value: str) -> str:
     if token == SCALEOUT_ENGINE_REFERENCE:
         return SCALEOUT_ENGINE_REFERENCE
     raise ScaleoutError("engine must be one of: v1, reference")
+
+
+def _normalize_workers(value: int | str | None) -> int:
+    if value is None:
+        return DEFAULT_CPU_WORKERS
+    if isinstance(value, bool):
+        raise ScaleoutError("workers must be a positive integer")
+    try:
+        workers = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ScaleoutError("workers must be a positive integer") from exc
+    if workers < 1:
+        raise ScaleoutError("workers must be >= 1")
+    return workers
+
+
+def _resolve_worker_plan(
+    requested_workers: int,
+    *,
+    unit_count: int,
+    parallel_allowed: bool,
+) -> ScaleoutWorkerPlan:
+    requested = _normalize_workers(requested_workers)
+    cores = max(1, os.cpu_count() or 1)
+    effective = requested
+    reductions: list[str] = []
+    if not parallel_allowed and requested > 1:
+        effective = 1
+        reductions.append("parallel V1 compute is not active for this run")
+    if effective > cores:
+        reductions.append(
+            f"requested workers {effective} reduced to available cores {cores}"
+        )
+        effective = cores
+    if unit_count > 0 and effective > unit_count:
+        reductions.append(
+            f"requested workers {effective} reduced to runnable unit count {unit_count}"
+        )
+        effective = unit_count
+    if unit_count == 0 and effective > 1:
+        reductions.append("requested workers reduced to 1 because no units are runnable")
+        effective = 1
+    effective = max(1, effective)
+    return ScaleoutWorkerPlan(
+        requested_workers=requested,
+        effective_workers=effective,
+        threads_per_worker=max(1, cores // effective),
+        available_cores=cores,
+        reductions=tuple(reductions),
+    )
+
+
+def _log_worker_reductions(
+    worker_plan: ScaleoutWorkerPlan,
+    log: Callable[[str], None] | None,
+) -> None:
+    if log is None:
+        return
+    for reduction in worker_plan.reductions:
+        log(f"scaleout worker reduction: {reduction}")
 
 
 def _alpha_data_root(value: str | Path | None) -> Path:

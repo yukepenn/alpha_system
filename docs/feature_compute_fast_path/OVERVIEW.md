@@ -223,6 +223,21 @@ official runtime resolver, and verifies stale or fuzzy controls fail closed.
 The committed report is value-free and lives under
 `research/feature_compute_fast_path_v1/integration/`.
 
+## P15 CPU Worker Parallelism
+
+`FCFP-P15` adds `--workers` and `ALPHA_CPU_WORKERS` for V1 scaleout compute.
+Worker processes load canonical inputs, compute V1 values, and write local
+Parquet plus deterministic manifests; the parent process remains the only
+official `FeatureStore` registry writer and registers worker outputs in
+deterministic unit order. Cross-market alignment is planned as one
+ES/NQ/RTY panel unit per year.
+
+The fast value stores canonicalize record order before content hashing so
+worker count cannot change hashes. The value-free worker benchmark records
+elapsed time, rows/sec, canonical reads, memory, registry-queue wait,
+resolver-smoke, parity, deterministic hashes, worker reductions, and the
+fastest stable requested worker count.
+
 ## Boundaries
 
 This campaign is substrate/infra engineering only. It does not include live

@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 from alpha_system.features.scaleout import (
@@ -62,6 +63,8 @@ def run_feature_pack(args: argparse.Namespace) -> int:
             execute=args.execute,
             bounded_year=args.bounded_year,
             engine=args.engine,
+            workers=_resolve_workers(args.workers, env=os.environ),
+            log=lambda message: print(message, file=sys.stderr),
             target=_target_from_args(args),
         )
         if args.summary_out:
@@ -164,6 +167,12 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Producer engine for execute mode; defaults to V1 with reference selectable as oracle.",
     )
     feature_parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="CPU worker count for V1 compute; overrides ALPHA_CPU_WORKERS and defaults to 1.",
+    )
+    feature_parser.add_argument(
         "--alpha-data-root",
         help="Local data root for values, registry, ledger, and checkpoints.",
     )
@@ -194,6 +203,23 @@ def _target_from_args(args: argparse.Namespace) -> ScaleoutTarget:
         years=_split_year_targets(args.years),
         dataset_version_ids=_split_text_targets(args.dataset_version_ids),
     )
+
+
+def _resolve_workers(cli_workers: int | None, *, env: Mapping[str, str]) -> int:
+    if cli_workers is not None:
+        if cli_workers < 1:
+            raise ScaleoutError("--workers must be >= 1")
+        return cli_workers
+    env_value = env.get("ALPHA_CPU_WORKERS")
+    if env_value is None or not env_value.strip():
+        return 1
+    try:
+        workers = int(env_value)
+    except ValueError as exc:
+        raise ScaleoutError("ALPHA_CPU_WORKERS must be a positive integer") from exc
+    if workers < 1:
+        raise ScaleoutError("ALPHA_CPU_WORKERS must be >= 1")
+    return workers
 
 
 def _split_text_targets(values: list[str] | None, *, uppercase: bool = False) -> tuple[str, ...]:
@@ -236,6 +262,14 @@ def _emit_text(payload: dict[str, object]) -> None:
     print(f"Completed: {payload['completed_count']}")
     print(f"Skipped: {payload['skipped_count']}")
     print(f"Failed: {payload['failed_count']}")
+    worker_plan = payload.get("worker_plan")
+    if isinstance(worker_plan, dict):
+        print(f"Requested workers: {worker_plan['requested_workers']}")
+        print(f"Effective workers: {worker_plan['effective_workers']}")
+        print(f"Threads/worker: {worker_plan['threads_per_worker']}")
+        reductions = worker_plan.get("reductions") or []
+        if reductions:
+            print(f"Worker reductions: {json.dumps(reductions, sort_keys=True)}")
     estimate = payload.get("dry_run_estimate")
     if isinstance(estimate, dict):
         print(f"Estimated rows/unit: {estimate['estimated_rows_per_unit']}")

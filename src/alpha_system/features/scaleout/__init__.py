@@ -3,6 +3,7 @@
 from alpha_system.features.scaleout.driver import (
     DEFAULT_SCALEOUT_ENGINE,
     DEFAULT_SCALEOUT_CONFIG,
+    DEFAULT_CPU_WORKERS,
     MaterializedUnitEvidence,
     SCALEOUT_ENGINE_REFERENCE,
     SCALEOUT_ENGINE_V1,
@@ -14,6 +15,7 @@ from alpha_system.features.scaleout.driver import (
     ScaleoutTarget,
     ScaleoutUnit,
     ScaleoutUnitRecord,
+    ScaleoutWorkerPlan,
     build_scaleout_units,
     load_scaleout_config,
     materialize_base_ohlcv_unit,
@@ -31,6 +33,7 @@ from alpha_system.features.scaleout.driver import (
 
 __all__ = [
     "MaterializedUnitEvidence",
+    "DEFAULT_CPU_WORKERS",
     "DEFAULT_SCALEOUT_ENGINE",
     "DEFAULT_SCALEOUT_CONFIG",
     "SCALEOUT_ENGINE_REFERENCE",
@@ -43,6 +46,7 @@ __all__ = [
     "ScaleoutTarget",
     "ScaleoutUnit",
     "ScaleoutUnitRecord",
+    "ScaleoutWorkerPlan",
     "build_scaleout_units",
     "load_scaleout_config",
     "materialize_base_ohlcv_unit",
