@@ -23,6 +23,7 @@ from alpha_system.features.fast.materializer import (
     FastFeatureDeclaration,
     FastFeaturePack,
     PackMaterializerError,
+    constant_window_mask,
 )
 
 _MARKETS: tuple[str, str, str] = ("ES", "NQ", "RTY")
@@ -787,8 +788,10 @@ def _rolling_expression(
         min_samples=window,
         ddof=ddof,
     ).over(group)
-    zero_benchmark_variance = benchmark_variance == 0.0
-    zero_target_variance = target_variance == 0.0
+    # Robust zero-variance detection (constant return window) -- see
+    # constant_window_mask. Preemptive parity hardening for the FCFP-P13 bug class.
+    zero_benchmark_variance = constant_window_mask(benchmark_return, window=window, group=group)
+    zero_target_variance = constant_window_mask(target_return, window=window, group=group)
     beta = covariance / benchmark_variance
     residual = target_return - beta * benchmark_return
     correlation_value = covariance / (benchmark_variance * target_variance).sqrt()

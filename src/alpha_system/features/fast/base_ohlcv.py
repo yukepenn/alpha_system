@@ -17,6 +17,7 @@ from alpha_system.features.fast.materializer import (
     FastFeatureDeclaration,
     FastFeaturePack,
     PackMaterializerError,
+    constant_window_mask,
 )
 
 BASE_OHLCV_WINDOW_LENGTH = 20
@@ -313,7 +314,8 @@ def _base_ohlcv_expressions(polars: Any) -> dict[str, _PackExpression]:
         min_samples=BASE_OHLCV_WINDOW_LENGTH,
         ddof=BASE_OHLCV_DDOF,
     )
-    volume_zero_variance = volume_std == 0.0
+    # Robust zero-variance detection (constant window) -- see constant_window_mask.
+    volume_zero_variance = constant_window_mask(volume, window=BASE_OHLCV_WINDOW_LENGTH)
     volume_zscore_value = (
         pl.when(
             (row_index < BASE_OHLCV_WINDOW_LENGTH - 1)

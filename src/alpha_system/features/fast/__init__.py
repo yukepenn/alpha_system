@@ -32,6 +32,7 @@ from alpha_system.features.fast.materializer import (
     PackMaterializer,
     PackMaterializerError,
     SymbolYearFrameRequest,
+    constant_window_mask,
 )
 from alpha_system.features.fast.liquidity_pa_structure import (
     LIQUIDITY_PA_STRUCTURE_FEATURE_IDS,
@@ -96,6 +97,7 @@ __all__ = [
     "LIQUIDITY_PA_STRUCTURE_FEATURE_IDS",
     "PackMaterializer",
     "PackMaterializerError",
+    "constant_window_mask",
     "ReconciliationClassification",
     "ReconciliationDecision",
     "ReconciliationSeriesResult",

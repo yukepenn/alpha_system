@@ -111,6 +111,58 @@ def test_compute_values_derives_identity_once_per_declaration_not_per_row(monkey
     )
 
 
+def test_constant_window_mask_flags_residual_constant_window() -> None:
+    """Regression: zero-variance detection must use a constant-window (max==min)
+    check, not `rolling_std == 0.0`. Polars' SLIDING rolling_std carries a floating
+    residual after a value leaves the window, so a genuinely-constant window that
+    follows a changed value gets a tiny non-zero std (~1e-9) and an exact `== 0`
+    check misses it -- while the per-row reference flags zero_variance. This was the
+    FCFP-P13 real-data parity break on bbo_tradability_spread_zscore (24k rows)."""
+    pl = pytest.importorskip("polars")
+    from alpha_system.features.fast import constant_window_mask
+
+    # Window [0.1, 0.1, 0.1] at index 4 is constant, but the sliding rolling_std
+    # leaves a residual from the prior 0.2 -- so `std == 0` would NOT flag it.
+    series = [0.1, 0.2, 0.1, 0.1, 0.1, 0.1]
+    frame = pl.DataFrame({"x": series})
+
+    std = frame.select(
+        pl.col("x").rolling_std(window_size=3, min_samples=3, ddof=0).alias("s")
+    ).to_series().to_list()
+    assert std[4] is not None and std[4] != 0.0, (
+        "fixture must exercise the residual: sliding rolling_std should be non-zero "
+        f"on the constant window (got {std[4]!r}); the exact std==0 check would miss it"
+    )
+
+    mask = frame.select(
+        constant_window_mask(pl.col("x"), window=3).alias("zero_var")
+    ).to_series().to_list()
+    # window at index i = positions [i-2, i-1, i]
+    assert mask[4] is True, "constant window [0.1,0.1,0.1] must be detected as zero-variance"
+    assert mask[5] is True, "constant window [0.1,0.1,0.1] must be detected as zero-variance"
+    assert mask[2] is False, "window [0.1,0.2,0.1] varies -> not zero-variance"
+    assert mask[3] is False, "window [0.2,0.1,0.1] varies -> not zero-variance"
+
+
+def test_constant_window_mask_distinguishes_constant_and_varying() -> None:
+    pl = pytest.importorskip("polars")
+    from alpha_system.features.fast import constant_window_mask
+
+    frame = pl.DataFrame(
+        {
+            "seg": ["a", "a", "a", "a", "b", "b", "b"],
+            "x": [5.0, 5.0, 5.0, 7.0, 3.0, 3.0, 3.0],
+        }
+    )
+    mask = frame.select(
+        constant_window_mask(pl.col("x"), window=3, group="seg").alias("z")
+    ).to_series().to_list()
+    # per-segment, window=3: first two rows of each segment are null (insufficient)
+    assert mask[2] is True  # [5,5,5] constant
+    assert mask[3] is False  # [5,5,7] varies
+    assert mask[6] is True  # [3,3,3] constant; segment reset prevents bleed from 'a'
+
+
 def test_pack_materializer_persists_and_registers_through_feature_store(
     tmp_path: Path,
 ) -> None:
