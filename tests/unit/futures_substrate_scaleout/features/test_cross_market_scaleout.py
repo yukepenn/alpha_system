@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+import alpha_system.features.scaleout.driver as scaleout_driver
 from alpha_system.features.families.cross_market import (
     CrossMarketFeatureName,
     CrossMarketInputBundle,
@@ -156,6 +157,23 @@ def test_strict_intersection_does_not_impute_missing_instrument_event() -> None:
     )
 
     assert [snapshot.event_ts for snapshot in snapshots] == [start + timedelta(minutes=1)]
+
+
+def test_cross_market_scaleout_guard_rejects_asof_alignment_policy() -> None:
+    config = load_scaleout_config(CONFIG_PATH)
+    definition = build_cross_market_feature_definition(
+        CrossMarketFeatureName.NQ_MINUS_ES_RETURN_SPREAD,
+        _approved_request(CrossMarketFeatureName.NQ_MINUS_ES_RETURN_SPREAD),
+        EmptyRegistryReader(),
+        dataset_version_ids=(DATASET_VERSION_ID,),
+        alignment_policy="asof",
+    )
+
+    with pytest.raises(scaleout_driver.ScaleoutError, match="strict_intersection"):
+        scaleout_driver._require_trusted_scaleout_feature_specs(
+            config,
+            (definition.spec.feature_spec,),
+        )
 
 
 def _row(

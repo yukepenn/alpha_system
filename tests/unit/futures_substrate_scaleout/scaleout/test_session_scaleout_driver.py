@@ -20,6 +20,8 @@ from alpha_system.data.foundation.datasets import (
 from alpha_system.data.foundation.version_registry import persist_dataset_version
 from alpha_system.features.scaleout import (
     MaterializedUnitEvidence,
+    ScaleoutError,
+    ScaleoutTarget,
     load_scaleout_config,
     run_scaleout,
 )
@@ -37,6 +39,8 @@ def test_session_scaleout_plan_groups_required_input_schemas() -> None:
 
     summary = run_scaleout(config, rollout="bounded-real")
 
+    assert "bars_to_roll" not in config.feature_names
+    assert "minutes_to_roll" not in config.feature_names
     assert config.dense_grid_required is True
     assert summary.accepted_unit_count == 24
     assert summary.bounded_unit_count == 3
@@ -55,6 +59,17 @@ def test_session_scaleout_plan_groups_required_input_schemas() -> None:
         ]
         assert len(record.feature_version_ids) == len(config.feature_names)
         assert all(version_id.startswith("fver_") for version_id in record.feature_version_ids)
+
+
+def test_session_scaleout_rejects_offline_roll_countdown_targets() -> None:
+    config = load_scaleout_config(CONFIG_PATH)
+
+    with pytest.raises(ScaleoutError, match="unknown feature_id target"):
+        run_scaleout(
+            config,
+            rollout="bounded-real",
+            target=ScaleoutTarget(feature_ids=("bars_to_roll",)),
+        )
 
 
 def test_session_scaleout_execution_requires_all_input_locks_and_resumes(

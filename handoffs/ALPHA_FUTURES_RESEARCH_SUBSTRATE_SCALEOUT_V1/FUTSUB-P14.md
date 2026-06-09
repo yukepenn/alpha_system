@@ -259,6 +259,73 @@ Repair file list:
 - `tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
 - `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
 
+## Bounded Repair Attempt - No-Lookahead Substrate Follow-up
+
+Authoritative Yellow review required three follow-up repairs. This attempt
+kept scope to those findings and did not mutate local registries, Parquet values,
+run-local artifacts, review artifacts, verdicts, PRs, or merge state.
+
+Repairs made:
+
+- Finished the force-recompute unit coverage in
+  `tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`.
+  The test now proves a forced V1 recompute reuses exact existing registry
+  `FeatureSpec`/request payloads, skips re-registration when the recomputed
+  `content_hash` matches, and re-registers through
+  `FeatureStore.register_materialized_feature` when the hash differs.
+- Marked `session_calendar_roll_bars_to_roll` and
+  `session_calendar_roll_minutes_to_roll` as offline-only/non-causal definitions
+  in `src/alpha_system/features/families/session/family.py`, while preserving
+  offline compute availability.
+- Removed `bars_to_roll` and `minutes_to_roll` from the trusted FUTSUB
+  `session_calendar_maintenance` scaleout config so they are no longer selected
+  for causal substrate materialization/registration.
+- Added session scaleout guards in `src/alpha_system/features/scaleout/driver.py`
+  so offline/non-causal session specs fail closed if a future config or targeted
+  call attempts to materialize them as trusted substrate features.
+- Enforced `alignment_policy=strict_intersection` for
+  `cross_market_alignment` substrate specs in the scaleout driver, and added a
+  lower-level cross-market fast-pack guard keyed to FUTSUB substrate metadata so
+  `asof` cannot silently enter substrate materialization.
+
+Repair file list for this attempt:
+
+- `configs/features/scaleout/session_calendar_maintenance.json`
+- `src/alpha_system/features/families/session/family.py`
+- `src/alpha_system/features/fast/cross_market_panel.py`
+- `src/alpha_system/features/fast/session_calendar_roll.py`
+- `src/alpha_system/features/scaleout/driver.py`
+- `tests/unit/feature_compute_fast_path/test_cross_market_pack.py`
+- `tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
+- `tests/unit/features/families/session/test_session_family.py`
+- `tests/unit/futures_substrate_scaleout/features/test_cross_market_scaleout.py`
+- `tests/unit/futures_substrate_scaleout/scaleout/test_session_scaleout_driver.py`
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+
+Validation for this attempt:
+
+- `python -m pytest tests/unit/features/families/session/test_session_family.py tests/unit/futures_substrate_scaleout/scaleout/test_session_scaleout_driver.py tests/unit/feature_compute_fast_path/test_session_calendar_roll_pack.py tests/unit/futures_substrate_scaleout/features/test_session_scaleout.py -q`: PASS, 14 passed.
+- `python -m pytest tests/unit/feature_compute_fast_path/test_cross_market_pack.py tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py tests/unit/futures_substrate_scaleout/features/test_cross_market_scaleout.py tests/unit/futures_substrate_scaleout/scaleout/test_cross_market_scaleout_driver.py -q`: PASS, 16 passed.
+- `python tools/verify.py --smoke`: PASS.
+- `python -m pytest tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py -q`: PASS, 4 passed.
+- `python tools/verify.py --lint`: exit 0 with environment skip, `ruff is not installed; run pip install -e ".[dev]" to enable lint. Skipping.`
+- `python tools/verify.py --typecheck`: PASS, compileall completed.
+- `python tools/hooks/canary_runner.py`: PASS, all Frontier canaries passed.
+- `python tools/verify.py --test`: FAIL, 4 failed / 2979 passed. The failures are outside this repair scope:
+  - `tests/integration/test_duckdb_query_fixture.py::test_duckdb_query_over_tiny_csv_fixture`: tuple/list assertion mismatch.
+  - `tests/integration/test_polars_lazy_fixture.py::test_polars_lazy_transformation_over_tiny_fixture`: tuple/list assertion mismatch.
+  - `tests/unit/data/test_databento_canonicalize.py::test_databento_canonicalize_quality_coverage_and_register_offline`: fixture JSONL rows empty.
+  - `tests/unit/runtime/test_cache_policy.py::test_run_artifact_cache_root_is_explicit_local_only`: local `ALPHA_DATA_ROOT` env changes expected storage root.
+- `test -f research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`: PASS.
+- `test -f docs/futures_substrate_scaleout/FEATURE_INTEGRATION.md`: PASS.
+- `git diff --check`: PASS.
+- `git ls-files runs`: PASS, empty output.
+- `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.db'`: PASS, empty output.
+- `python tools/frontier/status_doctor.py`: WARN, no live run dir with `state.json` found for the active campaign; runtime contract is consistent.
+
+`git status --short` before explicit staging contained only the repair files
+listed above. No `runs/` path or heavy/value artifact was staged or committed.
+
 Validation for this bounded repair:
 
 - `python -m pytest tests/unit/futures_substrate_scaleout/scaleout/test_scaleout_driver.py tests/unit/feature_compute_fast_path/test_scaleout_cli_targeting.py tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py -q`: PASS, 10 passed.

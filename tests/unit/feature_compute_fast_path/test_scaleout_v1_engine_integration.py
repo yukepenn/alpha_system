@@ -229,7 +229,7 @@ def test_v1_unit_registration_uses_pack_materializer_and_registry_roundtrip(
     )
 
 
-def test_v1_registration_updates_existing_row_when_recomputed_hash_differs(
+def test_v1_force_recompute_reuses_existing_specs_and_updates_only_stale_hash(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -340,6 +340,8 @@ def test_v1_registration_updates_existing_row_when_recomputed_hash_differs(
         )
 
         class FakeStore:
+            registry = EmptyRegistryReader()
+
             def resolve_feature(self, feature_version_id: str):
                 assert feature_version_id == version.feature_version_id
                 return existing
@@ -363,11 +365,26 @@ def test_v1_registration_updates_existing_row_when_recomputed_hash_differs(
             "from_alpha_data_root",
             lambda _root: FakeStore(),
         )
+        prepared = scaleout_driver._prepare_v1_worker_job(
+            config,
+            unit,
+            alpha_data_root=tmp_path,
+            force_recompute=True,
+        )
+        assert prepared.feature_set.features == (spec,)
+        assert set(prepared.feature_request_payloads) == {spec.feature_id}
+        force_output = FastWorkerUnitOutput(
+            materialization_result=result,
+            feature_set=prepared.feature_set,
+            feature_request_payloads=prepared.feature_request_payloads,
+            registry_metadata=prepared.registry_metadata,
+            manifest=output.manifest,
+        )
         evidence = scaleout_driver._register_v1_worker_output(
             config,
             unit,
             alpha_data_root=tmp_path,
-            output=output,
+            output=force_output,
         )
         return evidence, register_calls
 
@@ -382,6 +399,65 @@ def test_v1_registration_updates_existing_row_when_recomputed_hash_differs(
     assert stale_calls[0]["feature_version"] is version
     assert stale_calls[0]["feature_request"] == checked_request.to_dict()
     assert stale_calls[0]["materialization_result"].value_store_handle.content_hash == fresh_hash
+
+
+def test_v1_force_recompute_prepare_reuses_existing_registry_specs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = load_scaleout_config(
+        "configs/features/scaleout/regime_volatility_compression.json"
+    )
+    unit = build_scaleout_units(
+        config,
+        target=ScaleoutTarget(symbols=("ES",), years=(2024,)),
+    )[0]
+    definitions = scaleout_driver._regime_volatility_compression_feature_definitions(
+        config,
+        unit,
+        lambda: (),
+    )
+    parquet_path = tmp_path / "existing.parquet"
+    parquet_path.write_text("synthetic parquet placeholder\n", encoding="utf-8")
+    existing_by_id = {
+        definition.feature_version_id: SimpleNamespace(
+            feature_spec=scaleout_driver._definition_feature_spec(definition),
+            feature_request_payload={
+                "feature_request_id": scaleout_driver._definition_feature_spec(
+                    definition
+                ).feature_request_id,
+            },
+            producer_engine_id=FAST_PRODUCER_ENGINE_ID,
+            parquet_path=parquet_path.as_posix(),
+        )
+        for definition in definitions
+    }
+
+    class FakeStore:
+        registry = object()
+
+        def resolve_feature(self, feature_version_id: str):
+            return existing_by_id.get(feature_version_id)
+
+    monkeypatch.setattr(
+        scaleout_driver.FeatureStore,
+        "from_alpha_data_root",
+        lambda _root: FakeStore(),
+    )
+
+    prepared = scaleout_driver._prepare_v1_worker_job(
+        config,
+        unit,
+        alpha_data_root=tmp_path,
+        force_recompute=True,
+    )
+
+    assert tuple(prepared.feature_set.features) == tuple(
+        record.feature_spec for record in existing_by_id.values()
+    )
+    assert set(prepared.feature_request_payloads) == {
+        record.feature_spec.feature_id for record in existing_by_id.values()
+    }
 
 
 def test_v1_checkpoint_skip_requires_v1_registry_provenance(

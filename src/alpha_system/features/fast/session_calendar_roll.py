@@ -12,6 +12,7 @@ from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureSetSpec,
     FeatureSpec,
+    WindowCausality,
     WindowKind,
 )
 from alpha_system.features.families.session import SessionFeatureName
@@ -29,6 +30,12 @@ _FEATURE_ID_TO_NAME: dict[str, SessionFeatureName] = {
     f"session_calendar_roll_{feature_name.value}": feature_name
     for feature_name in SessionFeatureName
 }
+_OFFLINE_ROLL_COUNTDOWN_FEATURES = frozenset(
+    {
+        SessionFeatureName.BARS_TO_ROLL,
+        SessionFeatureName.MINUTES_TO_ROLL,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +136,17 @@ def _validate_session_calendar_roll_feature(feature: FeatureSpec) -> None:
     rth_close = _clock_parameter(parameters, "rth_close_time_utc", feature.feature_id)
     if rth_close <= rth_open:
         raise PackMaterializerError(f"{feature.feature_id} requires rth_close_time_utc after open")
+    if feature_name in _OFFLINE_ROLL_COUNTDOWN_FEATURES:
+        if (
+            feature.window.kind is not WindowKind.FUTURE
+            or feature.window.causality is not WindowCausality.FUTURE
+            or not feature.window.offline_only
+            or feature.live
+        ):
+            raise PackMaterializerError(
+                f"{feature.feature_id} must be offline-only/non-causal"
+            )
+        return
     if feature.window.kind is not WindowKind.POINT_IN_TIME or feature.window.length != 1:
         raise PackMaterializerError(f"{feature.feature_id} requires a point-in-time window")
     if not feature.window.is_live_compatible:

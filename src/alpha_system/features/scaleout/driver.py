@@ -2012,6 +2012,7 @@ def _prepare_v1_worker_job(
     unit: ScaleoutUnit,
     *,
     alpha_data_root: Path,
+    force_recompute: bool = False,
 ) -> _V1PreparedWorkerJob:
     """Build V1 identity/request context in the serial parent process."""
 
@@ -2023,20 +2024,29 @@ def _prepare_v1_worker_job(
     )
 
     store = FeatureStore.from_alpha_data_root(alpha_data_root)
-    definitions = _feature_definitions_for_unit(config, unit, store.registry)
-    if not definitions:
-        raise ScaleoutError(f"unit {unit.unit_id} did not select any governed features")
-    feature_specs = tuple(_definition_feature_spec(definition) for definition in definitions)
-    feature_requests: dict[str, Any] = {}
-    for definition, feature_spec in zip(definitions, feature_specs, strict=True):
-        checked_request = definition.request_gate_decision.checked_feature_request
-        if checked_request is None:
-            raise ScaleoutError("FeatureRequest gate did not return a checked request")
-        if feature_spec.feature_id in feature_requests:
-            raise ScaleoutError(
-                f"duplicate V1 feature selection for {feature_spec.feature_id}"
-            )
-        feature_requests[feature_spec.feature_id] = checked_request
+    existing_context = (
+        _existing_v1_feature_context_for_force_recompute(config, unit, store)
+        if force_recompute
+        else None
+    )
+    if existing_context is None:
+        definitions = _feature_definitions_for_unit(config, unit, store.registry)
+        if not definitions:
+            raise ScaleoutError(f"unit {unit.unit_id} did not select any governed features")
+        feature_specs = tuple(_definition_feature_spec(definition) for definition in definitions)
+        feature_requests: dict[str, Any] = {}
+        for definition, feature_spec in zip(definitions, feature_specs, strict=True):
+            checked_request = definition.request_gate_decision.checked_feature_request
+            if checked_request is None:
+                raise ScaleoutError("FeatureRequest gate did not return a checked request")
+            if feature_spec.feature_id in feature_requests:
+                raise ScaleoutError(
+                    f"duplicate V1 feature selection for {feature_spec.feature_id}"
+                )
+            feature_requests[feature_spec.feature_id] = checked_request
+    else:
+        feature_specs, feature_requests = existing_context
+    _require_trusted_scaleout_feature_specs(config, feature_specs)
     feature_set = FeatureSetSpec(
         feature_set_id=unit.feature_set_id,
         feature_set_version=unit.feature_set_version,
@@ -2056,6 +2066,66 @@ def _prepare_v1_worker_job(
         feature_request_payloads=feature_request_payloads(feature_requests),
         registry_metadata=_v1_registry_metadata(config, unit),
     )
+
+
+def _require_trusted_scaleout_feature_specs(
+    config: ScaleoutConfig,
+    feature_specs: Sequence[Any],
+) -> None:
+    if config.family == "session_calendar_maintenance":
+        rejected = sorted(
+            _require_text(getattr(feature, "feature_id", ""), "feature_spec.feature_id")
+            for feature in feature_specs
+            if (
+                not getattr(feature, "live", False)
+                or not getattr(feature, "implementation_eligible", False)
+                or not getattr(feature, "window").is_live_compatible
+            )
+        )
+        if rejected:
+            raise ScaleoutError(
+                "session_calendar_maintenance scaleout excludes offline/non-causal "
+                "features: " + ", ".join(rejected)
+            )
+    if config.family == "cross_market_alignment":
+        rejected = []
+        for feature in feature_specs:
+            parameters = getattr(feature, "transform").parameters.to_dict()
+            if parameters.get("alignment_policy") != "strict_intersection":
+                rejected.append(
+                    _require_text(getattr(feature, "feature_id", ""), "feature_spec.feature_id")
+                )
+        if rejected:
+            raise ScaleoutError(
+                "cross_market_alignment scaleout requires "
+                "alignment_policy=strict_intersection: " + ", ".join(sorted(rejected))
+            )
+
+
+def _existing_v1_feature_context_for_force_recompute(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    store: Any,
+) -> tuple[tuple[Any, ...], dict[str, Mapping[str, Any]]] | None:
+    """Return existing V1 specs/request payloads for exact force-recompute ids."""
+
+    feature_version_ids = _preview_feature_version_ids(config, unit)
+    if not feature_version_ids:
+        return None
+    feature_specs: list[Any] = []
+    feature_requests: dict[str, Mapping[str, Any]] = {}
+    for feature_version_id in feature_version_ids:
+        existing = store.resolve_feature(feature_version_id)
+        if existing is None:
+            return None
+        _require_existing_v1_materialization(existing, feature_version_id)
+        feature_spec = existing.feature_spec
+        feature_id = _require_text(feature_spec.feature_id, "feature_spec.feature_id")
+        if feature_id in feature_requests:
+            raise ScaleoutError(f"duplicate V1 feature selection for {feature_id}")
+        feature_specs.append(feature_spec)
+        feature_requests[feature_id] = existing.feature_request_payload
+    return tuple(feature_specs), feature_requests
 
 
 def _worker_unit_key(unit: ScaleoutUnit) -> dict[str, object]:
@@ -2988,7 +3058,14 @@ def _compute_v1_stage_outputs_in_workers(
                 if resumed is not None:
                     outputs[unit.unit_id] = resumed
                     continue
-            jobs.append(_prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root))
+            jobs.append(
+                _prepare_v1_worker_job(
+                    config,
+                    unit,
+                    alpha_data_root=alpha_data_root,
+                    force_recompute=force_recompute,
+                )
+            )
         except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
             outputs[unit.unit_id] = exc
     if not jobs:
@@ -3457,6 +3534,14 @@ def _session_definition_builders(
     dataset_version_ids = tuple(
         dataset.dataset_version_id for dataset in _unit_input_datasets(unit)
     )
+    offline_feature_names = sorted(
+        set(unit.feature_names).intersection({"bars_to_roll", "minutes_to_roll"})
+    )
+    if offline_feature_names:
+        raise ScaleoutError(
+            "session_calendar_maintenance scaleout excludes offline/non-causal "
+            "features: " + ", ".join(offline_feature_names)
+        )
 
     def _make(feature_name: str) -> Callable[[object], Any]:
         name = SessionFeatureName(feature_name)

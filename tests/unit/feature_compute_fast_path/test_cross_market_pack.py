@@ -13,6 +13,8 @@ from alpha_system.features.fast import (
     FAST_PRODUCER_ENGINE_ID,
     FAST_VALUE_SCHEMA_VERSION,
     PackMaterializer,
+    PackMaterializerError,
+    build_cross_market_pack,
     build_fast_feature_pack,
 )
 from alpha_system.features.families.cross_market import (
@@ -142,6 +144,23 @@ def test_cross_market_pack_matches_reference_on_asof_fixture() -> None:
             expected_feature_version_id=definition.feature_version_id,
             tolerance=tolerance,
         )
+
+
+def test_cross_market_pack_rejects_asof_for_scaleout_substrate_metadata() -> None:
+    _definitions, feature_set = _cross_market_pack_contracts("asof")
+    substrate_feature_set = FeatureSetSpec(
+        feature_set_id="feature_set_futures_scaleout_cross_market_alignment",
+        feature_set_version=feature_set.feature_set_version,
+        features=feature_set.features,
+        description=feature_set.description,
+        metadata={
+            "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+            "family": "cross_market_alignment",
+        },
+    )
+
+    with pytest.raises(PackMaterializerError, match="strict_intersection"):
+        build_cross_market_pack(substrate_feature_set)
 
 
 def test_cross_market_pack_materialization_records_fast_provenance(tmp_path: Path) -> None:
