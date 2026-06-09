@@ -43,6 +43,13 @@ be self-validating: it asserts it contains at least one contract-roll event and 
 session gap (so the bounded window still exercises the structurally important branches), and
 widens or fails with a clear message otherwise.
 
+**Executor has real data; do not stub.** The executor environment provides
+`ALPHA_DATA_ROOT` and the canonical inputs (the codex sandbox now grants read+write to the
+data root). The benchmark entrypoint MUST therefore actually wire and invoke the real
+per-family reference and V1 pack runners and run the bounded measurement — it must not stub
+the timing callbacks or emit only a "blocked: ALPHA_DATA_ROOT not set" summary. A blocked
+summary is acceptable ONLY as a genuine fallback when the data root is truly absent.
+
 **Real-data parity confirmation (required, complements the synthetic parity gate).** On the
 same bounded slice, the benchmark MUST also assert V1 == reference on **value**
 (documented numeric tolerance where float differences are expected), **available_ts /
