@@ -3,6 +3,29 @@
 `alpha_system` is a local-first, research-only trading harness for developing an
 Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
+The repository-level campaign pointer targets
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
+`ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
+
+Current campaign progress: `FUTSUB-P15` is complete. The `feature_integration`
+gate (`FUTSUB-P14` through `FUTSUB-P15`) is closed with the V1 feature
+substrate materialized and integrated, resolver-smoke discipline preserved, and
+feature-family coverage mapped cell-by-cell.
+
+Active / next phase: `FUTSUB-P16` - Fixed-Horizon LabelPack Scaleout, opening
+the `label_materialization` gate (`FUTSUB-P16` through `FUTSUB-P20`).
+
+New durable surfaces in this `FUTSUB-P15` executor snapshot:
+
+- `docs/futures_substrate_scaleout/FEATURE_COVERAGE.md` records the value-free
+  coverage summary and downstream consumption contract.
+- `research/futures_substrate_scaleout_v1/matrices/feature_family_coverage.md`
+  records the machine-reviewable feature-family coverage matrix, registered row
+  count context, quality/missingness summary, BBO flag rates, and explicit gap
+  list.
+- No production code, tests, materialization, label values, feature values,
+  benchmark, broker/live/paper behavior, deployment behavior, or
+  alpha/profitability claim is added.
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run
 `python tools/frontier/status_doctor.py` rather than relying on committed
@@ -37,6 +60,8 @@ New durable surfaces in this `FUTSUB-P14` executor snapshot:
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
 - Campaign bundle: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
 - Futures substrate docs: `docs/futures_substrate_scaleout/`
+- Feature coverage matrix:
+  `research/futures_substrate_scaleout_v1/matrices/feature_family_coverage.md`
 - Feature scaleout configs: `configs/features/scaleout/`
 - V1 fast producer engine: `src/alpha_system/features/fast/`
 - Feature scaleout driver: `src/alpha_system/features/scaleout/driver.py`
