@@ -328,6 +328,12 @@ _ROLL_FEATURES = frozenset(
         SessionFeatureName.MINUTES_TO_ROLL,
     }
 )
+_OFFLINE_ROLL_COUNTDOWN_FEATURES = frozenset(
+    {
+        SessionFeatureName.BARS_TO_ROLL,
+        SessionFeatureName.MINUTES_TO_ROLL,
+    }
+)
 _EXPIRATION_FEATURES = frozenset({SessionFeatureName.MINUTES_TO_EXPIRATION})
 _STATUS_FEATURES = frozenset({SessionFeatureName.HALT_STATUS_FLAG})
 _HALT_STATUS_TOKENS = frozenset(
@@ -473,12 +479,24 @@ def _feature_spec(
 ) -> SessionFeatureSpec:
     if gate_decision.feature_request_id is None:
         raise SessionFeatureError("approved FeatureRequestGateDecision must expose freq_ id")
-    feature_window = window or WindowSpec(
-        kind=WindowKind.POINT_IN_TIME,
-        length=1,
-        causality=WindowCausality.CAUSAL,
-        offline_only=False,
-    )
+    feature_window = _session_feature_window(name, window)
+    live_compatible = True
+    contract_metadata = {
+        "campaign": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+        "phase": "FLF-P10",
+        "materialization": "in_memory_records_only",
+        "claims": "session_calendar_roll_substrate_only_no_alpha_or_tradability_claim",
+        "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
+    }
+    if name in _OFFLINE_ROLL_COUNTDOWN_FEATURES:
+        live_compatible = False
+        contract_metadata.update(
+            {
+                "offline_only": True,
+                "trusted_scaleout_substrate": False,
+                "non_causal_reason": "requires future roll-transition observation",
+            }
+        )
     parameters = {
         "feature_name": name.value,
         "rth_open_time_utc": _clock_time_text(rth_open_time),
@@ -486,37 +504,36 @@ def _feature_spec(
         "roll_transition_source": "contract_id_or_series_id_transition",
         "metadata_absence_policy": "flag_absent_never_fabricate",
     }
+    input_fields = _input_fields(name)
+    input_metadata = {
+        "consumption_surface": (
+            "alpha_system.features.input_views.OHLCVInputView; FUTSUB-P07 may "
+            "bind dense_grid_ohlcv so FLF-P01 DenseGridBarRecord objects are "
+            "reconstructed through the materialization engine"
+        ),
+        "optional_metadata": [
+            "expiration_ts_by_contract_id",
+            "status_by_row_key",
+            "status_by_available_ts",
+            "expiration_available_ts_by_contract_id",
+            "status_available_ts_by_row_key",
+            "status_available_ts_by_available_ts",
+        ],
+        "trade_semantics": (
+            "FLF-P04 synthetic no-trade rows retain session/calendar position "
+            "but are flagged as position-only rows, not trade bars"
+        ),
+        "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
+    }
     feature_spec = FeatureSpec(
         feature_id=f"session_calendar_roll_{name.value}",
         family=FeatureFamily.SESSION_CALENDAR_ROLL,
         feature_request_id=gate_decision.feature_request_id,
         inputs=FeatureInputSpec(
             input_views=(input_view_name,),
-            fields=_input_fields(name),
+            fields=input_fields,
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata=_input_metadata(
-                {
-                "consumption_surface": (
-                    "alpha_system.features.input_views.OHLCVInputView; FUTSUB-P07 may "
-                    "bind dense_grid_ohlcv so FLF-P01 DenseGridBarRecord objects are "
-                    "reconstructed through the materialization engine"
-                ),
-                "optional_metadata": [
-                    "expiration_ts_by_contract_id",
-                    "status_by_row_key",
-                    "status_by_available_ts",
-                    "expiration_available_ts_by_contract_id",
-                    "status_available_ts_by_row_key",
-                    "status_available_ts_by_available_ts",
-                ],
-                "trade_semantics": (
-                    "FLF-P04 synthetic no-trade rows retain session/calendar position "
-                    "but are flagged as position-only rows, not trade bars"
-                ),
-                "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
-                },
-                input_scope=input_scope,
-            ),
+            input_metadata=_input_metadata(input_metadata, input_scope=input_scope),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -541,18 +558,38 @@ def _feature_spec(
             "feature.available_ts = current input row available_ts; feature values do "
             "not use event_ts or ingested_at as availability substitutes"
         ),
-        live=True,
+        live=live_compatible,
         implementation_eligible=True,
-        contract_metadata={
-            "campaign": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
-            "phase": "FLF-P10",
-            "materialization": "in_memory_records_only",
-            "claims": "session_calendar_roll_substrate_only_no_alpha_or_tradability_claim",
-            "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
-        },
+        contract_metadata=contract_metadata,
         request_gate_decision=gate_decision,
     )
     return _wrap_feature_spec(name, feature_spec)
+
+
+def _session_feature_window(
+    name: SessionFeatureName,
+    window: WindowSpec | None,
+) -> WindowSpec:
+    if name in _OFFLINE_ROLL_COUNTDOWN_FEATURES:
+        if window is not None:
+            if window.causality is WindowCausality.CAUSAL or not window.offline_only:
+                raise SessionFeatureError(
+                    f"{name.value} is offline-only and cannot use a causal/live window"
+                )
+            return window
+        return WindowSpec(
+            kind=WindowKind.FUTURE,
+            length=1,
+            causality=WindowCausality.FUTURE,
+            offline_only=True,
+            parameters={"offline_reason": "future_roll_transition_countdown"},
+        )
+    return window or WindowSpec(
+        kind=WindowKind.POINT_IN_TIME,
+        length=1,
+        causality=WindowCausality.CAUSAL,
+        offline_only=False,
+    )
 
 
 def _wrap_feature_spec(name: SessionFeatureName, feature_spec: FeatureSpec) -> SessionFeatureSpec:
@@ -690,7 +727,10 @@ def _require_definition(definition: SessionFeatureDefinition) -> SessionFeatureD
         raise SessionFeatureError("FeatureRequest gate did not admit implementation")
     if definition.version != definition.spec.derive_feature_version():
         raise SessionFeatureError("definition FeatureVersion does not match FeatureSpec")
-    if not definition.spec.window.is_live_compatible:
+    if (
+        not definition.spec.window.is_live_compatible
+        and definition.name not in _OFFLINE_ROLL_COUNTDOWN_FEATURES
+    ):
         raise SessionFeatureError("Session live features require causal windows")
     return definition
 

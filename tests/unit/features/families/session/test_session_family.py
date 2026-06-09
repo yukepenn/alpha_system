@@ -49,7 +49,7 @@ class EmptyRegistryReader:
         return []
 
 
-def test_all_session_features_are_gated_versioned_causal_and_available() -> None:
+def test_all_session_features_are_gated_versioned_and_available() -> None:
     rows = _fixture_rows()
     metadata = _fixture_metadata(rows)
     registry = EmptyRegistryReader()
@@ -68,11 +68,22 @@ def test_all_session_features_are_gated_versioned_causal_and_available() -> None
     assert set(results) == set(SessionFeatureName)
     for definition in definitions:
         assert definition.spec.family is FeatureFamily.SESSION_CALENDAR_ROLL
-        assert definition.spec.implementation_eligible is True
         assert definition.spec.feature_request_id.startswith("freq_")
         assert definition.request_gate_decision.duplicate_exposure_report is not None
         assert definition.version == definition.spec.derive_feature_version()
-        assert definition.spec.window.is_live_compatible is True
+        if definition.name in {
+            SessionFeatureName.BARS_TO_ROLL,
+            SessionFeatureName.MINUTES_TO_ROLL,
+        }:
+            assert definition.spec.live is False
+            assert definition.spec.implementation_eligible is True
+            assert definition.spec.window.kind is WindowKind.FUTURE
+            assert definition.spec.window.causality is WindowCausality.FUTURE
+            assert definition.spec.window.offline_only is True
+        else:
+            assert definition.spec.live is True
+            assert definition.spec.implementation_eligible is True
+            assert definition.spec.window.is_live_compatible is True
         records = results[definition.name]
         assert len(records) == len(rows)
         assert all(record.feature_version_id == definition.feature_version_id for record in records)
@@ -211,8 +222,8 @@ def test_feature_request_gate_is_required_and_fail_closed() -> None:
 def test_future_and_centered_live_windows_fail_closed(window: WindowSpec) -> None:
     with pytest.raises(FeatureContractError, match="live FeatureSpec"):
         build_session_feature_definition(
-            SessionFeatureName.BARS_TO_ROLL,
-            _approved_request(SessionFeatureName.BARS_TO_ROLL),
+            SessionFeatureName.SESSION_ID,
+            _approved_request(SessionFeatureName.SESSION_ID),
             EmptyRegistryReader(),
             window=window,
         )

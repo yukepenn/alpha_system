@@ -5,31 +5,31 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 - Campaign: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
 - Phase: `FUTSUB-P09`
+- Engine: `v1`
 - Rollout: `full-window`
-- Dry run: `yes`
+- Dry run: `no`
+- Targeting active: `no`
 - Accepted unit count: `24`
 - Bounded-real year: `2024`
 - Bounded-real unit count: `3`
-- Planned: `24`
-- Completed: `0`
-- Skipped: `0`
+- Planned: `0`
+- Completed: `21`
+- Skipped: `3`
 - Failed: `0`
+- Requested workers: `4`
+- Effective workers: `4`
+- Threads per worker: `4`
 
-## Executor Materialization Attempt
+## Target
 
-- Bounded-then-full execute command was attempted after the dry-run preview.
-- Result: environment blocked before materialized values or registry rows were
-  written because `$ALPHA_DATA_ROOT/materialization` is read-only to this
-  executor sandbox.
-- Full-window expansion was not reached after the bounded-real environment
-  block.
-- Parquet paths, value content hashes, registry row counts, checkpoint
-  completion markers, and observed materialized `available_ts` min/max are
-  therefore unavailable from this executor run.
-- The dry-run identity preview is symbol-scoped through the FeatureSpec
-  `input_scope` (`symbol`, `partition_id`, `partition_schema`), so ES/NQ/RTY
-  do not share FeatureVersion ids for the same year.
-- Ralph owns any unsandboxed rerun, staging, review, and phase verdict.
+- Family: `regime_volatility_compression`
+- Feature ids: `config default`
+- Feature groups: `none`
+- Label ids: `none`
+- Label groups: `none`
+- Symbols: `config default`
+- Years: `config default`
+- DatasetVersion ids: `accepted grid default`
 
 ## Acceptance States
 
@@ -50,11 +50,12 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 ## Point-In-Time Guard
 
-- Session metadata is treated as `SESSION_METADATA_POINT_IN_TIME`.
-- Row-specific metadata with an explicit metadata availability timestamp
-  later than the row `available_ts` fails closed.
-- Static RTH clock parameters are schedule definitions, not future labels;
-  optional expiration/status metadata is never fabricated when absent.
+- Feature values are emitted at the current source row `available_ts`.
+- Rolling, expanding, prior-boundary, and derived-state inputs may use only
+  source rows whose `available_ts` is less than or equal to the output
+  `available_ts`.
+- Accepted DatasetVersion gates fail closed before canonical rows are
+  loaded or values are written.
 
 ## Regime Primitive Bindings
 
@@ -83,30 +84,30 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 | Stage | Year | Symbol | Primary DatasetVersion | Input DatasetVersions | Status | Rows |
 | --- | ---: | --- | --- | --- | --- | ---: |
-| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `planned` | 0 |
-| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `planned` | 0 |
-| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `planned` | 0 |
-| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `planned` | 0 |
-| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `planned` | 0 |
-| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `planned` | 0 |
-| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `planned` | 0 |
-| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `planned` | 0 |
-| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `planned` | 0 |
-| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `planned` | 0 |
-| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `planned` | 0 |
-| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `planned` | 0 |
-| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `planned` | 0 |
-| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `planned` | 0 |
-| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `planned` | 0 |
-| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `planned` | 0 |
-| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `planned` | 0 |
-| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `planned` | 0 |
-| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `planned` | 0 |
-| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `planned` | 0 |
-| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `planned` | 0 |
-| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `planned` | 0 |
-| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `planned` | 0 |
-| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `planned` | 0 |
+| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `completed` | 1747660 |
+| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `completed` | 1749225 |
+| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `completed` | 1644205 |
+| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `completed` | 1748040 |
+| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `completed` | 1744645 |
+| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `completed` | 1690425 |
+| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `completed` | 1766815 |
+| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `completed` | 1766965 |
+| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `completed` | 1699475 |
+| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `completed` | 1770595 |
+| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `completed` | 1770560 |
+| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `completed` | 1725810 |
+| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `completed` | 1765765 |
+| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `completed` | 1766790 |
+| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `completed` | 1712180 |
+| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `skipped` | 1734290 |
+| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `skipped` | 1734960 |
+| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `skipped` | 1667700 |
+| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `completed` | 1722805 |
+| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `completed` | 1722645 |
+| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `completed` | 1667785 |
+| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `completed` | 703195 |
+| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `completed` | 703050 |
+| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `completed` | 692965 |
 
 ## Bounded-Real FeatureVersion Preview
 
@@ -117,6 +118,6 @@ written.
 
 | Symbol | FeatureVersion ids |
 | --- | --- |
-| `ES` | `fver_6722d83ad95c1f5079846ae7b90f5e1a732cec3e620c1b6f10b40281914a5b2c`, `fver_4bbf18503196d5473e47bf5274919ae1d423f2fe88b6235ddc8d52c3f42c61af`, `fver_ec9ec5923241884c1a9f05a6c5f2b2638022339309742f9fbae934e0fcea4574`, `fver_24bc0bd3770e186d473755be74bbfdbae93a236d6d4f701ebe4d899c3b1945a0`, `fver_c3b4540a41e0b524053fd5bcb4f1d0ac7501f576d1458ff13e2be197f25e212f` |
-| `NQ` | `fver_da8325f46bed8f7c718cac1ea6816f6ff1f83dd2e554e75f633db1db2650ceeb`, `fver_7f7e4c3b81cafeefea39a214bf5abe5b321f382dbc4ad78ee6498b5a28876f6f`, `fver_bb072d59c9698bded66663e53d04947230818dde1e20a3ef45b2de786b1b0608`, `fver_830ea76019b68f2b113ad86486e61e45c61c5ae23e8acef2128deb8cca072d2f`, `fver_8074bf5207261f6663201fdb4e4343be44bc422975414f6e5df5237af1617bbd` |
-| `RTY` | `fver_87ab8dd1f96af560233d2cc76f57e4bf47a522a2c200b6b754b7d1c779d8d97e`, `fver_6dbc330f3eff37f41993b63129404e91a73c8ed731db00fa3be748b2be355a6d`, `fver_9447640bf09065bd1c5f8fd71d6aa42ed6a363e734c49912511cc81cfcda3f27`, `fver_59c2c94ead9c1f6e148010fd595dc19e0dfebca4c9b2c239b41ceace0638e4f9`, `fver_72102fd8def4e4e5431917f8fb738a51737019699a3fc2a87868f6330db62637` |
+| `ES` | `fver_7ec915567dc27afe767adc6a6d588dff5f03e5a805cfc3f606fa9edcac3af4f6`, `fver_01b55b064ce54ec0f3757fb2befd4316c6ecdd3cb54dfff6c29914be486f04db`, `fver_91454e766dfd05f9271a9546d2ea9d52d655e2f0b23437b8498092603adb3a8f`, `fver_27b2ba8d4791ec25a4d351026bc0a6df344188ad392ec265c21d77be0e38eb74`, `fver_bb016b77709e32d912ec2c35b1b3a23fc024a5c18c3b29dc0dddd8ddb033be5b` |
+| `NQ` | `fver_6fb6d5f709baf837fcbca867468e149c34c861cd2d91942956a98646bee51c41`, `fver_9a0098e04fb4210c214ffa585a199653210317b92677118f2dee174c0ad9d611`, `fver_1020629606f8813f4c196d465e5bcf55531441263e2b21f6eb10bc53a86d8e9a`, `fver_77b8dccdd7ff6346f732aac58c5b0e3b4aab5c86c1ecc51315d32c8a8afc2170`, `fver_45b9368c5bf75420427be641a6468c62c7b503eeddf6e5130121335bb118b948` |
+| `RTY` | `fver_ed3c0907584c226f1373a4f2b1d5b4a9eaa0db13094821662cb91e138145057e`, `fver_d99e222cab3828b7bbdb0a15d16975c91bba9c1450556aaccc828137c27e2ea6`, `fver_a1d49a0037912b29e7a33b156214b5540b6d4942349e44df2fc144ab5110dcb4`, `fver_9e03f905275b600b1ce1a3d6e8182535639a6ab68a69015765094485fb0778a4`, `fver_32a511e5f0336e70c1349a0c586d20fa6395139ea3bfea63f1d7e14c066257f8` |

@@ -11,8 +11,6 @@
     "rth_segment_flag",
     "eth_segment_flag",
     "day_of_week",
-    "bars_to_roll",
-    "minutes_to_roll",
     "minutes_to_expiration",
     "halt_status_flag"
   ],

@@ -121,6 +121,88 @@ def test_bounded_execution_skips_completed_units_from_local_ledger(
     assert len(ledger.read_text(encoding="utf-8").splitlines()) == 3
 
 
+def test_force_recompute_bypasses_completed_unit_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = load_scaleout_config()
+    registry_path = _registry_with_accepted_2024(tmp_path)
+    alpha_data_root = tmp_path / "alpha_data"
+    canonical_root = tmp_path / "canonical"
+    calls: list[str] = []
+    registry_records: dict[str, _FakeFeatureRecord] = {}
+
+    class _FakeFeatureStore:
+        def resolve_feature(self, feature_version_id: str) -> _FakeFeatureRecord | None:
+            return registry_records.get(feature_version_id)
+
+    monkeypatch.setattr(
+        scaleout_driver.FeatureStore,
+        "from_alpha_data_root",
+        lambda _root: _FakeFeatureStore(),
+    )
+
+    def fake_executor(
+        _config,
+        unit,
+        alpha_root: Path,
+        _registry: Path,
+        _canonical: Path,
+    ) -> MaterializedUnitEvidence:
+        calls.append(unit.unit_id)
+        parquet_path = alpha_root / "fake_values" / f"{unit.unit_id}.parquet"
+        parquet_path.parent.mkdir(parents=True, exist_ok=True)
+        parquet_path.write_text("synthetic parquet placeholder\n", encoding="utf-8")
+        feature_version_id = f"fver_{unit.unit_id.removeprefix('mbu_')}"
+        content_hash = "sha256:" + "b" * 64
+        registry_records[feature_version_id] = _FakeFeatureRecord(
+            parquet_path=parquet_path.as_posix(),
+            content_hash=content_hash,
+            row_count=17,
+        )
+        return MaterializedUnitEvidence(
+            parquet_path=parquet_path.as_posix(),
+            content_hash=content_hash,
+            row_count=17,
+            feature_version_ids=(feature_version_id,),
+        )
+
+    target = scaleout_driver.ScaleoutTarget(
+        feature_ids=("returns",),
+        symbols=("ES",),
+        years=(2024,),
+    )
+    first = run_scaleout(
+        config,
+        alpha_data_root=alpha_data_root,
+        dataset_registry_path=registry_path,
+        canonical_root=canonical_root,
+        rollout="bounded-real",
+        execute=True,
+        unit_executor=fake_executor,
+        target=target,
+    )
+    second = run_scaleout(
+        config,
+        alpha_data_root=alpha_data_root,
+        dataset_registry_path=registry_path,
+        canonical_root=canonical_root,
+        rollout="bounded-real",
+        execute=True,
+        unit_executor=fake_executor,
+        target=target,
+        force_recompute=True,
+    )
+
+    assert first.completed_count == 1
+    assert first.skipped_count == 0
+    assert first.force_recompute is False
+    assert second.completed_count == 1
+    assert second.skipped_count == 0
+    assert second.force_recompute is True
+    assert calls == [first.records[0].unit.unit_id, first.records[0].unit.unit_id]
+
+
 class _FakeFeatureRecord:
     def __init__(self, *, parquet_path: str, content_hash: str, row_count: int) -> None:
         self.parquet_path = parquet_path

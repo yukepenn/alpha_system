@@ -156,11 +156,12 @@ def _validate_bbo_feature(feature: FeatureSpec) -> None:
             f"{feature.feature_id} transform must be {expected_transform}"
         )
     if feature_name is BBOFeatureName.SPREAD_ZSCORE:
-        _require_rolling_window(feature, length=BBO_TRADABILITY_WINDOW_LENGTH)
+        window_length = _declared_rolling_window_length(feature)
+        _require_rolling_window(feature, length=window_length)
         _require_parameter(
             parameters,
             "window_length",
-            BBO_TRADABILITY_WINDOW_LENGTH,
+            window_length,
             feature.feature_id,
         )
         _require_parameter(
@@ -252,6 +253,15 @@ def _require_rolling_window(feature: FeatureSpec, *, length: int) -> None:
         )
     if not feature.window.is_live_compatible:
         raise PackMaterializerError(f"{feature.feature_id} requires a live-compatible window")
+
+
+def _declared_rolling_window_length(feature: FeatureSpec) -> int:
+    length = feature.window.length
+    if not isinstance(length, int) or length <= 0:
+        raise PackMaterializerError(
+            f"{feature.feature_id} requires a positive rolling window length"
+        )
+    return length
 
 
 def _require_point_in_time_window(feature: FeatureSpec) -> None:
@@ -377,13 +387,13 @@ def _bbo_expressions(
 ) -> dict[str, _PackExpression]:
     expressions: dict[str, _PackExpression] = {}
     for feature in features:
-        feature_name = _FEATURE_ID_TO_NAME[feature.feature_id]
-        expressions[feature.feature_id] = _bbo_expression(polars, feature_name)
+        expressions[feature.feature_id] = _bbo_expression(polars, feature)
     return expressions
 
 
-def _bbo_expression(polars: Any, feature_name: BBOFeatureName) -> _PackExpression:
+def _bbo_expression(polars: Any, feature: FeatureSpec) -> _PackExpression:
     pl = polars
+    feature_name = _FEATURE_ID_TO_NAME[feature.feature_id]
     spread_bps = pl.col(_SPREAD) / pl.col(_MID) * 10_000.0
     top_book_depth = pl.col(_BID_SIZE) + pl.col(_ASK_SIZE)
     size_denominator = pl.col(_BID_SIZE) + pl.col(_ASK_SIZE)
@@ -413,7 +423,7 @@ def _bbo_expression(polars: Any, feature_name: BBOFeatureName) -> _PackExpressio
             reason="zero_or_negative_mid",
         )
     if feature_name is BBOFeatureName.SPREAD_ZSCORE:
-        return _spread_zscore_expression(pl)
+        return _spread_zscore_expression(pl, _declared_rolling_window_length(feature))
     if feature_name is BBOFeatureName.BID_SIZE:
         return _valid_quote_expression(pl, pl.col(_BID_SIZE))
     if feature_name is BBOFeatureName.ASK_SIZE:
@@ -517,9 +527,8 @@ def _conditional_quote_expression(
     return _PackExpression(value, flags)
 
 
-def _spread_zscore_expression(polars: Any) -> _PackExpression:
+def _spread_zscore_expression(polars: Any, window: int) -> _PackExpression:
     pl = polars
-    window = BBO_TRADABILITY_WINDOW_LENGTH
     group_position = _group_position(pl)
     rolling_gap_count = _rolling_true_count(pl.col(_SPREAD_POINT).is_null(), window, polars=pl)
     flag_counts = {
@@ -635,6 +644,7 @@ def _input_quality_flags(polars: Any) -> Any:
     pl = polars
     return (
         pl.col("quality_flags")
+        .cast(pl.List(pl.Utf8), strict=False)
         .fill_null(_flags(pl, ()))
         .list.eval(pl.element().str.to_lowercase())
         .list.unique(maintain_order=True)

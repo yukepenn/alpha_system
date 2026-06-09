@@ -5,31 +5,31 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 - Campaign: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
 - Phase: `FUTSUB-P10`
+- Engine: `v1`
 - Rollout: `full-window`
-- Dry run: `yes`
+- Dry run: `no`
+- Targeting active: `no`
 - Accepted unit count: `24`
 - Bounded-real year: `2024`
 - Bounded-real unit count: `3`
-- Planned: `24`
+- Planned: `0`
 - Completed: `0`
-- Skipped: `0`
+- Skipped: `24`
 - Failed: `0`
+- Requested workers: `4`
+- Effective workers: `4`
+- Threads per worker: `4`
 
-## Executor Materialization Attempt
+## Target
 
-- Bounded-then-full execute command was attempted after the dry-run preview.
-- Result: environment blocked before materialized values or registry rows were
-  written because `$ALPHA_DATA_ROOT/materialization` is read-only to this
-  executor sandbox.
-- Full-window expansion was not reached after the bounded-real environment
-  block.
-- Parquet paths, value content hashes, registry row counts, checkpoint
-  completion markers, and observed materialized `available_ts` min/max are
-  therefore unavailable from this executor run.
-- The dry-run identity preview is symbol-scoped through the FeatureSpec
-  `input_scope` (`symbol`, `partition_id`, `partition_schema`), so ES/NQ/RTY
-  do not share FeatureVersion ids for the same year.
-- Ralph owns any unsandboxed rerun, staging, review, and phase verdict.
+- Family: `liquidity_sweep_pa_structure`
+- Feature ids: `config default`
+- Feature groups: `none`
+- Label ids: `none`
+- Label groups: `none`
+- Symbols: `config default`
+- Years: `config default`
+- DatasetVersion ids: `accepted grid default`
 
 ## Acceptance States
 
@@ -88,30 +88,30 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 | Stage | Year | Symbol | Primary DatasetVersion | Input DatasetVersions | Status | Rows |
 | --- | ---: | --- | --- | --- | --- | ---: |
-| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `planned` | 0 |
-| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `planned` | 0 |
-| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `planned` | 0 |
-| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `planned` | 0 |
-| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `planned` | 0 |
-| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `planned` | 0 |
-| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `planned` | 0 |
-| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `planned` | 0 |
-| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `planned` | 0 |
-| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `planned` | 0 |
-| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `planned` | 0 |
-| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `planned` | 0 |
-| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `planned` | 0 |
-| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `planned` | 0 |
-| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `planned` | 0 |
-| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `planned` | 0 |
-| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `planned` | 0 |
-| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `planned` | 0 |
-| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `planned` | 0 |
-| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `planned` | 0 |
-| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `planned` | 0 |
-| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `planned` | 0 |
-| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `planned` | 0 |
-| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `planned` | 0 |
+| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `skipped` | 3145788 |
+| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `skipped` | 3148605 |
+| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b` | `skipped` | 2959569 |
+| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `skipped` | 3146472 |
+| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `skipped` | 3140361 |
+| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850` | `skipped` | 3042765 |
+| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `skipped` | 3180267 |
+| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `skipped` | 3180537 |
+| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691` | `skipped` | 3059055 |
+| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `skipped` | 3187071 |
+| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `skipped` | 3187008 |
+| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe` | `skipped` | 3106458 |
+| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `skipped` | 3178377 |
+| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `skipped` | 3180222 |
+| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774` | `skipped` | 3081924 |
+| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `skipped` | 3121722 |
+| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `skipped` | 3122928 |
+| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0` | `skipped` | 3001860 |
+| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `skipped` | 3101049 |
+| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `skipped` | 3100761 |
+| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd` | `skipped` | 3002013 |
+| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `skipped` | 1265751 |
+| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `skipped` | 1265490 |
+| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b` | `skipped` | 1247337 |
 
 ## Bounded-Real FeatureVersion Preview
 
@@ -122,6 +122,6 @@ written.
 
 | Symbol | FeatureVersion ids |
 | --- | --- |
-| `ES` | `fver_b7da756ecd315a4a6ac0c926c287bd0062ff6c927459dec91f14c5f40f7fd8a3`, `fver_637b9e8d5e288372943e8b90b7b349b60c7d7c24a2903c22d0b3e1820f0acab4`, `fver_0edbfa0de1d46b5f79fe4d3f4f6f5e743a730bce27e9710cca438e1a1e0a6d07`, `fver_102960ed42eff43f016b1f606d45fe560a6b4c83b2dd9a90b96fe7189ed20339`, `fver_55e8d7592a7f9aaf6fdc820ff3d6babe73d2924f245e8322df907759cc1d5d8b`, `fver_e46f6bf0051958e240da9b8eab0d2d9709e52dea5015fdcced6a1e8e7945133b`, `fver_678cbd71b2728705b216df86a32462481fddfe6f294233bb29a449b7eaf1c533`, `fver_70e8739c60778bd1ed870d176cd55c001b844a62f8205a6ca584f32ea6e0a4cc`, `fver_b74348e7ef12e1a0e520fc3783f31dcbd331df123e6b5ced9d2bd4657951fa2d` |
-| `NQ` | `fver_40ee0cd00f40f3ba989b3aabc9bb67553fe158ae9dabb619a2942c1b50fe7e84`, `fver_d6a744eb56a9670a156ec02defcbccb86d78bd4165c1e9955ae4e108a98c5f31`, `fver_101819071b86c94a4b9c1ca7e1f0a24656f823afcf3e7b58cb207a48a76919cb`, `fver_31acdaeaf9f0f9ede1b54bd3241c29dd14fa1856e4fc12554d8010c654c884a4`, `fver_7059e0634cbf888e1f9811f7d1dead69337d0e358e26def648bc918057137029`, `fver_205a376903b84596339df85c386650424f21ae84c6ec393a576ab911f4459674`, `fver_cd48bdbaa04611070249f0a51c5a0bb453c1b5e0a8de5ae770f7414dd2971115`, `fver_84d949ca750065523cd9ab692433ac7e0213b7d1483dd5b1c1ef55be47fbf6f2`, `fver_438108a7ac44ff0275a3960a83421964cf54ec631a57832b589f47b9261416b3` |
-| `RTY` | `fver_0d576a299646236b053e83d18d7687307c6a78006c3265058a3cb71dad7d8280`, `fver_7f85e6786f622a21a7b78b079bff7102c0b099b16f8ee965098d7c0478f595bf`, `fver_ed5c997291079def1c677891cd39d2edb49bf7e20f8a9702f9009b7fbca0e40e`, `fver_b4ede4f2aeebad0307b5d6138bb504c07f21eebeeaa65a07f2769e60eb5cfbff`, `fver_54e0acc8c566915545adabc6a6647d5e53513e443542e05dc2299760fc14fd69`, `fver_1336826eba73bad28b2fcc863cd8b4ff0278854abc43f7d545529eae8f65c0e9`, `fver_cccbd7344dc2d6e53ade2f5bf693d9a24b88f116d78e30bf0a9256083025763b`, `fver_b1d7a4e7a781451885e0969a5bbb41421de412e2d85992d7da3593ad2d5ff4f1`, `fver_4d14f83c716c223f364bf3a47ea2a928dde5fe49ce2419c3b1528a6e9a26fa69` |
+| `ES` | `fver_36830860325ed3dd849a9224e498e2c0bf693513a6df7b206f64772f2970c965`, `fver_7c61edb9bdf84b7e1635811a9c913a6acc87826de64b3ffbd88ffcf6895faf20`, `fver_0f049562a3598b2bc9a702c56b589360d3c3c3f6709dddb062343f1689f5706d`, `fver_125b17c3dfcd5ea043907e15486a390bdb88dd326b18cf4afc6837f254f17cfd`, `fver_4ddce8ae65388f465f7bc50d92cd11b9803316744d79cf2bbd9e8924c45405be`, `fver_f3fc632f503d7520cb1037990b290d291ebb6631b7ed1ba61dab05bcedf189b4`, `fver_112edf3ee4994d9b63a1a6524827a17af52a7d18d4cc13a6726b458ac104ce3d`, `fver_331fc9a9c71efebf8892155667eda7f1117be247d3705b9a34ac7ca710a54217`, `fver_8ad55e0f86172ba44f0aae4b9f11fc87bf32a67ae9b7f7db13e798fe2a85f1f9` |
+| `NQ` | `fver_4fef62caf81ea76a15364d7b6a768335e50491333004b224eb444cfa2550c081`, `fver_dea163c73e8bcd2e1ab8b8b3d16f59ba147d3da1e819ac5a98e44b2a13fda35a`, `fver_77d19de41b650811f87e8d9c79a853532e1a950e874d91e65843d7a64bc66f81`, `fver_aa2ab8a7288fb677e5047d90e3241f9a1f99ccdb0e1da388df0cad976ac219cb`, `fver_c63ffb857ec0a005ac7658d1f7416230861f92381bd9b950a9c28b9d4ea2fc17`, `fver_4a9971dcff18e512adc26b0a8e9dcdd4ad7f7f20610a05adabf326711feaac1d`, `fver_3b8c62ac63a9333376feca0f97592032bf872709e20c380c2330e75cdfc62c50`, `fver_370608ae19e3eced736fbb735d84cffeff2b520762f01253d364c68fe1d32ed6`, `fver_eccfa1cd5cec13bfbed344513d9f8afe171a68358c3b7a71daa33e6985a59237` |
+| `RTY` | `fver_c6617ef6867373249b070795d7272780eed858c64c9313f81ac8761a21354db5`, `fver_a12121f4b0cbd50e4ed59971ad52b02ea998717724dfe275d9bd97474333b2ba`, `fver_2618abc4a99ef580eb090aa7f2414be2db08447d2bf5865d83bf89984b6a6333`, `fver_cfbe13df1b56951537425169c9b07d63283e14ee313ae0d32055ce19e15d2cd6`, `fver_681a8b3bc00477b8504cced28955b5d8b7f8c2b60b4bc1ec20a54d8d934fc297`, `fver_d188f59a592c67dc4a00d6ae86cbbcdaf2cbe5f60323b92dd8db4c2230569b22`, `fver_680e1c7474ce5d9b31d64e38797a27208db63d512f750e1dc239ee42ef190cb2`, `fver_a37dfb5c97d7fd06c5b1f85f87fd11829881d96c92752d1d1916fe7b6c95363f`, `fver_67ebc54541d633d09904b652c896162e431d0ed48427c7af6781146283536987` |
