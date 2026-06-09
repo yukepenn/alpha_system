@@ -101,17 +101,25 @@ documented); keystone-identity preflight verified; bounded chunked restart-safe
 batch plan + serial registry resource guard pinned (dry-run only); artifact audit
 clean; no external provider calls; no values committed.
 
-### Gate `feature_materialization` — FUTSUB-P06…P13
-All eight FeaturePack families materialized + registered over the full window
-with `available_ts`, keystone identity, Parquet values, content hash, registry
-metadata; BBO treated as tradability proxy; cross-market preserves per-instrument
-`available_ts` (no forward-fill); coverage summaries value-free; no
-value/SQLite/heavy artifact committed; registry writes serialized.
+### Gate `feature_materialization` — FUTSUB-P06…P13 (drivers) + FUTSUB-P14 (run)
+All eight per-family scaleout materialization drivers built (FUTSUB-P06…P13) with
+keystone identity, Parquet-first output, serial registry writes, and value-free
+coverage summaries. The actual full-accepted-window VALUE materialization was
+deferred from P06…P13 because the WF2 executor sandbox could not write
+`ALPHA_DATA_ROOT` at the time; that is resolved post-FCFP (the #299 sandbox grant),
+and the consolidated V1 materialization now runs in **FUTSUB-P14** on the V1 fast
+engine with FCFP-P15 worker parallelism (bounded-real 2024 first, then full
+window): all eight families materialized + registered with `available_ts`,
+keystone identity, Parquet values, content hash, and `producer_engine_id`
+provenance; BBO treated as tradability proxy; cross-market preserves per-instrument
+`available_ts` (no forward-fill); single-engine V1 feature substrate; coverage
+summaries value-free; no value/SQLite/heavy artifact committed; registry writes
+serialized.
 
 ### Gate `feature_integration` — FUTSUB-P14…P15
-Feature registry integrated + consistent; feature resolver-smoke PASS (fail
-closed); feature-family coverage + quality/missingness matrix value-free with
-explicit gaps.
+FUTSUB-P14 materializes all 8 feature families on V1 (above), then integrates the
+feature registry (consistent); feature resolver-smoke PASS (fail closed);
+feature-family coverage + quality/missingness matrix value-free with explicit gaps.
 
 ### Gate `label_materialization` — FUTSUB-P16…P20
 Diagnostic/primary/extended/session-close/maintenance-flat/cost-adjusted/path

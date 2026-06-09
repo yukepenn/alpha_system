@@ -29,6 +29,32 @@ StudySpecs already exist (from the Core Pilot) and are reusable. This campaign
 does not design a new alpha factory, does not build a platform, and does not
 hunt for alpha. It materializes, guards, wires, measures, and re-runs.
 
+## Producer Engine Policy (post-FCFP)
+
+This campaign resumes after `FEATURE_COMPUTE_FAST_PATH_V1` (FCFP) delivered the
+V1 Polars producer fast path + benchmark-driven CPU worker parallelism, now the
+**default** producer engine in the scaleout driver. The substrate is materialized
+as follows:
+
+- **Features → V1 fast engine, single-engine.** All 8 feature families
+  materialize through the scaleout driver on the V1 `PackMaterializer`
+  (`materialize_v1_feature_unit`, the driver default) with FCFP-P15 CPU worker
+  parallelism (`--workers` / `ALPHA_CPU_WORKERS`). Before resume, the feature
+  registry was reset so V1 owns the feature substrate cleanly (no reference/V1
+  mixing). FUTSUB-P14 runs this materialization (bounded-real 2024 first, then the
+  full accepted window).
+- **Labels → reference engine.** Governed LabelPacks materialize on the per-row
+  reference label engine (`cli/seed_pack.run_seed_label_pack`) with serial registry
+  writes. A V1 fast **label** scaleout/worker path is **out of scope** (labels are
+  inherently light, the fast-label speedup is marginal, and labels are a separate
+  substrate so single-engine holds per-substrate). The label registry was reset
+  alongside the feature registry.
+- **Reference engine = parity oracle only.** The per-row reference feature engine
+  is retained as the correctness oracle (recomputed on demand for parity checks)
+  and stores no feature values. `Fast path ≠ Reference truth` still holds; producer
+  provenance (`producer_engine_id`) is registry metadata and never enters
+  `feature_version_id` / `label_version_id`.
+
 ## North Star
 
 Maximize robust out-of-sample, cost-adjusted, capacity-aware, low-correlation
