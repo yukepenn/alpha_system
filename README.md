@@ -7,30 +7,25 @@ The repository-level campaign pointer targets
 `FEATURE_COMPUTE_FAST_PATH_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1
-engine core, governed feature packs through `cross_market`, the governed
-fixed-horizon label pack, targeted / incremental scaleout selection, producer
-provenance reconciliation, the `FCFP-P13` bounded benchmark gate, and the
-`FCFP-P15` benchmark-driven CPU worker parallelism available in this
-worktree. Ralph owns validation, staging, Yellow-lane review routing, and any
-phase verdict.
+Current campaign progress: `FCFP-P16` is the final phase of
+`FEATURE_COMPUTE_FAST_PATH_V1`. In this post-merge snapshot, all 17 phases
+(`FCFP-P00` through `FCFP-P16`) are landed and the V1 producer compute fast path
+is closed out with a verdict and a FUTSUB resume-on-V1 handoff.
 
-Active / next integration path after P15 review and merge: `FCFP-P16`
-closeout + FUTSUB resume handoff. Remaining phases merge serially.
+Active / next phase: there is no further FCFP phase. The next action is the
+coordinator-owned repoint of `ACTIVE_CAMPAIGN.md` to
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` and resuming FUTSUB on V1 per
+`handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md`.
 
-New durable surfaces in this `FCFP-P15` executor snapshot:
+New durable surfaces in this `FCFP-P16` executor snapshot:
 
-- `src/alpha_system/features/scaleout/driver.py` can parallelize V1 compute
-  across CPU workers while preserving one serial official registry writer.
-- `src/alpha_system/cli/scaleout.py` exposes `--workers`; `ALPHA_CPU_WORKERS`
-  is the environment fallback and serial `1` remains the default.
-- `tools/feature_compute_fast_path/worker_benchmark.py` writes the value-free
-  `{1,2,4,8}` worker benchmark summary under
-  `research/feature_compute_fast_path_v1/workers/`.
-- `docs/feature_compute_fast_path/WORKER_PARALLELISM.md` documents the worker
-  model, oversubscription controls, deterministic manifests, and benchmark.
-- No full-window backfill, feature/label value artifact, broker/live/paper
-  behavior, deployment behavior, or alpha/profitability claim is added.
+- `research/feature_compute_fast_path_v1/closeout/CLOSEOUT.md` records the
+  closeout verdict, status fields, phase roll-up, and boundary confirmation.
+- `handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md` records the
+  coordinator-owned FUTSUB resume-on-V1 recipe.
+- No new code, tests, commands, benchmark, materialization, full-window
+  backfill, feature/label value artifact, broker/live/paper behavior,
+  deployment behavior, or alpha/profitability claim is added.
 
 ## Source Of Truth
 
