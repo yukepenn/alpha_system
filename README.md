@@ -11,24 +11,24 @@ Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1
 engine core, governed feature packs through `cross_market`, the governed
 fixed-horizon label pack, targeted / incremental scaleout selection, producer
 provenance reconciliation, the `FCFP-P13` bounded benchmark gate, and the
-`FCFP-P14` V1 producer path integration + resolver smoke available in this
+`FCFP-P15` benchmark-driven CPU worker parallelism available in this
 worktree. Ralph owns validation, staging, Yellow-lane review routing, and any
 phase verdict.
 
-Active / next integration path after P14 review and merge: `FCFP-P15`
-benchmark-driven CPU worker parallelism, then `FCFP-P16` closeout + FUTSUB
-resume handoff. Remaining phases merge serially.
+Active / next integration path after P15 review and merge: `FCFP-P16`
+closeout + FUTSUB resume handoff. Remaining phases merge serially.
 
-New durable surfaces in this `FCFP-P14` executor snapshot:
+New durable surfaces in this `FCFP-P15` executor snapshot:
 
-- `src/alpha_system/features/scaleout/driver.py` now routes execute-mode
-  feature scaleout to V1 by default while preserving `--engine reference`.
-- `src/alpha_system/cli/scaleout.py` exposes `--engine {v1,reference}`.
-- `research/feature_compute_fast_path_v1/integration/integration_report.md`
-  records the value-free integration and resolver-smoke counts.
-- `docs/feature_compute_fast_path/PRODUCER_PATH_INTEGRATION.md` documents the
-  default engine route, reference fallback, engine-aware idempotency, and
-  resolver-smoke procedure.
+- `src/alpha_system/features/scaleout/driver.py` can parallelize V1 compute
+  across CPU workers while preserving one serial official registry writer.
+- `src/alpha_system/cli/scaleout.py` exposes `--workers`; `ALPHA_CPU_WORKERS`
+  is the environment fallback and serial `1` remains the default.
+- `tools/feature_compute_fast_path/worker_benchmark.py` writes the value-free
+  `{1,2,4,8}` worker benchmark summary under
+  `research/feature_compute_fast_path_v1/workers/`.
+- `docs/feature_compute_fast_path/WORKER_PARALLELISM.md` documents the worker
+  model, oversubscription controls, deterministic manifests, and benchmark.
 - No full-window backfill, feature/label value artifact, broker/live/paper
   behavior, deployment behavior, or alpha/profitability claim is added.
 
@@ -52,15 +52,17 @@ production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
 The reference feature/label engine remains the correctness oracle. Resolver
-exact-id semantics, official keystone registry writes, and serial registry writes
-are preserved. The fast engine produces values for existing governed identities;
-it never mints V1-specific feature ids or label ids, and producer provenance
-does not enter identity. Existing valid reference outputs remain preserved and
-reconciled by policy; no manual SQLite write, paper/live/broker/order behavior,
-or profitability/tradability claim is authorized. Feature/label values and
-registries remain local-only under `ALPHA_DATA_ROOT`. Polars remains an optional
-dependency guarded by `require_dependency("polars")`. The campaign uses
-Green/Yellow scope only and introduces no Red scope.
+exact-id semantics, official keystone registry writes, and serial registry
+writes are preserved; worker processes compute values only and never write
+SQLite registry rows. The fast engine produces values for existing governed
+identities; it never mints V1-specific feature ids or label ids, and producer
+provenance does not enter identity. Existing valid reference outputs remain
+preserved and reconciled by policy; no manual SQLite write,
+paper/live/broker/order behavior, or profitability/tradability claim is
+authorized. Feature/label values and registries remain local-only under
+`ALPHA_DATA_ROOT`. Polars remains an optional dependency guarded by
+`require_dependency("polars")`. The campaign uses Green/Yellow scope only and
+introduces no Red scope.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data, feature

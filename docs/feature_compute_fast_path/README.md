@@ -17,6 +17,9 @@ This directory is the durable documentation index for
 - `PRODUCER_PATH_INTEGRATION.md` documents the P14 default V1 producer route,
   `--engine {v1,reference}` selection, engine-aware idempotency, and
   resolver-smoke procedure.
+- `WORKER_PARALLELISM.md` documents the P15 `--workers` /
+  `ALPHA_CPU_WORKERS` controls, worker-compute / serial-writer boundary,
+  deterministic worker manifests, and worker benchmark runner.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
@@ -109,3 +112,10 @@ integration smoke materializes representative bounded-real V1 feature and label
 locks, resolves them through the official runtime resolver, verifies stale and
 fuzzy controls fail closed, and writes the value-free report under
 `research/feature_compute_fast_path_v1/integration/`.
+
+`FCFP-P15` adds benchmark-driven CPU worker parallelism for the V1 producer
+path. Compute can run across independent units with `--workers` or
+`ALPHA_CPU_WORKERS`; the parent process remains the single official
+`FeatureStore` registry writer. Cross-market units stay panel-level, value-store
+hashing uses canonical record order, and the value-free worker benchmark summary
+lives under `research/feature_compute_fast_path_v1/workers/`.

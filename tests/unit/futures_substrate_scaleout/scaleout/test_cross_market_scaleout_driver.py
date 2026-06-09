@@ -23,11 +23,11 @@ def test_cross_market_scaleout_full_window_preview_has_accepted_units() -> None:
 
     summary = run_scaleout(config, rollout="full-window")
 
-    assert summary.accepted_unit_count == 24
-    assert summary.planned_count == 24
+    assert summary.accepted_unit_count == 8
+    assert summary.planned_count == 8
     assert summary.failed_count == 0
     assert {record.unit.year for record in summary.records} == set(range(2019, 2027))
-    assert {record.unit.symbol for record in summary.records} == {"ES", "NQ", "RTY"}
+    assert {record.unit.symbol for record in summary.records} == {"ES_NQ_RTY"}
     assert all(record.unit.dataset_version_id.startswith("dsv_databento_ohlcv_dense") for record in summary.records)
     assert all(record.feature_version_ids for record in summary.records)
     assert all(len(record.feature_version_ids) == 11 for record in summary.records)

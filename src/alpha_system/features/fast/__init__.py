@@ -75,6 +75,16 @@ from alpha_system.features.fast.vwap_session_auction import (
     build_vwap_session_auction_pack,
     supports_vwap_session_auction_pack,
 )
+from alpha_system.features.fast.worker import (
+    CANONICAL_FEATURE_RECORD_ORDER,
+    FAST_WORKER_MANIFEST_SCHEMA,
+    FastWorkerManifest,
+    FastWorkerUnitOutput,
+    feature_request_payloads,
+    worker_manifest_from_result,
+    worker_manifest_path,
+    write_worker_manifest,
+)
 
 __all__ = [
     "BBO_TRADABILITY_DDOF",
@@ -89,11 +99,15 @@ __all__ = [
     "BASE_OHLCV_RESET_ON_SESSION",
     "BASE_OHLCV_WINDOW_LENGTH",
     "CROSS_MARKET_FEATURE_IDS",
+    "CANONICAL_FEATURE_RECORD_ORDER",
     "FAST_PRODUCER_ENGINE_ID",
+    "FAST_WORKER_MANIFEST_SCHEMA",
     "FAST_VALUE_SCHEMA_VERSION",
     "FEATURE_RECONCILIATION_TOLERANCES",
     "FastFeatureDeclaration",
     "FastFeaturePack",
+    "FastWorkerManifest",
+    "FastWorkerUnitOutput",
     "LIQUIDITY_PA_STRUCTURE_FEATURE_IDS",
     "PackMaterializer",
     "PackMaterializerError",
@@ -123,6 +137,7 @@ __all__ = [
     "build_vwap_session_auction_pack",
     "classify_feature_value_records",
     "classify_parquet_feature_series",
+    "feature_request_payloads",
     "reconciliation_decision_text",
     "supports_bbo_tradability_pack",
     "supports_base_ohlcv_pack",
@@ -132,4 +147,7 @@ __all__ = [
     "supports_session_calendar_roll_pack",
     "supports_volume_activity_pack",
     "supports_vwap_session_auction_pack",
+    "worker_manifest_from_result",
+    "worker_manifest_path",
+    "write_worker_manifest",
 ]

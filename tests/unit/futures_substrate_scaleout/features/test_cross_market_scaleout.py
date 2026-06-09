@@ -50,10 +50,10 @@ def test_cross_market_scaleout_preview_maps_existing_primitives() -> None:
         "divergence_agreement",
         "lead_lag",
     )
-    assert summary.accepted_unit_count == 24
-    assert summary.bounded_unit_count == 3
+    assert summary.accepted_unit_count == 8
+    assert summary.bounded_unit_count == 1
     assert summary.failed_count == 0
-    assert {record.unit.symbol for record in summary.records} == {"ES", "NQ", "RTY"}
+    assert {record.unit.symbol for record in summary.records} == {"ES_NQ_RTY"}
     for record in summary.records:
         assert len(record.feature_version_ids) == P13_PRIMITIVE_COUNT
         assert all(version_id.startswith("fver_") for version_id in record.feature_version_ids)
@@ -62,11 +62,11 @@ def test_cross_market_scaleout_preview_maps_existing_primitives() -> None:
             "ohlcv_dense_research_grid",
         }
     bounded_versions = {
-        record.unit.symbol: tuple(record.feature_version_ids)
+        record.unit.year: tuple(record.feature_version_ids)
         for record in summary.records
         if record.unit.year == summary.bounded_year
     }
-    assert len(set(bounded_versions.values())) == 3
+    assert len(set(bounded_versions.values())) == 1
 
 
 def test_strict_intersection_preserves_latest_contributing_available_ts() -> None:

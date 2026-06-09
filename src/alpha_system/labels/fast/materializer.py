@@ -865,7 +865,7 @@ def _write_records(
     value_store_format: ValueStoreFormat,
 ) -> _WriteResult:
     store_format = _coerce_value_store_format(value_store_format)
-    record_dicts = [record.to_dict() for record in records]
+    record_dicts = _canonical_record_dicts(records)
     value_content_hash = compute_value_content_hash(record_dicts)
     jsonl_path: Path | None = None
     parquet_path: Path | None = None
@@ -919,6 +919,25 @@ def _write_records(
             max_available_ts=max(available_ts_values),
         ),
     )
+
+
+def _canonical_record_dicts(
+    records: Sequence[LabelValueRecord],
+) -> list[Mapping[str, Any]]:
+    """Return label value records in byte-stable content-hash order."""
+
+    return [
+        record.to_dict()
+        for record in sorted(
+            records,
+            key=lambda item: (
+                item.label_version_id,
+                item.entity_id,
+                item.event_ts.isoformat(),
+                item.label_available_ts.isoformat(),
+            ),
+        )
+    ]
 
 
 def _render_jsonl(
