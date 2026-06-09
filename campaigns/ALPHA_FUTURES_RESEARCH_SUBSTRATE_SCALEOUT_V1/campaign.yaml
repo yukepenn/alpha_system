@@ -1425,6 +1425,7 @@ phases:
   scope:
   - 'Materialize + register fixed-horizon labels over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded) with the roll-splice + maintenance-crossing guards applied at materialization. ENGINE POLICY (post-FCFP, see GOAL.md): labels materialize on the per-row REFERENCE label engine via cli/seed_pack.run_seed_label_pack (the official label engine + keystone registry write path). A V1 fast LABEL scaleout/worker path is OUT OF SCOPE — do NOT build one; the scaleout driver V1 fast path and --workers are feature-only. Extend the driver only with a thin label-mode dispatch that wraps run_seed_label_pack if a single entrypoint is convenient. Reuse the same checkpoint/restart, Parquet-first, and serial-registry guarantees. The label registry was reset before resume, so no duplicate-exposure reconciliation is needed.'
   - Enforce label_available_ts, horizon coverage report, and N_eff / overlap metadata.
+  - 'ROLL-CROSSING GUARD (RISK_REGISTER R-037, no-lookahead audit 2026-06-09): src/alpha_system/labels/roll_guard.py is currently UNWIRED DEAD CODE (zero callers) and the canonical series is continuous front-month UNADJUSTED, so forward-return / path / MFE-MAE / triple-barrier label windows that cross a quarterly contract roll silently measure the cross-contract price gap as a spurious return. WIRE roll_guard.py into the shared label terminal-resolution path (labels/engine + families) so cross-roll and maintenance-crossing forward windows are DROPPED or flagged, never silently measured. Confirm the forward-terminal key is contract-scoped: if the per-partition input view is a stitched continuous series, add contract_id to the terminal key (fixed_horizon + path families) so a terminal in a different contract is never spliced. Add a test proving a roll-crossing forward window is dropped/flagged. This wiring is SHARED so P17-P20 inherit it; P21 audits it.'
   - Commit only the value-free driver-label-mode code + tests + coverage summary + config; values/registries/checkpoints local-only.
   non_goals:
   - New label families; diagnostics; alpha work; silent cross-roll/maintenance windows; full-history JSONL payloads.
@@ -1445,6 +1446,7 @@ phases:
   merge_group: label_materialization
   allowed_paths:
   - src/alpha_system/labels/families/fixed_horizon/**
+  - src/alpha_system/labels/roll_guard.py
   - src/alpha_system/features/scaleout/**
   - src/alpha_system/labels/scaleout/**
   - src/alpha_system/labels/engine/**
