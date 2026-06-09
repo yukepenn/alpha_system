@@ -69,7 +69,7 @@ workflow2:
   - Bootstrap / contract / integration / audit / wiring / rerun / closeout
     phases are must_run_alone.
 runtime:
-  python: '3.11'
+  python: '3.12'
   package_root: src/alpha_system
   test_root: tests
   smoke_command: python tools/verify.py --smoke
