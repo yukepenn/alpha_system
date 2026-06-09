@@ -1,6 +1,6 @@
 # PHASE_PLAN — FEATURE_COMPUTE_FAST_PATH_V1
 
-16 phases (FCFP-P00..P15), `dag_wave` scheduler, serial merge queue. Family-pack phases
+17 phases (FCFP-P00..P16), `dag_wave` scheduler, serial merge queue. Family-pack phases
 build in parallel (distinct modules + synthetic fixtures) and merge serially; phases that touch
 the real local registry or run benchmarks share `resource_class: materialization_registry` and
 are serialized. The reference engine is the parity oracle for every pack.
@@ -22,7 +22,8 @@ are serialized. The reference engine is the parity oracle for every pack.
 | FCFP-P12 | Engine/Value-Schema Versioning + Reconciliation | YELLOW | P02..P09 | materialization_registry |
 | FCFP-P13 | Benchmark Gate | YELLOW | P02..P10 | materialization_registry |
 | FCFP-P14 | V1 Producer Path Integration + Resolver Smoke | YELLOW | P11,P12,P13 | materialization_registry |
-| FCFP-P15 | Closeout + FUTSUB Resume Handoff | YELLOW | P14 | — |
+| FCFP-P15 | Benchmark-Driven CPU Worker Parallelism for V1 Producer Path | YELLOW | P14 | materialization_registry |
+| FCFP-P16 | Closeout + FUTSUB Resume Handoff | YELLOW | P15 | — |
 
 ## DAG shape
 
@@ -34,12 +35,13 @@ are serialized. The reference engine is the parity oracle for every pack.
 - **Reconciliation**: P12 depends on all feature packs (P02–P09).
 - **Benchmark**: P13 depends on all packs incl. labels (P02–P10).
 - **Integration**: P14 depends on P11 + P12 + P13.
-- **Closeout**: P15 depends on P14.
+- **Workers**: P15 (benchmark-driven CPU worker parallelism for the V1 producer path) depends on P14.
+- **Closeout**: P16 depends on P15.
 
 ## Lane summary
 
 - 1 GREEN (P00 bootstrap, auto-merge, review optional).
-- 15 YELLOW (fresh Claude Opus review required; auto-merge after review when gates pass).
+- 16 YELLOW (fresh Claude Opus review required; auto-merge after review when gates pass).
 - 0 RED (no external/live/broker/destructive scope; campaign expected to avoid Red).
 
 ## Per-phase contract

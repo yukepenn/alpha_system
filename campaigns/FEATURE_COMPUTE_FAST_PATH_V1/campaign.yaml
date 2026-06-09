@@ -1000,10 +1000,65 @@ phases:
   handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P14.md
   review: yellow lane; fresh Opus review required.
 - id: FCFP-P15
-  name: Closeout + FUTSUB Resume Handoff
+  name: Benchmark-Driven CPU Worker Parallelism for V1 Producer Path
   lane: YELLOW
   dependencies:
   - FCFP-P14
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Add benchmark-driven CPU worker parallelism to the V1 producer fast path so feature/label materialization parallelizes COMPUTE across independent units while registry writes stay serial and official, giving FCFP and the resumed FUTSUB backfill real multi-core throughput with preserved reference parity and deterministic, restartable output.
+  scope:
+  - Parallelize COMPUTE only, over independent units (family_or_feature_group x symbol x year/dataset_version_id). cross_market keeps the ES/NQ/RTY panel aligned per year (one unit per year spanning all instruments, never split mid-panel). Fixed-horizon labels compute all horizons in one pass per unit. Workers each load canonical input, compute via the V1 PackMaterializer, and write a LOCAL Parquet + a deterministic manifest (no registry writes inside a worker).
+  - A single serial writer registers every worker output through the official FeatureStore/LabelRegistry keystone path in deterministic unit order, preserving content-addressed feature_version_id/label_version_id identity, the per-registry-state request gate, checkpoint/idempotency, and restart-safety. NEVER parallelize SQLite/registry writes; there is exactly one writer.
+  - Add a --workers CLI flag and ALPHA_CPU_WORKERS env (CLI takes precedence; default 1 = current serial behavior). Control thread oversubscription by pinning POLARS_MAX_THREADS / OMP_NUM_THREADS / RAYON_NUM_THREADS per worker so workers x threads does not exceed cores.
+  - Determinism + restartability - canonicalize each unit's output record order before content-hashing; manifests and content hashes are byte-stable across worker counts; completed units are skipped via checkpoint + registry truth; a failed unit is independently retryable without recomputing completed units. Reference parity is re-asserted on worker output (V1 == reference within documented tolerance).
+  - A worker benchmark - run the bounded-real slice at workers in {1,2,4,8}, report elapsed, rows/sec, canonical-reads, peak memory, registry-queue wait, resolver-smoke, and parity for each, and record the fastest STABLE worker count in a value-free summary. No silent caps - log any dropped/under-subscribed work.
+  non_goals:
+  - GPU/CUDA kernels; Ray/Dask/Spark/any distributed or multi-machine scheduler; alpha ideation; the full accepted-window backfill itself (that resumes under FUTSUB); any change to value/accounting math or the reference oracle.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/futures_substrate_scaleout/ tests/unit/feature_compute_fast_path/ -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python tools/hooks/canary_runner.py
+  - test -f research/feature_compute_fast_path_v1/workers/worker_benchmark_summary.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/features/scaleout/driver.py
+  - src/alpha_system/features/fast/**
+  - src/alpha_system/labels/fast/**
+  - src/alpha_system/cli/scaleout.py
+  - tools/feature_compute_fast_path/**
+  - tests/unit/futures_substrate_scaleout/**
+  - tests/unit/feature_compute_fast_path/**
+  - research/feature_compute_fast_path_v1/workers/**
+  - docs/feature_compute_fast_path/**
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - V1 producer path parallelizes COMPUTE across independent units with serial official registry writes; --workers/ALPHA_CPU_WORKERS wired with oversubscription control; output is deterministic and restartable with content hashes byte-stable across worker counts; reference parity preserved; the {1,2,4,8} worker benchmark + chosen stable worker count recorded in a value-free summary; no values/SQLite committed.
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
+  review: yellow lane; fresh Opus review required.
+- id: FCFP-P16
+  name: Closeout + FUTSUB Resume Handoff
+  lane: YELLOW
+  dependencies:
+  - FCFP-P15
   spec_required: true
   executor: Codex GPT-5.5 xhigh
   reviewer: Claude Opus 4.8 xhigh
@@ -1035,12 +1090,12 @@ phases:
   allowed_paths:
   - research/feature_compute_fast_path_v1/closeout/**
   - docs/feature_compute_fast_path/**
-  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
+  - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P16.md
   - handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md
-  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15/**
+  - reviews/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P16/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
   - CLOSEOUT.md with verdict + parity/benchmark evidence; FUTSUB resume-on-V1 handoff written; canaries pass; no values/SQLite committed.
-  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P15.md
+  handoff: handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FCFP-P16.md
   review: yellow lane; fresh Opus review required.

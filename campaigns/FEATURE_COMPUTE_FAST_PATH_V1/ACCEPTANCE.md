@@ -2,9 +2,13 @@
 
 ## Campaign done
 
-- All 16 phases (FCFP-P00..P15) complete; each phase's checks pass and review artifacts exist
+- All 17 phases (FCFP-P00..P16) complete; each phase's checks pass and review artifacts exist
   for YELLOW phases.
-- FCFP-P15 `CLOSEOUT.md` carries a `{COMPLETE | COMPLETE_WITH_WARNINGS | BLOCKED}` verdict and
+- FCFP-P15 adds benchmark-driven CPU worker parallelism to the V1 producer path (parallel
+  COMPUTE over independent units, serial official registry writes, deterministic + restartable,
+  reference parity preserved) with a `{1,2,4,8}` worker benchmark recording the fastest stable
+  worker count.
+- FCFP-P16 `CLOSEOUT.md` carries a `{COMPLETE | COMPLETE_WITH_WARNINGS | BLOCKED}` verdict and
   the `producer_fast_path_v1_status` evidence.
 - `python tools/verify.py --all` and `python tools/hooks/canary_runner.py` pass (env-only reds
   documented).
