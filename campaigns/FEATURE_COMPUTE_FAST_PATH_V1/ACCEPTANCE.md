@@ -31,6 +31,26 @@ symbol-year, outputs per read, speedup vs reference, and the estimated full-acce
 runtime. V1 must be materially faster than the reference engine and must reduce redundant
 canonical scans.
 
+**Bounded measurement window (required).** The benchmark MUST run on a bounded,
+representative slice — a single configurable window defaulting to **one roll-containing
+month** (e.g. ES/NQ/RTY December 2024, which spans a contract roll plus holiday/maintenance
+session gaps) — NOT a full symbol-year. The reference engine is the ~500x-slower correctness
+oracle and MUST NOT be timed on a full symbol-year (doing so adds tens of minutes of pure
+wall-clock with zero correctness payoff). The estimated full-accepted-window runtime is
+**extrapolated** from the slice's measured rows/sec and the known full-window row counts; the
+benchmark records the slice row count, the window, and the extrapolation basis. The slice MUST
+be self-validating: it asserts it contains at least one contract-roll event and at least one
+session gap (so the bounded window still exercises the structurally important branches), and
+widens or fails with a clear message otherwise.
+
+**Real-data parity confirmation (required, complements the synthetic parity gate).** On the
+same bounded slice, the benchmark MUST also assert V1 == reference on **value**
+(documented numeric tolerance where float differences are expected), **available_ts /
+label_available_ts**, **gap/quality flags**, and **feature_version_id / label_version_id**.
+This is a real-data confirmation layered on top of the exhaustive synthetic-fixture parity
+gate (§Parity gate), not a replacement for it; unexplained diffs are blockers. The benchmark
+is no longer timing-only — it proves the bounded slice matches before reporting any speedup.
+
 ## Capability gate (incremental)
 
 - Targeted materialization by family / feature_id / feature_group / label_id / symbols / years /
