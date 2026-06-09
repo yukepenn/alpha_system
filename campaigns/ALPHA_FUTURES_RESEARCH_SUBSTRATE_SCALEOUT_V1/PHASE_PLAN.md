@@ -23,8 +23,8 @@ serial DAG with a serial merge queue.
 
 ```text
 Sequential : FUTSUB-P00 -> P01 -> P02 -> P03 -> P04 -> P05            (bootstrap / contract)
-Serialized : FUTSUB-P06 P07 P08 P09 P10 P11 P12 P13                   (FeaturePacks; shared registry resource_class)
-Sequential : FUTSUB-P14 -> P15                                        (feature integration + coverage)
+Serialized : FUTSUB-P06 P07 P08 P09 P10 P11 P12 P13                   (FeaturePack scaleout DRIVERS; shared registry resource_class)
+Sequential : FUTSUB-P14 -> P15                                        (V1 feature MATERIALIZATION [all 8 families, workers] + integration + coverage)
 Serialized : FUTSUB-P16 P17 P18 P19 P20                              (LabelPacks; shared registry resource_class)
 Sequential : FUTSUB-P21 -> P22 -> P23                                 (label guard audit + integration + coverage)
 Sequential : FUTSUB-P24 -> P25 -> P26                                 (walk-forward wiring + N_eff + matrices)
