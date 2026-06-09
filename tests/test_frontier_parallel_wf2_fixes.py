@@ -70,12 +70,9 @@ def test_codex_adapter_wires_service_tier_into_exec(tmp_path, monkeypatch) -> No
     config = load_provider_config(tmp_path)
 
     command = CodexProviderAdapter(config).build_command("prompt")
-    assert command == [
-        "codex", "exec",
-        "-c", "service_tier=flex",
-        "-c", "shell_environment_policy.inherit=all",
-        "--sandbox", "workspace-write", "-",
-    ]
+    assert command[:4] == ["codex", "exec", "-c", "service_tier=flex"]
+    assert "shell_environment_policy.inherit=all" in command
+    assert command[-3:] == ["--sandbox", "workspace-write", "-"]
 
 
 def test_codex_adapter_passes_run_environment_to_executor(tmp_path, monkeypatch) -> None:

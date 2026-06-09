@@ -28,6 +28,8 @@ class ProviderRuntimeConfig:
     codex_sandbox: str
     codex_service_tier: str
     codex_shell_environment_inherit: str
+    codex_data_root: Path | None
+    codex_sandbox_writable_roots: tuple[str, ...]
     default_worktree_mode: bool
     worktree_root: Path | None
     lane_policies: dict[str, Any]
@@ -42,6 +44,64 @@ class ProviderRuntimeConfig:
 # "fast" is the friendly alias for the priority (expedited, higher-cost) tier.
 _VALID_SERVICE_TIERS = {"auto", "default", "flex", "priority", "scale"}
 _SERVICE_TIER_ALIASES = {"fast": "priority"}
+
+
+# The repo-default local data root, matching
+# alpha_system.data.foundation.sources.DEFAULT_ALPHA_DATA_ROOT. Used when neither
+# ALPHA_DATA_ROOT nor providers.codex.data_root is set, so the sandbox grant is
+# robust even if the operator forgot to export ALPHA_DATA_ROOT.
+_DEFAULT_ALPHA_DATA_ROOT = "~/alpha_data/alpha_system"
+
+
+def _resolve_codex_data_root(value: Any) -> Path | None:
+    """Resolve the local data root the codex sandbox needs read+write access to."""
+
+    text = str(value).strip() if value is not None else ""
+    if not text:
+        text = _DEFAULT_ALPHA_DATA_ROOT
+    expanded = os.path.expandvars(os.path.expanduser(text))
+    if not expanded.strip():
+        return None
+    return Path(expanded).resolve(strict=False)
+
+
+def _resolve_codex_writable_roots(value: Any, *, data_root: Path | None) -> tuple[str, ...]:
+    """Build the ordered, de-duplicated set of extra sandbox-writable roots.
+
+    Always includes the resolved data root so data-dependent phases can read
+    canonical inputs and write registries/materialized values. Additional roots
+    may be configured via providers.codex.sandbox_writable_roots (env-expanded);
+    unresolved/empty entries are dropped rather than failing the run.
+    """
+
+    roots: list[str] = []
+    if data_root is not None:
+        roots.append(str(data_root))
+    entries: list[Any]
+    if value is None:
+        entries = []
+    elif isinstance(value, (list, tuple)):
+        entries = list(value)
+    else:
+        entries = [value]
+    for entry in entries:
+        text = str(entry).strip() if entry is not None else ""
+        if not text:
+            continue
+        expanded = os.path.expandvars(os.path.expanduser(text)).strip()
+        if not expanded or "${" in expanded:
+            # Drop entries whose env vars did not resolve (e.g. "${ALPHA_DATA_ROOT}"
+            # when unset) instead of handing codex a literal "${...}" path.
+            continue
+        roots.append(str(Path(expanded).resolve(strict=False)))
+    # De-duplicate while preserving order.
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for entry in roots:
+        if entry not in seen:
+            seen.add(entry)
+            ordered.append(entry)
+    return tuple(ordered)
 
 
 def _resolve_service_tier(value: str) -> str:
@@ -187,6 +247,22 @@ def load_provider_config(root: Path | None = None, env: Mapping[str, str] | None
                 f"got {codex_shell_environment_inherit!r}."
             )
 
+        # Resolve the local data root (ALPHA_DATA_ROOT) and the set of filesystem
+        # roots the codex workspace-write sandbox may read and write. The data
+        # root lives OUTSIDE the git worktree (canonical data, registries,
+        # materialized values are never committed), so workspace-write blocks it
+        # by default and data-dependent phases fail closed on empty inputs. We
+        # resolve it from ALPHA_DATA_ROOT, then frontier.yaml providers.codex.
+        # data_root, then the repo default (~/alpha_data/alpha_system), and grant
+        # the codex sandbox read+write access to it (see provider_adapters).
+        codex_data_root = _resolve_codex_data_root(
+            os.environ.get("ALPHA_DATA_ROOT") or _nested(providers, "codex", "data_root")
+        )
+        codex_sandbox_writable_roots = _resolve_codex_writable_roots(
+            _nested(providers, "codex", "sandbox_writable_roots"),
+            data_root=codex_data_root,
+        )
+
         env_worktree = _bool_from_env("FRONTIER_WORKTREE_MODE")
         configured_worktree = workflow2.get("worktree_mode", workflow2.get("default_worktree_mode", False))
         default_worktree_mode = bool(configured_worktree) if env_worktree is None else env_worktree
@@ -203,6 +279,8 @@ def load_provider_config(root: Path | None = None, env: Mapping[str, str] | None
             codex_sandbox=codex_sandbox,
             codex_service_tier=codex_service_tier,
             codex_shell_environment_inherit=codex_shell_environment_inherit,
+            codex_data_root=codex_data_root,
+            codex_sandbox_writable_roots=codex_sandbox_writable_roots,
             default_worktree_mode=default_worktree_mode,
             worktree_root=worktree_root,
             lane_policies=dict(lanes),
