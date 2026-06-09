@@ -41,6 +41,14 @@ SCALEOUT_ENGINE_REFERENCE = "reference"
 DEFAULT_SCALEOUT_ENGINE = SCALEOUT_ENGINE_V1
 SCALEOUT_ENGINES = frozenset({SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE})
 DEFAULT_CPU_WORKERS = 1
+SESSION_METADATA_ROLE_MARKER = "SESSION_METADATA_POINT_IN_TIME"
+SESSION_METADATA_ROLE_FAMILIES = frozenset(
+    {
+        "session_calendar_maintenance",
+        "liquidity_sweep_pa_structure",
+        "cross_market_alignment",
+    }
+)
 ELIGIBLE_ACCEPTANCE_STATES = frozenset(
     {
         DatasetAcceptanceState.ACCEPTED.value,
@@ -1747,37 +1755,75 @@ def _register_v1_worker_output(
     store = FeatureStore.from_alpha_data_root(alpha_data_root)
     materializer = PackMaterializer()
     result = _v1_result_with_records(output.materialization_result)
-    if rebuild_request_against_live_registry:
-        fresh = _prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root)
-        worker_plan = result.plan
-        fresh_idempotency_key = _plan_content_hash(
-            fresh.feature_set,
-            dataset_version_id=worker_plan.dataset_version_id,
-            partition_id=worker_plan.partition_id,
-            output_path=worker_plan.output_path,
-            governance_metadata=worker_plan.governance_metadata,
+    pack = build_fast_feature_pack(output.feature_set)
+    records: list[Any] = []
+    if not hasattr(result, "plan"):
+        records.extend(
+            materializer.register_pack(
+                result,
+                pack,
+                feature_requests=output.feature_request_payloads,
+                store=store,
+                registry_metadata=output.registry_metadata,
+            )
         )
-        fresh_plan = replace(
-            worker_plan,
-            feature_set=fresh.feature_set,
-            plan_id=f"fmat_{fresh_idempotency_key}",
-            idempotency_key=fresh_idempotency_key,
-            feature_version_ids=_feature_version_ids(fresh.feature_set),
-        )
-        result = replace(result, plan=fresh_plan)
-        feature_set = fresh.feature_set
-        feature_requests = fresh.feature_request_payloads
     else:
-        feature_set = output.feature_set
-        feature_requests = output.feature_request_payloads
-    pack = build_fast_feature_pack(feature_set)
-    records = materializer.register_pack(
-        result,
-        pack,
-        feature_requests=feature_requests,
-        store=store,
-        registry_metadata=output.registry_metadata,
-    )
+        current_features = list(result.plan.feature_set.features)
+        for ordinal, declaration in enumerate(pack.declarations):
+            existing = store.resolve_feature(declaration.feature_version_id)
+            if existing is not None:
+                if not _registry_record_matches_engine(existing, SCALEOUT_ENGINE_V1):
+                    raise ScaleoutError(
+                        "existing V1 feature version has non-V1 producer provenance: "
+                        f"{declaration.feature_version_id}"
+                    )
+                parquet_path = getattr(existing, "parquet_path", None)
+                if not parquet_path or not Path(parquet_path).exists():
+                    raise ScaleoutError(
+                        "existing V1 feature version is missing Parquet materialization: "
+                        f"{declaration.feature_version_id}"
+                    )
+                records.append(existing)
+                continue
+
+            fresh, fresh_pack, fresh_declaration = _fresh_v1_declaration_for_version(
+                config,
+                unit,
+                expected_version_id=declaration.feature_version_id,
+                alpha_data_root=alpha_data_root,
+            )
+            current_features[ordinal] = fresh_declaration.feature_spec
+            fresh_feature_set = replace(
+                result.plan.feature_set,
+                features=tuple(current_features),
+            )
+            worker_plan = result.plan
+            fresh_idempotency_key = _plan_content_hash(
+                fresh_feature_set,
+                dataset_version_id=worker_plan.dataset_version_id,
+                partition_id=worker_plan.partition_id,
+                output_path=worker_plan.output_path,
+                governance_metadata=worker_plan.governance_metadata,
+            )
+            fresh_result = replace(
+                result,
+                plan=replace(
+                    worker_plan,
+                    feature_set=fresh_feature_set,
+                    plan_id=f"fmat_{fresh_idempotency_key}",
+                    idempotency_key=fresh_idempotency_key,
+                    feature_version_ids=_feature_version_ids(fresh_feature_set),
+                ),
+            )
+            records.extend(
+                materializer.register_pack(
+                    fresh_result,
+                    fresh_pack,
+                    feature_requests=fresh.feature_request_payloads,
+                    store=store,
+                    registry_metadata=fresh.registry_metadata,
+                )
+            )
     feature_version_ids = tuple(record.feature_version_id for record in records)
     handle = result.value_store_handle
     if handle is None:
@@ -1798,6 +1844,84 @@ def _register_v1_worker_output(
         row_count=handle.value_count,
         feature_version_ids=feature_version_ids,
     )
+
+
+def _fresh_v1_declaration_for_version(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    expected_version_id: str,
+    alpha_data_root: Path,
+) -> tuple[_V1PreparedWorkerJob, Any, Any]:
+    """Rebuild one live-registry V1 declaration selected by stable identity."""
+
+    from alpha_system.features.contracts import FeatureSetSpec
+    from alpha_system.features.fast import (
+        FAST_PRODUCER_ENGINE_ID,
+        FastFeaturePack,
+        build_fast_feature_pack,
+        feature_request_payloads,
+    )
+
+    builders = _feature_definition_builders_for_unit(config, unit)
+    preview_definitions = tuple(builder(lambda: ()) for builder in builders)
+    matching_ordinals = tuple(
+        ordinal
+        for ordinal, definition in enumerate(preview_definitions)
+        if definition.feature_version_id == expected_version_id
+    )
+    if len(matching_ordinals) != 1:
+        raise ScaleoutError(
+            "fresh V1 declaration rebuild could not select the expected feature_version_id"
+        )
+    definition = builders[matching_ordinals[0]](
+        FeatureStore.from_alpha_data_root(alpha_data_root).registry
+    )
+    if definition.feature_version_id != expected_version_id:
+        raise ScaleoutError("fresh V1 declaration changed feature_version_id")
+    feature_spec = _definition_feature_spec(definition)
+    checked_request = definition.request_gate_decision.checked_feature_request
+    if checked_request is None:
+        raise ScaleoutError("FeatureRequest gate did not return a checked request")
+    fresh = _V1PreparedWorkerJob(
+        unit=unit,
+        feature_set=FeatureSetSpec(
+            feature_set_id=unit.feature_set_id,
+            feature_set_version=unit.feature_set_version,
+            features=(feature_spec,),
+            description=f"FCFP-P15 V1 {config.family} scaleout unit",
+            metadata={
+                "campaign_id": config.campaign_id,
+                "phase_id": config.phase_id,
+                "family": config.family,
+                "producer_engine_id": FAST_PRODUCER_ENGINE_ID,
+                "input_dataset_versions": [
+                    dataset.to_dict() for dataset in unit.input_datasets
+                ],
+            },
+        ),
+        feature_request_payloads=feature_request_payloads(
+            {feature_spec.feature_id: checked_request}
+        ),
+        registry_metadata=_v1_registry_metadata(config, unit),
+    )
+    fresh_pack = build_fast_feature_pack(fresh.feature_set)
+    matches = tuple(
+        declaration
+        for declaration in fresh_pack.declarations
+        if declaration.feature_version_id == expected_version_id
+    )
+    if len(matches) != 1:
+        raise ScaleoutError(
+            "fresh V1 declaration rebuild did not select the expected feature_version_id"
+        )
+    fresh_declaration = matches[0]
+    single_pack = FastFeaturePack(
+        feature_set=replace(fresh.feature_set, features=(fresh_declaration.feature_spec,)),
+        declarations=(fresh_declaration,),
+        prepare_frame=fresh_pack.prepare_frame,
+    )
+    return fresh, single_pack, fresh_declaration
 
 
 def _prepare_v1_worker_job(
@@ -1843,21 +1967,11 @@ def _prepare_v1_worker_job(
             "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
         },
     )
-    registry_metadata = {
-        "campaign_id": config.campaign_id,
-        "phase_id": config.phase_id,
-        "unit_id": unit.unit_id,
-        "family": config.family,
-        "producer_engine_id": FAST_PRODUCER_ENGINE_ID,
-        "value_schema_version": FAST_VALUE_SCHEMA_VERSION,
-        "engine_selection": SCALEOUT_ENGINE_V1,
-        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
-    }
     return _V1PreparedWorkerJob(
         unit=unit,
         feature_set=feature_set,
         feature_request_payloads=feature_request_payloads(feature_requests),
-        registry_metadata=registry_metadata,
+        registry_metadata=_v1_registry_metadata(config, unit),
     )
 
 
@@ -1876,14 +1990,26 @@ def _worker_unit_key(unit: ScaleoutUnit) -> dict[str, object]:
 def _v1_result_with_records(result: Any) -> Any:
     if not hasattr(result, "records") or getattr(result, "records", ()):
         return result
-    from alpha_system.core.value_store import load_parquet_values
-    from alpha_system.features.contracts import FeatureValueRecord
     from alpha_system.features.engine import FeatureMaterializationResult
 
     handle = result.value_store_handle
     if handle is None or not handle.parquet_path:
         raise ScaleoutError("worker output is missing a Parquet value-store handle")
-    records = tuple(
+    return FeatureMaterializationResult(
+        plan=result.plan,
+        records=_feature_value_records_from_parquet(handle.parquet_path),
+        dry_run=result.dry_run,
+        wrote_output=result.wrote_output,
+        output_path=result.output_path,
+        value_store_handle=handle,
+    )
+
+
+def _feature_value_records_from_parquet(parquet_path: str | Path) -> tuple[Any, ...]:
+    from alpha_system.core.value_store import load_parquet_values
+    from alpha_system.features.contracts import FeatureValueRecord
+
+    return tuple(
         FeatureValueRecord(
             feature_version_id=_require_text(row.get("feature_version_id"), "feature_version_id"),
             entity_id=_require_text(row.get("entity_id"), "entity_id"),
@@ -1892,15 +2018,7 @@ def _v1_result_with_records(result: Any) -> Any:
             value=row.get("value"),
             quality_flags=tuple(row.get("quality_flags") or ()),
         )
-        for row in load_parquet_values(handle.parquet_path)
-    )
-    return FeatureMaterializationResult(
-        plan=result.plan,
-        records=records,
-        dry_run=result.dry_run,
-        wrote_output=result.wrote_output,
-        output_path=result.output_path,
-        value_store_handle=handle,
+        for row in load_parquet_values(parquet_path)
     )
 
 
@@ -1985,11 +2103,10 @@ def _build_ohlcv_accepted_context(
     )
 
 
-def _feature_definitions_for_unit(
+def _feature_definition_builders_for_unit(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
-    registry_reader: object,
-) -> tuple[Any, ...]:
+) -> tuple[Callable[[object], Any], ...]:
     if config.family == "base_ohlcv":
         from alpha_system.cli.seed_pack import (
             _build_feature_request,
@@ -1999,42 +2116,53 @@ def _feature_definitions_for_unit(
         from alpha_system.features.families.ohlcv import build_ohlcv_feature_definition
 
         seed_config = _seed_config(config, unit)
-        return tuple(
-            build_ohlcv_feature_definition(
-                _coerce_feature_name(entry.name),
-                _build_feature_request(
-                    seed_config.feature_set,
-                    entry.name,
-                    exposure_scope=unit.partition_id,
-                ),
-                registry_reader,
-                dataset_version_ids=(unit.dataset_version_id,),
-                window_length=entry.window_length,
-                horizon=entry.horizon,
-                reset_on_session=False,
-                input_scope=_feature_input_scope(seed_config),
-            )
-            for entry in seed_config.feature_set.features
-        )
+
+        def _make(entry: Any) -> Callable[[object], Any]:
+            def _build(registry_reader: object) -> Any:
+                return build_ohlcv_feature_definition(
+                    _coerce_feature_name(entry.name),
+                    _build_feature_request(
+                        seed_config.feature_set,
+                        entry.name,
+                        exposure_scope=unit.partition_id,
+                    ),
+                    registry_reader,
+                    dataset_version_ids=(unit.dataset_version_id,),
+                    window_length=entry.window_length,
+                    horizon=entry.horizon,
+                    reset_on_session=False,
+                    input_scope=_feature_input_scope(seed_config),
+                )
+
+            return _build
+
+        return tuple(_make(entry) for entry in seed_config.feature_set.features)
     if config.family == "session_calendar_maintenance":
-        return _session_feature_definitions(config, unit, registry_reader)
+        return _session_definition_builders(config, unit)
     if config.family == "vwap_session_auction":
-        return _vwap_session_auction_feature_definitions(config, unit, registry_reader)
+        return _vwap_session_auction_definition_builders(config, unit)
     if config.family == "regime_volatility_compression":
-        return _regime_volatility_compression_feature_definitions(
-            config,
-            unit,
-            registry_reader,
-        )
+        return _regime_volatility_compression_definition_builders(config, unit)
     if config.family == "liquidity_sweep_pa_structure":
-        return _liquidity_pa_structure_feature_definitions(config, unit, registry_reader)
+        return _liquidity_pa_structure_definition_builders(config, unit)
     if config.family == "volume_activity":
-        return _volume_activity_feature_definitions(config, unit, registry_reader)
+        return _volume_activity_definition_builders(config, unit)
     if config.family == "bbo_tradability_top_book":
-        return _bbo_tradability_top_book_feature_definitions(config, unit, registry_reader)
+        return _bbo_tradability_top_book_definition_builders(config, unit)
     if config.family == "cross_market_alignment":
-        return _cross_market_alignment_feature_definitions(config, unit, registry_reader)
+        return _cross_market_alignment_definition_builders(config, unit)
     raise ScaleoutError(f"unsupported scaleout family: {config.family}")
+
+
+def _feature_definitions_for_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    registry_reader: object,
+) -> tuple[Any, ...]:
+    return tuple(
+        builder(registry_reader)
+        for builder in _feature_definition_builders_for_unit(config, unit)
+    )
 
 
 def _unit_executor_for_family(
@@ -2760,10 +2888,22 @@ def _compute_v1_stage_outputs_in_workers(
     worker_plan: ScaleoutWorkerPlan,
 ) -> dict[str, Any | BaseException]:
     outputs: dict[str, Any | BaseException] = {}
-    jobs: tuple[_V1PreparedWorkerJob, ...] = tuple(
-        _prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root)
-        for unit in units
-    )
+    jobs: list[_V1PreparedWorkerJob] = []
+    for unit in units:
+        try:
+            resumed = _v1_worker_output_from_manifest(
+                config,
+                unit,
+                alpha_data_root=alpha_data_root,
+            )
+            if resumed is not None:
+                outputs[unit.unit_id] = resumed
+                continue
+            jobs.append(_prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root))
+        except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
+            outputs[unit.unit_id] = exc
+    if not jobs:
+        return outputs
     # Use the "spawn" start method, NOT the Linux default "fork". The parent
     # process has already imported polars and run canonical loads/job prep, which
     # initializes polars' global Rayon thread pool. Forking after a thread pool
@@ -2796,6 +2936,204 @@ def _compute_v1_stage_outputs_in_workers(
             except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
                 outputs[unit.unit_id] = exc
     return outputs
+
+
+def _v1_worker_output_from_manifest(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+) -> Any | None:
+    """Rebuild a V1 worker output from a completed local worker manifest."""
+
+    from alpha_system.core.value_store import (
+        ValueStoreHandle,
+        parquet_is_current,
+    )
+    from alpha_system.features.contracts import FeatureSetSpec, FrozenJsonMapping
+    from alpha_system.features.engine import (
+        FeatureMaterializationPlan,
+        FeatureMaterializationResult,
+    )
+    from alpha_system.features.engine.materialization import (
+        _feature_version_ids,
+        _plan_content_hash,
+    )
+    from alpha_system.features.fast import (
+        FAST_PRODUCER_ENGINE_ID,
+        FAST_VALUE_SCHEMA_VERSION,
+        FAST_WORKER_MANIFEST_SCHEMA,
+        FastWorkerManifest,
+        FastWorkerUnitOutput,
+        worker_manifest_path,
+    )
+
+    manifest_path = worker_manifest_path(
+        alpha_data_root,
+        checkpoint_root=config.checkpoint_root,
+        unit_id=unit.unit_id,
+    )
+    if not manifest_path.exists():
+        return None
+    payload = _load_json_mapping(manifest_path, "V1 worker manifest")
+    if payload.get("schema") != FAST_WORKER_MANIFEST_SCHEMA:
+        raise ScaleoutError(f"V1 worker manifest schema is invalid: {manifest_path}")
+    if payload.get("producer_engine_id") != FAST_PRODUCER_ENGINE_ID:
+        raise ScaleoutError(f"V1 worker manifest is not a V1 producer output: {manifest_path}")
+    if payload.get("value_schema_version") != FAST_VALUE_SCHEMA_VERSION:
+        raise ScaleoutError(f"V1 worker manifest value schema is invalid: {manifest_path}")
+    _require_worker_manifest_unit_key(payload.get("unit_key"), unit, manifest_path)
+    parquet_path = Path(_require_text(payload.get("parquet_path"), "parquet_path"))
+    if not parquet_path.exists():
+        raise ScaleoutError(f"V1 worker manifest Parquet is missing: {parquet_path}")
+    content_hash = _require_text(payload.get("content_hash"), "content_hash")
+    if not parquet_is_current(parquet_path, content_hash):
+        raise ScaleoutError(f"V1 worker manifest Parquet hash is stale: {parquet_path}")
+    feature_version_ids = tuple(
+        _require_text(value, "feature_version_id")
+        for value in _sequence(payload.get("feature_version_ids"), "feature_version_ids")
+    )
+
+    store = FeatureStore.from_alpha_data_root(alpha_data_root)
+    feature_specs: list[Any] = []
+    request_payloads: dict[str, Mapping[str, Any]] = {}
+    registry_metadata = _v1_registry_metadata(config, unit)
+    for expected_version_id in feature_version_ids:
+        existing = store.resolve_feature(expected_version_id)
+        if existing is not None:
+            if not _registry_record_matches_engine(existing, SCALEOUT_ENGINE_V1):
+                raise ScaleoutError(
+                    "manifest-resume feature has non-V1 producer provenance: "
+                    f"{expected_version_id}"
+                )
+            parquet = getattr(existing, "parquet_path", None)
+            if not parquet or not Path(parquet).exists():
+                raise ScaleoutError(
+                    "manifest-resume feature is missing Parquet materialization: "
+                    f"{expected_version_id}"
+                )
+            feature_specs.append(existing.feature_spec)
+            continue
+
+        fresh, _, fresh_declaration = _fresh_v1_declaration_for_version(
+            config,
+            unit,
+            expected_version_id=expected_version_id,
+            alpha_data_root=alpha_data_root,
+        )
+        feature_specs.append(fresh_declaration.feature_spec)
+        request_payloads.update(fresh.feature_request_payloads)
+
+    feature_set = FeatureSetSpec(
+        feature_set_id=unit.feature_set_id,
+        feature_set_version=unit.feature_set_version,
+        features=tuple(feature_specs),
+        description=f"FCFP-P15 V1 {config.family} scaleout unit",
+        metadata={
+            "campaign_id": config.campaign_id,
+            "phase_id": config.phase_id,
+            "family": config.family,
+            "producer_engine_id": FAST_PRODUCER_ENGINE_ID,
+            "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        },
+    )
+    if _feature_version_ids(feature_set) != feature_version_ids:
+        raise ScaleoutError("manifest-resume feature_version_id order changed")
+    governance_metadata = FrozenJsonMapping.from_mapping(
+        registry_metadata,
+        field_name="registry_metadata",
+    )
+    output_path = parquet_path.with_name("values.jsonl")
+    idempotency_key = _plan_content_hash(
+        feature_set,
+        dataset_version_id=unit.dataset_version_id,
+        partition_id=unit.partition_id,
+        output_path=output_path,
+        governance_metadata=governance_metadata,
+    )
+    plan = FeatureMaterializationPlan(
+        feature_set=feature_set,
+        dataset_version_id=unit.dataset_version_id,
+        partition_id=unit.partition_id,
+        alpha_data_root=alpha_data_root,
+        output_path=output_path,
+        plan_id=f"fmat_{idempotency_key}",
+        idempotency_key=idempotency_key,
+        feature_version_ids=_feature_version_ids(feature_set),
+        governance_metadata=governance_metadata,
+    )
+    records = _feature_value_records_from_parquet(parquet_path)
+    handle = ValueStoreHandle(
+        format=ValueStoreFormat.PARQUET,
+        jsonl_path=None,
+        parquet_path=parquet_path.as_posix(),
+        value_count=len(records),
+        content_hash=content_hash,
+        schema_version=FAST_VALUE_SCHEMA_VERSION,
+        dataset_version_id=unit.dataset_version_id,
+        set_id=unit.feature_set_id,
+        partition_id=unit.partition_id,
+        min_event_ts=min(record.event_ts.isoformat() for record in records),
+        max_event_ts=max(record.event_ts.isoformat() for record in records),
+        min_available_ts=min(record.available_ts.isoformat() for record in records),
+        max_available_ts=max(record.available_ts.isoformat() for record in records),
+    )
+    manifest = FastWorkerManifest(
+        unit_key=_worker_unit_key(unit),
+        parquet_path=parquet_path.as_posix(),
+        content_hash=content_hash,
+        row_count=int(payload.get("row_count") or len(records)),
+        feature_version_ids=feature_version_ids,
+        producer_engine_id=FAST_PRODUCER_ENGINE_ID,
+        value_schema_version=FAST_VALUE_SCHEMA_VERSION,
+        manifest_path=manifest_path.as_posix(),
+    )
+    return FastWorkerUnitOutput(
+        materialization_result=FeatureMaterializationResult(
+            plan=plan,
+            records=records,
+            dry_run=False,
+            wrote_output=False,
+            output_path=parquet_path,
+            value_store_handle=handle,
+        ),
+        feature_set=feature_set,
+        feature_request_payloads=request_payloads,
+        registry_metadata=registry_metadata,
+        manifest=manifest,
+    )
+
+
+def _v1_registry_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict[str, Any]:
+    from alpha_system.features.fast import FAST_PRODUCER_ENGINE_ID, FAST_VALUE_SCHEMA_VERSION
+
+    metadata: dict[str, Any] = {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "producer_engine_id": FAST_PRODUCER_ENGINE_ID,
+        "value_schema_version": FAST_VALUE_SCHEMA_VERSION,
+        "engine_selection": SCALEOUT_ENGINE_V1,
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+    }
+    if config.family in SESSION_METADATA_ROLE_FAMILIES:
+        metadata["session_metadata_role"] = SESSION_METADATA_ROLE_MARKER
+    return metadata
+
+
+def _require_worker_manifest_unit_key(
+    value: object,
+    unit: ScaleoutUnit,
+    manifest_path: Path,
+) -> None:
+    unit_key = _require_mapping(value, "unit_key")
+    expected = _worker_unit_key(unit)
+    for field in ("unit_id", "family", "symbol", "year", "dataset_version_id", "partition_id"):
+        if unit_key.get(field) != expected[field]:
+            raise ScaleoutError(
+                f"V1 worker manifest unit key mismatch for {field}: {manifest_path}"
+            )
 
 
 def _v1_worker_compute_entrypoint(

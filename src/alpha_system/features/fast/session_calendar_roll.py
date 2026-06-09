@@ -345,6 +345,7 @@ def _input_quality_flags(polars: Any) -> Any:
     pl = polars
     return (
         pl.col("quality_flags")
+        .cast(pl.List(pl.Utf8), strict=False)
         .fill_null(_flags(pl, ()))
         .list.eval(pl.element().str.to_lowercase())
         .list.unique()

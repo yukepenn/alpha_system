@@ -94,6 +94,7 @@ SESSION_METADATA_FIELDS: frozenset[str] = frozenset(
         "minutes_from_rth_open",
     }
 )
+SESSION_METADATA_ROLE_MARKER = "SESSION_METADATA_POINT_IN_TIME"
 FORBIDDEN_FUTURE_FIELDS: frozenset[str] = frozenset(
     {
         "forward_return",
@@ -1132,7 +1133,7 @@ def _reject_label_as_live_feature(record: object, *, field: str) -> None:
     inputs = getattr(feature_spec, "inputs", None)
     fields = tuple(str(item) for item in getattr(inputs, "fields", ()))
     input_views = tuple(str(item) for item in getattr(inputs, "input_views", ()))
-    field_roles = _field_roles_from_inputs(inputs)
+    field_roles = _field_roles_from_record(record, inputs)
     suspicious_fields = tuple(
         item for item in fields if _looks_like_label_feature_field(item, field_roles)
     )
@@ -1665,12 +1666,46 @@ def _looks_like_label_feature_field(
     )
 
 
-def _field_roles_from_inputs(inputs: object) -> Mapping[str, object]:
+def _field_roles_from_record(record: object, inputs: object) -> Mapping[str, object]:
     input_metadata = _plain_mapping(getattr(inputs, "input_metadata", {}))
-    field_roles = input_metadata.get("field_roles")
+    roles = _field_roles_from_metadata(input_metadata)
+    _add_session_metadata_roles(roles, input_metadata, inputs)
+
+    registry_metadata = _plain_mapping(getattr(record, "registry_metadata", {}))
+    for key, role in _field_roles_from_metadata(registry_metadata).items():
+        roles.setdefault(key, role)
+    _add_session_metadata_roles(roles, registry_metadata, inputs)
+
+    return roles
+
+
+def _field_roles_from_metadata(metadata: Mapping[str, object]) -> dict[str, object]:
+    field_roles = metadata.get("field_roles")
     if isinstance(field_roles, Mapping):
-        return dict(field_roles)
+        return {str(key): role for key, role in field_roles.items()}
     return {}
+
+
+def _add_session_metadata_roles(
+    roles: dict[str, object],
+    metadata: Mapping[str, object],
+    inputs: object,
+) -> None:
+    if not _declares_session_metadata_role(metadata):
+        return
+    fields = tuple(str(item) for item in getattr(inputs, "fields", ()))
+    input_views = tuple(str(item) for item in getattr(inputs, "input_views", ()))
+    for field in (*fields, *input_views):
+        if _normalize_token(field) in SESSION_METADATA_FIELDS:
+            roles.setdefault(field, FieldRole.SESSION_METADATA.value)
+
+
+def _declares_session_metadata_role(metadata: Mapping[str, object]) -> bool:
+    role = metadata.get("session_metadata_role")
+    return _normalize_role(role) in {
+        _normalize_role(SESSION_METADATA_ROLE_MARKER),
+        _normalize_role(FieldRole.SESSION_METADATA),
+    }
 
 
 def _plain_mapping(value: object) -> dict[str, object]:

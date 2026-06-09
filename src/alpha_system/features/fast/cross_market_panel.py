@@ -1033,6 +1033,7 @@ def _datetime_expr(frame: Any, column: str, *, polars: Any) -> Any:
 def _input_quality_flags(polars: Any) -> Any:
     return (
         polars.col("quality_flags")
+        .cast(polars.List(polars.Utf8), strict=False)
         .fill_null(_flags(polars, ()))
         .list.eval(polars.element().str.to_lowercase())
         .list.unique()

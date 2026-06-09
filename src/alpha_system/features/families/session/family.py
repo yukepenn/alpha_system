@@ -486,37 +486,36 @@ def _feature_spec(
         "roll_transition_source": "contract_id_or_series_id_transition",
         "metadata_absence_policy": "flag_absent_never_fabricate",
     }
+    input_fields = _input_fields(name)
+    input_metadata = {
+        "consumption_surface": (
+            "alpha_system.features.input_views.OHLCVInputView; FUTSUB-P07 may "
+            "bind dense_grid_ohlcv so FLF-P01 DenseGridBarRecord objects are "
+            "reconstructed through the materialization engine"
+        ),
+        "optional_metadata": [
+            "expiration_ts_by_contract_id",
+            "status_by_row_key",
+            "status_by_available_ts",
+            "expiration_available_ts_by_contract_id",
+            "status_available_ts_by_row_key",
+            "status_available_ts_by_available_ts",
+        ],
+        "trade_semantics": (
+            "FLF-P04 synthetic no-trade rows retain session/calendar position "
+            "but are flagged as position-only rows, not trade bars"
+        ),
+        "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
+    }
     feature_spec = FeatureSpec(
         feature_id=f"session_calendar_roll_{name.value}",
         family=FeatureFamily.SESSION_CALENDAR_ROLL,
         feature_request_id=gate_decision.feature_request_id,
         inputs=FeatureInputSpec(
             input_views=(input_view_name,),
-            fields=_input_fields(name),
+            fields=input_fields,
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata=_input_metadata(
-                {
-                "consumption_surface": (
-                    "alpha_system.features.input_views.OHLCVInputView; FUTSUB-P07 may "
-                    "bind dense_grid_ohlcv so FLF-P01 DenseGridBarRecord objects are "
-                    "reconstructed through the materialization engine"
-                ),
-                "optional_metadata": [
-                    "expiration_ts_by_contract_id",
-                    "status_by_row_key",
-                    "status_by_available_ts",
-                    "expiration_available_ts_by_contract_id",
-                    "status_available_ts_by_row_key",
-                    "status_available_ts_by_available_ts",
-                ],
-                "trade_semantics": (
-                    "FLF-P04 synthetic no-trade rows retain session/calendar position "
-                    "but are flagged as position-only rows, not trade bars"
-                ),
-                "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
-                },
-                input_scope=input_scope,
-            ),
+            input_metadata=_input_metadata(input_metadata, input_scope=input_scope),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),

@@ -26,9 +26,18 @@ REGIME_VOL_COMPRESSION_FEATURE_IDS: tuple[str, ...] = (
     "base_ohlcv_trendiness",
     "liquidity_structure_range_contraction",
 )
+_REGIME_VOL_COMPRESSION_SUPPORTED_FEATURE_IDS: tuple[str, ...] = (
+    "base_ohlcv_atr",
+    "base_ohlcv_returns",
+    "base_ohlcv_rolling_range",
+    "base_ohlcv_trendiness",
+    "liquidity_structure_range_contraction",
+)
 
 _OHLCV_FEATURE_ID_TO_NAME: dict[str, OHLCVFeatureName] = {
     "base_ohlcv_atr": OHLCVFeatureName.ATR,
+    "base_ohlcv_returns": OHLCVFeatureName.RETURNS,
+    "base_ohlcv_rolling_range": OHLCVFeatureName.ROLLING_RANGE,
     "base_ohlcv_trendiness": OHLCVFeatureName.TRENDINESS,
 }
 _STRUCTURE_FEATURE_ID_TO_NAME: dict[str, StructureFeatureName] = {
@@ -108,7 +117,7 @@ def _validate_regime_vol_compression_feature_set(feature_set: FeatureSetSpec) ->
     unknown = tuple(
         feature_id
         for feature_id in feature_ids
-        if feature_id not in REGIME_VOL_COMPRESSION_FEATURE_IDS
+        if feature_id not in _REGIME_VOL_COMPRESSION_SUPPORTED_FEATURE_IDS
     )
     if unknown:
         raise PackMaterializerError(
@@ -143,10 +152,14 @@ def _validate_ohlcv_feature(feature: FeatureSpec) -> None:
     _require_parameter(parameters, "feature_name", feature_name.value, feature.feature_id)
     _require_bool_parameter(parameters, "reset_on_session", feature.feature_id)
     _require_window(feature)
-    _require_parameter(parameters, "window_length", feature.window.length, feature.feature_id)
-    expected_transform = (
-        "average_true_range" if feature_name is OHLCVFeatureName.ATR else "trendiness"
-    )
+    if feature_name is not OHLCVFeatureName.RETURNS:
+        _require_parameter(parameters, "window_length", feature.window.length, feature.feature_id)
+    expected_transform = {
+        OHLCVFeatureName.ATR: "average_true_range",
+        OHLCVFeatureName.RETURNS: "return",
+        OHLCVFeatureName.ROLLING_RANGE: "rolling_range",
+        OHLCVFeatureName.TRENDINESS: "trendiness",
+    }[feature_name]
     if feature.transform.transform_id != expected_transform:
         raise PackMaterializerError(
             f"{feature.feature_id} transform must be {expected_transform}"
@@ -208,6 +221,10 @@ def _regime_vol_compression_expressions(
     for feature in features:
         if feature.feature_id == "base_ohlcv_atr":
             expressions[feature.feature_id] = _atr_expression(polars, feature)
+        elif feature.feature_id == "base_ohlcv_returns":
+            expressions[feature.feature_id] = _returns_expression(polars, feature)
+        elif feature.feature_id == "base_ohlcv_rolling_range":
+            expressions[feature.feature_id] = _rolling_range_expression(polars, feature)
         elif feature.feature_id == "base_ohlcv_trendiness":
             expressions[feature.feature_id] = _trendiness_expression(polars, feature)
         elif feature.feature_id == "liquidity_structure_range_contraction":
@@ -217,6 +234,36 @@ def _regime_vol_compression_expressions(
                 f"unsupported regime_vol_compression feature_id: {feature.feature_id}"
             )
     return expressions
+
+
+def _returns_expression(polars: Any, feature: FeatureSpec) -> _PackExpression:
+    pl = polars
+    group = _window_group(feature)
+    horizon = int(feature.transform.parameters.to_dict().get("horizon", 1))
+    prior_close = pl.col(_CLOSE).shift(horizon).over(group)
+    current_gap = _contains_any_flag(pl, _PRIMITIVE_GAP_FLAGS)
+    prior_gap = current_gap.shift(horizon).over(group).fill_null(False)
+    current_no_trade = pl.col(_NO_TRADE)
+    prior_no_trade = current_no_trade.shift(horizon).over(group).fill_null(False)
+    insufficient = prior_close.is_null()
+    zero_denominator = prior_close == 0.0
+    value = (
+        pl.when(insufficient | current_gap | prior_gap | zero_denominator)
+        .then(None)
+        .otherwise(pl.col(_CLOSE) / prior_close - 1.0)
+    )
+    flags = (
+        pl.when(insufficient)
+        .then(_flags(pl, ("insufficient_window", "primitive_gap")))
+        .when(current_no_trade | prior_no_trade)
+        .then(_flags(pl, ("input_gap", "no_trade", "primitive_gap")))
+        .when(current_gap | prior_gap)
+        .then(_flags(pl, ("input_gap", "primitive_gap")))
+        .when(zero_denominator)
+        .then(_flags(pl, ("primitive_gap", "zero_denominator")))
+        .otherwise(_flags(pl, ()))
+    )
+    return _PackExpression(value, flags)
 
 
 def _prepare_frame(frame: Any) -> Any:
@@ -350,6 +397,32 @@ def _atr_expression(polars: Any, feature: FeatureSpec) -> _PackExpression:
                 bbo_quarantined_count=rolling_bbo_quarantined_count,
             )
         )
+        .otherwise(_flags(pl, ()))
+    )
+    return _PackExpression(value, flags)
+
+
+def _rolling_range_expression(polars: Any, feature: FeatureSpec) -> _PackExpression:
+    pl = polars
+    window = feature.window.length
+    group = _window_group(feature)
+    group_position = _group_position(pl, group)
+    rolling_no_trade_count = _rolling_true_count(pl.col(_NO_TRADE), window, group, polars=pl)
+    insufficient = group_position < window
+    rolling_range = (
+        pl.col(_HIGH).rolling_max(window_size=window, min_samples=window).over(group)
+        - pl.col(_LOW).rolling_min(window_size=window, min_samples=window).over(group)
+    )
+    value = (
+        pl.when(insufficient | (rolling_no_trade_count > 0))
+        .then(None)
+        .otherwise(rolling_range)
+    )
+    flags = (
+        pl.when(insufficient)
+        .then(_flags(pl, ("insufficient_window", "ohlcv_gap")))
+        .when(rolling_no_trade_count > 0)
+        .then(_flags(pl, ("input_gap", "no_trade", "ohlcv_gap")))
         .otherwise(_flags(pl, ()))
     )
     return _PackExpression(value, flags)
@@ -512,6 +585,7 @@ def _input_quality_flags(polars: Any) -> Any:
     pl = polars
     return (
         pl.col("quality_flags")
+        .cast(pl.List(pl.Utf8), strict=False)
         .fill_null(_flags(pl, ()))
         .list.eval(pl.element().str.to_lowercase())
         .list.unique()
