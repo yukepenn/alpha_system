@@ -69,7 +69,7 @@ workflow2:
   - Bootstrap / contract / integration / audit / wiring / rerun / closeout
     phases are must_run_alone.
 runtime:
-  python: '3.11'
+  python: '3.12'
   package_root: src/alpha_system
   test_root: tests
   smoke_command: python tools/verify.py --smoke
@@ -1318,16 +1318,17 @@ phases:
   - FUTSUB-P12
   - FUTSUB-P13
   spec_required: true
-  executor: Codex GPT-5.5 high
+  executor: Codex GPT-5.5 xhigh
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Integrate all FeaturePack registrations, audit registry consistency, and prove a feature resolver-smoke gate (every feature lock resolves to a real Parquet value).
+  purpose: Materialize all 8 FeaturePack families on the V1 fast producer path over the full accepted window (single-engine substrate; the registry was reset so V1 owns it; the per-row reference engine remains the parity oracle only), then integrate all FeaturePack registrations, audit registry consistency, and prove a feature resolver-smoke gate (every feature lock resolves to a real Parquet value).
   scope:
-  - Audit feature registry records for keystone identity, content hash, and registry metadata across all 8 families.
+  - 'Materialize each of the 8 governed feature families (base_ohlcv, session_calendar_maintenance, vwap_session_auction, regime_volatility_compression, liquidity_sweep_pa_structure, volume_activity, bbo_tradability_top_book, cross_market_alignment) through the merged scaleout driver on the V1 fast engine (the driver default; FCFP-P14) with FCFP-P15 CPU worker parallelism (--workers 4 or ALPHA_CPU_WORKERS=4). Use a BOUNDED-REAL rollout FIRST (one recent accepted year, 2024, x ES/NQ/RTY) validated for keystone identity / registry / resolver / coverage, THEN expand to the full accepted window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded and documented per the campaign window rule; cross_market stays one ES/NQ/RTY aligned panel unit per year). Registry writes stay serial through the official keystone path; checkpoint/restart is honored so partial progress resumes without recompute.'
+  - Audit feature registry records for keystone identity, content hash, producer_engine_id provenance, and registry metadata across all 8 families; confirm the substrate is single-engine V1 (no silent reference/V1 mixing within a series).
   - Run a feature resolver-smoke over representative locks (fail closed on stale/unresolvable).
-  - Commit only the value-free integration + resolver-smoke report.
+  - Commit only the value-free coverage + integration + resolver-smoke report (markdown). Materialized values, Parquet, registries, and checkpoints stay local-only under ALPHA_DATA_ROOT and are never committed.
   non_goals:
-  - Materializing new values; running diagnostics; alpha work.
+  - Building new driver code (the P06-P13 drivers are merged; this phase RUNS them); running alpha diagnostics; minting new feature families; committing any values/Parquet/SQLite.
   checks:
   - git status --short
   - python tools/verify.py --smoke
@@ -1360,7 +1361,7 @@ phases:
     never_commit: *never_commit
     explicit_staging_only: true
   done_criteria:
-  - All 8 feature families integrated; registry consistent; feature resolver-smoke PASS (every lock resolves to real Parquet, fail-closed verified); report value-free; no value/SQLite committed.
+  - All 8 feature families MATERIALIZED on the V1 fast engine over the full accepted window (bounded-real 2024 validated first, then full window; BLOCKED 2018 documented), single-engine substrate confirmed via producer_engine_id; all integrated; registry consistent; feature resolver-smoke PASS (every lock resolves to real Parquet, fail-closed verified); value-free coverage + integration + resolver-smoke report committed; no value/Parquet/SQLite committed.
   handoff: handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md
   review: yellow lane; fresh Opus review required.
 - id: FUTSUB-P15
