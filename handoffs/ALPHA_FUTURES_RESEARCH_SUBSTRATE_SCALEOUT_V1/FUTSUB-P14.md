@@ -228,6 +228,65 @@ Review REWORK repair validation:
   - `M tests/unit/feature_compute_fast_path/test_regime_vol_compression_pack.py`
   - `M tests/unit/feature_compute_fast_path/test_vwap_session_auction_pack.py`
 
+## Bounded Repair Attempt - Force Recompute Capability
+
+Review finding repaired: the scaleout driver now has a sanctioned
+force-recompute capability for targeted units whose `feature_version_id` identity
+is unchanged but whose recomputed value `content_hash` differs from the existing
+registry row.
+
+Implemented behavior:
+
+- `alpha scaleout feature-pack --force-recompute` and
+  `ALPHA_SCALEOUT_FORCE_RECOMPUTE` route to `run_scaleout(...,
+  force_recompute=True)`.
+- Forced runs bypass completed-unit checkpoint resume, registry-completed resume,
+  and V1 worker-manifest resume so the targeted unit is recomputed.
+- V1 serial registration compares the recomputed value-store `content_hash` with
+  the existing registry row's `value_content_hash`.
+- Matching hashes reuse the existing registry row and remain idempotent.
+- Mismatched hashes re-register the existing `FeatureSpec`, `FeatureVersion`,
+  lineage, and approved request payload through
+  `FeatureStore.register_materialized_feature`, preserving
+  `feature_version_id` identity and updating the registry row in place.
+
+Repair file list:
+
+- `src/alpha_system/features/scaleout/driver.py`
+- `src/alpha_system/cli/scaleout.py`
+- `tests/unit/futures_substrate_scaleout/scaleout/test_scaleout_driver.py`
+- `tests/unit/feature_compute_fast_path/test_scaleout_cli_targeting.py`
+- `tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+
+Validation for this bounded repair:
+
+- `python -m pytest tests/unit/futures_substrate_scaleout/scaleout/test_scaleout_driver.py tests/unit/feature_compute_fast_path/test_scaleout_cli_targeting.py tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py -q`: PASS, 10 passed.
+- `python tools/verify.py --smoke`: PASS.
+- `python -m pytest tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py -q`: PASS, 4 passed.
+- `python tools/verify.py --lint`: exit 0 with environment skip, `ruff is not installed`.
+- `python tools/verify.py --typecheck`: PASS, compileall completed.
+- `python tools/hooks/canary_runner.py`: PASS, all Frontier canaries passed.
+- `python tools/verify.py --test`: FAIL, 2975 passed / 4 failed.
+  - `tests/integration/test_duckdb_query_fixture.py::test_duckdb_query_over_tiny_csv_fixture`: tuple/list assertion mismatch.
+  - `tests/integration/test_polars_lazy_fixture.py::test_polars_lazy_transformation_over_tiny_fixture`: tuple/list assertion mismatch.
+  - `tests/unit/data/test_databento_canonicalize.py::test_databento_canonicalize_quality_coverage_and_register_offline`: fixture JSONL rows empty.
+  - `tests/unit/runtime/test_cache_policy.py::test_run_artifact_cache_root_is_explicit_local_only`: local `ALPHA_DATA_ROOT` selects the alpha-data cache root.
+- `test -f research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`: PASS.
+- `test -f docs/futures_substrate_scaleout/FEATURE_INTEGRATION.md`: PASS.
+- `git ls-files runs`: PASS, empty output.
+- `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.db'`: PASS, empty output.
+- `git diff --cached --name-only`: PASS, empty output; no staged files.
+
+`git status --short` before staging this repair:
+
+- `M handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+- `M src/alpha_system/cli/scaleout.py`
+- `M src/alpha_system/features/scaleout/driver.py`
+- `M tests/unit/feature_compute_fast_path/test_scaleout_cli_targeting.py`
+- `M tests/unit/feature_compute_fast_path/test_scaleout_v1_engine_integration.py`
+- `M tests/unit/futures_substrate_scaleout/scaleout/test_scaleout_driver.py`
+
 ## Notes
 
 Local-only values, SQLite registries, checkpoints, backups, and run artifacts

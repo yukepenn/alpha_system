@@ -64,6 +64,7 @@ def run_feature_pack(args: argparse.Namespace) -> int:
             bounded_year=args.bounded_year,
             engine=args.engine,
             workers=_resolve_workers(args.workers, env=os.environ),
+            force_recompute=args.force_recompute or None,
             log=lambda message: print(message, file=sys.stderr),
             target=_target_from_args(args),
         )
@@ -173,6 +174,15 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="CPU worker count for V1 compute; overrides ALPHA_CPU_WORKERS and defaults to 1.",
     )
     feature_parser.add_argument(
+        "--force-recompute",
+        action="store_true",
+        help=(
+            "Recompute targeted units even when checkpoint, registry, or worker "
+            "manifest evidence says they are complete. ALPHA_SCALEOUT_FORCE_RECOMPUTE "
+            "provides the same behavior."
+        ),
+    )
+    feature_parser.add_argument(
         "--alpha-data-root",
         help="Local data root for values, registry, ledger, and checkpoints.",
     )
@@ -256,6 +266,8 @@ def _emit_text(payload: dict[str, object]) -> None:
         print(f"Target: {json.dumps(target, sort_keys=True)}")
     print(f"Rollout: {payload['rollout']}")
     print(f"Dry run: {'yes' if payload['dry_run'] else 'no'}")
+    if payload.get("force_recompute"):
+        print("Force recompute: yes")
     print(f"Accepted units: {payload['accepted_unit_count']}")
     print(f"Bounded units: {payload['bounded_unit_count']}")
     print(f"Planned: {payload['planned_count']}")
