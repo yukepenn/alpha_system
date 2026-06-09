@@ -7,6 +7,7 @@ providers, or expose labels as live features.
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 from collections.abc import Mapping, Sequence
@@ -536,16 +537,20 @@ class LabelVersion:
 
     @classmethod
     def derive(cls, spec: LabelContractSpec) -> LabelVersion:
-        """Derive a stable LabelVersion from a LabelContractSpec."""
+        """Derive a stable LabelVersion from a LabelContractSpec.
+
+        Memoized: derivation is a pure, deterministic content hash of the
+        (frozen, hashable) contract, but it costs ~55us (JSON-canonicalize +
+        SHA-256). It is called once per LabelValueRecord __post_init__ as an
+        identity check, so a full-window materialization re-derived the SAME few
+        contracts O(rows) times (~9.5s on a 1-month real slice). Caching by the
+        hashable spec is semantically identical (same input -> same LabelVersion)
+        and leaves identity/resolver semantics unchanged.
+        """
 
         if not isinstance(spec, LabelContractSpec):
             raise LabelContractError("LabelVersion.derive requires a LabelContractSpec")
-        payload: dict[str, JsonValue] = {
-            "algorithm": LABEL_VERSION_ALGORITHM,
-            "label_contract": spec.to_contract_dict(),
-        }
-        digest = content_hash(payload)
-        return cls(label_version_id=f"lver_{digest}", content_hash=digest)
+        return _derive_label_version_cached(spec)
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -553,6 +558,24 @@ class LabelVersion:
             "content_hash": self.content_hash,
             "algorithm": self.algorithm,
         }
+
+
+@functools.lru_cache(maxsize=4096)
+def _derive_label_version_cached(spec: LabelContractSpec) -> LabelVersion:
+    """Content-addressed LabelVersion derivation, memoized by the hashable spec.
+
+    See LabelVersion.derive for why this is cached. LabelContractSpec is a frozen,
+    hashable dataclass so the cache key is content-correct (hash + __eq__); the
+    returned LabelVersion is frozen/immutable so sharing the cached instance is
+    safe. maxsize bounds memory across long-running processes.
+    """
+
+    payload: dict[str, JsonValue] = {
+        "algorithm": LABEL_VERSION_ALGORITHM,
+        "label_contract": spec.to_contract_dict(),
+    }
+    digest = content_hash(payload)
+    return LabelVersion(label_version_id=f"lver_{digest}", content_hash=digest)
 
 
 @dataclass(frozen=True, slots=True)
