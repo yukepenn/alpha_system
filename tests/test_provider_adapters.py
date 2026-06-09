@@ -71,23 +71,80 @@ def test_codex_command_uses_workspace_write_sandbox(tmp_path, monkeypatch) -> No
     monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
     monkeypatch.setenv("FRONTIER_CODEX_CMD", "codex")
     monkeypatch.setenv("FRONTIER_CODEX_SANDBOX", "workspace-write")
+    data_root = tmp_path / "alpha_data" / "alpha_system"
+    monkeypatch.setenv("ALPHA_DATA_ROOT", str(data_root))
     config = load_provider_config(tmp_path)
 
     command = CodexProviderAdapter(config).build_command("prompt")
 
+    resolved = str(data_root.resolve())
     assert command == [
         "codex", "exec",
         "-c", "service_tier=priority",
         "-c", "shell_environment_policy.inherit=all",
+        "-c", f'shell_environment_policy.set.ALPHA_DATA_ROOT="{resolved}"',
+        "-c", f'sandbox_workspace_write.writable_roots=["{resolved}"]',
         "--sandbox", "workspace-write", "-",
     ]
     assert "--full-auto" not in command
+
+
+def test_codex_grants_data_root_sandbox_access_and_env(tmp_path, monkeypatch) -> None:
+    # The data root lives outside the git worktree; without the writable-roots
+    # grant + env injection, the workspace-write sandbox blocks it and
+    # data-dependent phases report "ALPHA_DATA_ROOT is not set" / read-only FS.
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.setenv("FRONTIER_CODEX_CMD", "codex")
+    monkeypatch.setenv("FRONTIER_CODEX_SANDBOX", "workspace-write")
+    data_root = tmp_path / "alpha_data" / "alpha_system"
+    monkeypatch.setenv("ALPHA_DATA_ROOT", str(data_root))
+    config = load_provider_config(tmp_path)
+    resolved = str(data_root.resolve())
+
+    assert config.codex_data_root == data_root.resolve()
+    assert resolved in config.codex_sandbox_writable_roots
+
+    # The env var is force-injected into the driver process too, so even a
+    # launcher that forgot to export it leaves the tree consistent.
+    monkeypatch.delenv("ALPHA_DATA_ROOT", raising=False)
+    command = CodexProviderAdapter(config).build_command("prompt")
+    assert f'shell_environment_policy.set.ALPHA_DATA_ROOT="{resolved}"' in command
+    assert f'sandbox_workspace_write.writable_roots=["{resolved}"]' in command
+
+
+def test_codex_data_root_defaults_when_env_unset(tmp_path, monkeypatch) -> None:
+    # With neither ALPHA_DATA_ROOT nor providers.codex.data_root set, the grant
+    # still resolves to the repo default (~/alpha_data/alpha_system) so the
+    # sandbox access is robust to a forgotten export.
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.delenv("ALPHA_DATA_ROOT", raising=False)
+    monkeypatch.setenv("FRONTIER_CODEX_SANDBOX", "workspace-write")
+    config = load_provider_config(tmp_path)
+
+    from pathlib import Path
+
+    assert config.codex_data_root == (Path("~/alpha_data/alpha_system").expanduser().resolve())
+    assert config.codex_sandbox_writable_roots == (str(config.codex_data_root),)
+
+
+def test_codex_readonly_sandbox_omits_writable_roots(tmp_path, monkeypatch) -> None:
+    # writable_roots only applies to workspace-write; read-only must not emit it.
+    monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
+    monkeypatch.setenv("FRONTIER_CODEX_CMD", "codex")
+    monkeypatch.setenv("FRONTIER_CODEX_SANDBOX", "read-only")
+    monkeypatch.setenv("ALPHA_DATA_ROOT", str(tmp_path / "data"))
+    config = load_provider_config(tmp_path)
+
+    command = CodexProviderAdapter(config).build_command("prompt")
+    assert not any("writable_roots" in part for part in command)
+    assert command[-3:] == ["--sandbox", "read-only", "-"]
 
 
 def test_codex_prompt_uses_stdin_for_large_prompts(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
     monkeypatch.setenv("FRONTIER_CODEX_CMD", "codex")
     monkeypatch.setenv("FRONTIER_CODEX_SANDBOX", "workspace-write")
+    monkeypatch.setenv("ALPHA_DATA_ROOT", str(tmp_path / "alpha_data" / "alpha_system"))
     config = load_provider_config(tmp_path)
     runner = RecordingRunner()
     prompt = "execute\n" + ("x" * 200_000)
@@ -96,12 +153,8 @@ def test_codex_prompt_uses_stdin_for_large_prompts(tmp_path, monkeypatch) -> Non
 
     assert response.ok
     command, kwargs = runner.calls[0]
-    assert command == [
-        "codex", "exec",
-        "-c", "service_tier=priority",
-        "-c", "shell_environment_policy.inherit=all",
-        "--sandbox", "workspace-write", "-",
-    ]
+    assert command[:2] == ["codex", "exec"]
+    assert command[-3:] == ["--sandbox", "workspace-write", "-"]
     assert kwargs["stdin_text"] == prompt
     assert prompt not in command
     assert sum(len(part) for part in command) < 1000

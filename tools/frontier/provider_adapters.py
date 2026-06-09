@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import re
 
 from tools.frontier.command_runner import CommandResult, CommandRunner
@@ -155,7 +156,7 @@ class CodexProviderAdapter(ProviderAdapter):
 
     def build_command(self, prompt: str | None = None) -> list[str]:
         del prompt
-        return [
+        command = [
             *self.config.codex_cmd,
             "exec",
             "-c",
@@ -166,10 +167,34 @@ class CodexProviderAdapter(ProviderAdapter):
             # commands) cannot resolve inputs and fail closed on empty data.
             "-c",
             f"shell_environment_policy.inherit={self.config.codex_shell_environment_inherit}",
-            "--sandbox",
-            self.config.codex_sandbox,
-            "-",
         ]
+
+        data_root = self.config.codex_data_root
+        if data_root is not None:
+            # Force-set ALPHA_DATA_ROOT in the EXECUTOR's environment even if the
+            # process that launched the driver forgot to export it. Without this,
+            # `inherit=all` forwards an env that simply lacks the var and the
+            # executor reports "ALPHA_DATA_ROOT is not set" (the FCFP-P13 / FUTSUB
+            # blocker). This is scoped to the codex command via config; we do NOT
+            # mutate this process's os.environ (that would leak ALPHA_DATA_ROOT
+            # into unrelated code paths -- e.g. the runtime cache-policy resolver).
+            command += [
+                "-c",
+                f"shell_environment_policy.set.ALPHA_DATA_ROOT={json.dumps(str(data_root))}",
+            ]
+
+        # Grant the workspace-write sandbox read+write access to the data root
+        # (and any extra configured roots). The data root lives outside the git
+        # worktree, so without this the sandbox blocks canonical reads and
+        # registry/value writes — exactly what forced data-dependent phases to be
+        # run unsandboxed by the coordinator. Only meaningful for workspace-write;
+        # read-only forbids writes and danger-full-access already allows them.
+        if self.config.codex_sandbox == "workspace-write" and self.config.codex_sandbox_writable_roots:
+            roots_json = json.dumps(list(self.config.codex_sandbox_writable_roots))
+            command += ["-c", f"sandbox_workspace_write.writable_roots={roots_json}"]
+
+        command += ["--sandbox", self.config.codex_sandbox, "-"]
+        return command
 
     def run_prompt(self, prompt: str, *, artifact_prefix: str | None = None) -> ProviderResponse:
         if self.config.mock_providers:

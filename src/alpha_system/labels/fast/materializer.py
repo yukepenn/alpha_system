@@ -292,7 +292,12 @@ class FastLabelMaterializer:
         rows.extend(_bbo_panel_row(row) for row in bbo_rows)
         if not rows:
             raise FastLabelPackError("label price panel rows must be non-empty")
-        frame = pl.DataFrame(rows)
+        # infer_schema_length=None scans all rows for schema inference: real
+        # canonical data has columns that are integral in the first rows then
+        # float later (e.g. a price 6053 then 6053.5), which the default bounded
+        # inference rejects ("could not append f64 to the builder"). Scanning all
+        # rows widens int->float deterministically. (FCFP-P13 real-data label run.)
+        frame = pl.DataFrame(rows, infer_schema_length=None)
         _require_columns(
             frame,
             (
@@ -628,7 +633,9 @@ def _prepare_panel(frame: Any, polars: Any) -> Any:
         prepared_rows.append(prepared)
     if not prepared_rows:
         raise FastLabelPackError("prepared label price panel must be non-empty")
-    return pl.DataFrame(prepared_rows).sort(
+    # infer_schema_length=None: scan all rows so int->float widening (real-data
+    # prices) is inferred deterministically rather than failing on a later f64.
+    return pl.DataFrame(prepared_rows, infer_schema_length=None).sort(
         ("price_basis", "series_id", "event_ts", "available_ts")
     )
 

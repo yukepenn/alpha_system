@@ -596,6 +596,37 @@ def _require_expr(expr: Any, *, polars: Any) -> Any:
     return expr
 
 
+def constant_window_mask(
+    value_expr: Any,
+    *,
+    window: int,
+    min_samples: int | None = None,
+    group: Any | None = None,
+) -> Any:
+    """Return a boolean Polars expression that is True when every value in the
+    trailing ``window`` is equal (the window is constant).
+
+    This is the robust, scale-invariant replacement for ``rolling_std(...) == 0``
+    / ``rolling_var(...) == 0`` zero-variance detection in z-score fast features.
+    Polars' SLIDING rolling_std/var accumulate a ~1e-17 floating residual after a
+    value leaves the window (catastrophic cancellation), so an exact ``== 0`` check
+    misses genuinely-constant windows that follow a changed value -- while the
+    per-row Python reference engine recomputes each window from scratch and returns
+    exactly 0, flagging ``zero_variance``. ``rolling_max``/``rolling_min`` are order
+    statistics (no accumulation), so their difference is exactly 0 iff the window is
+    constant, exactly matching the reference's zero-variance determination on
+    tick-grid inputs. (Parity bug surfaced by the FCFP-P13 real-data benchmark on
+    ``bbo_tradability_spread_zscore``; reference parity remains the authority.)
+    """
+    samples = window if min_samples is None else min_samples
+    minimum = value_expr.rolling_min(window_size=window, min_samples=samples)
+    maximum = value_expr.rolling_max(window_size=window, min_samples=samples)
+    if group is not None:
+        minimum = minimum.over(group)
+        maximum = maximum.over(group)
+    return (maximum - minimum) == 0.0
+
+
 def _empty_flags_expr(polars: Any) -> Any:
     return polars.lit([], dtype=polars.List(polars.Utf8))
 
@@ -678,4 +709,5 @@ __all__ = [
     "PackMaterializer",
     "PackMaterializerError",
     "SymbolYearFrameRequest",
+    "constant_window_mask",
 ]

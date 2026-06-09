@@ -22,6 +22,7 @@ from alpha_system.features.fast.materializer import (
     FastFeatureDeclaration,
     FastFeaturePack,
     PackMaterializerError,
+    constant_window_mask,
 )
 
 BBO_TRADABILITY_WINDOW_LENGTH = 3
@@ -534,7 +535,10 @@ def _spread_zscore_expression(polars: Any) -> _PackExpression:
         .over(_SEGMENT)
     )
     insufficient = group_position < window
-    zero_variance = (std == 0.0).fill_null(False)
+    # Robust zero-variance detection (constant window) -- see constant_window_mask.
+    zero_variance = constant_window_mask(
+        pl.col(_SPREAD_POINT), window=window, group=_SEGMENT
+    ).fill_null(False)
     value = (
         pl.when(insufficient | (rolling_gap_count > 0) | zero_variance)
         .then(None)

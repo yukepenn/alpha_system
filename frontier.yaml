@@ -86,6 +86,21 @@ providers:
     # FRONTIER_CODEX_SERVICE_TIER (set to "fast"/"priority" to expedite a run).
     # Wired into `codex exec -c service_tier=<v>`.
     service_tier: "default"
+    # Local data root the sandboxed executor needs read+write access to:
+    # canonical OHLCV/BBO, feature/label registries, and materialized values.
+    # It lives OUTSIDE the git worktree (data is never committed), so the
+    # workspace-write sandbox blocks it by default and data-dependent phases
+    # (materialization, the FCFP-P13 benchmark, FUTSUB backfill) fail closed on
+    # empty inputs. Resolution order: ALPHA_DATA_ROOT env var, then this value,
+    # then the repo default ~/alpha_data/alpha_system. The harness force-sets
+    # ALPHA_DATA_ROOT in the executor env and grants the sandbox access to it.
+    # Leave unset to use the env var / default.
+    data_root: null
+    # Extra filesystem roots (beyond the resolved data_root, which is always
+    # included) the workspace-write sandbox may read+write. Env-expanded;
+    # entries whose variables do not resolve are dropped. Wired into
+    # `codex exec -c sandbox_workspace_write.writable_roots=[...]`.
+    sandbox_writable_roots: []
 
 lanes:
   green:

@@ -23,6 +23,7 @@ from alpha_system.features.fast.materializer import (
     FastFeatureDeclaration,
     FastFeaturePack,
     PackMaterializerError,
+    constant_window_mask,
 )
 
 _MARKETS: tuple[str, str, str] = ("ES", "NQ", "RTY")
@@ -774,21 +775,46 @@ def _rolling_expression(
     input_gap_count = _rolling_true_count(input_gap, window, group, polars=pl)
     target_sum = _rolling_sum(target_return, window, group, polars=pl)
     benchmark_sum = _rolling_sum(benchmark_return, window, group, polars=pl)
-    product_sum = _rolling_sum(target_return * benchmark_return, window, group, polars=pl)
     sample_count = float(window)
-    covariance = (product_sum - (target_sum * benchmark_sum / sample_count)) / denominator
-    benchmark_variance = benchmark_return.rolling_var(
-        window_size=window,
-        min_samples=window,
-        ddof=ddof,
-    ).over(group)
-    target_variance = target_return.rolling_var(
-        window_size=window,
-        min_samples=window,
-        ddof=ddof,
-    ).over(group)
-    zero_benchmark_variance = benchmark_variance == 0.0
-    zero_target_variance = target_variance == 0.0
+    target_mean = target_sum / sample_count
+    benchmark_mean = benchmark_sum / sample_count
+    # Stable two-pass CENTERED covariance/variance to match the per-row Python
+    # reference (_covariance/_variance subtract the window mean BEFORE summing).
+    # The one-pass `product_sum - target_sum*benchmark_sum/n` form is algebraically
+    # identical but loses precision via catastrophic cancellation -- amplified by
+    # division by small variances in short windows to ~1e-5..1e-1 abs diffs on real
+    # data. Summing the centered products over the window via explicit per-lag
+    # shifts reproduces the reference's two-pass arithmetic, dropping the residual
+    # to float reduction-order noise (~1e-12). (FCFP-P13 cross_market parity.)
+    def _centered_window_sum(
+        left: Any, left_mean: Any, right: Any, right_mean: Any
+    ) -> Any:
+        terms = [
+            (left.shift(lag).over(group) - left_mean)
+            * (right.shift(lag).over(group) - right_mean)
+            for lag in range(window)
+        ]
+        total = terms[0]
+        for term in terms[1:]:
+            total = total + term
+        return total
+
+    covariance = (
+        _centered_window_sum(target_return, target_mean, benchmark_return, benchmark_mean)
+        / denominator
+    )
+    benchmark_variance = (
+        _centered_window_sum(benchmark_return, benchmark_mean, benchmark_return, benchmark_mean)
+        / denominator
+    )
+    target_variance = (
+        _centered_window_sum(target_return, target_mean, target_return, target_mean)
+        / denominator
+    )
+    # Robust zero-variance detection (constant return window) -- see
+    # constant_window_mask. Preemptive parity hardening for the FCFP-P13 bug class.
+    zero_benchmark_variance = constant_window_mask(benchmark_return, window=window, group=group)
+    zero_target_variance = constant_window_mask(target_return, window=window, group=group)
     beta = covariance / benchmark_variance
     residual = target_return - beta * benchmark_return
     correlation_value = covariance / (benchmark_variance * target_variance).sqrt()
