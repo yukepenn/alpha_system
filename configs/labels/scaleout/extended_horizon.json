@@ -3,13 +3,28 @@
   "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
   "phase_id": "FUTSUB-P17",
   "phase_source": "FUTSUB-P05",
-  "family": "extended_horizon",
-  "underlying_label_family": "fixed_horizon",
+  "family": "fixed_horizon",
+  "label_pack": "extended_horizon",
   "governed_scope": [
-    "extended_60m",
-    "extended_120m",
-    "extended_240m"
+    "fwd_ret_60m",
+    "fwd_ret_120m",
+    "fwd_ret_240m"
   ],
+  "targeting": {
+    "label_groups": {
+      "extended": [
+        "fwd_ret_60m",
+        "fwd_ret_120m",
+        "fwd_ret_240m"
+      ],
+      "all": [
+        "fwd_ret_60m",
+        "fwd_ret_120m",
+        "fwd_ret_240m"
+      ]
+    },
+    "estimated_seconds_per_unit": 180
+  },
   "batch_unit_grid": {
     "unit_grain": [
       "family",
@@ -66,7 +81,25 @@
     "maintenance_crossing_guard_required": true,
     "overlap_aware_n_eff_metadata_required": true,
     "roll_policy_ref": "docs/futures_substrate_scaleout/ROLL_GUARD.md",
-    "maintenance_crossing_policy": "no_silent_crossing"
+    "roll_cross_policy": "drop",
+    "roll_policy_id": "roll_cme_index_futures_quarterly",
+    "roll_guard_version": "roll_guard_v1",
+    "roll_window": {
+      "days_before": 2,
+      "days_after": 1
+    },
+    "maintenance_crossing_policy": "drop",
+    "maintenance_policy_id": "cme_index_futures_daily_maintenance_break_v1",
+    "maintenance_guard_version": "maintenance_crossing_guard_v1",
+    "terminal_key": "series_id+contract_id+event_ts",
+    "horizon_overlap_metadata": {
+      "metadata_version": "horizon_overlap_metadata_v1",
+      "sampling_interval_minutes": 1,
+      "raw_row_count_field": "value_record_count",
+      "effective_sample_count_rule": "floor(raw_row_count / horizon_bars)",
+      "rows_are_independent": false,
+      "n_eff_never_exceeds_raw_rows": true
+    }
   },
   "value_store": {
     "format": "parquet",

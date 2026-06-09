@@ -105,6 +105,9 @@ _TRADE_PRICE_LABELS: frozenset[str] = frozenset(
         FixedHorizonLabelName.FWD_RET_10M.value,
         FixedHorizonLabelName.FWD_RET_15M.value,
         FixedHorizonLabelName.FWD_RET_30M.value,
+        FixedHorizonLabelName.FWD_RET_60M.value,
+        FixedHorizonLabelName.FWD_RET_120M.value,
+        FixedHorizonLabelName.FWD_RET_240M.value,
     }
 )
 
@@ -116,6 +119,9 @@ _LABEL_HORIZON_MINUTES: dict[str, int] = {
     FixedHorizonLabelName.FWD_RET_10M.value: 10,
     FixedHorizonLabelName.FWD_RET_15M.value: 15,
     FixedHorizonLabelName.FWD_RET_30M.value: 30,
+    FixedHorizonLabelName.FWD_RET_60M.value: 60,
+    FixedHorizonLabelName.FWD_RET_120M.value: 120,
+    FixedHorizonLabelName.FWD_RET_240M.value: 240,
 }
 
 BarRowLoader = Callable[..., Sequence[Mapping[str, Any]]]

@@ -62,11 +62,55 @@ class FixedHorizonLabelName(StrEnum):
     FWD_RET_10M = "fwd_ret_10m"
     FWD_RET_15M = "fwd_ret_15m"
     FWD_RET_30M = "fwd_ret_30m"
+    FWD_RET_60M = "fwd_ret_60m"
+    FWD_RET_120M = "fwd_ret_120m"
+    FWD_RET_240M = "fwd_ret_240m"
     MID_FWD_RET_1M = "mid_fwd_ret_1m"
     MID_FWD_RET_3M = "mid_fwd_ret_3m"
     MID_FWD_RET_5M = "mid_fwd_ret_5m"
     MID_FWD_RET_10M = "mid_fwd_ret_10m"
     MID_FWD_RET_30M = "mid_fwd_ret_30m"
+
+
+OVERLAP_METADATA_VERSION = "horizon_overlap_metadata_v1"
+
+
+@dataclass(frozen=True, slots=True)
+class HorizonOverlapMetadata:
+    """Rows-vs-effective-samples metadata for overlapping fixed-horizon labels."""
+
+    label_id: str
+    horizon_minutes: int
+    raw_row_count: int
+    effective_sample_count: int
+    sampling_interval_minutes: int = 1
+    method: str = "floor(raw_row_count / horizon_bars)"
+    rows_are_independent: bool = False
+    metadata_version: str = OVERLAP_METADATA_VERSION
+
+    @property
+    def horizon_bars(self) -> int:
+        return max(1, math.ceil(self.horizon_minutes / self.sampling_interval_minutes))
+
+    @property
+    def overlap_fraction(self) -> float:
+        if self.raw_row_count <= 0:
+            return 0.0
+        return 1.0 - (self.effective_sample_count / self.raw_row_count)
+
+    def to_dict(self) -> dict[str, int | float | str | bool]:
+        return {
+            "metadata_version": self.metadata_version,
+            "label_id": self.label_id,
+            "horizon_minutes": self.horizon_minutes,
+            "sampling_interval_minutes": self.sampling_interval_minutes,
+            "horizon_bars": self.horizon_bars,
+            "raw_row_count": self.raw_row_count,
+            "effective_sample_count": self.effective_sample_count,
+            "overlap_fraction": self.overlap_fraction,
+            "rows_are_independent": self.rows_are_independent,
+            "method": self.method,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +185,9 @@ _TRADE_PRICE_LABELS: frozenset[FixedHorizonLabelName] = frozenset(
         FixedHorizonLabelName.FWD_RET_10M,
         FixedHorizonLabelName.FWD_RET_15M,
         FixedHorizonLabelName.FWD_RET_30M,
+        FixedHorizonLabelName.FWD_RET_60M,
+        FixedHorizonLabelName.FWD_RET_120M,
+        FixedHorizonLabelName.FWD_RET_240M,
     }
 )
 _MIDPRICE_LABELS: frozenset[FixedHorizonLabelName] = frozenset(
@@ -159,6 +206,9 @@ _HORIZON_MINUTES: dict[FixedHorizonLabelName, int] = {
     FixedHorizonLabelName.FWD_RET_10M: 10,
     FixedHorizonLabelName.FWD_RET_15M: 15,
     FixedHorizonLabelName.FWD_RET_30M: 30,
+    FixedHorizonLabelName.FWD_RET_60M: 60,
+    FixedHorizonLabelName.FWD_RET_120M: 120,
+    FixedHorizonLabelName.FWD_RET_240M: 240,
     FixedHorizonLabelName.MID_FWD_RET_1M: 1,
     FixedHorizonLabelName.MID_FWD_RET_3M: 3,
     FixedHorizonLabelName.MID_FWD_RET_5M: 5,
@@ -184,6 +234,36 @@ def supported_fixed_horizon_labels() -> tuple[FixedHorizonLabelName, ...]:
     return tuple(FixedHorizonLabelName)
 
 
+def compute_horizon_overlap_metadata(
+    name: FixedHorizonLabelName | str,
+    *,
+    raw_row_count: int,
+    sampling_interval_minutes: int = 1,
+) -> HorizonOverlapMetadata:
+    """Return conservative overlap-aware N_eff metadata for one label output."""
+
+    label_name = _coerce_label_name(name)
+    if isinstance(raw_row_count, bool) or not isinstance(raw_row_count, int) or raw_row_count < 0:
+        raise FixedHorizonLabelError("raw_row_count must be a non-negative integer")
+    if (
+        isinstance(sampling_interval_minutes, bool)
+        or not isinstance(sampling_interval_minutes, int)
+        or sampling_interval_minutes <= 0
+    ):
+        raise FixedHorizonLabelError("sampling_interval_minutes must be a positive integer")
+    horizon_minutes = _HORIZON_MINUTES[label_name]
+    horizon_bars = max(1, math.ceil(horizon_minutes / sampling_interval_minutes))
+    effective = 0 if raw_row_count == 0 else max(1, raw_row_count // horizon_bars)
+    effective = min(raw_row_count, effective)
+    return HorizonOverlapMetadata(
+        label_id=label_name.value,
+        horizon_minutes=horizon_minutes,
+        sampling_interval_minutes=sampling_interval_minutes,
+        raw_row_count=raw_row_count,
+        effective_sample_count=effective,
+    )
+
+
 def build_fixed_horizon_label_definition(
     name: FixedHorizonLabelName | str,
     governance_label_spec: LabelSpec | Mapping[str, Any] | None,
@@ -203,7 +283,7 @@ def build_fixed_horizon_label_definition(
     _validate_label_spec_matches_name(label_name, spec)
     contract_metadata: dict[str, Any] = {
         "campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
-        "phase": "FUTSUB-P16",
+        "phase": "FUTSUB-P17" if _is_extended_horizon(label_name) else "FUTSUB-P16",
         "materialization": "in_memory_records_only",
         "price_basis": _price_basis(label_name),
         "horizon_minutes": _HORIZON_MINUTES[label_name],
@@ -221,6 +301,10 @@ def build_fixed_horizon_label_definition(
         "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
         "maintenance_crossing_policy": "drop",
     }
+    if _is_extended_horizon(label_name):
+        contract_metadata["horizon_overlap_metadata"] = _horizon_overlap_contract_metadata(
+            label_name
+        )
     scope = _materialization_scope_metadata(materialization_scope)
     if scope:
         contract_metadata["materialization_scope"] = scope
@@ -483,24 +567,45 @@ def _label_inputs(
 
 
 def _future_window(name: FixedHorizonLabelName) -> WindowSpec:
+    parameters: dict[str, Any] = {
+        "horizon_minutes": _HORIZON_MINUTES[name],
+        "price_basis": _price_basis(name),
+        "legal_consumer": "labels_only",
+        "terminal_key": "series_id+contract_id+event_ts",
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+    }
+    if _is_extended_horizon(name):
+        parameters["horizon_overlap_metadata"] = _horizon_overlap_contract_metadata(name)
     return WindowSpec(
         kind=WindowKind.FUTURE,
         length=_HORIZON_MINUTES[name],
         causality=WindowCausality.FUTURE,
         offline_only=True,
         anchor="event_ts",
-        parameters={
-            "horizon_minutes": _HORIZON_MINUTES[name],
-            "price_basis": _price_basis(name),
-            "legal_consumer": "labels_only",
-            "terminal_key": "series_id+contract_id+event_ts",
-            "roll_policy_id": ROLL_POLICY_ID,
-            "roll_guard_version": ROLL_GUARD_VERSION,
-            "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
-            "maintenance_policy_id": MAINTENANCE_POLICY_ID,
-            "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
-        },
+        parameters=parameters,
     )
+
+
+def _is_extended_horizon(name: FixedHorizonLabelName) -> bool:
+    return _HORIZON_MINUTES[name] >= 60
+
+
+def _horizon_overlap_contract_metadata(name: FixedHorizonLabelName) -> dict[str, object]:
+    horizon_minutes = _HORIZON_MINUTES[name]
+    return {
+        "metadata_version": OVERLAP_METADATA_VERSION,
+        "horizon_minutes": horizon_minutes,
+        "sampling_interval_minutes": 1,
+        "horizon_bars": horizon_minutes,
+        "raw_row_count_field": "value_record_count",
+        "effective_sample_count_rule": "floor(raw_row_count / horizon_bars)",
+        "rows_are_independent": False,
+        "n_eff_never_exceeds_raw_rows": True,
+    }
 
 
 def _validate_label_spec_matches_name(
@@ -872,10 +977,13 @@ __all__ = [
     "FixedHorizonLabelDefinition",
     "FixedHorizonLabelError",
     "FixedHorizonLabelName",
+    "HorizonOverlapMetadata",
     "MAINTENANCE_GUARD_VERSION",
     "MAINTENANCE_POLICY_ID",
+    "OVERLAP_METADATA_VERSION",
     "build_fixed_horizon_label_definition",
     "build_fixed_horizon_label_definitions",
+    "compute_horizon_overlap_metadata",
     "compute_fixed_horizon_label",
     "compute_fixed_horizon_labels",
     "supported_fixed_horizon_labels",
