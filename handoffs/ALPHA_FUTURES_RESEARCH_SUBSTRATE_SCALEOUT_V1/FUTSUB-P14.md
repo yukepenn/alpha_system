@@ -85,6 +85,61 @@ Minimal materialization/resolver-blocking repairs were needed:
 - `src/alpha_system/runtime/input_resolver.py`
   - Review repair F1: removed the hardcoded FUTSUB campaign/family exemption from the shared no-lookahead guard. The resolver now converts only explicit generic `session_metadata_role: SESSION_METADATA_POINT_IN_TIME` metadata into ordinary `SESSION_METADATA` field roles; arbitrary unrole-tagged live feature inputs remain fail-closed.
 
+## REWORK Repair Attempt
+
+Review finding repaired: `src/alpha_system/features/fast/regime_vol_compression.py`
+`_returns_expression` now detects reset-on-session boundary rows with an
+available prior row in a different session segment and emits the reference
+oracle's `("primitive_gap", "session_reset")` flag shape, with source-row
+quality flags preserved and sorted. Feature values are unchanged; the branch
+only replaces the stale `("insufficient_window", "primitive_gap")` flag on
+session-reset rows.
+
+Reference-parity coverage added:
+
+- `tests/unit/feature_compute_fast_path/test_regime_vol_compression_pack.py`
+  covers `base_ohlcv_returns` and `base_ohlcv_rolling_range` through the regime
+  fast pack with `reset_on_session=True` on the multi-session fixture, using
+  `assert_feature_records_match` for value and `quality_flags` parity.
+- `tests/unit/feature_compute_fast_path/test_vwap_session_auction_pack.py`
+  covers `base_ohlcv_session_minute` through the VWAP/session-auction fast pack
+  on the multi-session fixture, using `assert_feature_records_match`.
+
+Affected already-materialized `base_ohlcv_returns` FeatureVersion ids
+(`momentum_reversion_state`; 24 accepted full-window units) are:
+
+| Year | Symbol | FeatureVersion id |
+| ---: | --- | --- |
+| 2019 | `ES` | `fver_01471d627567885984a20a18a7291e2cbeaf5e6f525cfd76cfe5d89b496b3533` |
+| 2019 | `NQ` | `fver_85768925efb86b774fad339e6d74d1a213e556732ce282e1379e656cfdd90773` |
+| 2019 | `RTY` | `fver_8320c8b78315b295cf5e21c1d18d0134b47a29cb56f50be320953a13f86e62ef` |
+| 2020 | `ES` | `fver_e367d2e7ea0d88cad44784e4a714f16e887eef6f3cb272865d7334e0dff16126` |
+| 2020 | `NQ` | `fver_24db3f7fb5fc9c6a5966c0217506d1ff64bcbd92dea1133a12888cb70ec635eb` |
+| 2020 | `RTY` | `fver_1d2ca59d7301ee6bc8a1f62de3a5d433c370f00af11c4b2b309a0a6d6fd460ba` |
+| 2021 | `ES` | `fver_0c08fc066291dfd473c4f4cf461aa9903b4b8233f0cde2f2a39df973e3206356` |
+| 2021 | `NQ` | `fver_5c7ae33eb8e4703251da4ec48268395711f258acf615e4c901f0be00bd7371f7` |
+| 2021 | `RTY` | `fver_391646a6f2435c2099a5b8642f29b4e3360987e82b710ce8e6280a6ff57dcb79` |
+| 2022 | `ES` | `fver_cc09751e055ced5b81c9684d159ad117860c249331759f4abb94b86947fd0b61` |
+| 2022 | `NQ` | `fver_c97b89b46c5cd97451306eb20fdd8ceba6ca2678bcf9db474175342a2e57b315` |
+| 2022 | `RTY` | `fver_7a6d9095f02d63fe7311a9d0f457d0ec7a87ba708a67c94272616f96c32fcaa9` |
+| 2023 | `ES` | `fver_26aad2f9533efc5b98dfea724c8b8160e3b59e367e1738fe92cc5e190d330935` |
+| 2023 | `NQ` | `fver_7ae926c7b432c6b17b20a4fa579a314f215dbb3bcf2fbd8bfdefd91a6436ee15` |
+| 2023 | `RTY` | `fver_97abd18f1a1b2fb75e33bab1a764a4785dbd360d2809468762424dc8d96023e9` |
+| 2024 | `ES` | `fver_bb016b77709e32d912ec2c35b1b3a23fc024a5c18c3b29dc0dddd8ddb033be5b` |
+| 2024 | `NQ` | `fver_45b9368c5bf75420427be641a6468c62c7b503eeddf6e5130121335bb118b948` |
+| 2024 | `RTY` | `fver_32a511e5f0336e70c1349a0c586d20fa6395139ea3bfea63f1d7e14c066257f8` |
+| 2025 | `ES` | `fver_42c802e79b33dce1430df449a0888c625388f0b460137450fc4793a118ccd874` |
+| 2025 | `NQ` | `fver_090f786e75e83a2ca36937a8d8c93822d57208ba7abef39a930831dbc421d2d4` |
+| 2025 | `RTY` | `fver_360b9887edcd2baedb683a79048127aae1bb3010fe5d2ddd796a0925cf15d8f5` |
+| 2026 | `ES` | `fver_6d6da5d527dfa1e55c636988fea758a0e735fda5dc0ee6954bec033f7cf059f2` |
+| 2026 | `NQ` | `fver_0e1316dffcb840bc0d8aeda5c9bd9b76116f349769a6e9d8e8f54bbfe62ce5e0` |
+| 2026 | `RTY` | `fver_6300441ac8edda664cb2bdab4853ecd4948eeed7d2055f3325e27ec745ebb350` |
+
+Coordinator action still required: re-materialize these 24 local-only units
+through the patched V1 driver before regenerating final registry/resolver
+evidence. This repair attempt did not mutate local SQLite registries or value
+Parquet.
+
 ## Commit-Eligible Files For Ralph
 
 - `README.md`
@@ -100,6 +155,8 @@ Minimal materialization/resolver-blocking repairs were needed:
 - `research/futures_substrate_scaleout_v1/feature_packs/bbo_tradability_top_book/coverage_summary.md`
 - `research/futures_substrate_scaleout_v1/feature_packs/cross_market_alignment/coverage_summary.md`
 - `tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py`
+- `tests/unit/feature_compute_fast_path/test_regime_vol_compression_pack.py`
+- `tests/unit/feature_compute_fast_path/test_vwap_session_auction_pack.py`
 - `src/alpha_system/features/scaleout/driver.py`
 - `src/alpha_system/features/fast/bbo_tradability.py`
 - `src/alpha_system/features/fast/cross_market_panel.py`
@@ -142,6 +199,34 @@ own review, verdict, staging, commit, PR, CI, merge, and phase PASS decisions.
 - `test -f docs/futures_substrate_scaleout/FEATURE_INTEGRATION.md`: PASS.
 - `git ls-files runs`: PASS, empty output.
 - `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.db'`: PASS, empty output.
+
+Review REWORK repair validation:
+
+- `python -m pytest tests/unit/feature_compute_fast_path/test_regime_vol_compression_pack.py tests/unit/feature_compute_fast_path/test_vwap_session_auction_pack.py -q`: PASS, 6 passed.
+- `python tools/verify.py --smoke`: PASS.
+- `python -m pytest tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py -q`: PASS, 4 passed.
+- `python tools/verify.py --lint`: exit 0 with environment skip, `ruff is not installed`.
+- `python tools/verify.py --typecheck`: PASS, compileall completed.
+- `python tools/hooks/canary_runner.py`: PASS, all Frontier canaries passed.
+- `python tools/verify.py --test`: FAIL, 2972 passed / 4 failed.
+  - `tests/integration/test_duckdb_query_fixture.py::test_duckdb_query_over_tiny_csv_fixture`: tuple/list assertion mismatch.
+  - `tests/integration/test_polars_lazy_fixture.py::test_polars_lazy_transformation_over_tiny_fixture`: tuple/list assertion mismatch.
+  - `tests/unit/data/test_databento_canonicalize.py::test_databento_canonicalize_quality_coverage_and_register_offline`: fixture JSONL rows empty.
+  - `tests/unit/runtime/test_cache_policy.py::test_run_artifact_cache_root_is_explicit_local_only`: local `ALPHA_DATA_ROOT` env changes expected storage root.
+- `test -f research/futures_substrate_scaleout_v1/feature_packs/feature_resolver_smoke.md`: PASS.
+- `test -f docs/futures_substrate_scaleout/FEATURE_INTEGRATION.md`: PASS.
+- `git ls-files runs`: PASS, empty output.
+- `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.db'`: PASS, empty output.
+- Explicit repair commit file list:
+  - `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+  - `src/alpha_system/features/fast/regime_vol_compression.py`
+  - `tests/unit/feature_compute_fast_path/test_regime_vol_compression_pack.py`
+  - `tests/unit/feature_compute_fast_path/test_vwap_session_auction_pack.py`
+- `git status --short` before explicit staging:
+  - `M handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P14.md`
+  - `M src/alpha_system/features/fast/regime_vol_compression.py`
+  - `M tests/unit/feature_compute_fast_path/test_regime_vol_compression_pack.py`
+  - `M tests/unit/feature_compute_fast_path/test_vwap_session_auction_pack.py`
 
 ## Notes
 

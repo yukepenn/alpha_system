@@ -238,14 +238,22 @@ def _regime_vol_compression_expressions(
 
 def _returns_expression(polars: Any, feature: FeatureSpec) -> _PackExpression:
     pl = polars
+    parameters = feature.transform.parameters.to_dict()
+    reset_on_session = bool(parameters["reset_on_session"])
     group = _window_group(feature)
-    horizon = int(feature.transform.parameters.to_dict().get("horizon", 1))
+    horizon = int(parameters.get("horizon", 1))
     prior_close = pl.col(_CLOSE).shift(horizon).over(group)
     current_gap = _contains_any_flag(pl, _PRIMITIVE_GAP_FLAGS)
     prior_gap = current_gap.shift(horizon).over(group).fill_null(False)
     current_no_trade = pl.col(_NO_TRADE)
     prior_no_trade = current_no_trade.shift(horizon).over(group).fill_null(False)
     insufficient = prior_close.is_null()
+    session_reset = pl.lit(False)
+    session_reset_flags = _flags(pl, ("primitive_gap", "session_reset"))
+    if reset_on_session:
+        prior_segment = pl.col(_SEGMENT).shift(horizon).over([_SERIES])
+        session_reset = prior_segment.is_not_null() & (prior_segment != pl.col(_SEGMENT))
+        session_reset_flags = _session_reset_flags(pl, horizon)
     zero_denominator = prior_close == 0.0
     value = (
         pl.when(insufficient | current_gap | prior_gap | zero_denominator)
@@ -253,7 +261,9 @@ def _returns_expression(polars: Any, feature: FeatureSpec) -> _PackExpression:
         .otherwise(pl.col(_CLOSE) / prior_close - 1.0)
     )
     flags = (
-        pl.when(insufficient)
+        pl.when(session_reset)
+        .then(session_reset_flags)
+        .when(insufficient)
         .then(_flags(pl, ("insufficient_window", "primitive_gap")))
         .when(current_no_trade | prior_no_trade)
         .then(_flags(pl, ("input_gap", "no_trade", "primitive_gap")))
@@ -568,6 +578,22 @@ def _structure_current_gap_flags(polars: Any) -> Any:
 
 def _conditional_flags(polars: Any, condition: Any, values: Sequence[str]) -> Any:
     return polars.when(condition).then(_flags(polars, values)).otherwise(_flags(polars, ()))
+
+
+def _session_reset_flags(polars: Any, horizon: int) -> Any:
+    pl = polars
+    window_flags = [
+        pl.col(_INPUT_FLAGS).shift(offset).over([_SERIES]).fill_null(_flags(pl, ()))
+        for offset in range(horizon + 1)
+    ]
+    return (
+        pl.concat_list(
+            _flags(pl, ("primitive_gap", "session_reset")),
+            *window_flags,
+        )
+        .list.unique()
+        .list.sort()
+    )
 
 
 def _contains_any_flag(polars: Any, flags: Sequence[str]) -> Any:

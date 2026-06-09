@@ -15,6 +15,7 @@ from alpha_system.features.fast import (
     REGIME_VOL_COMPRESSION_FEATURE_IDS,
     PackMaterializer,
     build_fast_feature_pack,
+    build_regime_vol_compression_pack,
 )
 from alpha_system.features.families.ohlcv import (
     OHLCVFeatureDefinition,
@@ -104,6 +105,41 @@ def test_regime_vol_compression_pack_matches_reference_on_synthetic_fixture() ->
             fast_records[definition.feature_version_id],
             expected_feature_version_id=definition.feature_version_id,
             tolerance=tolerance,
+        )
+
+
+def test_regime_ohlcv_bindings_match_reference_with_session_reset() -> None:
+    pytest.importorskip("polars")
+    rows = regime_vol_compression_rows()
+    accepted = accepted_version(DATASET_ID)
+    definitions, feature_set = _regime_ohlcv_binding_contracts()
+    reference_view = build_ohlcv_input_view(
+        accepted,
+        rows,
+        partition_id=PARTITION_ID,
+        purpose="feature_fast_path_regime_ohlcv_binding_parity",
+    )
+    reference_records = {
+        definition.feature_id: compute_ohlcv_feature(definition, reference_view)
+        for definition in definitions
+    }
+    materializer = PackMaterializer()
+    pack = build_regime_vol_compression_pack(feature_set)
+
+    fast_records = _records_by_feature_version(
+        materializer.compute_values(materializer.frame_from_rows(rows), pack)
+    )
+
+    returns = reference_records["base_ohlcv_returns"]
+    assert returns[SESSION_RESET_INDEX].quality_flags == (
+        "primitive_gap",
+        "session_reset",
+    )
+    for definition in definitions:
+        assert_feature_records_match(
+            reference_records[definition.feature_id],
+            fast_records[definition.feature_version_id],
+            expected_feature_version_id=definition.feature_version_id,
         )
 
 
@@ -203,6 +239,41 @@ def _regime_pack_contracts() -> tuple[
         ),
         description="V1 regime / volatility / compression fast pack parity fixture.",
         metadata={"campaign": "FEATURE_COMPUTE_FAST_PATH_V1", "phase": "FCFP-P05"},
+    )
+    return definitions, feature_set
+
+
+def _regime_ohlcv_binding_contracts() -> tuple[
+    tuple[OHLCVFeatureDefinition, ...],
+    FeatureSetSpec,
+]:
+    registry_reader = EmptyRegistryReader()
+    requests = {
+        OHLCVFeatureName.RETURNS: approved_feature_request(
+            "fast_path_regime_vol_compression_returns"
+        ),
+        OHLCVFeatureName.ROLLING_RANGE: approved_feature_request(
+            "fast_path_regime_vol_compression_rolling_range"
+        ),
+    }
+    definitions = tuple(
+        build_ohlcv_feature_definition(
+            feature_name,
+            requests[feature_name],
+            registry_reader,
+            dataset_version_ids=(DATASET_ID,),
+            window_length=WINDOW_LENGTH,
+            horizon=1,
+            reset_on_session=True,
+        )
+        for feature_name in (OHLCVFeatureName.RETURNS, OHLCVFeatureName.ROLLING_RANGE)
+    )
+    feature_set = FeatureSetSpec(
+        feature_set_id="feature_set_fast_path_regime_ohlcv_bindings_v1",
+        feature_set_version="v1",
+        features=tuple(definition.spec for definition in definitions),
+        description="V1 regime pack OHLCV binding parity fixture.",
+        metadata={"campaign": "FEATURE_COMPUTE_FAST_PATH_V1", "phase": "FUTSUB-P14"},
     )
     return definitions, feature_set
 
