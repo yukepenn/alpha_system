@@ -257,3 +257,21 @@ committed Parquet/SQLite, and scope creep.
 - **Detection**: handoff completeness review; Claude review
 - **Mitigation**: P31/P32 produce concrete, evidence-driven requirement handoffs incl. N_eff/fold metadata + matrices.
 - **Blocking**: missing/empty downstream handoff → block merge / repair.
+
+### R-036 — Roll-countdown features (`bars_to_roll`/`minutes_to_roll`) are forward-looking
+- **Sev/Likelihood**: High / Realized · **Owner**: Statistical Reviewer · **Phases**: P14
+- **Detection**: no-lookahead audit (2026-06-09) — derived from observed FUTURE contract-id changes (`session_calendar_roll.py` shift(-1)+backward_fill; `family.py` `_next_roll_transition_by_index`) yet declared CAUSAL/live and materialized.
+- **Mitigation**: marked offline_only / non-causal and EXCLUDED from the trusted causal substrate in P14; coordinator deletes the materialized causal rows. (Future option: re-derive from a bound forward roll calendar to make them legitimately point-in-time.)
+- **Blocking**: any causal/live feature whose value is derived from future bars → block merge / repair.
+
+### R-037 — Roll-crossing label guard (`labels/roll_guard.py`) is unwired (dead code)
+- **Sev/Likelihood**: High / Med · **Owner**: Label Engineer · **Phases**: P16,P17,P18,P19,P20,P21
+- **Detection**: no-lookahead audit (2026-06-09) — `roll_guard.py` has zero callers; forward-return/MFE-MAE/triple-barrier terminals key on `series_id` only (no `contract_id`), and the canonical series is continuous front-month UNADJUSTED, so a forward label window crossing a quarterly roll measures the cross-contract gap as a spurious return (measurement contaminant, not lookahead).
+- **Mitigation**: WIRE `roll_guard.py` into the label compute path (or add `contract_id` to the terminal key) during P16-P20 label materialization — BEFORE labels are trusted — rather than only auditing it in P21. Confirm input-view contract scoping.
+- **Blocking**: forward-label packs materialized without roll-crossing guard wired → block merge / rework.
+
+### R-038 — Cross-market alignment defaults to `asof` (backward-fill), weaker than substrate claim
+- **Sev/Likelihood**: Med / Realized · **Owner**: Statistical Reviewer · **Phases**: P13,P14,P26
+- **Detection**: no-lookahead audit (2026-06-09) — `cross_market_panel.py` `alignment_policy` defaults to `asof` (leakage-safe but stale-carry), contradicting the "no cross-instrument forward-fill / per-instrument available_ts" guarantee; substrate already uses `strict_intersection` but the default could let a future caller silently get asof.
+- **Mitigation**: enforce `strict_intersection` for the substrate materialization path in P14 (reject `asof` for substrate); add a test.
+- **Blocking**: substrate cross-market materialized via `asof` alignment → block merge / repair.

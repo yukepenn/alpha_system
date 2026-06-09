@@ -12,6 +12,9 @@ Durable architecture, policy, and workflow decisions are recorded as ADRs.
 | [0004](0004-no-broker-live-in-v1.md) | No Broker Or Live Trading In V1 |
 | [0005](0005-l2-readiness-design-only.md) | L2 Readiness Is Design Only |
 | [0006](0006-feature-label-value-storage.md) | Feature And Label Value Storage Tiers |
+| [0007](0007-producer-compute-fast-path.md) | Producer Compute Fast Path (V1) |
+| [0008](0008-harness-hardening-audit-response.md) | Harness Hardening Audit Response |
+| [0009](0009-two-lane-feature-authoring.md) | Two-Lane Feature Authoring (Research Fast Lane + Promotion Gate) |
 
 New ADRs take the next number and use `ADR-000-template.md` as the format. A
 separate, non-blocking harness-maintainability backlog (not yet an ADR) is noted
