@@ -128,7 +128,10 @@ class FeatureStore:
                     last_available_ts=summary.last_available_ts,
                     registered_at=existing.registered_at,
                     lifecycle_state=existing.lifecycle_state,
-                    registry_metadata=existing.registry_metadata,
+                    registry_metadata=_merge_registry_metadata(
+                        existing.registry_metadata,
+                        registry_metadata,
+                    ),
                 )
         )
         decision = evaluate_feature_request_gate(feature_request, self.registry)
@@ -314,6 +317,17 @@ def _producer_engine_id(
     if lineage_value is not None:
         return lineage_value
     return REFERENCE_FEATURE_PRODUCER_ENGINE_ID
+
+
+def _merge_registry_metadata(
+    existing: Mapping[str, Any],
+    incoming: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    payload = existing.to_dict() if hasattr(existing, "to_dict") else dict(existing)
+    if incoming is None:
+        return dict(payload)
+    incoming_payload = incoming.to_dict() if hasattr(incoming, "to_dict") else incoming
+    return {**payload, **dict(incoming_payload)}
 
 
 def _approved_request_handle_id(

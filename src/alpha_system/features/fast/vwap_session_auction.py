@@ -28,13 +28,21 @@ VWAP_SESSION_AUCTION_FEATURE_NAMES: tuple[OHLCVFeatureName, ...] = (
     OHLCVFeatureName.OPENING_RANGE,
     OHLCVFeatureName.OVERNIGHT_RANGE,
 )
+_VWAP_SESSION_AUCTION_SUPPORTED_FEATURE_NAMES: tuple[OHLCVFeatureName, ...] = (
+    *VWAP_SESSION_AUCTION_FEATURE_NAMES,
+    OHLCVFeatureName.SESSION_MINUTE,
+)
 VWAP_SESSION_AUCTION_FEATURE_IDS: tuple[str, ...] = tuple(
     f"base_ohlcv_{feature_name.value}" for feature_name in VWAP_SESSION_AUCTION_FEATURE_NAMES
+)
+_VWAP_SESSION_AUCTION_SUPPORTED_FEATURE_IDS: tuple[str, ...] = tuple(
+    f"base_ohlcv_{feature_name.value}"
+    for feature_name in _VWAP_SESSION_AUCTION_SUPPORTED_FEATURE_NAMES
 )
 
 _FEATURE_ID_TO_NAME: dict[str, OHLCVFeatureName] = {
     f"base_ohlcv_{feature_name.value}": feature_name
-    for feature_name in VWAP_SESSION_AUCTION_FEATURE_NAMES
+    for feature_name in _VWAP_SESSION_AUCTION_SUPPORTED_FEATURE_NAMES
 }
 
 _PREFIX = "__fsa"
@@ -117,7 +125,7 @@ def _validate_vwap_session_auction_feature_set(feature_set: FeatureSetSpec) -> N
     unknown = tuple(
         feature_id
         for feature_id in feature_ids
-        if feature_id not in VWAP_SESSION_AUCTION_FEATURE_IDS
+        if feature_id not in _VWAP_SESSION_AUCTION_SUPPORTED_FEATURE_IDS
     )
     if unknown:
         raise PackMaterializerError(
@@ -161,8 +169,15 @@ def _validate_vwap_session_auction_feature(feature: FeatureSpec) -> None:
             raise PackMaterializerError(
                 f"{feature.feature_id} requires non-empty anchor_session_label when present"
             )
-    if feature.window.kind is not WindowKind.EXPANDING or feature.window.length != 1:
-        raise PackMaterializerError(f"{feature.feature_id} requires an expanding window")
+    expected_window_kind = (
+        WindowKind.POINT_IN_TIME
+        if feature_name is OHLCVFeatureName.SESSION_MINUTE
+        else WindowKind.EXPANDING
+    )
+    if feature.window.kind is not expected_window_kind or feature.window.length != 1:
+        raise PackMaterializerError(
+            f"{feature.feature_id} requires a {expected_window_kind.value} window"
+        )
     if not feature.window.is_live_compatible:
         raise PackMaterializerError(f"{feature.feature_id} requires a live-compatible window")
     if feature.normalization.normalization_id != "identity":
@@ -216,6 +231,8 @@ def _vwap_session_auction_expressions(
             )
         elif feature_name is OHLCVFeatureName.OVERNIGHT_RANGE:
             expressions[feature.feature_id] = _overnight_range_expression(pl)
+        elif feature_name is OHLCVFeatureName.SESSION_MINUTE:
+            expressions[feature.feature_id] = _session_minute_expression(pl)
         else:
             raise PackMaterializerError(f"unsupported VWAP feature: {feature_name}")
     return expressions
@@ -483,6 +500,18 @@ def _overnight_range_expression(polars: Any) -> _PackExpression:
     return _PackExpression(value, flags)
 
 
+def _session_minute_expression(polars: Any) -> _PackExpression:
+    pl = polars
+    elapsed = (pl.col(_BAR_START) - pl.col(_SEGMENT_START)).dt.total_minutes()
+    value = pl.when(elapsed < 0).then(None).otherwise(elapsed)
+    flags = (
+        pl.when(elapsed < 0)
+        .then(_gap_flags(pl, "negative_session_elapsed", pl.col(_INPUT_FLAGS)))
+        .otherwise(_flags(pl, ()))
+    )
+    return _PackExpression(value, flags)
+
+
 def _vwap_raw(
     polars: Any,
     *,
@@ -533,6 +562,7 @@ def _input_quality_flags(polars: Any) -> Any:
     pl = polars
     return (
         pl.col("quality_flags")
+        .cast(pl.List(pl.Utf8), strict=False)
         .fill_null(_flags(pl, ()))
         .list.eval(pl.element().str.to_lowercase())
         .list.unique()

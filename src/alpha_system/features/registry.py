@@ -399,8 +399,76 @@ class FeatureRegistry:
             _ensure_schema(connection)
             existing = _fetch_record_row(connection, record.feature_version_id)
             if existing is not None:
+                connection.execute(
+                    """
+                    UPDATE feature_registry_records
+                    SET
+                        feature_id = ?,
+                        feature_request_id = ?,
+                        lifecycle_state = ?,
+                        materialization_plan_id = ?,
+                        dataset_version_id = ?,
+                        partition_id = ?,
+                        materialization_output_path = ?,
+                        value_store_format = ?,
+                        parquet_path = ?,
+                        value_content_hash = ?,
+                        producer_engine_id = ?,
+                        value_schema_version = ?,
+                        value_record_count = ?,
+                        first_event_ts = ?,
+                        last_event_ts = ?,
+                        first_available_ts = ?,
+                        last_available_ts = ?,
+                        duplicate_exposure_status = ?,
+                        registered_at = ?,
+                        metadata_json = ?
+                    WHERE feature_version_id = ?
+                    """,
+                    (
+                        record.feature_spec.feature_id,
+                        record.feature_request_id,
+                        record.lifecycle_state.value,
+                        record.materialization_plan_id,
+                        record.dataset_version_id,
+                        record.partition_id,
+                        record.materialization_output_path,
+                        record.value_store_format,
+                        record.parquet_path,
+                        record.value_content_hash,
+                        record.producer_engine_id,
+                        record.value_schema_version,
+                        record.value_record_count,
+                        record.first_event_ts.isoformat(),
+                        record.last_event_ts.isoformat(),
+                        record.first_available_ts.isoformat(),
+                        record.last_available_ts.isoformat(),
+                        record.duplicate_exposure_status,
+                        record.registered_at.isoformat(),
+                        payload,
+                        record.feature_version_id,
+                    ),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO feature_lineage_records (
+                        feature_version_id,
+                        feature_request_id,
+                        metadata_json
+                    )
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(feature_version_id) DO UPDATE SET
+                        feature_request_id = excluded.feature_request_id,
+                        metadata_json = excluded.metadata_json
+                    """,
+                    (
+                        record.feature_version_id,
+                        record.feature_request_id,
+                        _lineage_json(record.lineage),
+                    ),
+                )
                 _insert_feature_set_membership(connection, record)
-                return _record_from_row(existing)
+                return record
             connection.execute(
                 """
                 INSERT INTO feature_registry_records (

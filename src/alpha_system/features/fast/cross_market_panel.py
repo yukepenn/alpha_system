@@ -199,7 +199,22 @@ def _validate_cross_market_feature_set(feature_set: FeatureSetSpec) -> _CrossMar
         raise PackMaterializerError(
             "cross_market fast pack requires one shared horizon/reset/alignment policy"
         )
+    _require_scaleout_substrate_strict_intersection(feature_set, first)
     return first
+
+
+def _require_scaleout_substrate_strict_intersection(
+    feature_set: FeatureSetSpec,
+    config: _CrossMarketPackConfig,
+) -> None:
+    metadata = feature_set.metadata.to_dict()
+    if metadata.get("family") != "cross_market_alignment":
+        return
+    if config.alignment_policy != "strict_intersection":
+        raise PackMaterializerError(
+            "cross_market_alignment scaleout substrate requires "
+            "alignment_policy=strict_intersection"
+        )
 
 
 def _validate_cross_market_feature(feature: FeatureSpec) -> _CrossMarketPackConfig:
@@ -1033,6 +1048,7 @@ def _datetime_expr(frame: Any, column: str, *, polars: Any) -> Any:
 def _input_quality_flags(polars: Any) -> Any:
     return (
         polars.col("quality_flags")
+        .cast(polars.List(polars.Utf8), strict=False)
         .fill_null(_flags(polars, ()))
         .list.eval(polars.element().str.to_lowercase())
         .list.unique()

@@ -49,6 +49,7 @@ def test_scaleout_feature_pack_cli_builds_targeting_request(
             "dsv_one,dsv_two",
             "--engine",
             "reference",
+            "--force-recompute",
             "--json",
         ]
     )
@@ -67,6 +68,7 @@ def test_scaleout_feature_pack_cli_builds_targeting_request(
     assert target.dataset_version_ids == ("dsv_one", "dsv_two")
     assert captured["engine"] == "reference"
     assert captured["execute"] is False
+    assert captured["force_recompute"] is True
     assert payload["target"]["feature_ids"] == ["returns", "log_returns"]
     assert payload["engine"] == "reference"
 

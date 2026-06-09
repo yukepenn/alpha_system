@@ -193,6 +193,73 @@ def test_successful_registration_resolves_by_version_and_feature_set(
     assert store.registry.count_feature_records() == 1
 
 
+def test_existing_registration_refreshes_materialization_metadata_via_store(
+    tmp_path: Path,
+) -> None:
+    store = FeatureStore(FeatureRegistry(tmp_path / "features.sqlite"))
+    request = _feature_request("synthetic_close_return_refresh")
+    spec, checked_request = _implementation_spec(
+        feature_id="base_ohlcv_close_return_refresh",
+        request=request,
+        registry_reader=EmptyRegistryReader(),
+    )
+    result = _materialization_result(tmp_path, spec)
+    version = spec.derive_feature_version()
+
+    record = store.register_materialized_feature(
+        result,
+        feature_spec=spec,
+        feature_version=version,
+        feature_request=checked_request,
+        registry_metadata={"phase": "old"},
+    )
+    refreshed_path = tmp_path / "features" / "refreshed.parquet"
+    refreshed_handle = ValueStoreHandle(
+        format=ValueStoreFormat.PARQUET,
+        jsonl_path=None,
+        parquet_path=refreshed_path.as_posix(),
+        value_count=result.record_count,
+        content_hash="sha256:" + HASH_2,
+        schema_version="schema.refresh.v1",
+        dataset_version_id=result.plan.dataset_version_id,
+        set_id=result.plan.feature_set.feature_set_id,
+        partition_id=result.plan.partition_id,
+        min_event_ts="2024-01-02T14:31:00+00:00",
+        max_event_ts="2024-01-02T14:32:00+00:00",
+        min_available_ts="2024-01-02T14:31:05+00:00",
+        max_available_ts="2024-01-02T14:32:05+00:00",
+    )
+
+    refreshed = store.register_materialized_feature(
+        replace(
+            result,
+            output_path=refreshed_path,
+            value_store_handle=refreshed_handle,
+        ),
+        feature_spec=spec,
+        feature_version=version,
+        feature_request=checked_request,
+        registry_metadata={
+            "phase": "new",
+            "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
+        },
+    )
+
+    assert refreshed.feature_version_id == record.feature_version_id
+    assert refreshed.registered_at == record.registered_at
+    assert store.registry.count_feature_records() == 1
+    resolved = store.resolve_feature(version.feature_version_id)
+    assert resolved is not None
+    assert resolved.parquet_path == refreshed_path.as_posix()
+    assert resolved.value_content_hash == refreshed_handle.content_hash
+    assert resolved.value_schema_version == "schema.refresh.v1"
+    assert resolved.registry_metadata.to_dict()["phase"] == "new"
+    assert (
+        resolved.registry_metadata.to_dict()["session_metadata_role"]
+        == "SESSION_METADATA_POINT_IN_TIME"
+    )
+
+
 def test_registry_backfills_old_rows_and_persists_parquet_metadata(tmp_path: Path) -> None:
     request = _feature_request("synthetic_close_return_old_row")
     old_spec, old_checked_request = _implementation_spec(

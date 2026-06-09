@@ -14,6 +14,7 @@ from alpha_system.features.fast import (
     VWAP_SESSION_AUCTION_FEATURE_IDS,
     PackMaterializer,
     build_fast_feature_pack,
+    build_vwap_session_auction_pack,
 )
 from alpha_system.features.families.ohlcv import (
     OHLCVFeatureDefinition,
@@ -105,6 +106,27 @@ def test_vwap_session_auction_pack_matches_reference_on_synthetic_fixture() -> N
         )
 
 
+def test_vwap_session_minute_binding_matches_reference_on_multi_session_fixture() -> None:
+    pytest.importorskip("polars")
+    reference_rows = vwap_session_auction_input_rows()
+    frame_rows = vwap_session_auction_frame_rows()
+    definition, feature_set = _vwap_session_minute_contracts()
+    reference_records = compute_ohlcv_feature(definition, OHLCVInputView(reference_rows))
+    materializer = PackMaterializer()
+    pack = build_vwap_session_auction_pack(feature_set)
+
+    fast_records = _records_by_feature_version(
+        materializer.compute_values(materializer.frame_from_rows(frame_rows), pack)
+    )
+
+    assert reference_records[NEXT_RTH_OPEN_INDEX].value == 0
+    assert_feature_records_match(
+        reference_records,
+        fast_records[definition.feature_version_id],
+        expected_feature_version_id=definition.feature_version_id,
+    )
+
+
 def test_vwap_session_auction_pack_materialization_records_fast_provenance(
     tmp_path: Path,
 ) -> None:
@@ -178,6 +200,25 @@ def _vwap_pack_contracts() -> tuple[tuple[OHLCVFeatureDefinition, ...], FeatureS
         metadata={"campaign": "FEATURE_COMPUTE_FAST_PATH_V1", "phase": "FCFP-P04"},
     )
     return definitions, feature_set
+
+
+def _vwap_session_minute_contracts() -> tuple[OHLCVFeatureDefinition, FeatureSetSpec]:
+    registry_reader = EmptyRegistryReader()
+    definition = build_ohlcv_feature_definition(
+        OHLCVFeatureName.SESSION_MINUTE,
+        approved_feature_request("fast_path_vwap_session_auction_session_minute"),
+        registry_reader,
+        dataset_version_ids=(DATASET_ID,),
+        reset_on_session=True,
+    )
+    feature_set = FeatureSetSpec(
+        feature_set_id="feature_set_fast_path_vwap_session_minute_v1",
+        feature_set_version="v1",
+        features=(definition.spec,),
+        description="V1 VWAP/session-auction session-minute parity fixture.",
+        metadata={"campaign": "FEATURE_COMPUTE_FAST_PATH_V1", "phase": "FUTSUB-P14"},
+    )
+    return definition, feature_set
 
 
 def _assert_fixture_coverage(

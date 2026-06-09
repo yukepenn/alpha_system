@@ -5,22 +5,38 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 - Campaign: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
 - Phase: `FUTSUB-P13`
+- Engine: `v1`
 - Rollout: `full-window`
-- Dry run: `yes`
-- Accepted unit count: `24`
+- Dry run: `no`
+- Targeting active: `no`
+- Accepted unit count: `8`
 - Bounded-real year: `2024`
-- Bounded-real unit count: `3`
-- Planned: `24`
+- Bounded-real unit count: `1`
+- Planned: `0`
 - Completed: `0`
-- Skipped: `0`
+- Skipped: `8`
 - Failed: `0`
+- Requested workers: `4`
+- Effective workers: `4`
+- Threads per worker: `4`
+
+## Target
+
+- Family: `cross_market_alignment`
+- Feature ids: `config default`
+- Feature groups: `none`
+- Label ids: `none`
+- Label groups: `none`
+- Symbols: `config default`
+- Years: `config default`
+- DatasetVersion ids: `accepted grid default`
 
 ## Acceptance States
 
 | State | Unit count |
 | --- | ---: |
-| `ACCEPTED` | 21 |
-| `ACCEPTED_WITH_WARNINGS` | 3 |
+| `ACCEPTED` | 7 |
+| `ACCEPTED_WITH_WARNINGS` | 1 |
 
 ## Window Policy
 
@@ -80,30 +96,14 @@ feature values, provider responses, SQLite content, or Parquet payloads.
 
 | Stage | Year | Symbol | Primary DatasetVersion | Input DatasetVersions | Status | Rows |
 | --- | ---: | --- | --- | --- | --- | ---: |
-| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_dense_2019_v1` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `planned` | 0 |
-| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_dense_2019_v1` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `planned` | 0 |
-| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_dense_2019_v1` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `planned` | 0 |
-| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_dense_2020_v1` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `planned` | 0 |
-| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_dense_2020_v1` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `planned` | 0 |
-| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_dense_2020_v1` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `planned` | 0 |
-| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_dense_2021_v1` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `planned` | 0 |
-| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_dense_2021_v1` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `planned` | 0 |
-| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_dense_2021_v1` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `planned` | 0 |
-| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dense_2022_v1` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `planned` | 0 |
-| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dense_2022_v1` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `planned` | 0 |
-| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dense_2022_v1` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `planned` | 0 |
-| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_dense_2023_v1` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `planned` | 0 |
-| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_dense_2023_v1` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `planned` | 0 |
-| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_dense_2023_v1` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `planned` | 0 |
-| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_dense_2024_v1` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `planned` | 0 |
-| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_dense_2024_v1` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `planned` | 0 |
-| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_dense_2024_v1` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `planned` | 0 |
-| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_dense_2025_v1` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `planned` | 0 |
-| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_dense_2025_v1` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `planned` | 0 |
-| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_dense_2025_v1` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `planned` | 0 |
-| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_dense_2026_v1` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `planned` | 0 |
-| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_dense_2026_v1` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `planned` | 0 |
-| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_dense_2026_v1` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `planned` | 0 |
+| `full_window` | 2019 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2019_v1` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `skipped` | 3916440 |
+| `full_window` | 2020 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2020_v1` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `skipped` | 3930300 |
+| `full_window` | 2021 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2021_v1` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `skipped` | 3931620 |
+| `full_window` | 2022 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2022_v1` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `skipped` | 3916363 |
+| `full_window` | 2023 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2023_v1` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `skipped` | 3916440 |
+| `full_window` | 2024 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2024_v1` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `skipped` | 3817924 |
+| `full_window` | 2025 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2025_v1` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `skipped` | 3802700 |
+| `full_window` | 2026 | `ES_NQ_RTY` | `dsv_databento_ohlcv_dense_2026_v1` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `skipped` | 1547040 |
 
 ## Bounded-Real FeatureVersion Preview
 
@@ -114,6 +114,4 @@ written.
 
 | Symbol | FeatureVersion ids |
 | --- | --- |
-| `ES` | `fver_c0cc57f41efa92eb392e0461fe35287491fd4df8f30c9b066afa428f8c5aa942`, `fver_c3af14eed11e162b909705d86fc962f7113512398edcbb83312281da4f6446f4`, `fver_8a435cf445eb62dcbf1438373494a62b76dd12abb64d37a3a22f36faaa8116c8`, `fver_d28e0e4137155bcac62cbc1040d95d9a21a36b4548ce13822eaeb3ee7e124441`, `fver_44dd0b39553d8b93ae9fb1e1437546b9a35d1a0204f07d22fd780f7b696f2340`, `fver_8a58244f4ac9c18e48ac5bc3ee424180673f30582edf440c060bc7f69bb1d62e`, `fver_ee7c9b033e3e60a0f9b52547bed077f4b8952340ce473764f27967f49bf9f7ad`, `fver_426349f1d505bdd5dac06bb4770b4bdf8e2657e8930a26010cf707985480c598`, `fver_811ece329e3b91115ac4edea9cbe9b157425fcd6b96a52b8b9a3a8156c1d250a`, `fver_00ac18edf1e84fa7600e6a7a42f43bd59a31d97fae26f146dca5070f3937807b`, `fver_394b014f44ad55ac6c8c236967cac7432b5452bd541a2a10d98521ee038fe0c9` |
-| `NQ` | `fver_8c97f9b7f1c7c7deec49de2e7acd0917da09816160eaea51e6ed72505d44bff2`, `fver_5461082596865b73eab67c3a6d9d36d48b2072be6d2168e1a81edc7ed798cc2a`, `fver_6464459452207d04a8079d2074c299e29ad9f55e2108295522e2a0dcbf1acd8b`, `fver_b82c54cfa6548716eb873b8d91682ad09d63199ec3be74a10538b8504eab6ff3`, `fver_bb81bdddf712fdc29949c8daf5d0e43064dd02190457c24a57a3f6c3baedd408`, `fver_8b22dedc4ef6fef289bac5c5ab89c87fda65c72b38d08c51c45dc1be2b142d90`, `fver_bcb2f064749dcd7b2e706b154dbbe929239ad84b8831fcd9e7eb02a5ccb530d6`, `fver_f2e323b2d3eb8bc59e3d3a4400f1bd21581873c138d9a9704caa53c91b16ceb2`, `fver_bf2e9e3e59c6504bc4c2129b19802c4fe813c1949617acbf2bce8489c40a14b7`, `fver_f38f7a59bf6a68648de9689b8cf87e4fd9838c3e0c0a268b158018707c4b682a`, `fver_45a58b91b3efe9621b93cceb6749e5ddffbd6432c1473e3b6b3ac8d36b3ee7df` |
-| `RTY` | `fver_0d2f4c928ce8a86a82222c0327fc6e1a6c5592383f6ee110b9ebfb9fb20e8e21`, `fver_9c7d7ddf2ae3a0e19a27ccf46977b5b39ff95566ea91e4a78c98b53766f2caf1`, `fver_bdde72d0bfa06e07cea2b58facd3ca6647255de6b8f2360860be7bdb2da260bb`, `fver_ec8bb4c7166c884b717273b08fdd634ad69316a1ac6203eab2ff3bb6a63d7d60`, `fver_abe561927050019e2f5230dc96587bea25a975ed92e608b023aa6c58be9dfa03`, `fver_6f0ba855de43be18115cc0588f1f78c1e279a7d77c427b206f7af09cef3acca1`, `fver_84a176ce7b5d860b1a5be94e09518244978a714d8d058c87d6a40b43319468f5`, `fver_83e3d9d5a92c350de0561dfbddd1d599866b4e1ddf48e1aa269621994008b6f4`, `fver_3684f133c6d4879cc10cba502e9e5152466f90b589220de5d5ce8b6c81e81e0d`, `fver_530f63f5ba4dacd769cb1aac162a759c8c3535977a7ed87e0e2aad14c425437f`, `fver_0579e663e29def7bc39c54c5fccd8bd69ae117bdc444b3d7b764a39ce3e9b608` |
+| `ES_NQ_RTY` | `fver_65bc052a7d8372b90322a2c69013d29317a5ea4e22cc94961fca784eb8d86b1a`, `fver_6ae9a54d4cd0b08add3b635e2ec3fa4014625383fe9d7018d2d2a162a5c9ceda`, `fver_09e6ce6480f6c22aae71145ef115a573ac8cff09197d9eae71b509acee660fa3`, `fver_921a962a906efaadd2c7812610679dc987a76c95c5fb76b46ac82914a2cb999b`, `fver_693704d36430cf7ff842b57ec78d87f5be9e6692f19a81e3cda15fadf94529d1`, `fver_bacd82e2b2a873ca162859e15d22634bc7d350fd8d3cc3f9c418b449d37dc64c`, `fver_9ed797cf41de2d25c7add5ad1de37ff12e6df6fc7146ccdfdf84ba9197c54475`, `fver_b9d318eb8342a911c191d0622b869d17255702b3183351a0bb45fdeb0e0c31aa`, `fver_6e8aa35cc88f66165273f56c006e89dcb024e4ffb84dc7191731839c481c7b3e`, `fver_5f27368f8a583e5b2e19650eff63d2c6815bee9eccdf594eae2fcb5b8c0783d3`, `fver_c7124d0bc9192f838a763dd02a284a79dfbb8b032123a0033118d3e6b1c3af9e` |
