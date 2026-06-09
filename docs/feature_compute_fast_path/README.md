@@ -20,6 +20,11 @@ This directory is the durable documentation index for
 - `WORKER_PARALLELISM.md` documents the P15 `--workers` /
   `ALPHA_CPU_WORKERS` controls, worker-compute / serial-writer boundary,
   deterministic worker manifests, and worker benchmark runner.
+- `research/feature_compute_fast_path_v1/closeout/CLOSEOUT.md` records the
+  P16 closeout verdict, status fields, phase roll-up, and boundaries-held
+  confirmation.
+- `handoffs/FEATURE_COMPUTE_FAST_PATH_V1/FUTSUB_RESUME_ON_V1.md` records the
+  coordinator-owned FUTSUB resume-on-V1 recipe.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
@@ -119,3 +124,9 @@ path. Compute can run across independent units with `--workers` or
 `FeatureStore` registry writer. Cross-market units stay panel-level, value-store
 hashing uses canonical record order, and the value-free worker benchmark summary
 lives under `research/feature_compute_fast_path_v1/workers/`.
+
+`FCFP-P16` closes the campaign with a `COMPLETE_WITH_WARNINGS` verdict and a
+FUTSUB resume handoff. It adds no code, tests, materialization, benchmark, or
+registry write; it records the evidence paths and recommends the coordinator
+repoint `ACTIVE_CAMPAIGN.md` to
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` after review.
