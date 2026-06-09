@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from alpha_system.data.foundation.rolls import (
+    RollCalendarRecord,
+    build_analytic_cme_equity_index_quarterly_roll_calendar,
+)
 from alpha_system.data.foundation.quotes import (
     BBO_QUARANTINE_QUALITY_FLAG,
     MISSING_BBO_QUALITY_FLAG,
@@ -31,6 +37,15 @@ from alpha_system.labels.version import (
     LabelInputSpec,
     LabelValueRecord,
     LabelVersion,
+)
+from alpha_system.labels.roll_guard import (
+    DEFAULT_CROSS_ROLL_POLICY,
+    DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+    DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+    ROLL_GUARD_VERSION,
+    ROLL_POLICY_ID,
+    RollGuardAction,
+    evaluate_roll_guard,
 )
 
 
@@ -155,6 +170,12 @@ _PATH_BY_PRICE_BASIS: dict[str, str] = {
     "mid": "midprice_forward_return",
 }
 _NUMERIC_TYPES = (int, float, Decimal)
+_KNOWN_ROLL_ROOTS: frozenset[str] = frozenset({"ES", "NQ", "RTY"})
+_MAINTENANCE_TIMEZONE = ZoneInfo("America/Chicago")
+_MAINTENANCE_BREAK_START = time(16, 0)
+_MAINTENANCE_BREAK_END = time(17, 0)
+MAINTENANCE_GUARD_VERSION = "maintenance_crossing_guard_v1"
+MAINTENANCE_POLICY_ID = "cme_index_futures_daily_maintenance_break_v1"
 
 
 def supported_fixed_horizon_labels() -> tuple[FixedHorizonLabelName, ...]:
@@ -168,6 +189,7 @@ def build_fixed_horizon_label_definition(
     governance_label_spec: LabelSpec | Mapping[str, Any] | None,
     *,
     dataset_version_ids: Sequence[str] = (),
+    materialization_scope: Mapping[str, Any] | None = None,
 ) -> FixedHorizonLabelDefinition:
     """Build one governed fixed-horizon label definition.
 
@@ -179,21 +201,37 @@ def build_fixed_horizon_label_definition(
     label_name = _coerce_label_name(name)
     spec = _coerce_governance_label_spec(governance_label_spec)
     _validate_label_spec_matches_name(label_name, spec)
+    contract_metadata: dict[str, Any] = {
+        "campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+        "phase": "FUTSUB-P16",
+        "materialization": "in_memory_records_only",
+        "price_basis": _price_basis(label_name),
+        "horizon_minutes": _HORIZON_MINUTES[label_name],
+        "legal_consumer": "labels_only",
+        "claims": "descriptive_label_substrate_only",
+        "terminal_key": "series_id+contract_id+event_ts",
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+        "roll_window": {
+            "days_before": DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+            "days_after": DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+        },
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+    }
+    scope = _materialization_scope_metadata(materialization_scope)
+    if scope:
+        contract_metadata["materialization_scope"] = scope
+
     contract = LabelContractSpec.from_label_spec(
         label_id=label_name.value,
         family=LabelFamily.FIXED_HORIZON,
         governance_label_spec=spec,
         inputs=_label_inputs(label_name, dataset_version_ids),
         window=_future_window(label_name),
-        contract_metadata={
-            "campaign": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
-            "phase": "FLF-P17",
-            "materialization": "in_memory_records_only",
-            "price_basis": _price_basis(label_name),
-            "horizon_minutes": _HORIZON_MINUTES[label_name],
-            "legal_consumer": "labels_only",
-            "claims": "descriptive_label_substrate_only",
-        },
+        contract_metadata=contract_metadata,
     )
     return FixedHorizonLabelDefinition(
         name=label_name,
@@ -258,14 +296,32 @@ def _compute_trade_price_forward_returns(
     input_view: OHLCVInputView,
 ) -> tuple[LabelValueRecord, ...]:
     rows = _validated_trade_rows(input_view.rows)
-    terminal_by_key = _index_by_series_event_ts(rows)
+    terminal_by_key = _index_by_series_contract_event_ts(rows)
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]] = {}
     records: list[LabelValueRecord] = []
     for source in rows:
         terminal = terminal_by_key.get(_terminal_key(source, definition.horizon_minutes))
         if terminal is None:
             continue
+        guarded = _guarded_forward_terminal(
+            source,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+        if guarded is None:
+            continue
+        terminal, guard_flags = guarded
         value, flags = _trade_price_return(source, terminal)
-        records.append(_label_value_record(definition, source, terminal, value, flags))
+        records.append(
+            _label_value_record(
+                definition,
+                source,
+                terminal,
+                value,
+                (*flags, *guard_flags),
+            )
+        )
     return tuple(records)
 
 
@@ -274,14 +330,32 @@ def _compute_midprice_forward_returns(
     input_view: BBOInputView,
 ) -> tuple[LabelValueRecord, ...]:
     rows = _validated_bbo_rows(input_view.rows)
-    terminal_by_key = _index_by_series_event_ts(rows)
+    terminal_by_key = _index_by_series_contract_event_ts(rows)
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]] = {}
     records: list[LabelValueRecord] = []
     for source in rows:
         terminal = terminal_by_key.get(_terminal_key(source, definition.horizon_minutes))
         if terminal is None:
             continue
+        guarded = _guarded_forward_terminal(
+            source,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+        if guarded is None:
+            continue
+        terminal, guard_flags = guarded
         value, flags = _midprice_return(source, terminal)
-        records.append(_label_value_record(definition, source, terminal, value, flags))
+        records.append(
+            _label_value_record(
+                definition,
+                source,
+                terminal,
+                value,
+                (*flags, *guard_flags),
+            )
+        )
     return tuple(records)
 
 
@@ -362,6 +436,7 @@ def _label_inputs(
             input_views=("canonical_bbo",),
             fields=(
                 "series_id",
+                "contract_id",
                 "event_ts",
                 "bar_end_ts",
                 "available_ts",
@@ -387,10 +462,11 @@ def _label_inputs(
     return LabelInputSpec(
         input_views=("canonical_ohlcv", "dense_grid_ohlcv"),
         fields=(
-            "series_id",
-            "event_ts",
-            "bar_end_ts",
-            "available_ts",
+                "series_id",
+                "contract_id",
+                "event_ts",
+                "bar_end_ts",
+                "available_ts",
             "close",
             "volume",
             "quality_flags",
@@ -417,6 +493,12 @@ def _future_window(name: FixedHorizonLabelName) -> WindowSpec:
             "horizon_minutes": _HORIZON_MINUTES[name],
             "price_basis": _price_basis(name),
             "legal_consumer": "labels_only",
+            "terminal_key": "series_id+contract_id+event_ts",
+            "roll_policy_id": ROLL_POLICY_ID,
+            "roll_guard_version": ROLL_GUARD_VERSION,
+            "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+            "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+            "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
         },
     )
 
@@ -525,15 +607,15 @@ def _sorted_rows[
     return tuple(sorted(rows, key=lambda row: (row.series_id, row.event_ts, row.available_ts)))
 
 
-def _index_by_series_event_ts[
+def _index_by_series_contract_event_ts[
     RowT: (OHLCVInputRow, BBOInputRow),
-](rows: Sequence[RowT]) -> dict[tuple[str, datetime], RowT]:
-    index: dict[tuple[str, datetime], RowT] = {}
+](rows: Sequence[RowT]) -> dict[tuple[str, str, datetime], RowT]:
+    index: dict[tuple[str, str, datetime], RowT] = {}
     for row in rows:
-        key = (row.series_id, row.event_ts)
+        key = (row.series_id, row.contract_id, row.event_ts)
         if key in index:
             raise FixedHorizonLabelError(
-                "fixed-horizon labels require unique rows per series_id and event_ts"
+                "fixed-horizon labels require unique rows per series_id, contract_id, and event_ts"
             )
         index[key] = row
     return index
@@ -542,8 +624,125 @@ def _index_by_series_event_ts[
 def _terminal_key(
     row: OHLCVInputRow | BBOInputRow,
     horizon_minutes: int,
-) -> tuple[str, datetime]:
-    return (row.series_id, row.event_ts + timedelta(minutes=horizon_minutes))
+) -> tuple[str, str, datetime]:
+    return (
+        row.series_id,
+        row.contract_id,
+        row.event_ts + timedelta(minutes=horizon_minutes),
+    )
+
+
+def _guarded_forward_terminal[
+    RowT: (OHLCVInputRow, BBOInputRow),
+](
+    source: RowT,
+    terminal: RowT,
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], RowT],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]],
+) -> tuple[RowT, tuple[str, ...]] | None:
+    if source.contract_id != terminal.contract_id:
+        return None
+    if _crosses_maintenance_break(source.event_ts, terminal.event_ts):
+        return None
+
+    root_symbol = _root_symbol(source)
+    if root_symbol is None:
+        return terminal, ()
+
+    calendar = _roll_calendar_for_window(
+        root_symbol,
+        source.event_ts,
+        terminal.event_ts,
+        cache=roll_calendar_cache,
+    )
+    verdict = evaluate_roll_guard(
+        entry_ts=source.event_ts,
+        label_horizon_ts=terminal.event_ts,
+        calendar=calendar,
+        policy=DEFAULT_CROSS_ROLL_POLICY,
+        root_symbol=root_symbol,
+        roll_window_days_before=DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+        roll_window_days_after=DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+    )
+    if verdict.action in {RollGuardAction.DROP, RollGuardAction.INVALID} or not verdict.valid:
+        return None
+    if verdict.action is RollGuardAction.TRUNCATE:
+        if verdict.effective_label_horizon_ts is None:
+            return None
+        truncated = terminal_by_key.get(
+            (source.series_id, source.contract_id, verdict.effective_label_horizon_ts)
+        )
+        if truncated is None:
+            return None
+        return truncated, _roll_guard_flags(verdict.action.value)
+    if verdict.action is RollGuardAction.FLAG:
+        return terminal, _roll_guard_flags(verdict.action.value)
+    return terminal, ()
+
+
+def _roll_calendar_for_window(
+    root_symbol: str,
+    entry_ts: datetime,
+    terminal_ts: datetime,
+    *,
+    cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]],
+) -> tuple[RollCalendarRecord, ...]:
+    start_year = min(entry_ts.year, terminal_ts.year)
+    end_year = max(entry_ts.year, terminal_ts.year)
+    key = (root_symbol, start_year, end_year)
+    if key not in cache:
+        cache[key] = build_analytic_cme_equity_index_quarterly_roll_calendar(
+            root_symbols=(root_symbol,),
+            start_year=start_year,
+            end_year=end_year,
+        )
+    return cache[key]
+
+
+def _roll_guard_flags(action: str) -> tuple[str, ...]:
+    return _quality_flags(
+        (
+            "roll_splice_guard",
+            f"roll_splice_{action}",
+            ROLL_POLICY_ID,
+            ROLL_GUARD_VERSION,
+        )
+    )
+
+
+def _crosses_maintenance_break(entry_ts: datetime, terminal_ts: datetime) -> bool:
+    entry_local = _require_aware_datetime(entry_ts, "entry_ts").astimezone(
+        _MAINTENANCE_TIMEZONE
+    )
+    terminal_local = _require_aware_datetime(terminal_ts, "terminal_ts").astimezone(
+        _MAINTENANCE_TIMEZONE
+    )
+    if terminal_local < entry_local:
+        return False
+
+    day = entry_local.date()
+    end_day = terminal_local.date()
+    while day <= end_day:
+        break_start = datetime.combine(day, _MAINTENANCE_BREAK_START, _MAINTENANCE_TIMEZONE)
+        break_end = datetime.combine(day, _MAINTENANCE_BREAK_END, _MAINTENANCE_TIMEZONE)
+        if entry_local < break_end and terminal_local > break_start:
+            return True
+        day += timedelta(days=1)
+    return False
+
+
+def _root_symbol(row: OHLCVInputRow | BBOInputRow) -> str | None:
+    candidates = (row.instrument_id, row.contract_id, row.series_id)
+    for value in candidates:
+        text = value.upper()
+        tokens = tuple(token for token in re.split(r"[^A-Z0-9]+|_", text) if token)
+        for root in sorted(_KNOWN_ROLL_ROOTS, key=len, reverse=True):
+            if root in tokens or text.startswith(root):
+                return root
+            if any(token.startswith(root) and token[len(root) :].isdigit() for token in tokens):
+                return root
+    return None
 
 
 def _is_real_trade_bar(row: OHLCVInputRow) -> bool:
@@ -645,10 +844,36 @@ def _quality_flags(flags: Sequence[str]) -> tuple[str, ...]:
     return tuple(sorted(normalized))
 
 
+def _materialization_scope_metadata(
+    value: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise FixedHorizonLabelError("materialization_scope must be a mapping")
+    scope: dict[str, str] = {}
+    for key, item in value.items():
+        key_text = _metadata_text(key, "materialization_scope key")
+        item_text = _metadata_text(item, f"materialization_scope.{key_text}")
+        scope[key_text] = item_text
+    return dict(sorted(scope.items()))
+
+
+def _metadata_text(value: object, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise FixedHorizonLabelError(f"{field_name} must be a string")
+    text = value.strip()
+    if not text:
+        raise FixedHorizonLabelError(f"{field_name} must be a non-empty string")
+    return text
+
+
 __all__ = [
     "FixedHorizonLabelDefinition",
     "FixedHorizonLabelError",
     "FixedHorizonLabelName",
+    "MAINTENANCE_GUARD_VERSION",
+    "MAINTENANCE_POLICY_ID",
     "build_fixed_horizon_label_definition",
     "build_fixed_horizon_label_definitions",
     "compute_fixed_horizon_label",

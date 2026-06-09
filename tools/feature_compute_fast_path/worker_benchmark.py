@@ -193,7 +193,7 @@ def _run_one_worker_count(
     resolver_smoke = (
         "PASS"
         if all(
-            _completed_record_has_registry_truth(record, alpha_data_root, engine="v1")
+            _completed_record_has_registry_truth(config, record, alpha_data_root, engine="v1")
             for record in records
             if record.status == "completed"
         )
