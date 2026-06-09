@@ -503,6 +503,7 @@ def test_v1_checkpoint_skip_requires_v1_registry_provenance(
     )
     assert (
         scaleout_driver._completed_record_has_registry_truth(
+            config,
             completed,
             tmp_path,
             engine="v1",
@@ -517,6 +518,7 @@ def test_v1_checkpoint_skip_requires_v1_registry_provenance(
     )
     assert (
         scaleout_driver._completed_record_has_registry_truth(
+            config,
             completed,
             tmp_path,
             engine="v1",
