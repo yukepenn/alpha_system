@@ -7,96 +7,31 @@ The repository-level campaign pointer targets
 `FEATURE_COMPUTE_FAST_PATH_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has `FCFP-P12`
-executor work available in this worktree: engine / value-schema versioning and
-reference-output reconciliation. The feature registry write path records
-`producer_engine_id` and `value_schema_version`, the reconciliation policy is
-defined, and silent reference/V1 engine mixing is blocked. Ralph owns
-validation, staging, Yellow-lane review routing, and any phase verdict.
-Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1 engine
-core plus targeted / incremental scaleout selection in this `FCFP-P11` executor
-snapshot. The scaleout CLI can select materialization by family, feature id,
-configured feature group, label selector, symbols, years, and DatasetVersion
-ids, with value-free dry-run estimates, execute-selected-only behavior, and
-checkpoint plus registry-truth skip-completed semantics. Ralph owns validation,
-staging, Yellow-lane review routing, and any phase verdict.
+Current campaign progress: `FEATURE_COMPUTE_FAST_PATH_V1` has the P01 V1
+engine core, governed feature packs through `cross_market`, the governed
+fixed-horizon label pack, targeted / incremental scaleout selection, producer
+provenance reconciliation, and the `FCFP-P13` bounded benchmark gate available
+in this worktree. Ralph owns validation, staging, Yellow-lane review routing,
+and any phase verdict.
 
-Active / next integration path: remaining family and label pack work through
-`FCFP-P10` continues on its reviewed path. Next integration phases are
-`FCFP-P12` versioning/reconciliation and `FCFP-P13` benchmark evidence, followed
-by `FCFP-P14` V1 producer-path integration, which routes the driver to V1 and
-depends on the P11 targeting surface. Remaining phases merge serially.
-core plus governed `base_ohlcv`, `session_calendar_roll`,
-`vwap_session_auction`, `regime_vol_compression`, `liquidity_pa_structure`,
-`volume_activity`, `bbo_tradability`, `cross_market`, and multi-horizon
-fixed-horizon label-pack executor work available in this worktree. This is the
-`FCFP-P10` executor snapshot within the `FCFP-P00` through `FCFP-P15` campaign.
-Ralph owns validation, staging, Yellow-lane review routing, and any phase
-verdict.
+Active / next integration path after P13 review and merge: `FCFP-P14` V1
+Producer Path Integration + Resolver Smoke, then `FCFP-P15` Closeout + FUTSUB
+Resume Handoff. Remaining phases merge serially.
 
-Active / next phases after P12 review and merge: `FCFP-P13` Benchmark Gate,
-then `FCFP-P14` V1 Producer Path Integration + Resolver Smoke, and `FCFP-P15`
-Closeout + FUTSUB Resume Handoff. Remaining phases merge serially.
+New durable surfaces in this `FCFP-P13` executor snapshot:
 
-New durable surfaces in this `FCFP-P12` executor snapshot:
-New durable surfaces in this `FCFP-P11` executor snapshot:
-
-- `PackMaterializer`, `FastFeaturePack`, and `FastFeatureDeclaration` under
-  `src/alpha_system/features/fast/`
-- The V1 `base_ohlcv` Polars pack and fail-closed pack resolver under
-  `src/alpha_system/features/fast/`
-- The V1 `session_calendar_roll` Polars pack and resolver wiring under
-  `src/alpha_system/features/fast/`
-- The V1 `vwap_session_auction` Polars pack, pack preparation hook, and resolver
-  wiring under `src/alpha_system/features/fast/`
-- The V1 `regime_vol_compression` Polars pack and resolver wiring under
-  `src/alpha_system/features/fast/`
-- The V1 `liquidity_pa_structure` Polars pack and resolver wiring under
-  `src/alpha_system/features/fast/`
-- The V1 `volume_activity` Polars pack and resolver wiring under
-  `src/alpha_system/features/fast/`
-- The V1 `bbo_tradability` Polars pack and resolver wiring under
-  `src/alpha_system/features/fast/`
-- The V1 `cross_market` aligned-panel Polars pack and resolver wiring under
-  `src/alpha_system/features/fast/`
-- The V1 fixed-horizon label `FastLabelMaterializer` and governed label pack
-  under `src/alpha_system/labels/fast/`
-- Feature producer provenance fields on the official `FeatureStore` /
-  `FeatureRegistry` write path, with reference and V1 producer engine ids kept
-  out of `feature_version_id`
-- Reconciliation helpers under `src/alpha_system/features/fast/` that classify
-  reference versus V1 outputs using documented tolerances and emit value-free
-  decisions
-- Synthetic reference-parity harness under
-  `tests/unit/feature_compute_fast_path/`
-- Base OHLCV, Session / Calendar / Roll, and VWAP / Session-Auction synthetic
-  parity tests, plus the Regime / Volatility / Compression and Liquidity / PA
-  Structure, Volume / Activity, BBO Tradability, Cross-Market, and
-  fixed-horizon label parity tests, under
-  `tests/unit/feature_compute_fast_path/`
-- Tiny documented synthetic fixtures, including the 32-row Base OHLCV pack
-  fixture, the dense-grid Session / Calendar / Roll pack fixture, the VWAP /
-  Session-Auction pack fixture, the Regime / Volatility / Compression pack
-  fixture, the Liquidity / PA Structure pack fixture, the Volume / Activity pack
-  fixture, the BBO Tradability pack fixture, the ES/NQ/RTY Cross-Market
-  aligned-panel fixture, and the fixed-horizon label fixture, under
-  `tests/fixtures/feature_compute_fast_path/`
-- Fast-path engine contract docs under `docs/feature_compute_fast_path/`
-- Engine provenance and reconciliation docs under
-  `docs/feature_compute_fast_path/`
-- Targeted scaleout CLI docs under
-  `docs/feature_compute_fast_path/TARGETED_SCALEOUT.md`
-- Value-free Base OHLCV, Session / Calendar / Roll, VWAP / Session-Auction, and
-  Regime / Volatility / Compression parity reports plus the Cross-Market parity
-  note under
-  `research/feature_compute_fast_path_v1/parity/`
-- No real-data backfill, benchmark, feature/label value artifact,
-- Value-free fixed-horizon label parity report under
-  `research/feature_compute_fast_path_v1/label_packs/`
-- Value-free reconciliation summary under
-  `research/feature_compute_fast_path_v1/reconciliation/`
-- No CLI command, real-data backfill, benchmark, feature/label value artifact,
-  broker/live/paper behavior, or heavy artifact was added in this phase.
+- `tools/feature_compute_fast_path/benchmark_gate.py`, a bounded-real benchmark
+  entrypoint that invokes the real reference runners and V1 pack runners on a
+  self-validating roll-month slice.
+- `research/feature_compute_fast_path_v1/benchmark/benchmark_summary.md`, a
+  value-free benchmark summary with timing, throughput, scan-reduction,
+  speedup, extrapolation, and real-data parity confirmation fields.
+- `docs/feature_compute_fast_path/BENCHMARK_GATE.md`, documenting how to back up
+  the local registry, run the bounded benchmark, and interpret the summary.
+- Synthetic benchmark-harness tests under
+  `tests/unit/feature_compute_fast_path/`.
+- No full-window backfill, feature/label value artifact, broker/live/paper
+  behavior, deployment behavior, or alpha/profitability claim is added.
 
 ## Source Of Truth
 

@@ -12,6 +12,8 @@ This directory is the durable documentation index for
   the no-silent-engine-mixing reconciliation policy.
 - `TARGETED_SCALEOUT.md` documents the P11 targeting flags, dry-run estimate,
   execute-selected-only contract, and skip-completed semantics.
+- `BENCHMARK_GATE.md` documents the P13 bounded-real benchmark command,
+  registry backup step, value-free summary contract, and interpretation fields.
 - `campaigns/FEATURE_COMPUTE_FAST_PATH_V1/` contains the authoritative campaign
   contract bundle and per-phase plan.
 - `research/feature_compute_fast_path_v1/` is the value-free evidence root for
@@ -90,3 +92,10 @@ reference-output reconciliation policy. Existing valid reference outputs remain
 the parity reference when V1 is identical or within documented tolerance; beyond
 tolerance blocks silent mixing until a V1 bug fix, explicit schema bump, or
 official keystone re-materialization path is used.
+
+`FCFP-P13` adds the bounded-real benchmark gate under
+`tools/feature_compute_fast_path/benchmark_gate.py`. It measures the governed
+feature and label packs on a self-validating roll-month slice, reconfirms
+real-data parity against the reference engines before reporting speedup, and
+writes a value-free benchmark summary under
+`research/feature_compute_fast_path_v1/benchmark/`.

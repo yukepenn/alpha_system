@@ -387,9 +387,52 @@ class FastLabelMaterializer:
         )
 
     def compute_values(self, price_frame: Any, pack: FastLabelPack) -> tuple[LabelValueRecord, ...]:
-        """Evaluate all governed labels and return aligned LabelValueRecords."""
+        """Evaluate all governed labels and return aligned LabelValueRecords.
 
-        return self.compute_values_with_metadata(price_frame, pack).records
+        Records-only path: it does NOT compute the value-free N_eff/overlap
+        metadata (that is only needed by materialize_pack via
+        compute_values_with_metadata). Callers that need both should call
+        compute_values_with_metadata directly; this keeps record production -- the
+        hot path used at scale and in the benchmark -- free of the per-pack
+        metadata scan.
+        """
+
+        pl = require_dependency("polars")
+        pack = _require_pack(pack)
+        frame = self.prepare_price_panel(price_frame)
+        return self.compute_values_from_panel(frame, pack)
+
+    def prepare_price_panel(self, price_frame: Any) -> Any:
+        """Adapt a raw canonical price frame into the prepared label price panel.
+
+        This is the V1 engine's input-adaptation step -- the analogue of the
+        reference engine's CanonicalInputViews. It is a once-per-batch cost
+        (independent of how many label horizons are computed), so callers that
+        evaluate many declarations from one canonical load (the real materialize
+        path and the benchmark) prepare the panel ONCE here and feed it to
+        compute_values_from_panel, rather than re-preparing per call.
+        """
+
+        pl = require_dependency("polars")
+        return _prepare_panel(_coerce_frame(price_frame, pl), pl)
+
+    def compute_values_from_panel(
+        self, prepared_panel: Any, pack: FastLabelPack
+    ) -> tuple[LabelValueRecord, ...]:
+        """Compute all label records from an already-prepared price panel.
+
+        Pure compute step (no input adaptation): given the prepared panel from
+        prepare_price_panel, evaluate every governed label horizon in one pass.
+        """
+
+        pl = require_dependency("polars")
+        pack = _require_pack(pack)
+        all_records: list[LabelValueRecord] = []
+        for declaration in pack.declarations:
+            all_records.extend(
+                _compute_fixed_horizon_records(prepared_panel, declaration.definition, pl)
+            )
+        return tuple(all_records)
 
     def compute_values_with_metadata(
         self,
@@ -508,27 +551,71 @@ def _compute_fixed_horizon_records(
         how="inner",
     ).sort(("series_id", "event_ts", "available_ts"))
 
+    # Vectorize the common case (valid, unflagged bars) instead of running the
+    # per-row Python flag/value path over every joined row via iter_rows(named=True)
+    # -- that loop was ~91% of the label fast-path wall-clock (FCFP-P13 profile).
+    # The value (terminal/source - 1), the price-validity guard, and the flag
+    # TRIGGER are computed as columns; valid+unflagged rows then read a precomputed
+    # return with empty flags, while flagged or non-positive-price rows (the
+    # minority) fall through to the EXACT same `_label_value_and_flags` Python path
+    # on a lazily materialized row dict -- so reference parity is preserved bit for
+    # bit. label_available_ts keeps its exact max(terminal, floor) semantics.
+    if definition.is_midprice:
+        trigger_expr = ~(
+            polars.col("is_valid_bbo_quote") & polars.col("__terminal_is_valid_bbo_quote")
+        )
+    else:
+        trigger_expr = ~(
+            polars.col("is_real_trade_bar") & polars.col("__terminal_is_real_trade_bar")
+        )
+    joined = joined.with_columns(
+        (polars.col("__terminal_price") / polars.col("price") - 1.0).alias("__fhl_ret"),
+        (
+            (polars.col("price") > 0.0) & (polars.col("__terminal_price") > 0.0)
+        ).alias("__fhl_price_valid"),
+        trigger_expr.fill_null(True).alias("__fhl_trigger"),
+    )
+    series_col = joined["series_id"].to_list()
+    event_col = joined["event_ts"].to_list()
+    horizon_col = joined["__terminal_event_ts"].to_list()
+    term_avail_col = joined["__terminal_available_ts"].to_list()
+    ret_col = joined["__fhl_ret"].to_list()
+    price_valid_col = joined["__fhl_price_valid"].to_list()
+    trigger_col = joined["__fhl_trigger"].to_list()
+
+    label_version_id = definition.label_version_id
+    contract = definition.contract
+    availability_floor = contract.availability_policy.availability_time
+
     records: list[LabelValueRecord] = []
-    for row in joined.iter_rows(named=True):
-        value, flags = _label_value_and_flags(row, definition)
+    for i in range(joined.height):
+        if trigger_col[i] or not price_valid_col[i]:
+            # Rare path: exact reference-parity Python logic on the full row.
+            value, flags = _label_value_and_flags(joined.row(i, named=True), definition)
+        else:
+            ret = ret_col[i]
+            if ret is not None and math.isfinite(ret):
+                value, flags = ret, ()
+            else:
+                value, flags = None, ("non_finite_return",)
+        # The polars panel stores Datetime(time_zone="UTC"); .to_list() yields
+        # tz-aware UTC datetimes, and LabelValueRecord.__post_init__ already
+        # validates/normalizes each field via _require_aware_datetime. Re-coercing
+        # here (3x per record) was ~0.74s of redundant fast-path-only overhead the
+        # reference engine never pays. Pass the values straight through -- the
+        # record's own validation preserves exact reference parity.
+        terminal_available_ts = term_avail_col[i]
+        if terminal_available_ts < availability_floor:
+            terminal_available_ts = availability_floor
         records.append(
             LabelValueRecord(
-                label_version_id=definition.label_version_id,
-                entity_id=_require_text(row["series_id"]),
-                event_ts=_coerce_datetime(row["event_ts"], "event_ts"),
-                horizon_end_ts=_coerce_datetime(
-                    row["__terminal_event_ts"],
-                    "horizon_end_ts",
-                ),
-                label_available_ts=max(
-                    _coerce_datetime(
-                        row["__terminal_available_ts"],
-                        "terminal.available_ts",
-                    ),
-                    definition.contract.availability_policy.availability_time,
-                ),
+                label_version_id=label_version_id,
+                entity_id=_require_text(series_col[i]),
+                event_ts=event_col[i],
+                horizon_end_ts=horizon_col[i],
+                label_available_ts=terminal_available_ts,
                 value=value,
-                label_contract=definition.contract,
+                label_contract=contract,
                 quality_flags=flags,
             )
         )
