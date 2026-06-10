@@ -36,13 +36,10 @@ to match.
   `WF2_PARALLEL_DAG_SCHEDULER_MVP.md` — repo-wide / cross-cutting records.
 - `000-template.md` — the handoff template.
 
-### Known misplacement (to relocate post-FUTSUB-close)
-
-- `handoffs/FUTSUB-P04.md` and `handoffs/FUTSUB-P12.md` are misplaced uniques (no
-  subdir copy exists) whose campaign specs already point at the
-  `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/` path. They should be
-  `git mv`'d into that subdir once FUTSUB reaches campaign-done (deferred while the
-  run may still read them — see `CLEANUP_PLAN.md` B-P2-1).
+> `FUTSUB-P04.md` and `FUTSUB-P12.md` were relocated from the flat top level into
+> `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/` via `git mv` (content and
+> history preserved), matching the `handoffs/<CAMPAIGN_ID>/` convention the campaign
+> specs reference.
 
 ## Template
 
