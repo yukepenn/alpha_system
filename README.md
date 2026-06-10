@@ -23,13 +23,15 @@ session-close, maintenance-flat, cost-adjusted, and spread-adjusted label packs
 with synthetic parity coverage against the reference families. `LCFP-P05` adds
 the governed path-label pack for MFE, MAE, target-before-stop, and
 triple-barrier labels with synthetic parity coverage against the reference path
-family and P02 guard checks for crossing rows.
+family and P02 guard checks for crossing rows. `LCFP-P06` wires the merged fast
+label packs into targeted dry-run/execute materialization, checkpoint/restart,
+compute-only label workers, strictly serial registry registration, and strict
+identity resolver smoke coverage.
 
-Active / next phase after this branch: `LCFP-P06` wires the merged label packs
-into targeting, checkpoint, worker, registry, and resolver integration after
-the pack branches merge serially.
+Active / next phase after this branch: `LCFP-P07` parity suite, followed by
+`LCFP-P08` benchmark/readiness per the campaign DAG.
 
-New durable surfaces through this `LCFP-P05` executor snapshot:
+New durable surfaces through this `LCFP-P06` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -52,6 +54,15 @@ New durable surfaces through this `LCFP-P05` executor snapshot:
 - `src/alpha_system/labels/fast/path.py` declares the P05 `mfe`, `mae`,
   `target_before_stop`, and `triple_barrier` fast pack with reference fallback
   routing outside the P02 proof boundary.
+- `src/alpha_system/labels/fast/worker.py` declares value-free fast-label worker
+  manifests for local checkpoint/restart.
+- `src/alpha_system/features/scaleout/driver.py` routes label scaleout through
+  V1 fast labels, targeting, checkpoint/registry skip, force recompute,
+  compute-only workers, and serial label-registry registration.
+- `src/alpha_system/cli/scaleout.py` exposes `scaleout label-pack --engine`,
+  `--workers`, `--horizon-group`, and `--force`.
+- `src/alpha_system/cli/label.py` exposes `label materialize --fast-path` for
+  the same targeted label scaleout path.
 - `tests/unit/label_compute_fast_path/test_fixed_horizon_extended_pack.py`
   covers all nine governed trade-price fixed-minute horizons plus roll and
   maintenance drop parity against the reference family.
@@ -61,6 +72,9 @@ New durable surfaces through this `LCFP-P05` executor snapshot:
 - `tests/unit/label_compute_fast_path/test_path_label_pack.py` covers P05 path
   parity, same-bar ambiguity policy variants, timeout rows, no-trade session
   gaps, and P02 roll/maintenance guard crossing rows.
+- `tests/unit/label_compute_fast_path/test_worker_checkpoint_registry_integration.py`
+  covers P06 targeting, dry-run, checkpoint skip, force recompute, worker order,
+  and label worker env precedence.
 - `docs/label_compute_fast_path/SESSION_MAINTENANCE_COST_PACKS.md` documents
   the P04 pack surfaces and read-only `backtest/costs.py` cost-profile design.
 - `docs/label_compute_fast_path/PATH_LABEL_PACKS.md` documents the P05 path
@@ -77,6 +91,9 @@ New durable surfaces through this `LCFP-P05` executor snapshot:
   P04 parity coverage and the documented cost-label float tolerance.
 - `research/label_compute_fast_path_v1/parity/LCFP-P05.md` records value-free
   P05 path parity coverage and the documented path-label float tolerance.
+- `research/label_compute_fast_path_v1/integration/integration_report.md`
+  records value-free P06 targeting, worker, checkpoint, registry, and resolver
+  smoke evidence.
 - `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
   reference-engine benchmark entrypoint for bounded slices.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
@@ -91,6 +108,9 @@ New durable surfaces through this `LCFP-P05` executor snapshot:
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05.md` records the path-label
   implementation, parity coverage, and local validation results for this
   phase.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P06.md` records the worker,
+  checkpoint, registry, resolver, integration-smoke, and validation evidence
+  for this phase.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run

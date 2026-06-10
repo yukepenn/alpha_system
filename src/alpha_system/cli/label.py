@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from collections.abc import Mapping, Sequence
@@ -64,6 +65,8 @@ def run_materialize(args: argparse.Namespace) -> int:
     governed seed-pack operator and emit a curated JSON summary.
     """
 
+    if getattr(args, "fast_path", False):
+        return _run_with_error_handling(lambda: _emit_fast_label_materialize(args))
     if getattr(args, "execute", False):
         return _run_with_error_handling(lambda: _emit_seed_label_pack(args))
     return _run_with_error_handling(lambda: _emit_label_plan(args, dry_run=True))
@@ -123,6 +126,7 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     _add_label_definition_arguments(materialize_parser, required=False)
     _add_dataset_arguments(materialize_parser, required=False)
     _add_seed_execute_arguments(materialize_parser)
+    _add_fast_path_materialize_arguments(materialize_parser)
     materialize_parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -270,6 +274,36 @@ def _add_seed_execute_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_fast_path_materialize_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--fast-path",
+        action="store_true",
+        help="Use the V1 fast label scaleout materializer.",
+    )
+    parser.add_argument(
+        "--scaleout-config",
+        default="configs/labels/scaleout/fixed_horizon.json",
+        help="Label scaleout config consumed by --fast-path.",
+    )
+    parser.add_argument("--label-group", action="append")
+    parser.add_argument("--horizon-group", action="append")
+    parser.add_argument("--symbols", action="append")
+    parser.add_argument("--years", action="append")
+    parser.add_argument("--dataset-version-ids", action="append")
+    parser.add_argument("--workers", type=int, default=None)
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--rollout",
+        choices=("bounded-real", "full-window", "bounded-then-full"),
+        default="bounded-then-full",
+    )
+    parser.add_argument("--bounded-year", type=int, default=None)
+    parser.add_argument(
+        "--summary-out",
+        help="Optional value-free Markdown summary output path.",
+    )
+
+
 def _run_with_error_handling(callback: Any) -> int:
     try:
         callback()
@@ -357,6 +391,51 @@ def _emit_seed_label_pack(args: argparse.Namespace) -> None:
         {"command": "label materialize --execute", "value_store": args.value_store, **summary},
         emit_json=args.json,
     )
+
+
+def _emit_fast_label_materialize(args: argparse.Namespace) -> None:
+    from alpha_system.cli.scaleout import _resolve_canonical_root, _resolve_label_workers
+    from alpha_system.features.scaleout import (
+        DEFAULT_SCALEOUT_ENGINE,
+        ScaleoutTarget,
+        load_scaleout_config,
+        render_scaleout_summary_markdown,
+        run_scaleout,
+    )
+
+    config = load_scaleout_config(args.scaleout_config)
+    summary = run_scaleout(
+        config,
+        alpha_data_root=args.alpha_data_root,
+        dataset_registry_path=args.dataset_registry,
+        canonical_root=_resolve_canonical_root(args.canonical_root, args.alpha_data_root),
+        rollout=args.rollout,
+        execute=bool(args.execute),
+        bounded_year=args.bounded_year,
+        engine=DEFAULT_SCALEOUT_ENGINE,
+        workers=_resolve_label_workers(args.workers, env=os.environ),
+        force_recompute=args.force or None,
+        target=ScaleoutTarget(
+            label_groups=_split_text_targets(getattr(args, "label_group", None)),
+            horizon_groups=_split_text_targets(getattr(args, "horizon_group", None)),
+            symbols=_split_text_targets(getattr(args, "symbols", None), uppercase=True),
+            years=_split_year_targets(getattr(args, "years", None)),
+            dataset_version_ids=_split_text_targets(
+                getattr(args, "dataset_version_ids", None)
+            ),
+        ),
+    )
+    if args.summary_out:
+        path = Path(args.summary_out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(render_scaleout_summary_markdown(summary), encoding="utf-8")
+    payload = {
+        "command": "label materialize --fast-path",
+        "dry_run": not bool(args.execute),
+        "writes_values": bool(args.execute),
+        **summary.to_dict(),
+    }
+    _emit(payload, emit_json=args.json)
 
 
 def _apply_seed_overrides(config: Any, args: argparse.Namespace) -> Any:
@@ -595,6 +674,28 @@ def _read_json_mapping(path: str | Path, object_name: str) -> Mapping[str, Any]:
     if isinstance(value, str) or not isinstance(value, Mapping):
         raise LabelCliError(f"{object_name} JSON root must be a mapping")
     return value
+
+
+def _split_text_targets(values: list[str] | None, *, uppercase: bool = False) -> tuple[str, ...]:
+    if not values:
+        return ()
+    targets: list[str] = []
+    for value in values:
+        for part in value.split(","):
+            text = part.strip()
+            if text:
+                targets.append(text.upper() if uppercase else text)
+    return tuple(dict.fromkeys(targets))
+
+
+def _split_year_targets(values: list[str] | None) -> tuple[int, ...]:
+    years: list[int] = []
+    for text in _split_text_targets(values):
+        try:
+            years.append(int(text))
+        except ValueError as exc:
+            raise LabelCliError(f"--years target must be an integer: {text}") from exc
+    return tuple(dict.fromkeys(years))
 
 
 def _emit(payload: Mapping[str, Any], *, emit_json: bool) -> None:

@@ -16,7 +16,7 @@ CONFIG_PATH = "configs/labels/scaleout/fixed_horizon.json"
 DATASET_ID_2024 = "dsv_databento_ohlcv_05404069799decb0"
 
 
-def test_fixed_horizon_label_scaleout_plans_reference_label_units() -> None:
+def test_fixed_horizon_label_scaleout_plans_fast_label_units() -> None:
     config = load_scaleout_config(CONFIG_PATH)
 
     summary = run_scaleout(config, rollout="full-window", engine="v1", workers=4)
@@ -30,7 +30,7 @@ def test_fixed_horizon_label_scaleout_plans_reference_label_units() -> None:
         "fwd_ret_15m",
         "fwd_ret_30m",
     )
-    assert summary.engine == "reference"
+    assert summary.engine == "v1"
     assert summary.accepted_unit_count == 144
     assert summary.planned_count == 144
     assert summary.failed_count == 0
@@ -49,7 +49,7 @@ def test_fixed_horizon_label_scaleout_plans_reference_label_units() -> None:
     )
 
     rendered = render_scaleout_summary_markdown(summary)
-    assert "reference label engine" in rendered
+    assert "Engine: `v1`" in rendered
     assert "label_available_ts" in rendered
     assert "series_id+contract_id+event_ts" in rendered
 
@@ -123,7 +123,7 @@ def test_fixed_horizon_label_execute_is_serial_and_preserves_label_versions(
         workers=4,
     )
 
-    assert summary.engine == "reference"
+    assert summary.engine == "v1"
     assert summary.worker_plan.effective_workers == 1
     assert summary.completed_count == 1
     assert summary.failed_count == 0
