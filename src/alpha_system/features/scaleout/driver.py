@@ -1125,8 +1125,11 @@ def materialize_fixed_horizon_label_unit(
 
     from alpha_system.cli.seed_pack import run_seed_label_pack
 
-    if config.family != "fixed_horizon" or unit.family != "fixed_horizon":
-        raise ScaleoutError("FUTSUB-P16 executor supports only the fixed_horizon label family")
+    if config.family not in {"fixed_horizon", "session_close_maintenance_flat"} or unit.family != config.family:
+        raise ScaleoutError(
+            "label executor supports only fixed_horizon and "
+            "session_close_maintenance_flat label families"
+        )
 
     metadata = _label_scaleout_metadata(config, unit)
     summary = run_seed_label_pack(
@@ -2463,7 +2466,7 @@ def _unit_executor_for_family(
     engine: str = DEFAULT_SCALEOUT_ENGINE,
 ) -> UnitExecutor:
     engine_token = _normalize_engine(engine)
-    if family == "fixed_horizon":
+    if family in {"fixed_horizon", "session_close_maintenance_flat"}:
         return materialize_fixed_horizon_label_unit
     if engine_token == SCALEOUT_ENGINE_V1:
         return materialize_v1_feature_unit
@@ -3699,7 +3702,7 @@ def _preview_label_version_ids(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
 ) -> tuple[str, ...]:
-    if config.family != "fixed_horizon":
+    if config.family not in {"fixed_horizon", "session_close_maintenance_flat"}:
         raise ScaleoutError(f"unsupported label scaleout family: {config.family}")
     from alpha_system.cli.seed_pack import preview_seed_label_pack
 
@@ -3758,6 +3761,8 @@ def _label_seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
 
 
 def _label_horizon(name: str) -> str:
+    if name in {"session_close", "maintenance_flat"}:
+        return name
     token = name.removeprefix("mid_fwd_ret_").removeprefix("fwd_ret_")
     if token.endswith("m") and token[:-1].isdigit():
         return token

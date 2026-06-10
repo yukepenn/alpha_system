@@ -1,4 +1,4 @@
-"""Fixed-horizon trade-close and midprice forward-return labels."""
+"""Fixed-horizon and close-out trade-close forward-return labels."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ class FixedHorizonLabelError(ValueError):
 
 
 class FixedHorizonLabelName(StrEnum):
-    """Supported FLF-P17 fixed-horizon label names."""
+    """Supported fixed-horizon and close-out label names."""
 
     FWD_RET_1M = "fwd_ret_1m"
     FWD_RET_3M = "fwd_ret_3m"
@@ -65,6 +65,8 @@ class FixedHorizonLabelName(StrEnum):
     FWD_RET_60M = "fwd_ret_60m"
     FWD_RET_120M = "fwd_ret_120m"
     FWD_RET_240M = "fwd_ret_240m"
+    SESSION_CLOSE = "session_close"
+    MAINTENANCE_FLAT = "maintenance_flat"
     MID_FWD_RET_1M = "mid_fwd_ret_1m"
     MID_FWD_RET_3M = "mid_fwd_ret_3m"
     MID_FWD_RET_5M = "mid_fwd_ret_5m"
@@ -157,6 +159,10 @@ class FixedHorizonLabelDefinition:
     def horizon_minutes(self) -> int:
         """Return the fixed forward horizon in minutes."""
 
+        if self.name in _CLOSE_OUT_LABELS:
+            raise FixedHorizonLabelError(
+                f"{self.name.value} is a symbolic close-out horizon, not a fixed minute horizon"
+            )
         return _HORIZON_MINUTES[self.name]
 
     @property
@@ -188,6 +194,8 @@ _TRADE_PRICE_LABELS: frozenset[FixedHorizonLabelName] = frozenset(
         FixedHorizonLabelName.FWD_RET_60M,
         FixedHorizonLabelName.FWD_RET_120M,
         FixedHorizonLabelName.FWD_RET_240M,
+        FixedHorizonLabelName.SESSION_CLOSE,
+        FixedHorizonLabelName.MAINTENANCE_FLAT,
     }
 )
 _MIDPRICE_LABELS: frozenset[FixedHorizonLabelName] = frozenset(
@@ -215,6 +223,14 @@ _HORIZON_MINUTES: dict[FixedHorizonLabelName, int] = {
     FixedHorizonLabelName.MID_FWD_RET_10M: 10,
     FixedHorizonLabelName.MID_FWD_RET_30M: 30,
 }
+_CLOSE_OUT_LABELS: frozenset[FixedHorizonLabelName] = frozenset(
+    {
+        FixedHorizonLabelName.SESSION_CLOSE,
+        FixedHorizonLabelName.MAINTENANCE_FLAT,
+    }
+)
+_CLOSE_OUT_HORIZON_LENGTH = 1
+_CLOSE_OUT_PATH = "trade_price_close_out_return"
 _PATH_BY_PRICE_BASIS: dict[str, str] = {
     "close": "trade_price_forward_return",
     "mid": "midprice_forward_return",
@@ -222,6 +238,8 @@ _PATH_BY_PRICE_BASIS: dict[str, str] = {
 _NUMERIC_TYPES = (int, float, Decimal)
 _KNOWN_ROLL_ROOTS: frozenset[str] = frozenset({"ES", "NQ", "RTY"})
 _MAINTENANCE_TIMEZONE = ZoneInfo("America/Chicago")
+_RTH_SESSION_OPEN = time(8, 30)
+_RTH_SESSION_CLOSE = time(15, 0)
 _MAINTENANCE_BREAK_START = time(16, 0)
 _MAINTENANCE_BREAK_END = time(17, 0)
 MAINTENANCE_GUARD_VERSION = "maintenance_crossing_guard_v1"
@@ -281,30 +299,33 @@ def build_fixed_horizon_label_definition(
     label_name = _coerce_label_name(name)
     spec = _coerce_governance_label_spec(governance_label_spec)
     _validate_label_spec_matches_name(label_name, spec)
-    contract_metadata: dict[str, Any] = {
-        "campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
-        "phase": "FUTSUB-P17" if _is_extended_horizon(label_name) else "FUTSUB-P16",
-        "materialization": "in_memory_records_only",
-        "price_basis": _price_basis(label_name),
-        "horizon_minutes": _HORIZON_MINUTES[label_name],
-        "legal_consumer": "labels_only",
-        "claims": "descriptive_label_substrate_only",
-        "terminal_key": "series_id+contract_id+event_ts",
-        "roll_policy_id": ROLL_POLICY_ID,
-        "roll_guard_version": ROLL_GUARD_VERSION,
-        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
-        "roll_window": {
-            "days_before": DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
-            "days_after": DEFAULT_ROLL_WINDOW_DAYS_AFTER,
-        },
-        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
-        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
-        "maintenance_crossing_policy": "drop",
-    }
-    if _is_extended_horizon(label_name):
-        contract_metadata["horizon_overlap_metadata"] = _horizon_overlap_contract_metadata(
-            label_name
-        )
+    if _is_close_out_label(label_name):
+        contract_metadata = _close_out_contract_metadata(label_name)
+    else:
+        contract_metadata = {
+            "campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+            "phase": "FUTSUB-P17" if _is_extended_horizon(label_name) else "FUTSUB-P16",
+            "materialization": "in_memory_records_only",
+            "price_basis": _price_basis(label_name),
+            "horizon_minutes": _HORIZON_MINUTES[label_name],
+            "legal_consumer": "labels_only",
+            "claims": "descriptive_label_substrate_only",
+            "terminal_key": "series_id+contract_id+event_ts",
+            "roll_policy_id": ROLL_POLICY_ID,
+            "roll_guard_version": ROLL_GUARD_VERSION,
+            "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+            "roll_window": {
+                "days_before": DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+                "days_after": DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+            },
+            "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+            "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+            "maintenance_crossing_policy": "drop",
+        }
+        if _is_extended_horizon(label_name):
+            contract_metadata["horizon_overlap_metadata"] = _horizon_overlap_contract_metadata(
+                label_name
+            )
     scope = _materialization_scope_metadata(materialization_scope)
     if scope:
         contract_metadata["materialization_scope"] = scope
@@ -382,10 +403,52 @@ def _compute_trade_price_forward_returns(
     rows = _validated_trade_rows(input_view.rows)
     terminal_by_key = _index_by_series_contract_event_ts(rows)
     roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]] = {}
+    if _is_close_out_label(definition.name):
+        return _compute_trade_price_close_out_returns(
+            definition,
+            rows,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
     records: list[LabelValueRecord] = []
     for source in rows:
         terminal = terminal_by_key.get(_terminal_key(source, definition.horizon_minutes))
         if terminal is None:
+            continue
+        guarded = _guarded_forward_terminal(
+            source,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+        if guarded is None:
+            continue
+        terminal, guard_flags = guarded
+        value, flags = _trade_price_return(source, terminal)
+        records.append(
+            _label_value_record(
+                definition,
+                source,
+                terminal,
+                value,
+                (*flags, *guard_flags),
+            )
+        )
+    return tuple(records)
+
+
+def _compute_trade_price_close_out_returns(
+    definition: FixedHorizonLabelDefinition,
+    rows: tuple[OHLCVInputRow, ...],
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], OHLCVInputRow],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]],
+) -> tuple[LabelValueRecord, ...]:
+    terminal_by_scope = _close_out_terminal_by_scope(rows, definition.name)
+    records: list[LabelValueRecord] = []
+    for source in rows:
+        terminal = terminal_by_scope.get(_close_out_scope_key(source, definition.name))
+        if terminal is None or terminal.event_ts <= source.event_ts:
             continue
         guarded = _guarded_forward_terminal(
             source,
@@ -567,6 +630,15 @@ def _label_inputs(
 
 
 def _future_window(name: FixedHorizonLabelName) -> WindowSpec:
+    if _is_close_out_label(name):
+        return WindowSpec(
+            kind=WindowKind.FUTURE,
+            length=_CLOSE_OUT_HORIZON_LENGTH,
+            causality=WindowCausality.FUTURE,
+            offline_only=True,
+            anchor="event_ts",
+            parameters=_close_out_window_parameters(name),
+        )
     parameters: dict[str, Any] = {
         "horizon_minutes": _HORIZON_MINUTES[name],
         "price_basis": _price_basis(name),
@@ -591,7 +663,70 @@ def _future_window(name: FixedHorizonLabelName) -> WindowSpec:
 
 
 def _is_extended_horizon(name: FixedHorizonLabelName) -> bool:
+    if _is_close_out_label(name):
+        return False
     return _HORIZON_MINUTES[name] >= 60
+
+
+def _is_close_out_label(name: FixedHorizonLabelName) -> bool:
+    return name in _CLOSE_OUT_LABELS
+
+
+def _close_out_contract_metadata(name: FixedHorizonLabelName) -> dict[str, Any]:
+    return {
+        "campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+        "phase": "FUTSUB-P18",
+        "materialization": "in_memory_records_only",
+        "price_basis": "close",
+        "close_out_horizon": name.value,
+        "close_out_terminal": _close_out_terminal_description(name),
+        "legal_consumer": "labels_only",
+        "claims": "descriptive_label_substrate_only",
+        "terminal_key": "series_id+contract_id+event_ts",
+        "terminal_scope": "series_id+contract_id+close_out_boundary",
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+        "roll_window": {
+            "days_before": DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+            "days_after": DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+        },
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+        "horizon_overlap_metadata": {
+            "metadata_version": OVERLAP_METADATA_VERSION,
+            "raw_row_count_field": "value_record_count",
+            "effective_sample_count_rule": "count distinct close-out terminal events",
+            "rows_are_independent": False,
+            "n_eff_never_exceeds_raw_rows": True,
+        },
+    }
+
+
+def _close_out_window_parameters(name: FixedHorizonLabelName) -> dict[str, Any]:
+    return {
+        "close_out_horizon": name.value,
+        "price_basis": "close",
+        "legal_consumer": "labels_only",
+        "terminal_key": "series_id+contract_id+event_ts",
+        "terminal_scope": "series_id+contract_id+close_out_boundary",
+        "terminal_rule": _close_out_terminal_description(name),
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+    }
+
+
+def _close_out_terminal_description(name: FixedHorizonLabelName) -> str:
+    if name is FixedHorizonLabelName.SESSION_CLOSE:
+        return "last RTH trade bar at or before 15:00 America/Chicago for the CME trade date"
+    if name is FixedHorizonLabelName.MAINTENANCE_FLAT:
+        return "last trade bar at or before the 16:00 America/Chicago maintenance break for the CME trade date"
+    raise FixedHorizonLabelError(f"unsupported close-out label: {name}")
 
 
 def _horizon_overlap_contract_metadata(name: FixedHorizonLabelName) -> dict[str, object]:
@@ -612,6 +747,23 @@ def _validate_label_spec_matches_name(
     name: FixedHorizonLabelName,
     spec: LabelSpec,
 ) -> None:
+    if _is_close_out_label(name):
+        if spec.horizon != name.value:
+            raise FixedHorizonLabelError(
+                f"LabelSpec.horizon must be {name.value} for {name.value}"
+            )
+        actual_path = spec.path_rules.get("path")
+        if actual_path != _CLOSE_OUT_PATH:
+            raise FixedHorizonLabelError(
+                f"LabelSpec.path_rules.path must be {_CLOSE_OUT_PATH} for {name.value}"
+            )
+        terminal = spec.path_rules.get("close_out_terminal")
+        if terminal is not None and terminal != name.value:
+            raise FixedHorizonLabelError(
+                f"LabelSpec.path_rules.close_out_terminal must be {name.value}"
+            )
+        return
+
     expected_horizon = f"{_HORIZON_MINUTES[name]}m"
     if spec.horizon != expected_horizon:
         raise FixedHorizonLabelError(
@@ -784,6 +936,58 @@ def _guarded_forward_terminal[
     if verdict.action is RollGuardAction.FLAG:
         return terminal, _roll_guard_flags(verdict.action.value)
     return terminal, ()
+
+
+def _close_out_terminal_by_scope(
+    rows: tuple[OHLCVInputRow, ...],
+    name: FixedHorizonLabelName,
+) -> dict[tuple[str, str, str], OHLCVInputRow]:
+    terminals: dict[tuple[str, str, str], OHLCVInputRow] = {}
+    for row in rows:
+        if not _is_close_out_terminal_candidate(row, name):
+            continue
+        key = _close_out_scope_key(row, name)
+        previous = terminals.get(key)
+        if previous is None or row.event_ts > previous.event_ts:
+            terminals[key] = row
+    return terminals
+
+
+def _is_close_out_terminal_candidate(
+    row: OHLCVInputRow,
+    name: FixedHorizonLabelName,
+) -> bool:
+    local = _maintenance_local(row.event_ts)
+    if name is FixedHorizonLabelName.SESSION_CLOSE:
+        return _RTH_SESSION_OPEN <= local.time() <= _RTH_SESSION_CLOSE
+    if name is FixedHorizonLabelName.MAINTENANCE_FLAT:
+        return local.time() <= _MAINTENANCE_BREAK_START
+    raise FixedHorizonLabelError(f"unsupported close-out label: {name}")
+
+
+def _close_out_scope_key(
+    row: OHLCVInputRow | BBOInputRow,
+    name: FixedHorizonLabelName,
+) -> tuple[str, str, str]:
+    trade_date = _cme_trade_date(row.event_ts).isoformat()
+    if name is FixedHorizonLabelName.SESSION_CLOSE:
+        boundary = f"rth_close:{trade_date}"
+    elif name is FixedHorizonLabelName.MAINTENANCE_FLAT:
+        boundary = f"maintenance_break:{trade_date}"
+    else:
+        raise FixedHorizonLabelError(f"unsupported close-out label: {name}")
+    return (row.series_id, row.contract_id, boundary)
+
+
+def _cme_trade_date(value: datetime) -> Any:
+    local = _maintenance_local(value)
+    if local.time() >= _MAINTENANCE_BREAK_END:
+        return local.date() + timedelta(days=1)
+    return local.date()
+
+
+def _maintenance_local(value: datetime) -> datetime:
+    return _require_aware_datetime(value, "event_ts").astimezone(_MAINTENANCE_TIMEZONE)
 
 
 def _roll_calendar_for_window(

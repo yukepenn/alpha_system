@@ -8,15 +8,16 @@ The repository-level campaign pointer targets
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress:
-`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` has completed `FUTSUB-P17`
-within the `label_materialization` gate. The extended-horizon 60m/120m/240m
-LabelPacks are materialized alongside the FUTSUB-P16 fixed-horizon LabelPacks.
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` has completed `FUTSUB-P18`
+within the `label_materialization` gate. The session-close and maintenance-flat
+LabelPacks are materialized alongside the FUTSUB-P16 fixed-horizon and
+FUTSUB-P17 extended-horizon LabelPacks.
 
-Active / next phase: next `FUTSUB-P18` - Session-Close and Maintenance-Flat
-LabelPack Scaleout, continuing the `label_materialization` gate FUTSUB-P16
-through FUTSUB-P20.
+Active / next phase: next `FUTSUB-P19` - Cost-Adjusted LabelPack Scaleout,
+then `FUTSUB-P20` - Path LabelPack Scaleout, before the `label_integration`
+gate FUTSUB-P21 through FUTSUB-P23.
 
-New durable surfaces in this `FUTSUB-P17` executor snapshot:
+New durable surfaces in this `FUTSUB-P18` executor snapshot:
 
 - `src/alpha_system/labels/roll_guard.py` is wired into the shared
   fixed-horizon label terminal-resolution path.
@@ -26,11 +27,19 @@ New durable surfaces in this `FUTSUB-P17` executor snapshot:
   LabelPack scaleout grid and guard policy.
 - `configs/labels/scaleout/extended_horizon.json` defines the extended-horizon
   60m/120m/240m LabelPack scaleout grid and overlap metadata policy.
+- `configs/labels/scaleout/session_close_maintenance_flat.json` defines the
+  session-close / maintenance-flat LabelPack scaleout grid and guard policy.
 - `research/futures_substrate_scaleout_v1/label_packs/fixed_horizon/coverage_summary.md`
   records the value-free horizon coverage and guard summary.
 - `research/futures_substrate_scaleout_v1/label_packs/extended_horizon/coverage_summary.md`
   records value-free extended-horizon coverage, guard counts, accepted-window
   states, and rows-vs-effective-samples metadata.
+- `research/futures_substrate_scaleout_v1/label_packs/session_close_maintenance_flat/coverage_summary.md`
+  records value-free close-out coverage, guard counts, accepted-window states,
+  and close-out terminal-event `N_eff` metadata.
+- `tests/unit/futures_substrate_scaleout/labels/test_session_close_scaleout.py`
+  covers close-out `label_available_ts`, maintenance/roll guard drops, and
+  reference label scaleout planning on synthetic data.
 - `tests/unit/futures_substrate_scaleout/labels/test_extended_horizon_scaleout.py`
   covers Parquet registry fields, `label_available_ts`, extended guard drops,
   and overlap-aware effective sample metadata on synthetic data.
@@ -68,7 +77,9 @@ provider-exact. Resolver exact-id semantics, official keystone registry writes,
 and serial registry writes are preserved; worker processes compute values only
 and never write SQLite registry rows. Producer provenance does not enter
 identity. Extended labels do not overstate effective sample count and never
-silently cross a roll or maintenance break. No manual SQLite write,
+silently cross a roll or maintenance break. Close-out labels never silently
+cross the daily maintenance / trade-date break or a roll, and resolver
+semantics remain fail-closed with no fuzzy fallback. No manual SQLite write,
 paper/live/broker/order behavior, or profitability/tradability claim is
 authorized. Feature/label values, registries, roll-calendar data, and
 checkpoint ledgers remain local-only under `ALPHA_DATA_ROOT`. The campaign uses

@@ -87,7 +87,7 @@
   },
   "identity": {
     "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,event_horizon,dataset_version_ids,value_store_format))>",
-    "partition_template": "{symbol}.{year}.{event_horizon}",
+    "partition_template": "{symbol}.{year}.{horizon}",
     "dry_run_preview_ref": "research/futures_substrate_scaleout_v1/materialization/batch_plan.md#dry-run-identity-preview"
   }
 }
