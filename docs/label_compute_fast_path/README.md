@@ -48,6 +48,10 @@ coordinator-owned; phase branches verify it but do not edit it.
   `alpha label materialize --fast-path` targeting, checkpoint/restart,
   compute-only worker parallelism, serial label-registry registration, and
   strict resolver smoke coverage.
+- LCFP-P07 adds the consolidated synthetic parity, no-lookahead, and guard
+  suite for every governed fast label family, plus the value-free parity report
+  at
+  [parity_report.md](../../research/label_compute_fast_path_v1/parity/parity_report.md).
 - [Research evidence root](../../research/label_compute_fast_path_v1/README.md)
   defines the value-free evidence policy for this campaign.
 - [LCFP-P01 inventory](../../research/label_compute_fast_path_v1/inventory/inventory.md)
@@ -58,6 +62,9 @@ coordinator-owned; phase branches verify it but do not edit it.
 - [LCFP-P06 integration report](../../research/label_compute_fast_path_v1/integration/integration_report.md)
   records value-free targeting, worker, checkpoint, registry, and resolver smoke
   evidence.
+- [LCFP-P07 parity report](../../research/label_compute_fast_path_v1/parity/parity_report.md)
+  records the consolidated family-by-dimension parity matrix, no-lookahead
+  coverage, guard cases, tolerances, and optional-dependency behavior.
 
 ## Evidence Root
 
@@ -99,5 +106,6 @@ Commit-eligible phase handoffs live under
 - `LCFP-P05.md` records the path-label fast pack phase.
 - `LCFP-P06.md` records the worker / checkpoint / registry / resolver
   integration phase.
+- `LCFP-P07.md` records the consolidated parity / no-lookahead / guard suite.
 - `FUTSUB_PAUSE_STATE.md` records the paused predecessor state and preserves the
   rule that reintegration/resume is coordinator-owned after LCFP-P09.
