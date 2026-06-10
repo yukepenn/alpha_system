@@ -36,3 +36,9 @@ MAE, target-before-stop, and triple-barrier synthetic path-label parity tests.
 LCFP-P07 owns `parity/parity_report.md`, the consolidated value-free parity,
 no-lookahead, and guard report for all governed fast label families delivered
 by LCFP-P03 through LCFP-P05.
+
+LCFP-P08 owns `benchmark/benchmark_summary.md`, the value-free bounded real-data
+benchmark/readiness summary. It records slice self-validation, reference and
+fast timing, worker sweep results, resolver and parity outcomes, file counts,
+registry deltas, full-window extrapolations, and selected per-family production
+engine/worker policy without committing label values or local registry content.

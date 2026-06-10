@@ -280,8 +280,13 @@ def test_worker_policy_status_is_not_released_while_blocked() -> None:
     from tools.label_compute_fast_path.benchmark_gate import _select_worker_policy
 
     families = (_family("path", _worker_result(family="path")),)
-    assert _select_worker_policy(families, blocked=True).status == "NOT_RELEASED_WHILE_BLOCKED"
-    assert _select_worker_policy(families, blocked=False).status == "SELECTED"
+    blocked_policy = _select_worker_policy(families, blocked=True)
+    selected_policy = _select_worker_policy(families, blocked=False)
+
+    assert blocked_policy.status == "NOT_RELEASED_WHILE_BLOCKED"
+    assert "not released" in blocked_policy.rationale
+    assert selected_policy.status == "SELECTED"
+    assert "not released" not in selected_policy.rationale
 
 
 def test_summary_renders_per_family_engine_policy_table() -> None:

@@ -52,6 +52,10 @@ coordinator-owned; phase branches verify it but do not edit it.
   suite for every governed fast label family, plus the value-free parity report
   at
   [parity_report.md](../../research/label_compute_fast_path_v1/parity/parity_report.md).
+- LCFP-P08 adds the bounded real-data benchmark/readiness gate, per-family
+  production engine selection, worker sweep evidence, and the value-free
+  benchmark summary at
+  [benchmark_summary.md](../../research/label_compute_fast_path_v1/benchmark/benchmark_summary.md).
 - [Research evidence root](../../research/label_compute_fast_path_v1/README.md)
   defines the value-free evidence policy for this campaign.
 - [LCFP-P01 inventory](../../research/label_compute_fast_path_v1/inventory/inventory.md)
@@ -91,6 +95,17 @@ PYTHONPATH=src python -m tools.label_compute_fast_path.baseline_benchmark
 The command is read-only with respect to production registries and emits only a
 value-free summary.
 
+LCFP-P08 adds the bounded real-data benchmark gate entrypoint:
+
+```bash
+PYTHONPATH=src python -m tools.label_compute_fast_path.benchmark_gate
+```
+
+Create a timestamped local backup of
+`$ALPHA_DATA_ROOT/registry/labels.sqlite` before running the gate. The command
+writes benchmark values and isolated registries only under `ALPHA_DATA_ROOT`;
+the committed summary remains value-free.
+
 ## Handoffs
 
 Commit-eligible phase handoffs live under
@@ -107,5 +122,7 @@ Commit-eligible phase handoffs live under
 - `LCFP-P06.md` records the worker / checkpoint / registry / resolver
   integration phase.
 - `LCFP-P07.md` records the consolidated parity / no-lookahead / guard suite.
+- `LCFP-P08.md` records the benchmark/readiness gate, selected per-family
+  engine policy, registry backup, and local validation evidence.
 - `FUTSUB_PAUSE_STATE.md` records the paused predecessor state and preserves the
   rule that reintegration/resume is coordinator-owned after LCFP-P09.

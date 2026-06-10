@@ -29,12 +29,15 @@ compute-only label workers, strictly serial registry registration, and strict
 identity resolver smoke coverage. `LCFP-P07` adds the consolidated synthetic
 parity, no-lookahead, and guard suite for every governed fast label family,
 including exact `label_available_ts` and identity parity plus a value-free
-parity report.
+parity report. `LCFP-P08` runs the bounded real-data benchmark/readiness gate
+with registry backup, slice self-validation, real reference and fast runners,
+worker sweep, resolver/parity checks, and selected per-family production engine
+policy.
 
-Active / next phase after this branch: `LCFP-P08` benchmark/readiness, followed
-by `LCFP-P09` FUTSUB reintegration handoff and closeout per the campaign DAG.
+Active / next phase after this branch: `LCFP-P09` FUTSUB reintegration handoff
+and closeout per the campaign DAG.
 
-New durable surfaces through this `LCFP-P07` executor snapshot:
+New durable surfaces through this `LCFP-P08` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -109,8 +112,15 @@ New durable surfaces through this `LCFP-P07` executor snapshot:
 - `research/label_compute_fast_path_v1/parity/parity_report.md` records the
   consolidated P07 parity/no-lookahead/guard matrix, case counts, tolerances,
   optional-dependency behavior, and residual-gap status.
+- `research/label_compute_fast_path_v1/benchmark/benchmark_summary.md` records
+  the bounded P08 reference/fast benchmark, worker sweep, file counts, registry
+  deltas, resolver/parity outcomes, full-window extrapolations, and per-family
+  engine policy.
 - `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
   reference-engine benchmark entrypoint for bounded slices.
+- `tools/label_compute_fast_path/benchmark_gate.py` is the bounded real-data
+  benchmark/readiness gate for P08. It requires a local registry backup before
+  execution and writes only the value-free committed summary under the repo.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
   paused FUTSUB state without deleting or mutating run state, values, registry
   rows, or worktrees.
@@ -128,6 +138,9 @@ New durable surfaces through this `LCFP-P07` executor snapshot:
   for this phase.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07.md` records the consolidated
   parity, no-lookahead, guard, report, and validation evidence for this phase.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P08.md` records the benchmark run,
+  selected per-family engine policy, registry backup, and validation evidence
+  for this phase.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run

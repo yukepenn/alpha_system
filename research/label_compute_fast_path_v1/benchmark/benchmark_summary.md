@@ -3,10 +3,10 @@
 - Campaign: `LABEL_COMPUTE_FAST_PATH_V1`
 - Phase: `LCFP-P08`
 - Status: `COMPLETE`
-- Generated at: `2026-06-10T18:06:17.286274+00:00`
+- Generated at: `2026-06-10T18:42:30.852688+00:00`
 - Value policy: value-free summary only; no label values, market prices, Parquet payloads, SQLite content, or row-level records are included.
 - Reference timing: bounded P01 reference runner only; no full-window reference timing occurred.
-- Benchmark scratch root name: `lcfp_p08_benchmark_20260610T175622Z` (local-only under `ALPHA_DATA_ROOT`).
+- Benchmark scratch root name: `lcfp_p08_benchmark_20260610T183231Z` (local-only under `ALPHA_DATA_ROOT`).
 
 ## Bounded Slice
 
@@ -41,11 +41,11 @@
 
 | Family | Definitions | Elapsed (s) | Rows/sec | P01 Committed Rows/sec | Records Emitted |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `fixed_base` | 6 | 4.548437 | 34698.51 | 35030.81 | 148066 |
-| `fixed_extended` | 3 | 2.060003 | 38306.73 | 37631.52 | 66544 |
-| `close_out` | 2 | 1.522330 | 34557.55 | 34676.09 | 48258 |
-| `cost_adjusted` | 18 | 5.556072 | 85217.03 | 85957.67 | 473472 |
-| `path` | 28 | 66.687756 | 11044.19 | 11108.42 | 734674 |
+| `fixed_base` | 6 | 4.631140 | 34078.87 | 35030.81 | 148066 |
+| `fixed_extended` | 3 | 2.159406 | 36543.39 | 37631.52 | 66544 |
+| `close_out` | 2 | 1.555170 | 33827.82 | 34676.09 | 48258 |
+| `cost_adjusted` | 18 | 5.615396 | 84316.77 | 85957.67 | 473472 |
+| `path` | 28 | 66.974030 | 10996.98 | 11108.42 | 734674 |
 
 ## Worker Sweep
 
@@ -53,31 +53,31 @@ Component timings are disclosed per cell; `Speedup` = fast compute rows/sec / re
 
 | Family | Requested | Effective | Threads/Worker | Compute (s) | Registration (s) | Parity (s) | Total (s) | Rows/sec | Files | Registry Delta | Speedup | Full-Window Estimate (s) | Resolver | Parity | Peak RSS KiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: |
-| `fixed_base` | 1 | 1 | 16 | 9.313584 | 0.155948 | 5.486638 | 14.956170 | 16945.57 | 6 | 6 | 0.49 | 4673.79 | `PASS 6/6` | `PASS` | 499040 |
-| `fixed_base` | 2 | 2 | 8 | 6.072213 | 2.259495 | 5.531481 | 13.863189 | 25991.18 | 6 | 6 | 0.75 | 3047.19 | `PASS 6/6` | `PASS` | 499040 |
-| `fixed_base` | 4 | 4 | 4 | 5.137065 | 2.292070 | 5.549877 | 12.979012 | 30722.60 | 6 | 6 | 0.89 | 2577.91 | `PASS 6/6` | `PASS` | 499040 |
-| `fixed_base` | 8 | 6 | 2 | 4.581856 | 2.317807 | 5.577064 | 12.476728 | 34445.43 | 6 | 6 | 0.99 | 2299.29 | `PASS 6/6` | `PASS` | 499040 |
+| `fixed_base` | 1 | 1 | 16 | 9.466860 | 0.163165 | 5.577982 | 15.208007 | 16671.21 | 6 | 6 | 0.49 | 4750.71 | `PASS 6/6` | `PASS` | 488440 |
+| `fixed_base` | 2 | 2 | 8 | 6.021117 | 2.283412 | 5.720756 | 14.025285 | 26211.75 | 6 | 6 | 0.77 | 3021.55 | `PASS 6/6` | `PASS` | 488440 |
+| `fixed_base` | 4 | 4 | 4 | 5.091750 | 2.371516 | 5.677561 | 13.140828 | 30996.02 | 6 | 6 | 0.91 | 2555.17 | `PASS 6/6` | `PASS` | 488440 |
+| `fixed_base` | 8 | 6 | 2 | 4.477502 | 2.336307 | 5.699205 | 12.513014 | 35248.23 | 6 | 6 | 1.03 | 2246.92 | `PASS 6/6` | `PASS` | 488440 |
 - `fixed_base` requested `8` worker reduction: requested workers 8 reduced to runnable unit count 6
-| `fixed_extended` | 1 | 1 | 16 | 5.668808 | 0.073825 | 2.536329 | 8.278963 | 13920.39 | 3 | 3 | 0.36 | 2844.75 | `PASS 3/3` | `PASS` | 538184 |
-| `fixed_extended` | 2 | 2 | 8 | 4.784913 | 1.067057 | 2.626553 | 8.478523 | 16491.84 | 3 | 3 | 0.43 | 2401.19 | `PASS 3/3` | `PASS` | 538184 |
-| `fixed_extended` | 4 | 3 | 5 | 3.916984 | 1.069512 | 2.611740 | 7.598236 | 20146.11 | 3 | 3 | 0.53 | 1965.64 | `PASS 3/3` | `PASS` | 538184 |
+| `fixed_extended` | 1 | 1 | 16 | 5.713801 | 0.078131 | 2.562654 | 8.354586 | 13810.77 | 3 | 3 | 0.38 | 2867.33 | `PASS 3/3` | `PASS` | 524324 |
+| `fixed_extended` | 2 | 2 | 8 | 4.696040 | 1.074701 | 2.653934 | 8.424675 | 16803.95 | 3 | 3 | 0.46 | 2356.59 | `PASS 3/3` | `PASS` | 524324 |
+| `fixed_extended` | 4 | 3 | 5 | 3.971311 | 1.086011 | 2.660625 | 7.717948 | 19870.51 | 3 | 3 | 0.54 | 1992.90 | `PASS 3/3` | `PASS` | 524324 |
 - `fixed_extended` requested `4` worker reduction: requested workers 4 reduced to runnable unit count 3
-| `fixed_extended` | 8 | 3 | 5 | 3.855160 | 1.055743 | 2.624305 | 7.535207 | 20469.19 | 3 | 3 | 0.53 | 1934.61 | `PASS 3/3` | `PASS` | 538184 |
+| `fixed_extended` | 8 | 3 | 5 | 3.955603 | 1.086833 | 2.643607 | 7.686044 | 19949.42 | 3 | 3 | 0.55 | 1985.02 | `PASS 3/3` | `PASS` | 524324 |
 - `fixed_extended` requested `8` worker reduction: requested workers 8 reduced to runnable unit count 3
-| `close_out` | 1 | 1 | 16 | 4.737305 | 0.058231 | 1.783835 | 6.579371 | 11105.05 | 2 | 2 | 0.32 | 2377.30 | `PASS 2/2` | `PASS` | 546312 |
-| `close_out` | 2 | 2 | 8 | 3.820880 | 0.775808 | 1.872618 | 6.469307 | 13768.55 | 2 | 2 | 0.40 | 1917.41 | `PASS 2/2` | `PASS` | 546312 |
-| `close_out` | 4 | 2 | 8 | 3.830130 | 0.762494 | 1.873165 | 6.465789 | 13735.30 | 2 | 2 | 0.40 | 1922.05 | `PASS 2/2` | `PASS` | 546312 |
+| `close_out` | 1 | 1 | 16 | 4.802317 | 0.052938 | 1.841140 | 6.696396 | 10954.71 | 2 | 2 | 0.32 | 2409.92 | `PASS 2/2` | `PASS` | 533992 |
+| `close_out` | 2 | 2 | 8 | 3.862011 | 0.777431 | 1.890850 | 6.530292 | 13621.92 | 2 | 2 | 0.40 | 1938.05 | `PASS 2/2` | `PASS` | 533992 |
+| `close_out` | 4 | 2 | 8 | 3.879582 | 0.771924 | 1.987004 | 6.638510 | 13560.22 | 2 | 2 | 0.40 | 1946.87 | `PASS 2/2` | `PASS` | 533992 |
 - `close_out` requested `4` worker reduction: requested workers 4 reduced to runnable unit count 2
-| `close_out` | 8 | 2 | 8 | 3.858029 | 0.772667 | 1.845145 | 6.475840 | 13635.98 | 2 | 2 | 0.39 | 1936.05 | `PASS 2/2` | `PASS` | 546312 |
+| `close_out` | 8 | 2 | 8 | 3.966574 | 0.795211 | 1.955066 | 6.716852 | 13262.83 | 2 | 2 | 0.39 | 1990.53 | `PASS 2/2` | `PASS` | 533992 |
 - `close_out` requested `8` worker reduction: requested workers 8 reduced to runnable unit count 2
-| `cost_adjusted` | 1 | 1 | 16 | 16.650728 | 0.526589 | 7.268562 | 24.445879 | 28435.51 | 9 | 18 | 0.33 | 8355.75 | `PASS 18/18` | `PASS` | 750680 |
-| `cost_adjusted` | 2 | 2 | 8 | 10.402385 | 7.195109 | 8.049853 | 25.647346 | 45515.72 | 9 | 18 | 0.53 | 5220.17 | `PASS 18/18` | `PASS` | 750680 |
-| `cost_adjusted` | 4 | 4 | 4 | 8.088166 | 7.735971 | 8.002920 | 23.827057 | 58538.86 | 9 | 18 | 0.69 | 4058.84 | `PASS 18/18` | `PASS` | 750680 |
-| `cost_adjusted` | 8 | 8 | 2 | 7.660997 | 7.281164 | 8.051287 | 22.993448 | 61802.93 | 9 | 18 | 0.73 | 3844.48 | `PASS 18/18` | `PASS` | 750680 |
-| `path` | 1 | 1 | 16 | 21.246594 | 0.898763 | 74.769203 | 96.914560 | 34664.94 | 7 | 28 | 3.14 | 10662.07 | `PASS 28/28` | `PASS` | 768416 |
-| `path` | 2 | 2 | 8 | 13.007088 | 10.613701 | 75.604729 | 99.225517 | 56623.90 | 7 | 28 | 5.13 | 6527.28 | `PASS 28/28` | `PASS` | 793312 |
-| `path` | 4 | 4 | 4 | 8.312253 | 10.632811 | 75.734510 | 94.679574 | 88605.58 | 7 | 28 | 8.02 | 4171.29 | `PASS 28/28` | `PASS` | 793312 |
-| `path` | 8 | 7 | 2 | 6.539652 | 10.606383 | 75.840834 | 92.986869 | 112622.51 | 7 | 28 | 10.20 | 3281.76 | `PASS 28/28` | `PASS` | 793312 |
+| `cost_adjusted` | 1 | 1 | 16 | 16.791146 | 0.551826 | 7.360990 | 24.703961 | 28197.72 | 9 | 18 | 0.33 | 8426.21 | `PASS 18/18` | `PASS` | 776232 |
+| `cost_adjusted` | 2 | 2 | 8 | 10.543742 | 7.241005 | 8.052468 | 25.837215 | 44905.50 | 9 | 18 | 0.53 | 5291.11 | `PASS 18/18` | `PASS` | 776232 |
+| `cost_adjusted` | 4 | 4 | 4 | 8.204816 | 8.592217 | 8.118621 | 24.915654 | 57706.60 | 9 | 18 | 0.68 | 4117.38 | `PASS 18/18` | `PASS` | 776232 |
+| `cost_adjusted` | 8 | 8 | 2 | 7.798899 | 7.342883 | 8.068522 | 23.210305 | 60710.10 | 9 | 18 | 0.72 | 3913.68 | `PASS 18/18` | `PASS` | 776232 |
+| `path` | 1 | 1 | 16 | 21.358225 | 0.947317 | 74.974553 | 97.280096 | 34483.76 | 7 | 28 | 3.14 | 10718.09 | `PASS 28/28` | `PASS` | 792064 |
+| `path` | 2 | 2 | 8 | 12.774319 | 10.696020 | 75.895013 | 99.365352 | 57655.68 | 7 | 28 | 5.24 | 6410.47 | `PASS 28/28` | `PASS` | 813896 |
+| `path` | 4 | 4 | 4 | 8.340258 | 10.672132 | 76.129750 | 95.142141 | 88308.06 | 7 | 28 | 8.03 | 4185.35 | `PASS 28/28` | `PASS` | 813896 |
+| `path` | 8 | 7 | 2 | 6.544099 | 10.643959 | 75.963613 | 93.151671 | 112545.98 | 7 | 28 | 10.23 | 3283.99 | `PASS 28/28` | `PASS` | 813896 |
 - `path` requested `8` worker reduction: requested workers 8 reduced to runnable unit count 7
 
 ## Production Engine + Worker Policy
@@ -86,11 +86,11 @@ Per-family selection per the amended LCFP-P08 criterion: `fast` where measured m
 
 | Family | Selected Engine | Workers | Measured Speedup | Rationale |
 | --- | --- | ---: | ---: | --- |
-| `fixed_base` | `reference` | n/a | 0.99 | best passing fast cell measured 0.99x (<= 1.00x) at requested_workers=8; component timings: fast_compute=4.581856s, registration=2.317807s, parity=5.577064s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
-| `fixed_extended` | `reference` | n/a | 0.53 | best passing fast cell measured 0.53x (<= 1.00x) at requested_workers=8; component timings: fast_compute=3.855160s, registration=1.055743s, parity=2.624305s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
-| `close_out` | `reference` | n/a | 0.40 | best passing fast cell measured 0.40x (<= 1.00x) at requested_workers=2; component timings: fast_compute=3.820880s, registration=0.775808s, parity=1.872618s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
-| `cost_adjusted` | `reference` | n/a | 0.73 | best passing fast cell measured 0.73x (<= 1.00x) at requested_workers=8; component timings: fast_compute=7.660997s, registration=7.281164s, parity=8.051287s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
-| `path` | `fast` | 8 | 10.20 | fast compute measured 10.20x the same-process reference rerun at requested_workers=8 (effective 7); materially faster than 1.00x, so the parity-gated fast engine is selected |
+| `fixed_base` | `fast` | 8 | 1.03 | fast compute measured 1.03x the same-process reference rerun at requested_workers=8 (effective 6); materially faster than 1.00x, so the parity-gated fast engine is selected |
+| `fixed_extended` | `reference` | n/a | 0.55 | best passing fast cell measured 0.55x (<= 1.00x) at requested_workers=8; component timings: fast_compute=3.955603s, registration=1.086833s, parity=2.643607s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
+| `close_out` | `reference` | n/a | 0.40 | best passing fast cell measured 0.40x (<= 1.00x) at requested_workers=2; component timings: fast_compute=3.862011s, registration=0.777431s, parity=1.890850s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
+| `cost_adjusted` | `reference` | n/a | 0.72 | best passing fast cell measured 0.72x (<= 1.00x) at requested_workers=8; component timings: fast_compute=7.798899s, registration=7.342883s, parity=8.068522s; the reference engine remains faster and stays selected (both engines are parity-gated, so correctness is engine-independent) |
+| `path` | `fast` | 8 | 10.23 | fast compute measured 10.23x the same-process reference rerun at requested_workers=8 (effective 7); materially faster than 1.00x, so the parity-gated fast engine is selected |
 
 ## Production Worker Policy
 
@@ -98,7 +98,7 @@ Per-family selection per the amended LCFP-P08 criterion: `fast` where measured m
 - Selected requested workers: `8`
 - Effective workers observed at selection: `8`
 - Thread controls: `POLARS_MAX_THREADS=2`, `OMP_NUM_THREADS=2`, `RAYON_NUM_THREADS=2`, `NUMBA_NUM_THREADS=2`
-- Rationale: Selected by highest aggregate bounded-slice rows/sec among worker counts that passed resolver smoke and parity. The policy is not released for downstream reruns while status is blocked.
+- Rationale: Selected by highest aggregate bounded-slice rows/sec among worker counts that passed resolver smoke and parity.
 
 ## Interpretation
 
