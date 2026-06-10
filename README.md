@@ -12,13 +12,15 @@ Current campaign progress:
 adds the bootstrap documentation, value-free evidence root, and FUTSUB pause
 handoff. `LCFP-P01` adds the value-free label-engine inventory, a bounded
 reference-engine baseline benchmark summary, and the read-only benchmark
-harness used to produce that baseline.
+harness used to produce that baseline. `LCFP-P02` adds the shared label panel,
+terminal-index, guard-disposition, `label_available_ts`, and quality-metadata
+contract in `alpha_system.labels.fast`.
 
-Active / next phase after this branch: next `LCFP-P02` - Shared Label Panel /
-Terminal / Guard Contract, then `LCFP-P03` - Fixed Horizon / Session /
-Maintenance Family Fast Pack.
+Active / next phase after this branch: `LCFP-P03`, `LCFP-P04`, and `LCFP-P05`
+label-pack phases are unblocked to consume the shared panel / terminal
+contract and build family-specific value producers under reference parity.
 
-New durable surfaces through this `LCFP-P01` executor snapshot:
+New durable surfaces through this `LCFP-P02` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -26,6 +28,12 @@ New durable surfaces through this `LCFP-P01` executor snapshot:
 - `docs/label_compute_fast_path/OVERVIEW.md` summarizes the fast-label producer
   path, reference-oracle policy, parity/no-lookahead/guard gates, and FUTSUB
   supersession condition.
+- `docs/label_compute_fast_path/PANEL_TERMINAL_CONTRACT.md` documents the
+  shared panel, terminal-index, roll/maintenance guard, availability, and
+  quality metadata surface for P03/P04/P05.
+- `src/alpha_system/labels/fast/panel.py` defines `SharedLabelPanel`,
+  `TerminalRequest`, `resolve_terminal_indices`, `derive_label_available_ts`,
+  and value-free quality metadata helpers.
 - `research/label_compute_fast_path_v1/` is the value-free evidence root for
   inventory, baseline, parity, benchmark, integration, and closeout summaries.
 - `research/label_compute_fast_path_v1/inventory/inventory.md` records the
