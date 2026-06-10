@@ -28,6 +28,10 @@ coordinator-owned; phase branches verify it but do not edit it.
 - [PANEL_TERMINAL_CONTRACT.md](PANEL_TERMINAL_CONTRACT.md) records the LCFP-P02
   shared panel, terminal-index, guard-disposition, availability, and quality
   metadata contract consumed by P03/P04/P05.
+- LCFP-P03 extends the fixed-horizon fast pack to governed fixed-minute
+  trade-price 1/3/5/10/15/30/60/120/240m labels, keeps existing governed
+  midprice minute labels, and routes `session_close` / `maintenance_flat` to
+  LCFP-P04.
 - [Research evidence root](../../research/label_compute_fast_path_v1/README.md)
   defines the value-free evidence policy for this campaign.
 - [LCFP-P01 inventory](../../research/label_compute_fast_path_v1/inventory/inventory.md)
@@ -69,6 +73,8 @@ Commit-eligible phase handoffs live under
 - `LCFP-P00.md` records this bootstrap phase.
 - `LCFP-P01.md` records the inventory and bounded baseline benchmark phase.
 - `LCFP-P02.md` records the shared panel / terminal / availability contract
+  phase.
+- `LCFP-P03.md` records the fixed + extended horizon pack repair and parity
   phase.
 - `FUTSUB_PAUSE_STATE.md` records the paused predecessor state and preserves the
   rule that reintegration/resume is coordinator-owned after LCFP-P09.

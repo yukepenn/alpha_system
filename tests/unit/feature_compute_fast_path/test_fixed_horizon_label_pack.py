@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,13 +19,16 @@ from alpha_system.labels.fast import (
     FAST_LABEL_VALUE_SCHEMA_VERSION,
     FIXED_HORIZON_LABEL_IDS,
     FastLabelMaterializer,
+    FastLabelPackError,
     LabelPanelFrameRequest,
     build_fixed_horizon_label_pack,
     fixed_horizon_pack_coverage,
+    supports_fixed_horizon_label_pack,
 )
 from alpha_system.labels.families.fixed_horizon import (
     FixedHorizonLabelDefinition,
     FixedHorizonLabelName,
+    OVERLAP_METADATA_VERSION,
     build_fixed_horizon_label_definition,
     compute_fixed_horizon_labels,
     supported_fixed_horizon_labels,
@@ -34,7 +38,9 @@ from tests.fixtures.feature_compute_fast_path.fixed_horizon_label import (
     BBO_MISSING_SOURCE_INDEX,
     BBO_QUARANTINED_TERMINAL_INDEX,
     DATASET_ID,
+    MAINTENANCE_SOURCE_INDEX,
     MAINTENANCE_TERMINAL_INDEX,
+    NO_TRADE_TERMINAL_INDEX,
     PARTITION_ID,
     ROLL_SOURCE_INDEX,
     ROW_COUNT,
@@ -79,13 +85,11 @@ def test_fixed_horizon_label_pack_matches_reference_on_synthetic_fixture() -> No
     )
     fast_records = _records_by_label_version(computation.records)
 
-    assert tuple(label.value for label in supported_fixed_horizon_labels()) == (
-        FIXED_HORIZON_LABEL_IDS
-    )
+    assert tuple(label.value for label in _fixed_minute_label_names()) == FIXED_HORIZON_LABEL_IDS
     assert tuple(declaration.label_version_id for declaration in pack.declarations) == tuple(
         definition.label_version_id for definition in definitions
     )
-    _assert_fixture_guard_coverage(reference_records)
+    _assert_fixture_guard_coverage(reference_records, definitions)
     for definition in definitions:
         assert_label_records_match(
             reference_records[definition.name],
@@ -105,16 +109,41 @@ def test_fixed_horizon_label_pack_matches_reference_on_synthetic_fixture() -> No
     for definition in definitions:
         label_metadata = metadata_by_label[definition.label_version_id]
         assert label_metadata.n_eff == len(reference_records[definition.name])
-        assert label_metadata.n_eff == ROW_COUNT - definition.horizon_minutes
         assert label_metadata.horizon_overlap_event_count > 0
         assert label_metadata.null_value_count == sum(
             1 for record in reference_records[definition.name] if record.value is None
         )
+        overlap = label_metadata.horizon_overlap_metadata
+        assert overlap["metadata_version"] == OVERLAP_METADATA_VERSION
+        assert overlap["label_id"] == definition.label_id
+        assert overlap["horizon_minutes"] == definition.horizon_minutes
+        assert overlap["raw_row_count"] == len(reference_records[definition.name])
+        assert overlap["effective_sample_count"] <= len(reference_records[definition.name])
 
     coverage = fixed_horizon_pack_coverage()
-    assert coverage.close_horizons_minutes == (1, 3, 5, 10, 15, 30)
+    assert coverage.close_horizons_minutes == (1, 3, 5, 10, 15, 30, 60, 120, 240)
     assert coverage.mid_horizons_minutes == (1, 3, 5, 10, 30)
-    assert "longer" in coverage.governance_gap_note
+    assert coverage.routed_to_lcfp_p04_label_ids == ("session_close", "maintenance_flat")
+    assert "LCFP-P04" in coverage.governance_gap_note
+
+
+def test_fixed_horizon_pack_routes_symbolic_close_out_labels_to_p04() -> None:
+    specs = governed_fixed_horizon_label_specs()
+    definitions = tuple(
+        build_fixed_horizon_label_definition(
+            label_name,
+            specs[label_name],
+            dataset_version_ids=(DATASET_ID,),
+        )
+        for label_name in (
+            FixedHorizonLabelName.SESSION_CLOSE,
+            FixedHorizonLabelName.MAINTENANCE_FLAT,
+        )
+    )
+
+    assert supports_fixed_horizon_label_pack(definitions) is False
+    with pytest.raises(FastLabelPackError, match="LCFP-P04"):
+        build_fixed_horizon_label_pack(definitions)
 
 
 def test_fixed_horizon_label_pack_materializes_and_registers_serially(
@@ -223,7 +252,19 @@ def _fixed_horizon_definitions() -> tuple[FixedHorizonLabelDefinition, ...]:
             specs[label_name],
             dataset_version_ids=(DATASET_ID,),
         )
+        for label_name in _fixed_minute_label_names()
+    )
+
+
+def _fixed_minute_label_names() -> tuple[FixedHorizonLabelName, ...]:
+    return tuple(
+        label_name
         for label_name in supported_fixed_horizon_labels()
+        if label_name
+        not in {
+            FixedHorizonLabelName.SESSION_CLOSE,
+            FixedHorizonLabelName.MAINTENANCE_FLAT,
+        }
     )
 
 
@@ -238,8 +279,11 @@ def _records_by_label_version(
 
 def _assert_fixture_guard_coverage(
     reference_records: dict[FixedHorizonLabelName, tuple[LabelValueRecord, ...]],
+    definitions: tuple[FixedHorizonLabelDefinition, ...],
 ) -> None:
     assert ROLL_SOURCE_INDEX < ROW_COUNT
+    assert NO_TRADE_TERMINAL_INDEX < ROW_COUNT
+    assert MAINTENANCE_SOURCE_INDEX < ROW_COUNT
     assert MAINTENANCE_TERMINAL_INDEX < ROW_COUNT
     assert BBO_MISSING_SOURCE_INDEX < ROW_COUNT
     assert BBO_QUARANTINED_TERMINAL_INDEX < ROW_COUNT
@@ -268,6 +312,9 @@ def _assert_fixture_guard_coverage(
             record.quality_flags
         )
         for record in trade_records
+    ) or any(
+        {"horizon_not_trade", "no_trade"}.issubset(record.quality_flags)
+        for record in trade_records
     )
     assert any(
         {"bbo_gap", "source_bbo_gap", "missing_bbo"}.issubset(record.quality_flags)
@@ -279,3 +326,21 @@ def _assert_fixture_guard_coverage(
         )
         for record in mid_records
     )
+
+    by_version = {
+        definition.name: definition.label_version_id for definition in definitions
+    }
+    fwd_30m_events = {
+        record.event_ts
+        for record in reference_records[FixedHorizonLabelName.FWD_RET_30M]
+        if record.label_version_id == by_version[FixedHorizonLabelName.FWD_RET_30M]
+    }
+    fixture_rows = fixed_horizon_ohlcv_rows()
+    assert _event_ts(fixture_rows[17]) not in {
+        record.event_ts for records in reference_records.values() for record in records
+    }
+    assert _event_ts(fixture_rows[MAINTENANCE_SOURCE_INDEX]) not in fwd_30m_events
+
+
+def _event_ts(row: dict[str, Any]) -> Any:
+    return datetime.fromisoformat(row["event_ts"])
