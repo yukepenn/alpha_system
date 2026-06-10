@@ -81,3 +81,25 @@ paths are for inspection and audit, not git:
 If a command accepts an output path, prefer `/tmp` or another temp/local path
 for experiments. If a repo-local generated output root is used, keep it
 unstaged and confirm artifact policy before any commit.
+
+## Planned / Target CLI Surface (design intent)
+
+> Folded from the former `CLI_COMMANDS_TARGET.md` (ASV1-P02 design intent). These
+> are *intended* commands, not all implemented yet. They must stay local-first,
+> deterministic, manifest-producing, and fail closed on missing timestamps,
+> versions, hashes, or configs. No target includes broker ops, paper/live trading,
+> order routing, deployment, PR creation, merge, or hidden cleanup.
+
+| Command | Intended Role |
+| --- | --- |
+| `alpha data validate` | Validate local input data and quality rules. |
+| `alpha data build-bars` | Build canonical bars from validated local inputs. |
+| `alpha factor validate` | Validate factor definitions and declared inputs. |
+| `alpha factor materialize` | Materialize reviewed factor values into the long-term factor store. |
+| `alpha study run` | Run bounded factor diagnostics or study workflows. |
+| `alpha grid run` | Run bounded parameter grids for specific hypotheses. |
+| `alpha management grid` | Run constrained management-rule grids for survivors. |
+| `alpha ml run` | Run versioned factor-combination or ML workflows. |
+| `alpha backtest run` | Run the Reference backtest truth model. |
+| `alpha report build` | Build local Markdown, CSV, or optional static HTML reports. |
+| `alpha registry status` | Summarize local registry versions and run state. |
