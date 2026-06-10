@@ -33,6 +33,9 @@ Profile summary:
 - `reviews/` stores reviewer findings and verdicts.
 - `runs/` stores Workflow 2 state and ledgers.
 - `docs/` stores durable project documentation.
+- `docs/OPERATING_COMPASS_V4.md` is the canonical strategy/roadmap compass
+  (stage gates, kill-shot route, survivor gate, target calibration, REUSE-MAP
+  rule); campaign proposals must be consistent with it.
 
 Onboarding and operating references:
 
