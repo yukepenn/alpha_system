@@ -31,13 +31,19 @@ parity, no-lookahead, and guard suite for every governed fast label family,
 including exact `label_available_ts` and identity parity plus a value-free
 parity report. `LCFP-P08` runs the bounded real-data benchmark/readiness gate
 with registry backup, slice self-validation, real reference and fast runners,
-worker sweep, resolver/parity checks, and selected per-family production engine
-policy.
+worker sweep, resolver/parity checks, and selected per-family engine
+policy. `LCFP-P09` adds the value-free closeout verdict plus the
+coordinator-only FUTSUB reintegration handoff. The selected engine policy is per
+family: fast for `fixed_base` and `path`, reference for `fixed_extended`,
+`close_out`, and `cost_adjusted`.
 
-Active / next phase after this branch: `LCFP-P09` FUTSUB reintegration handoff
-and closeout per the campaign DAG.
+Active / next phase after this branch: after LCFP-P09 review and merge, the
+coordinator should repoint `ACTIVE_CAMPAIGN.md` back to
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` and resume the stopped FUTSUB run
+per the reintegration handoff. The phase branch does not perform that repoint or
+resume.
 
-New durable surfaces through this `LCFP-P08` executor snapshot:
+New durable surfaces through this `LCFP-P09` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -116,6 +122,10 @@ New durable surfaces through this `LCFP-P08` executor snapshot:
   the bounded P08 reference/fast benchmark, worker sweep, file counts, registry
   deltas, resolver/parity outcomes, full-window extrapolations, and per-family
   engine policy.
+- `research/label_compute_fast_path_v1/closeout/CLOSEOUT.md` records the
+  campaign closeout verdict, five separate acceptance status fields, parity and
+  benchmark evidence, validation results, and recommended coordinator-owned
+  `ACTIVE_CAMPAIGN.md` repoint.
 - `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
   reference-engine benchmark entrypoint for bounded slices.
 - `tools/label_compute_fast_path/benchmark_gate.py` is the bounded real-data
@@ -141,6 +151,11 @@ New durable surfaces through this `LCFP-P08` executor snapshot:
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P08.md` records the benchmark run,
   selected per-family engine policy, registry backup, and validation evidence
   for this phase.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_REINTEGRATION_ON_FAST_LABELS.md`
+  records the coordinator-only FUTSUB amendment text, P16-P20 reset/rerun
+  recipe, stopped-run resume recipe, and preserve-don't-delete registry rules.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P09.md` records the closeout and
+  reintegration handoff work plus local validation evidence for this phase.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run
@@ -164,17 +179,18 @@ production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
 The per-row reference label engine remains the correctness oracle forever. The
-fast label producer path emits values only, stays reference-parity-gated, and is
-not the sanctioned production label materialization path until
-`LABEL_COMPUTE_FAST_PATH_V1` acceptance passes. Resolver exact-id semantics,
-official keystone registry writes, serial registry writes, roll and maintenance
-guards, and `label_available_ts` no-lookahead behavior are preserved.
+fast label producer path emits values only and stays reference-parity-gated.
+After `LABEL_COMPUTE_FAST_PATH_V1` acceptance, only the benchmark-selected
+families (`fixed_base` and `path`) move to the fast materialization engine;
+families where the reference engine remains faster stay on the reference engine.
+Resolver exact-id semantics, official keystone registry writes, serial registry
+writes, roll and maintenance guards, and `label_available_ts` no-lookahead
+behavior are preserved.
 
 FUTSUB-P18/P19 historical "reference-engine-only" text is superseded only by
-this campaign's explicit acceptance condition: production label materialization
-may move to the fast path after LCFP acceptance and the LCFP-P09 coordinator
-reintegration handoff. Until then, the reference engine remains the production
-label path.
+this campaign's explicit acceptance condition and the LCFP-P09 coordinator
+reintegration handoff. Supersession is per family, not fast everywhere, and the
+reference engine remains the oracle forever.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data, feature
