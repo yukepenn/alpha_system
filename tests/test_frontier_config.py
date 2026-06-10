@@ -11,9 +11,9 @@ def base_config() -> dict:
     return {
         "schema_version": "frontier-harness-v3",
         "lanes": {
-            "green": {"required_checks": [], "require_claude_review": False, "auto_pr": True, "auto_merge": True, "max_micro_loops": 1, "max_repair_attempts": 1, "max_phase_minutes": 1, "merge_policy": {"allow_pass_with_warnings": True}},
-            "yellow": {"required_checks": [], "require_claude_review": True, "auto_pr": True, "auto_merge": True, "max_micro_loops": 1, "max_repair_attempts": 1, "max_phase_minutes": 1, "merge_policy": {"allow_pass_with_warnings": True}},
-            "red": {"required_checks": [], "require_claude_review": True, "auto_pr": False, "auto_merge": False, "max_micro_loops": 1, "max_repair_attempts": 1, "max_phase_minutes": 1, "merge_policy": {"allow_pass_with_warnings": False}},
+            "green": {"require_claude_review": False, "auto_pr": True, "auto_merge": True, "max_repair_attempts": 1, "merge_policy": {"allow_pass_with_warnings": True}},
+            "yellow": {"require_claude_review": True, "auto_pr": True, "auto_merge": True, "max_repair_attempts": 1, "merge_policy": {"allow_pass_with_warnings": True}},
+            "red": {"require_claude_review": True, "auto_pr": False, "auto_merge": False, "max_repair_attempts": 1, "merge_policy": {"allow_pass_with_warnings": False}},
         },
         "workflow2": {
             "enabled": True,
@@ -25,7 +25,6 @@ def base_config() -> dict:
             "max_estimated_usd": 0.0,
             "semantic_done_check_required": True,
             "worktree_mode": False,
-            "worktree_mode_recommended": True,
             "auto_pr": True,
             "auto_merge": True,
         },
