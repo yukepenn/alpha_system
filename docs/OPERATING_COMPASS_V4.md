@@ -34,6 +34,36 @@ system can make in advance; what the system maximizes is true discovery rate
 and minimizes is false discovery, cost fantasy, capacity illusion, and decay
 blindness.
 
+### Performance target calibration (added 2026-06-10, user-set)
+
+```text
+Design floor (the portfolio mission is not accomplished below this):
+  realized book Sharpe >= 2.0
+  via 6-10+ validated low-correlation edges. Individual factor SR 0.3-0.8
+  is the expected INPUT grade; the BOOK, not the factor, carries the target.
+
+Stretch:
+  book Sharpe 3+ via universe expansion (rates/FX/commodities),
+  TBBO-calibrated execution realism, and 10-15 active edges.
+
+Return level:
+  chosen by LEVERAGE only after realized Sharpe is proven (Sharpe is
+  leverage-invariant). At Sharpe 2 with a 15% max-drawdown budget, expect
+  order 30-60%/yr; at Sharpe 3, ~60-100%/yr. Small-account capacity
+  freedom (intraday micros) is a structural advantage: realized Sharpe
+  here can exceed fund-scale benchmarks.
+
+Explicitly NOT a planning target:
+  ~1%/day average return. Math: 1%/day at book Sharpe 2 forces ~8% daily
+  volatility => routine 40-60% drawdowns (violates the drawdown
+  constraint); controlled-drawdown 1%/day requires sustained Sharpe ~8-12,
+  beyond documented precedent at any data tier. Revisit only if REALIZED
+  (live, not backtested) book Sharpe exceeds ~4 with capacity headroom.
+  The system earns return through Sharpe-then-leverage, never by reaching
+  for daily-return targets directly — that is the cost-fantasy failure
+  mode the truth chain exists to kill.
+```
+
 Permanent boundaries (any design that blurs one is wrong):
 
 ```text
