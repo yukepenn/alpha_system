@@ -51,6 +51,12 @@ session-close, maintenance-flat, and roll-truncation modes; and derives
 The detailed surface is documented in
 [PANEL_TERMINAL_CONTRACT.md](PANEL_TERMINAL_CONTRACT.md).
 
+LCFP-P03 consumes that contract for fixed-minute labels. The fixed-horizon fast
+pack computes governed trade-price 1/3/5/10/15/30/60/120/240m labels and the
+existing governed midprice minute labels from the shared panel while preserving
+reference-derived `label_version_id` identity. Symbolic close-out labels
+`session_close` and `maintenance_flat` are recognized but routed to LCFP-P04.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs

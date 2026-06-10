@@ -44,7 +44,11 @@ from alpha_system.labels.engine import (
     SupportedLabelDefinition,
     build_label_materialization_plan,
 )
-from alpha_system.labels.families.fixed_horizon import FixedHorizonLabelDefinition
+from alpha_system.labels.families.fixed_horizon import (
+    FixedHorizonLabelDefinition,
+    FixedHorizonLabelError,
+    compute_horizon_overlap_metadata,
+)
 from alpha_system.labels.registry import LabelRegistry
 from alpha_system.labels.version import (
     FrozenJsonMapping,
@@ -192,6 +196,7 @@ class FastFixedHorizonLabelMetadata:
     n_eff: int
     null_value_count: int
     horizon_overlap_event_count: int
+    horizon_overlap_metadata: Mapping[str, JsonValue] | FrozenJsonMapping = FrozenJsonMapping()
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -202,6 +207,7 @@ class FastFixedHorizonLabelMetadata:
             "n_eff": self.n_eff,
             "null_value_count": self.null_value_count,
             "horizon_overlap_event_count": self.horizon_overlap_event_count,
+            "horizon_overlap_metadata": dict(self.horizon_overlap_metadata),
         }
 
 
@@ -422,15 +428,22 @@ class FastLabelMaterializer:
         """Compute all label records from an already-prepared price panel.
 
         Pure compute step (no input adaptation): given the prepared panel from
-        prepare_price_panel, evaluate every governed label horizon in one pass.
+        prepare_price_panel, evaluate every governed fixed-minute label using
+        the P02 shared panel and cached terminal-index models.
         """
 
         pl = require_dependency("polars")
         pack = _require_pack(pack)
+        panel = _shared_label_panel_from_prepared_panel(prepared_panel, pl)
+        terminal_models = _terminal_models_for_pack(panel, pack)
         all_records: list[LabelValueRecord] = []
         for declaration in pack.declarations:
             all_records.extend(
-                _compute_fixed_horizon_records(prepared_panel, declaration.definition, pl)
+                _compute_fixed_horizon_records_from_panel(
+                    panel,
+                    declaration.definition,
+                    terminal_models[declaration.definition.horizon_minutes],
+                )
             )
         return tuple(all_records)
 
@@ -444,13 +457,19 @@ class FastLabelMaterializer:
         pl = require_dependency("polars")
         pack = _require_pack(pack)
         frame = _prepare_panel(_coerce_frame(price_frame, pl), pl)
+        panel = _shared_label_panel_from_prepared_panel(frame, pl)
+        terminal_models = _terminal_models_for_pack(panel, pack)
         records_by_label: dict[str, tuple[LabelValueRecord, ...]] = {}
         event_sets: dict[str, dict[str, set[datetime]]] = defaultdict(dict)
         all_records: list[LabelValueRecord] = []
 
         for declaration in pack.declarations:
             definition = declaration.definition
-            records = _compute_fixed_horizon_records(frame, definition, pl)
+            records = _compute_fixed_horizon_records_from_panel(
+                panel,
+                definition,
+                terminal_models[definition.horizon_minutes],
+            )
             records_by_label[definition.label_version_id] = records
             event_sets[definition.price_basis][definition.label_version_id] = {
                 record.event_ts for record in records
@@ -458,11 +477,10 @@ class FastLabelMaterializer:
             all_records.extend(records)
 
         metadata = _computation_metadata(
-            frame,
+            panel,
             pack,
             records_by_label=records_by_label,
             event_sets=event_sets,
-            polars=pl,
         )
         return FastLabelComputation(records=tuple(all_records), metadata=metadata)
 
@@ -515,163 +533,121 @@ class _WriteResult:
     handle: ValueStoreHandle
 
 
-def _compute_fixed_horizon_records(
-    frame: Any,
+def _terminal_models_for_pack(panel: Any, pack: FastLabelPack) -> dict[int, Any]:
+    from alpha_system.labels.fast.panel import (
+        TerminalKind,
+        TerminalRequest,
+        resolve_terminal_indices,
+    )
+
+    models: dict[int, Any] = {}
+    for definition in pack.definitions:
+        horizon_minutes = definition.horizon_minutes
+        if horizon_minutes not in models:
+            models[horizon_minutes] = resolve_terminal_indices(
+                panel,
+                TerminalRequest(
+                    kind=TerminalKind.FIXED_HORIZON,
+                    horizon_minutes=horizon_minutes,
+                    price_basis=definition.price_basis,
+                ),
+            )
+    return models
+
+
+def _compute_fixed_horizon_records_from_panel(
+    panel: Any,
     definition: FixedHorizonLabelDefinition,
-    polars: Any,
+    terminal_model: Any,
 ) -> tuple[LabelValueRecord, ...]:
-    basis_frame = frame.filter(polars.col("price_basis") == definition.price_basis)
-    if basis_frame.is_empty():
-        raise FastLabelPackError(f"price panel missing {definition.price_basis} basis rows")
-    horizon = definition.horizon_minutes
-    sources = basis_frame.with_columns(
-        (polars.col("event_ts") + polars.duration(minutes=horizon)).alias(
-            "__terminal_event_ts"
-        )
+    from alpha_system.labels.fast.panel import (
+        LabelAvailabilityFamily,
+        TerminalGuardDisposition,
+        derive_label_available_ts,
     )
-    terminals = basis_frame.select(
-        (
-            polars.col("series_id"),
-            polars.col("event_ts").alias("__terminal_event_ts"),
-            polars.col("available_ts").alias("__terminal_available_ts"),
-            polars.col("price").alias("__terminal_price"),
-            polars.col("quality_flags").alias("__terminal_quality_flags"),
-            polars.col("is_real_trade_bar").alias("__terminal_is_real_trade_bar"),
-            polars.col("is_valid_bbo_quote").alias("__terminal_is_valid_bbo_quote"),
-            polars.col("bbo_missing").alias("__terminal_bbo_missing"),
-            polars.col("bbo_quarantined").alias("__terminal_bbo_quarantined"),
-            polars.col("bbo_invariant_violation").alias(
-                "__terminal_bbo_invariant_violation"
-            ),
-        )
-    )
-    joined = sources.join(
-        terminals,
-        on=("series_id", "__terminal_event_ts"),
-        how="inner",
-    ).sort(("series_id", "event_ts", "available_ts"))
-
-    # Vectorize the common case (valid, unflagged bars) instead of running the
-    # per-row Python flag/value path over every joined row via iter_rows(named=True)
-    # -- that loop was ~91% of the label fast-path wall-clock (FCFP-P13 profile).
-    # The value (terminal/source - 1), the price-validity guard, and the flag
-    # TRIGGER are computed as columns; valid+unflagged rows then read a precomputed
-    # return with empty flags, while flagged or non-positive-price rows (the
-    # minority) fall through to the EXACT same `_label_value_and_flags` Python path
-    # on a lazily materialized row dict -- so reference parity is preserved bit for
-    # bit. label_available_ts keeps its exact max(terminal, floor) semantics.
-    if definition.is_midprice:
-        trigger_expr = ~(
-            polars.col("is_valid_bbo_quote") & polars.col("__terminal_is_valid_bbo_quote")
-        )
-    else:
-        trigger_expr = ~(
-            polars.col("is_real_trade_bar") & polars.col("__terminal_is_real_trade_bar")
-        )
-    joined = joined.with_columns(
-        (polars.col("__terminal_price") / polars.col("price") - 1.0).alias("__fhl_ret"),
-        (
-            (polars.col("price") > 0.0) & (polars.col("__terminal_price") > 0.0)
-        ).alias("__fhl_price_valid"),
-        trigger_expr.fill_null(True).alias("__fhl_trigger"),
-    )
-    series_col = joined["series_id"].to_list()
-    event_col = joined["event_ts"].to_list()
-    horizon_col = joined["__terminal_event_ts"].to_list()
-    term_avail_col = joined["__terminal_available_ts"].to_list()
-    ret_col = joined["__fhl_ret"].to_list()
-    price_valid_col = joined["__fhl_price_valid"].to_list()
-    trigger_col = joined["__fhl_trigger"].to_list()
-
-    label_version_id = definition.label_version_id
-    contract = definition.contract
-    availability_floor = contract.availability_policy.availability_time
 
     records: list[LabelValueRecord] = []
-    for i in range(joined.height):
-        if trigger_col[i] or not price_valid_col[i]:
-            # Rare path: exact reference-parity Python logic on the full row.
-            value, flags = _label_value_and_flags(joined.row(i, named=True), definition)
-        else:
-            ret = ret_col[i]
-            if ret is not None and math.isfinite(ret):
-                value, flags = ret, ()
-            else:
-                value, flags = None, ("non_finite_return",)
-        # The polars panel stores Datetime(time_zone="UTC"); .to_list() yields
-        # tz-aware UTC datetimes, and LabelValueRecord.__post_init__ already
-        # validates/normalizes each field via _require_aware_datetime. Re-coercing
-        # here (3x per record) was ~0.74s of redundant fast-path-only overhead the
-        # reference engine never pays. Pass the values straight through -- the
-        # record's own validation preserves exact reference parity.
-        terminal_available_ts = term_avail_col[i]
-        if terminal_available_ts < availability_floor:
-            terminal_available_ts = availability_floor
+    for resolution in terminal_model.resolutions:
+        if resolution.disposition in {
+            TerminalGuardDisposition.DROP,
+            TerminalGuardDisposition.INVALID,
+        }:
+            continue
+        if resolution.terminal_index is None:
+            continue
+        source = panel.row_at(resolution.source_index)
+        terminal = panel.row_at(resolution.terminal_index)
+        value, flags = _label_value_and_flags_from_panel(source, terminal, definition)
+        label_available_ts = derive_label_available_ts(
+            LabelAvailabilityFamily.FIXED_HORIZON,
+            definition.contract.availability_policy,
+            horizon_end_ts=terminal.event_ts,
+            terminal_available_ts=terminal.available_ts,
+        )
         records.append(
             LabelValueRecord(
-                label_version_id=label_version_id,
-                entity_id=_require_text(series_col[i]),
-                event_ts=event_col[i],
-                horizon_end_ts=horizon_col[i],
-                label_available_ts=terminal_available_ts,
+                label_version_id=definition.label_version_id,
+                entity_id=source.series_id,
+                event_ts=source.event_ts,
+                horizon_end_ts=terminal.event_ts,
+                label_available_ts=label_available_ts,
                 value=value,
-                label_contract=contract,
-                quality_flags=flags,
+                label_contract=definition.contract,
+                quality_flags=_quality_flags((*flags, *resolution.quality_flags)),
             )
         )
     return tuple(records)
 
 
-def _label_value_and_flags(
-    row: Mapping[str, Any],
+def _label_value_and_flags_from_panel(
+    source: Any,
+    terminal: Any,
     definition: FixedHorizonLabelDefinition,
 ) -> tuple[float | None, tuple[str, ...]]:
     if definition.is_midprice:
-        flags = _midprice_flags(row)
+        flags = _midprice_flags_from_panel(source, terminal)
     else:
-        flags = _trade_price_flags(row)
+        flags = _trade_price_flags_from_panel(source, terminal)
     if flags:
         return None, flags
 
-    source_price = _to_positive_float(row["price"], "source price")
-    terminal_price = _to_positive_float(row["__terminal_price"], "terminal price")
+    source_price = _panel_price(source, definition.price_basis, "source price")
+    terminal_price = _panel_price(terminal, definition.price_basis, "terminal price")
     value = terminal_price / source_price - 1.0
     if not math.isfinite(value):
         return None, ("non_finite_return",)
     return value, ()
 
 
-def _trade_price_flags(row: Mapping[str, Any]) -> tuple[str, ...]:
+def _trade_price_flags_from_panel(source: Any, terminal: Any) -> tuple[str, ...]:
     flags: set[str] = set()
-    if not bool(row["is_real_trade_bar"]):
-        flags.update(("source_not_trade", *_quality_flags(row["quality_flags"])))
-    if not bool(row["__terminal_is_real_trade_bar"]):
-        flags.update(
-            ("horizon_not_trade", *_quality_flags(row["__terminal_quality_flags"]))
-        )
+    if "no_trade" in source.quality_flags:
+        flags.update(("source_not_trade", *source.quality_flags))
+    if "no_trade" in terminal.quality_flags:
+        flags.update(("horizon_not_trade", *terminal.quality_flags))
     return tuple(sorted(flags))
 
 
-def _midprice_flags(row: Mapping[str, Any]) -> tuple[str, ...]:
+def _midprice_flags_from_panel(source: Any, terminal: Any) -> tuple[str, ...]:
     flags: set[str] = set()
-    if not bool(row["is_valid_bbo_quote"]):
+    if not _is_valid_panel_bbo_quote(source):
         flags.update(
             _bbo_gap_flags(
-                row["quality_flags"],
+                source.bbo_quality_flags,
                 reason="source_bbo_gap",
-                missing=bool(row["bbo_missing"]),
-                quarantined=bool(row["bbo_quarantined"]),
-                invariant_violation=bool(row["bbo_invariant_violation"]),
+                missing=bool(source.bbo_missing),
+                quarantined=bool(source.bbo_quarantined),
+                invariant_violation=not _panel_bbo_invariants_hold(source),
             )
         )
-    if not bool(row["__terminal_is_valid_bbo_quote"]):
+    if not _is_valid_panel_bbo_quote(terminal):
         flags.update(
             _bbo_gap_flags(
-                row["__terminal_quality_flags"],
+                terminal.bbo_quality_flags,
                 reason="horizon_bbo_gap",
-                missing=bool(row["__terminal_bbo_missing"]),
-                quarantined=bool(row["__terminal_bbo_quarantined"]),
-                invariant_violation=bool(row["__terminal_bbo_invariant_violation"]),
+                missing=bool(terminal.bbo_missing),
+                quarantined=bool(terminal.bbo_quarantined),
+                invariant_violation=not _panel_bbo_invariants_hold(terminal),
             )
         )
     return tuple(sorted(flags))
@@ -693,6 +669,126 @@ def _bbo_gap_flags(
     if invariant_violation:
         flags.add("bbo_invariant_violation")
     return tuple(sorted(flags))
+
+
+def _panel_price(row: Any, price_basis: str, field_name: str) -> float:
+    if price_basis == "mid":
+        return _to_positive_float(row.mid, field_name)
+    return _to_positive_float(row.trade_price, field_name)
+
+
+def _is_valid_panel_bbo_quote(row: Any) -> bool:
+    return (
+        not row.bbo_missing
+        and not row.bbo_quarantined
+        and _panel_bbo_invariants_hold(row)
+    )
+
+
+def _panel_bbo_invariants_hold(row: Any) -> bool:
+    bid = _to_float_or_none(row.bid)
+    ask = _to_float_or_none(row.ask)
+    bid_size = _to_float_or_none(row.bid_size)
+    ask_size = _to_float_or_none(row.ask_size)
+    mid = _to_float_or_none(row.mid)
+    spread = _to_float_or_none(row.spread)
+    if None in {bid, ask, bid_size, ask_size, mid, spread}:
+        return False
+    assert bid is not None
+    assert ask is not None
+    assert bid_size is not None
+    assert ask_size is not None
+    assert mid is not None
+    assert spread is not None
+    if ask < bid:
+        return False
+    if not math.isclose(mid, (bid + ask) / 2.0, rel_tol=0.0, abs_tol=1e-9):
+        return False
+    if not math.isclose(spread, ask - bid, rel_tol=0.0, abs_tol=1e-9):
+        return False
+    if row.available_ts < row.bar_end_ts:
+        return False
+    microprice = _to_float_or_none(row.microprice)
+    if microprice is None:
+        return True
+    if bid_size <= 0.0 or ask_size <= 0.0:
+        return False
+    return bid <= microprice <= ask
+
+
+def _shared_label_panel_from_prepared_panel(panel_or_frame: Any, polars: Any) -> Any:
+    from alpha_system.labels.fast.panel import SharedLabelPanel, build_shared_label_panel
+
+    if isinstance(panel_or_frame, SharedLabelPanel):
+        return panel_or_frame
+
+    frame = _coerce_frame(panel_or_frame, polars)
+    close_rows = tuple(
+        _ohlcv_mapping_from_price_row(row)
+        for row in frame.filter(polars.col("price_basis") == "close").iter_rows(named=True)
+    )
+    if not close_rows:
+        raise FastLabelPackError("shared fixed-horizon panel requires close basis rows")
+    bbo_rows = tuple(
+        _bbo_mapping_from_price_row(row)
+        for row in frame.filter(polars.col("price_basis") == "mid").iter_rows(named=True)
+    )
+    first_event_ts = min(_coerce_datetime(row["event_ts"], "event_ts") for row in close_rows)
+    symbol = _panel_symbol(close_rows[0])
+    return build_shared_label_panel(
+        symbol=symbol,
+        year=first_event_ts.year,
+        ohlcv_rows=close_rows,
+        bbo_rows=bbo_rows,
+    )
+
+
+def _ohlcv_mapping_from_price_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    price = _to_positive_float(row["price"], "close")
+    high = row.get("high")
+    low = row.get("low")
+    return {
+        "instrument_id": _require_text(row["instrument_id"]),
+        "contract_id": _require_text(row["contract_id"]),
+        "series_id": _require_text(row["series_id"]),
+        "bar_end_ts": _coerce_datetime(row["bar_end_ts"], "bar_end_ts"),
+        "event_ts": _coerce_datetime(row["event_ts"], "event_ts"),
+        "available_ts": _coerce_datetime(row["available_ts"], "available_ts"),
+        "close": price,
+        "high": _to_positive_float(high, "high") if high is not None else price,
+        "low": _to_positive_float(low, "low") if low is not None else price,
+        "volume": row.get("volume"),
+        "quality_flags": list(_quality_flags(row["quality_flags"])),
+        "session_label": str(row.get("session_label") or ""),
+    }
+
+
+def _bbo_mapping_from_price_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "instrument_id": _require_text(row["instrument_id"]),
+        "contract_id": _require_text(row["contract_id"]),
+        "series_id": _require_text(row["series_id"]),
+        "bar_end_ts": _coerce_datetime(row["bar_end_ts"], "bar_end_ts"),
+        "event_ts": _coerce_datetime(row["event_ts"], "event_ts"),
+        "available_ts": _coerce_datetime(row["available_ts"], "available_ts"),
+        "bid": row.get("bid"),
+        "ask": row.get("ask"),
+        "bid_size": row.get("bid_size"),
+        "ask_size": row.get("ask_size"),
+        "mid": row.get("mid", row["price"]),
+        "spread": row.get("spread"),
+        "microprice": row.get("microprice"),
+        "quality_flags": list(_quality_flags(row["quality_flags"])),
+        "session_label": str(row.get("session_label") or ""),
+    }
+
+
+def _panel_symbol(row: Mapping[str, Any]) -> str:
+    instrument = _require_text(row["instrument_id"]).upper()
+    for separator in ("_", "-", " "):
+        if separator in instrument:
+            return instrument.split(separator, 1)[0]
+    return "".join(character for character in instrument if character.isalpha()) or instrument
 
 
 def _prepare_panel(frame: Any, polars: Any) -> Any:
@@ -771,6 +867,9 @@ def _ohlcv_panel_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "event_ts": _coerce_datetime(row["event_ts"], "event_ts"),
         "available_ts": _coerce_datetime(row["available_ts"], "available_ts"),
         "price": _to_positive_float(row["close"], "close"),
+        "high": _to_positive_float(row.get("high", row["close"]), "high"),
+        "low": _to_positive_float(row.get("low", row["close"]), "low"),
+        "volume": _to_float_or_none(row.get("volume")),
         "bid": None,
         "ask": None,
         "bid_size": None,
@@ -779,6 +878,7 @@ def _ohlcv_panel_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "spread": None,
         "microprice": None,
         "quality_flags": list(_quality_flags(row["quality_flags"])),
+        "session_label": str(row.get("session_label") or ""),
     }
 
 
@@ -801,23 +901,20 @@ def _bbo_panel_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "spread": _to_float(row["spread"], "spread"),
         "microprice": _to_float_or_none(row.get("microprice")),
         "quality_flags": list(_quality_flags(row["quality_flags"])),
+        "session_label": str(row.get("session_label") or ""),
     }
 
 
 def _computation_metadata(
-    frame: Any,
+    panel: Any,
     pack: FastLabelPack,
     *,
     records_by_label: Mapping[str, tuple[LabelValueRecord, ...]],
     event_sets: Mapping[str, Mapping[str, set[datetime]]],
-    polars: Any,
 ) -> FastLabelComputationMetadata:
-    shared_counts = {
-        str(row["price_basis"]): int(row["count"])
-        for row in frame.group_by("price_basis")
-        .agg(polars.len().alias("count"))
-        .iter_rows(named=True)
-    }
+    shared_counts = {"close": len(panel.rows)}
+    if any(definition.price_basis == "mid" for definition in pack.definitions):
+        shared_counts["mid"] = len(panel.rows)
     labels: list[FastFixedHorizonLabelMetadata] = []
     for definition in pack.definitions:
         records = records_by_label[definition.label_version_id]
@@ -839,6 +936,10 @@ def _computation_metadata(
                 n_eff=len(records),
                 null_value_count=sum(1 for record in records if record.value is None),
                 horizon_overlap_event_count=overlap_count,
+                horizon_overlap_metadata=compute_horizon_overlap_metadata(
+                    definition.name,
+                    raw_row_count=len(records),
+                ).to_dict(),
             )
         )
     return FastLabelComputationMetadata(
@@ -1101,6 +1202,13 @@ def _require_pack(pack: FastLabelPack) -> FastLabelPack:
     for definition in pack.definitions:
         if definition.contract.family is not LabelFamily.FIXED_HORIZON:
             raise FastLabelPackError("fast label pack supports fixed-horizon labels only")
+        try:
+            definition.horizon_minutes
+        except FixedHorizonLabelError as exc:
+            raise FastLabelPackError(
+                "fast fixed-horizon pack supports fixed-minute labels only; "
+                f"{definition.label_id} is routed to LCFP-P04"
+            ) from exc
     return pack
 
 

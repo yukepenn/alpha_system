@@ -14,13 +14,17 @@ handoff. `LCFP-P01` adds the value-free label-engine inventory, a bounded
 reference-engine baseline benchmark summary, and the read-only benchmark
 harness used to produce that baseline. `LCFP-P02` adds the shared label panel,
 terminal-index, guard-disposition, `label_available_ts`, and quality-metadata
-contract in `alpha_system.labels.fast`.
+contract in `alpha_system.labels.fast`. `LCFP-P03` extends the fixed-horizon
+fast pack to the governed fixed-minute trade-price horizons
+1/3/5/10/15/30/60/120/240m, preserves the existing governed midprice minute
+horizons, and routes symbolic `session_close` / `maintenance_flat` labels to
+LCFP-P04 without crashing on their enum tokens.
 
-Active / next phase after this branch: `LCFP-P03`, `LCFP-P04`, and `LCFP-P05`
-label-pack phases are unblocked to consume the shared panel / terminal
-contract and build family-specific value producers under reference parity.
+Active / next phase after this branch: `LCFP-P04` and `LCFP-P05` continue the
+parallel label-pack wave for session/maintenance/cost and path labels, followed
+by LCFP-P06 integration after the pack branches merge serially.
 
-New durable surfaces through this `LCFP-P02` executor snapshot:
+New durable surfaces through this `LCFP-P03` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -34,6 +38,11 @@ New durable surfaces through this `LCFP-P02` executor snapshot:
 - `src/alpha_system/labels/fast/panel.py` defines `SharedLabelPanel`,
   `TerminalRequest`, `resolve_terminal_indices`, `derive_label_available_ts`,
   and value-free quality metadata helpers.
+- `src/alpha_system/labels/fast/fixed_horizon.py` declares the P03 fixed-minute
+  fast pack coverage and explicit P04 routing for symbolic close-out labels.
+- `tests/unit/label_compute_fast_path/test_fixed_horizon_extended_pack.py`
+  covers all nine governed trade-price fixed-minute horizons plus roll and
+  maintenance drop parity against the reference family.
 - `research/label_compute_fast_path_v1/` is the value-free evidence root for
   inventory, baseline, parity, benchmark, integration, and closeout summaries.
 - `research/label_compute_fast_path_v1/inventory/inventory.md` records the
@@ -47,6 +56,9 @@ New durable surfaces through this `LCFP-P02` executor snapshot:
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
   paused FUTSUB state without deleting or mutating run state, values, registry
   rows, or worktrees.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03.md` records the fixed-horizon
+  enum repair, shared-panel terminal implementation, parity coverage, and local
+  validation results for this phase.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run

@@ -14,11 +14,13 @@ from alpha_system.labels.families.fixed_horizon import (
 
 DATASET_ID = "dsv_fast_path_fixed_horizon_label_pack_v1"
 PARTITION_ID = "development_partition"
-ROW_COUNT = 36
+ROW_COUNT = 720
 ROLL_SOURCE_INDEX = 5
-MAINTENANCE_TERMINAL_INDEX = 32
+NO_TRADE_TERMINAL_INDEX = 32
+MAINTENANCE_SOURCE_INDEX = 440
+MAINTENANCE_TERMINAL_INDEX = 470
 BBO_MISSING_SOURCE_INDEX = 4
-BBO_QUARANTINED_TERMINAL_INDEX = 30
+BBO_QUARANTINED_TERMINAL_INDEX = 300
 
 
 def fixed_horizon_ohlcv_rows() -> tuple[dict[str, Any], ...]:
@@ -33,6 +35,9 @@ def fixed_horizon_ohlcv_rows() -> tuple[dict[str, Any], ...]:
         volume = Decimal("10")
         if index == ROLL_SOURCE_INDEX:
             flags = ["no_trade", "roll_splice_boundary"]
+            volume = Decimal("0")
+        if index == NO_TRADE_TERMINAL_INDEX:
+            flags = ["no_trade"]
             volume = Decimal("0")
         if index == MAINTENANCE_TERMINAL_INDEX:
             flags = ["no_trade", "maintenance_crossing"]
@@ -123,7 +128,9 @@ def governed_fixed_horizon_label_specs() -> dict[FixedHorizonLabelName, LabelSpe
 
 
 def _label_spec(label_name: FixedHorizonLabelName) -> LabelSpec:
-    horizon_minutes = _horizon_minutes(label_name)
+    horizon_minutes = _horizon_minutes_or_none(label_name)
+    if horizon_minutes is None:
+        return _close_out_label_spec(label_name)
     is_mid = label_name.value.startswith("mid_")
     path = "midprice_forward_return" if is_mid else "trade_price_forward_return"
     return create_label_spec(
@@ -151,9 +158,52 @@ def _label_spec(label_name: FixedHorizonLabelName) -> LabelSpec:
     )
 
 
+def _close_out_label_spec(label_name: FixedHorizonLabelName) -> LabelSpec:
+    if label_name not in {
+        FixedHorizonLabelName.SESSION_CLOSE,
+        FixedHorizonLabelName.MAINTENANCE_FLAT,
+    }:
+        raise ValueError(f"unsupported close-out fixture label: {label_name.value}")
+    return create_label_spec(
+        horizon=label_name.value,
+        path_rules={
+            "path": "trade_price_close_out_return",
+            "close_out_terminal": label_name.value,
+            "terminal_rule": "synthetic close-out terminal routed to LCFP-P04",
+        },
+        cost_model={
+            "model": "gross_unadjusted_forward_return",
+            "adjustment_scope": "not_applied_in_fixed_horizon_fast_path_fixture",
+        },
+        target_stop_rules={
+            "target_rule": "not_used_for_fixed_horizon_fast_path_fixture",
+            "stop_rule": "not_used_for_fixed_horizon_fast_path_fixture",
+        },
+        availability_time="2024-01-02T14:00:00+00:00",
+        forbidden_feature_overlap={
+            "label_ids": [label_name.value],
+            "aliases": [f"synthetic_{label_name.value}"],
+            "transforms": [f"label({label_name.value})"],
+        },
+        leakage_checks=["label_as_feature", "availability_time"],
+    )
+
+
 def _horizon_minutes(label_name: FixedHorizonLabelName) -> int:
+    horizon_minutes = _horizon_minutes_or_none(label_name)
+    if horizon_minutes is None:
+        raise ValueError(f"{label_name.value} is not a fixed-minute horizon")
+    return horizon_minutes
+
+
+def _horizon_minutes_or_none(label_name: FixedHorizonLabelName) -> int | None:
     token = label_name.value.removeprefix("mid_fwd_ret_").removeprefix("fwd_ret_")
-    return int(token.removesuffix("m"))
+    if not token.endswith("m"):
+        return None
+    minutes = token.removesuffix("m")
+    if not minutes.isdigit():
+        return None
+    return int(minutes)
 
 
 __all__ = [
@@ -161,6 +211,8 @@ __all__ = [
     "BBO_QUARANTINED_TERMINAL_INDEX",
     "DATASET_ID",
     "MAINTENANCE_TERMINAL_INDEX",
+    "MAINTENANCE_SOURCE_INDEX",
+    "NO_TRADE_TERMINAL_INDEX",
     "PARTITION_ID",
     "ROLL_SOURCE_INDEX",
     "ROW_COUNT",
