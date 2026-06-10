@@ -11,7 +11,9 @@ was a safe, no-active-driver window for `main` edits). Prime directive honored:
 |----|---------|--------|
 | **#314 (PR-1)** | Docs: fold + delete `CLI_COMMANDS_TARGET.md`, `RESEARCH_WORKFLOW.md`, `HARNESS_WORKFLOW_2.md`; fix `docs/README.md` links | Merged. Unique content folded into `CLI_REFERENCE.md` / `RESEARCHER_GUIDE.md`; `HARNESS_WORKFLOW_2.md` was fully duplicated by `AGENTS.md`. Zero live refs re-verified on current main; closed `ALPHA_SYSTEM_V1` history left immutable. |
 | **#315 (PR-2)** | Remove dead `tools/frontier/review_schema.py` | Merged. Zero importers re-verified; `verdict.py` is the live authority; 284 verdict/review/ralph/config tests pass. |
-| **PR-3 (this)** | Clarity docs: expand `handoffs/README.md` to index all campaigns + flag the FUTSUB-P04/P12 misplacement; add `configs/factors/README.md` (parity with features/labels); this summary | — |
+| **#316 (PR-3)** | Clarity docs: expand `handoffs/README.md` to index all campaigns + flag the FUTSUB-P04/P12 misplacement; add `configs/factors/README.md` (parity with features/labels); this summary | Merged. |
+| **#317 (PR-4, B1/B2)** | Remove dead lane-level config keys (`max_micro_loops`, `max_phase_minutes`, `required_checks`) + `workflow2.worktree_mode_recommended` | Merged. Keys + `REQUIRED_*_KEYS` + the non-obvious per-lane type-validation + fixtures removed; top-level live copies untouched; `validate_config` clean, 81 tests + canaries pass. |
+| **PR-5 (B5, this)** | `phase.py status` → delegate to `status_doctor` | The old subcommand dumped the *lagging* `ACTIVE_CAMPAIGN.md` pointer (contradicting the live-status-authority rule); now delegates to the single authoritative reader. CLI-only, no test breaks, canaries pass. |
 
 ## Deliberately NOT executed (with reasons — these are the honest deltas from the plan)
 
@@ -29,15 +31,13 @@ was a safe, no-active-driver window for `main` edits). Prime directive honored:
   live tests. The move is reversible and high-churn; deferred until it can be done
   deliberately (and tests updated) rather than during a pivot.
 
-- **B1/B2 — remove dead lane-level config keys + `worktree_mode_recommended`.**
-  Verified dead (only `config.py` validation reads them) and CI-gated, but they edit
-  the live `frontier.yaml` / `config.py` control plane that the imminent aggressive
-  FUTSUB relaunch uses. Tiny benefit, non-zero timing risk → deferred to a separate
-  batch after the relaunch settles.
-
-- **B5/B6 — harness dedup (`phase status`→`status_doctor`; unify verify/bootstrap
-  file-checks).** Behavior-preserving but control-plane code; same rationale —
-  deferred to a post-relaunch batch.
+- **B6 — unify `verify.check_required_files()` and `bootstrap.doctor()` file checks.**
+  **Evaluated → skipped.** The plan's premise ("both validate the same 3 core files")
+  is **false**: `verify` checks `REQUIRED_HARNESS_FILES` (files) while `bootstrap.doctor`
+  checks a *different* set including **directories** (campaigns/specs/handoffs/reviews)
+  with a different message. The only shared code is a one-line list comprehension over
+  *different* inputs; a unifying `include_dirs` helper would add parametrization for zero
+  real dedup. *Uncertain ⇒ keep.*
 
 - **PR-POST — FUTSUB-adjacent `src` touches** (`git mv handoffs/FUTSUB-P04/P12` into
   the FUTSUB subdir; `InstrumentMasterRecord` rename; in-flight placeholder docstrings).
@@ -47,10 +47,12 @@ was a safe, no-active-driver window for `main` edits). Prime directive honored:
 
 ## Net
 
-Two clean PRs merged (docs consolidation + one dead file) plus clarity-doc fixes.
-The audit's broader conclusion holds and is reinforced: **the repo is already lean
-where it matters.** The remaining plan items are either control-plane edits not worth
-touching immediately before a relaunch, a reversible archive move with newly-found
-live-test references, or FUTSUB-collision items that must wait for the run to close.
+Five PRs merged: docs consolidation (#314), dead `review_schema.py` (#315), clarity
+docs (#316), dead config keys B1/B2 (#317), and `phase status` delegation B5 (PR-5).
+B6 was evaluated and **correctly skipped** (its dedup premise was false). The audit's
+broader conclusion holds and is reinforced: **the repo is already lean where it matters.**
+The only remaining items are the **archive move** (reversible, but with newly-found
+live-test references — do it deliberately, not during a pivot) and the **FUTSUB-collision
+`src` touches (PR-POST)**, which must wait for the FUTSUB run to close.
 `src/alpha_system` (oracle, parity, resolver/identity, registry, governance,
 in-flight fast/scaleout) was not touched.
