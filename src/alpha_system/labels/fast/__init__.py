@@ -64,10 +64,21 @@ from alpha_system.labels.fast.session_maintenance import (
     session_maintenance_pack_coverage,
     supports_session_maintenance_label_pack,
 )
+from alpha_system.labels.fast.worker import (
+    CANONICAL_LABEL_RECORD_ORDER,
+    FAST_LABEL_WORKER_MANIFEST_SCHEMA,
+    FastLabelWorkerManifest,
+    FastLabelWorkerUnitOutput,
+    label_worker_manifest_from_result,
+    label_worker_manifest_path,
+    write_label_worker_manifest,
+)
 
 __all__ = [
+    "CANONICAL_LABEL_RECORD_ORDER",
     "COST_ADJUSTED_LABEL_IDS",
     "FAST_LABEL_PRODUCER_ENGINE_ID",
+    "FAST_LABEL_WORKER_MANIFEST_SCHEMA",
     "FAST_LABEL_VALUE_SCHEMA_VERSION",
     "FIXED_HORIZON_LABEL_IDS",
     "CostAdjustedPackCoverage",
@@ -78,6 +89,8 @@ __all__ = [
     "FastLabelMaterializer",
     "FastLabelPack",
     "FastLabelPackError",
+    "FastLabelWorkerManifest",
+    "FastLabelWorkerUnitOutput",
     "FixedHorizonPackCoverage",
     "LabelAvailabilityFamily",
     "LabelPanelFrameRequest",
@@ -110,6 +123,8 @@ __all__ = [
     "cost_adjusted_pack_coverage",
     "derive_label_available_ts",
     "fixed_horizon_pack_coverage",
+    "label_worker_manifest_from_result",
+    "label_worker_manifest_path",
     "path_label_pack_coverage",
     "quality_metadata_for_resolution",
     "resolve_terminal_indices",
@@ -118,4 +133,5 @@ __all__ = [
     "supports_fixed_horizon_label_pack",
     "supports_path_label_pack",
     "supports_session_maintenance_label_pack",
+    "write_label_worker_manifest",
 ]

@@ -73,6 +73,17 @@ bounded by the retained P02 terminal; same-bar target/stop ambiguity follows
 reference path family rather than changing label semantics. The detailed table
 is documented in [PATH_LABEL_PACKS.md](PATH_LABEL_PACKS.md).
 
+LCFP-P06 routes these packs through targeted materialization surfaces:
+`alpha scaleout label-pack` and `alpha label materialize --fast-path`. The
+selection dimensions are label group, horizon group, symbols, years, and
+DatasetVersion ids. Dry-run remains write-free. Execute mode writes local
+Parquet values plus deterministic worker manifests under `ALPHA_DATA_ROOT`,
+then a single parent-process writer registers completed units through the
+official label registry path in deterministic unit order. Checkpoints and live
+registry truth skip completed units by default; `--force` recomputes selected
+units. Label worker precedence is `--workers`, then `ALPHA_LABEL_CPU_WORKERS`,
+then `ALPHA_CPU_WORKERS`, then serial default.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs

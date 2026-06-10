@@ -13,6 +13,8 @@ from alpha_system.features.scaleout import (
     DEFAULT_SCALEOUT_ENGINE,
     DEFAULT_LABEL_SCALEOUT_CONFIG,
     DEFAULT_SCALEOUT_CONFIG,
+    SCALEOUT_ENGINE_REFERENCE,
+    SCALEOUT_ENGINE_V1,
 )
 from alpha_system.features.scaleout.driver import (
     ScaleoutError,
@@ -98,9 +100,9 @@ def run_label_pack(args: argparse.Namespace) -> int:
             rollout=args.rollout,
             execute=args.execute,
             bounded_year=args.bounded_year,
-            engine="reference",
-            workers=1,
-            force_recompute=args.force_recompute or None,
+            engine=args.engine,
+            workers=_resolve_label_workers(args.workers, env=os.environ),
+            force_recompute=args.force_recompute or args.force or None,
             log=lambda message: print(message, file=sys.stderr),
             target=_target_from_args(args),
         )
@@ -271,6 +273,11 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Target a configured label group; repeat or comma-separate.",
     )
     label_parser.add_argument(
+        "--horizon-group",
+        action="append",
+        help="Target a configured or built-in horizon group; repeat or comma-separate.",
+    )
+    label_parser.add_argument(
         "--symbols",
         action="append",
         help="Target symbols; repeat or comma-separate (for example ES,NQ).",
@@ -303,6 +310,29 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Recompute targeted units even when checkpoint and registry evidence are complete.",
     )
     label_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Alias for --force-recompute.",
+    )
+    label_parser.add_argument(
+        "--engine",
+        choices=(SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE),
+        default=None,
+        help=(
+            "Producer engine for labels; defaults to the reference engine until "
+            "the LCFP fast label path is accepted. Pass v1 to opt in explicitly."
+        ),
+    )
+    label_parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "CPU worker count for V1 label compute; overrides "
+            "ALPHA_LABEL_CPU_WORKERS, then ALPHA_CPU_WORKERS, and defaults to 1."
+        ),
+    )
+    label_parser.add_argument(
         "--alpha-data-root",
         help="Local data root for values, registry, ledger, and checkpoints.",
     )
@@ -329,6 +359,7 @@ def _target_from_args(args: argparse.Namespace) -> ScaleoutTarget:
         feature_groups=_split_text_targets(getattr(args, "feature_group", None)),
         label_ids=_split_text_targets(getattr(args, "label_id", None)),
         label_groups=_split_text_targets(getattr(args, "label_group", None)),
+        horizon_groups=_split_text_targets(getattr(args, "horizon_group", None)),
         symbols=_split_text_targets(getattr(args, "symbols", None), uppercase=True),
         years=_split_year_targets(getattr(args, "years", None)),
         dataset_version_ids=_split_text_targets(getattr(args, "dataset_version_ids", None)),
@@ -350,6 +381,25 @@ def _resolve_workers(cli_workers: int | None, *, env: Mapping[str, str]) -> int:
     if workers < 1:
         raise ScaleoutError("ALPHA_CPU_WORKERS must be >= 1")
     return workers
+
+
+def _resolve_label_workers(cli_workers: int | None, *, env: Mapping[str, str]) -> int:
+    if cli_workers is not None:
+        if cli_workers < 1:
+            raise ScaleoutError("--workers must be >= 1")
+        return cli_workers
+    for name in ("ALPHA_LABEL_CPU_WORKERS", "ALPHA_CPU_WORKERS"):
+        env_value = env.get(name)
+        if env_value is None or not env_value.strip():
+            continue
+        try:
+            workers = int(env_value)
+        except ValueError as exc:
+            raise ScaleoutError(f"{name} must be a positive integer") from exc
+        if workers < 1:
+            raise ScaleoutError(f"{name} must be >= 1")
+        return workers
+    return 1
 
 
 def _split_text_targets(values: list[str] | None, *, uppercase: bool = False) -> tuple[str, ...]:

@@ -277,6 +277,18 @@ class LabelRegistryRecord:
 
         return self.exposure_report.status
 
+    @property
+    def producer_engine_id(self) -> str | None:
+        """Return producer provenance recorded with this materialization."""
+
+        metadata = self.registry_metadata.to_dict()
+        value = metadata.get("producer_engine_id")
+        if isinstance(value, str) and value.strip():
+            return value
+        lineage = self.lineage.contract_provenance.to_dict()
+        value = lineage.get("producer_engine_id")
+        return value if isinstance(value, str) and value.strip() else None
+
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a canonical JSON-compatible registry payload."""
 

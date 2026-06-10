@@ -43,6 +43,7 @@ SCALEOUT_ENGINE_REFERENCE = "reference"
 DEFAULT_SCALEOUT_ENGINE = SCALEOUT_ENGINE_V1
 SCALEOUT_ENGINES = frozenset({SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE})
 DEFAULT_CPU_WORKERS = 1
+LABEL_CPU_WORKERS_ENV = "ALPHA_LABEL_CPU_WORKERS"
 FORCE_RECOMPUTE_ENV = "ALPHA_SCALEOUT_FORCE_RECOMPUTE"
 SESSION_METADATA_ROLE_MARKER = "SESSION_METADATA_POINT_IN_TIME"
 SESSION_METADATA_ROLE_FAMILIES = frozenset(
@@ -78,6 +79,7 @@ class ScaleoutTarget:
     feature_groups: tuple[str, ...] = ()
     label_ids: tuple[str, ...] = ()
     label_groups: tuple[str, ...] = ()
+    horizon_groups: tuple[str, ...] = ()
     symbols: tuple[str, ...] = ()
     years: tuple[int, ...] = ()
     dataset_version_ids: tuple[str, ...] = ()
@@ -92,6 +94,7 @@ class ScaleoutTarget:
             or self.feature_groups
             or self.label_ids
             or self.label_groups
+            or self.horizon_groups
             or self.symbols
             or self.years
             or self.dataset_version_ids
@@ -112,6 +115,7 @@ class ScaleoutTarget:
             "feature_groups": list(self.feature_groups),
             "label_ids": list(self.label_ids),
             "label_groups": list(self.label_groups),
+            "horizon_groups": list(self.horizon_groups),
             "symbols": list(self.symbols),
             "years": list(self.years),
             "dataset_version_ids": list(self.dataset_version_ids),
@@ -192,6 +196,7 @@ class ScaleoutConfig:
     feature_groups: Mapping[str, tuple[str, ...]]
     label_names: tuple[str, ...]
     label_groups: Mapping[str, tuple[str, ...]]
+    horizon_groups: Mapping[str, tuple[str, ...]]
     symbols: tuple[str, ...]
     years: tuple[int, ...]
     input_schemas: tuple[str, ...]
@@ -514,7 +519,10 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
     checkpoint_root = Path(_require_text(checkpoint.get("checkpoint_root"), "checkpoint_root"))
     if is_label_config:
         feature_names = ()
-        label_names = _text_tuple(payload.get("governed_scope"), "governed_scope")
+        label_names = _scaleout_label_names(
+            _require_text(payload.get("family"), "family"),
+            _text_tuple(payload.get("governed_scope"), "governed_scope"),
+        )
     else:
         feature_names = _text_tuple(payload.get("governed_scope"), "governed_scope")
         label_names = _optional_text_tuple(
@@ -543,6 +551,12 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
             "targeting.label_groups",
             allowed_names=label_names,
         ),
+        horizon_groups=_label_horizon_groups(
+            label_names,
+            targeting.get("horizon_groups"),
+        )
+        if is_label_config
+        else {},
         symbols=_text_tuple(grid.get("symbols"), "batch_unit_grid.symbols"),
         years=_int_tuple(grid.get("years"), "batch_unit_grid.years"),
         input_schemas=_text_tuple(grid.get("input_schemas"), "batch_unit_grid.input_schemas"),
@@ -748,6 +762,23 @@ def _unit_identity_payload(
     return payload
 
 
+def _resolve_engine_token(engine: str | None, config: ScaleoutConfig) -> str:
+    """Resolve the effective engine for one scaleout run.
+
+    An explicit ``engine`` request is honored for every config type. When the
+    caller does not request an engine, label scaleout configs default to the
+    reference engine — the only production label path until the LCFP-P07 parity
+    and LCFP-P08 benchmark gates accept the fast label path — while feature
+    configs keep the V1 default.
+    """
+
+    if engine is None:
+        if _is_label_scaleout_config(config):
+            return SCALEOUT_ENGINE_REFERENCE
+        return DEFAULT_SCALEOUT_ENGINE
+    return _normalize_engine(engine)
+
+
 def run_scaleout(
     config: ScaleoutConfig,
     *,
@@ -757,7 +788,7 @@ def run_scaleout(
     rollout: str = "bounded-then-full",
     execute: bool = False,
     bounded_year: int | None = None,
-    engine: str = DEFAULT_SCALEOUT_ENGINE,
+    engine: str | None = None,
     unit_executor: UnitExecutor | None = None,
     target: ScaleoutTarget | None = None,
     workers: int | None = DEFAULT_CPU_WORKERS,
@@ -770,15 +801,15 @@ def run_scaleout(
     than one effective worker, canonical loading and value computation happen in
     worker processes and registry registration is replayed by this process in
     deterministic unit order.
+
+    ``engine=None`` means "default per config type": label scaleout configs
+    default to the reference engine until LCFP acceptance, feature configs
+    default to V1. An explicit ``engine="v1"`` opt-in on a label config is
+    honored.
     """
 
     rollout_token = _normalize_rollout(rollout)
-    requested_engine_token = _normalize_engine(engine)
-    engine_token = (
-        SCALEOUT_ENGINE_REFERENCE
-        if _is_label_scaleout_config(config)
-        else requested_engine_token
-    )
+    engine_token = _resolve_engine_token(engine, config)
     requested_workers = _normalize_workers(workers)
     force_recompute_token = _normalize_force_recompute(force_recompute)
     target = target or ScaleoutTarget()
@@ -831,7 +862,6 @@ def run_scaleout(
         parallel_allowed=(
             use_default_executor
             and engine_token == SCALEOUT_ENGINE_V1
-            and not _is_label_scaleout_config(config)
         ),
     )
 
@@ -850,7 +880,6 @@ def run_scaleout(
             parallel_v1_compute=(
                 use_default_executor
                 and engine_token == SCALEOUT_ENGINE_V1
-                and not _is_label_scaleout_config(config)
             ),
             force_recompute=force_recompute_token,
             log=log,
@@ -1172,6 +1201,192 @@ def materialize_fixed_horizon_label_unit(
     )
 
 
+def materialize_fast_label_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one label unit through the V1 fast label producer path."""
+
+    output = _compute_fast_label_unit_output(
+        config,
+        unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=False,
+        include_records=True,
+    )
+    return _register_fast_label_worker_output(
+        config,
+        unit,
+        alpha_data_root=alpha_data_root,
+        output=output,
+    )
+
+
+def _compute_fast_label_unit_output(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    *,
+    write_manifest: bool,
+    include_records: bool,
+) -> Any:
+    """Compute and persist one fast label unit without mutating the registry."""
+
+    from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.labels.fast import (
+        FAST_LABEL_PRODUCER_ENGINE_ID,
+        FAST_LABEL_VALUE_SCHEMA_VERSION,
+        FastLabelMaterializer,
+        FastLabelWorkerUnitOutput,
+        LabelPanelFrameRequest,
+        label_worker_manifest_from_result,
+        label_worker_manifest_path,
+        write_label_worker_manifest,
+    )
+
+    pack = _fast_label_pack_for_unit(config, unit)
+    registry_metadata = _fast_label_registry_metadata(config, unit)
+    context = _label_accepted_context(
+        config,
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    materializer = (
+        FastLabelMaterializer()
+        if _fast_label_pack_requires_bbo(pack)
+        else FastLabelMaterializer(canonical_bbo_loader=_empty_bbo_loader)
+    )
+    request = LabelPanelFrameRequest(
+        canonical_root=canonical_root,
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        year=unit.year,
+        start_ts=unit.window_start_ts,
+        end_ts=unit.window_end_ts,
+        ohlcv_partition_schema=_on_disk_partition_schema(
+            canonical_root,
+            unit.dataset_version_id,
+            unit.schema_id,
+        ),
+    )
+    result = materializer.materialize_pack(
+        pack,
+        context.accepted,
+        partition_id=unit.partition_id,
+        load_request=request,
+        instrument_ids=(unit.symbol,),
+        alpha_data_root=alpha_data_root,
+        governance_metadata=registry_metadata,
+        output_namespace=config.value_namespace,
+        value_store_format=ValueStoreFormat.PARQUET,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no fast label values")
+    handle = result.value_store_handle
+    if not isinstance(handle, ValueStoreHandle):
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    _require_text(handle.content_hash, "value_store_handle.content_hash")
+    manifest_path = label_worker_manifest_path(
+        alpha_data_root,
+        checkpoint_root=config.checkpoint_root,
+        unit_id=unit.unit_id,
+    )
+    manifest = label_worker_manifest_from_result(
+        unit_key=_worker_unit_key(unit),
+        result=result,
+        label_version_ids=pack.label_version_ids,
+        producer_engine_id=FAST_LABEL_PRODUCER_ENGINE_ID,
+        value_schema_version=FAST_LABEL_VALUE_SCHEMA_VERSION,
+        manifest_path=manifest_path,
+    )
+    if write_manifest:
+        write_label_worker_manifest(manifest_path, manifest)
+    if not include_records:
+        from alpha_system.labels.engine import LabelMaterializationResult
+
+        result = LabelMaterializationResult(
+            plan=result.plan,
+            records=(),
+            dry_run=result.dry_run,
+            wrote_output=result.wrote_output,
+            output_path=result.output_path,
+            value_store_handle=result.value_store_handle,
+            planned_input_rows=result.planned_input_rows,
+            planned_label_count=result.planned_label_count,
+            runtime_seconds=result.runtime_seconds,
+        )
+    return FastLabelWorkerUnitOutput(
+        materialization_result=result,
+        pack=pack,
+        registry_metadata={**registry_metadata, "worker_manifest_path": manifest_path.as_posix()},
+        manifest=manifest,
+    )
+
+
+def _register_fast_label_worker_output(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    output: Any,
+) -> MaterializedUnitEvidence:
+    """Serially register one worker-computed fast label unit via LabelRegistry."""
+
+    from alpha_system.labels.fast import (
+        FAST_LABEL_PRODUCER_ENGINE_ID,
+        FAST_LABEL_VALUE_SCHEMA_VERSION,
+        FastLabelMaterializer,
+    )
+    from alpha_system.labels.registry import LabelRegistry
+
+    result = _fast_label_result_with_records(output.materialization_result)
+    handle = result.value_store_handle
+    if handle is None:
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    registry = LabelRegistry.from_alpha_data_root(alpha_data_root)
+    materializer = FastLabelMaterializer()
+    records = materializer.register_pack(
+        result,
+        output.pack,
+        store=registry,
+        registry_metadata=output.registry_metadata,
+    )
+    label_version_ids = tuple(record.label_version_id for record in records)
+    if label_version_ids != tuple(output.pack.label_version_ids):
+        raise ScaleoutError("registered label_version_id order changed")
+    _verify_label_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        label_version_ids=label_version_ids,
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=handle.schema_version,
+    )
+    for label_version_id in label_version_ids:
+        record = registry.resolve_label(label_version_id)
+        if record is None or record.producer_engine_id != FAST_LABEL_PRODUCER_ENGINE_ID:
+            raise ScaleoutError("registered label is missing fast producer provenance")
+        if record.value_schema_version != FAST_LABEL_VALUE_SCHEMA_VERSION:
+            raise ScaleoutError("registered label fast value schema version mismatch")
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        label_version_ids=label_version_ids,
+    )
+
+
 def _label_scaleout_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict[str, Any]:
     from alpha_system.labels.families.fixed_horizon import (
         MAINTENANCE_GUARD_VERSION,
@@ -1197,6 +1412,233 @@ def _label_scaleout_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict
         "terminal_key": "series_id+contract_id+event_ts",
         "producer_engine_id": "alpha_system.labels.reference_engine.v1",
     }
+
+
+def _fast_label_registry_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict[str, Any]:
+    from alpha_system.labels.fast import (
+        FAST_LABEL_PRODUCER_ENGINE_ID,
+        FAST_LABEL_VALUE_SCHEMA_VERSION,
+    )
+    from alpha_system.labels.roll_guard import ROLL_GUARD_VERSION, ROLL_POLICY_ID
+
+    return {
+        "campaign_id": config.campaign_id,
+        "phase_id": config.phase_id,
+        "unit_id": unit.unit_id,
+        "family": config.family,
+        "label_set_id": unit.feature_set_id,
+        "label_names": list(unit.feature_names),
+        "input_dataset_versions": [dataset.to_dict() for dataset in unit.input_datasets],
+        "value_store_format": ValueStoreFormat.PARQUET.value,
+        "producer_engine_id": FAST_LABEL_PRODUCER_ENGINE_ID,
+        "value_schema_version": FAST_LABEL_VALUE_SCHEMA_VERSION,
+        "engine_selection": SCALEOUT_ENGINE_V1,
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "terminal_key": "series_id+contract_id+event_ts",
+    }
+
+
+def _fast_label_pack_for_unit(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
+    definitions = _fast_label_definitions_for_unit(config, unit)
+    if config.family in {"fixed_horizon", "extended_horizon"}:
+        from alpha_system.labels.fast import build_fixed_horizon_label_pack
+
+        return build_fixed_horizon_label_pack(definitions)
+    if config.family == "session_close_maintenance_flat":
+        from alpha_system.labels.fast import build_session_maintenance_label_pack
+
+        return build_session_maintenance_label_pack(definitions)
+    if config.family == "cost_adjusted":
+        from alpha_system.labels.fast import build_cost_adjusted_label_pack
+
+        return build_cost_adjusted_label_pack(definitions)
+    if config.family == "path":
+        from alpha_system.labels.fast import build_path_label_pack
+
+        return build_path_label_pack(definitions)
+    raise ScaleoutError(f"unsupported fast label scaleout family: {config.family}")
+
+
+def _fast_label_definitions_for_unit(config: ScaleoutConfig, unit: ScaleoutUnit) -> tuple[Any, ...]:
+    dataset_version_ids = _label_input_dataset_version_ids(unit)
+    if config.family in {"fixed_horizon", "extended_horizon", "session_close_maintenance_flat"}:
+        from alpha_system.cli.seed_pack import _build_label_spec, _label_materialization_scope
+        from alpha_system.labels.families.fixed_horizon import (
+            build_fixed_horizon_label_definition,
+        )
+
+        seed_config = _generic_label_seed_config(config, unit)
+        label_set = seed_config.label_set
+        if label_set is None:
+            raise ScaleoutError("label unit seed config did not build a label_set")
+        return tuple(
+            build_fixed_horizon_label_definition(
+                entry.name,
+                _build_label_spec(seed_config, entry),
+                dataset_version_ids=dataset_version_ids,
+                materialization_scope=_label_materialization_scope(seed_config),
+            )
+            for entry in label_set.labels
+        )
+    if config.family == "cost_adjusted":
+        from alpha_system.labels.families.cost_adjusted import (
+            build_cost_adjusted_label_definition,
+        )
+
+        return tuple(
+            build_cost_adjusted_label_definition(
+                name,
+                _cost_adjusted_label_spec(name, unit),
+                dataset_version_ids=dataset_version_ids,
+            )
+            for name in unit.feature_names
+        )
+    if config.family == "path":
+        from alpha_system.labels.families.path import build_path_label_definition
+
+        return tuple(
+            build_path_label_definition(
+                name,
+                _path_label_spec(name, unit),
+                dataset_version_ids=dataset_version_ids,
+            )
+            for name in unit.feature_names
+        )
+    raise ScaleoutError(f"unsupported fast label scaleout family: {config.family}")
+
+
+def _generic_label_seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> Any:
+    from alpha_system.cli.seed_pack import LabelSetConfig, LabelSpecConfig, SeedPackConfig
+
+    return SeedPackConfig(
+        dataset_version_id=unit.dataset_version_id,
+        symbol=unit.symbol,
+        partition_id=unit.partition_id,
+        partition_schema=unit.schema_id,
+        window_start_ts=unit.window_start_ts,
+        window_end_ts=unit.window_end_ts,
+        label_set=LabelSetConfig(
+            label_set_id=unit.feature_set_id,
+            labels=tuple(
+                LabelSpecConfig(name=name, horizon=_scaleout_label_horizon(name))
+                for name in unit.feature_names
+            ),
+        ),
+    )
+
+
+def _label_accepted_context(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> Any:
+    from alpha_system.cli.seed_pack import _build_accepted_context
+
+    return _build_accepted_context(
+        _generic_label_seed_config(config, unit),
+        canonical_root=canonical_root,
+        datasets_registry_path=dataset_registry_path,
+        bar_rows=None,
+        bar_row_loader=_session_bar_row_loader,
+        quality_coverage_builder=_scaleout_quality_coverage_builder,
+        repo_root=Path.cwd(),
+    )
+
+
+def _label_input_dataset_version_ids(unit: ScaleoutUnit) -> tuple[str, ...]:
+    values = tuple(dataset.dataset_version_id for dataset in unit.input_datasets)
+    return values or (unit.dataset_version_id,)
+
+
+def _scaleout_label_horizon(name: str) -> str:
+    if name in {"session_close", "maintenance_flat"}:
+        return name
+    token = _label_horizon_token(name)
+    if token.endswith("m") and token[:-1].isdigit():
+        return token
+    return "5m"
+
+
+def _cost_adjusted_label_spec(name: str, unit: ScaleoutUnit) -> Any:
+    from alpha_system.governance.label_spec import create_label_spec
+
+    horizon = _scaleout_label_horizon(name)
+    model = "spread_plus_bps" if name == "cost_adjusted_fwd_ret" else "spread_adjusted"
+    cost_model: dict[str, Any] = {
+        "model": model,
+        "spread_adjustment": "half_spread_round_trip",
+    }
+    if model == "spread_plus_bps":
+        cost_model["fixed_cost_bps"] = 0.25
+    return create_label_spec(
+        horizon=horizon,
+        path_rules={
+            "path": "bbo_mid_forward_return",
+            "terminal_rule": "exact event_ts match with valid BBO only",
+            "horizon_steps": int(horizon.removesuffix("m")),
+        },
+        cost_model=cost_model,
+        target_stop_rules={
+            "target_rule": "not_used_for_cost_adjusted_forward_return",
+            "stop_rule": "not_used_for_cost_adjusted_forward_return",
+        },
+        availability_time=unit.window_start_ts,
+        forbidden_feature_overlap={
+            "label_ids": [name],
+            "aliases": [f"scaleout_{name}"],
+            "transforms": [f"label({name})"],
+        },
+        leakage_checks=["label_as_feature", "availability_time"],
+    )
+
+
+def _path_label_spec(name: str, unit: ScaleoutUnit) -> Any:
+    from alpha_system.governance.label_spec import create_label_spec
+
+    horizon_steps = int(_scaleout_label_horizon(name).removesuffix("m"))
+    path_label_ids = [f"path_{label_name}" for label_name in unit.feature_names]
+    return create_label_spec(
+        horizon=f"{horizon_steps}_trade_bars",
+        path_rules={
+            "path": "ohlcv_trade_truth_forward_path",
+            "horizon_steps": horizon_steps,
+            "price_field": "close",
+            "direction": "long",
+            "trade_truth_predicate": "alpha_system.features.semantics.is_real_trade_bar",
+        },
+        cost_model={"model": "gross_path_labels_unadjusted", "reason": "no cost adjustment"},
+        target_stop_rules={
+            "target_return": 0.02,
+            "stop_return": -0.02,
+            "same_bar_policy": "ambiguous",
+        },
+        availability_time=unit.window_start_ts,
+        forbidden_feature_overlap={
+            "label_ids": path_label_ids,
+            "aliases": list(unit.feature_names),
+            "transforms": [f"label({label_id})" for label_id in path_label_ids],
+        },
+        leakage_checks=["label_as_feature", "availability_time"],
+    )
+
+
+def _fast_label_pack_requires_bbo(pack: Any) -> bool:
+    from alpha_system.labels.families.cost_adjusted import CostAdjustedLabelDefinition
+    from alpha_system.labels.families.fixed_horizon import FixedHorizonLabelDefinition
+
+    for definition in pack.definitions:
+        if isinstance(definition, CostAdjustedLabelDefinition):
+            return True
+        if isinstance(definition, FixedHorizonLabelDefinition) and definition.is_midprice:
+            return True
+    return False
+
+
+def _empty_bbo_loader(**_kwargs: Any) -> tuple[Mapping[str, Any], ...]:
+    return ()
 
 
 def _bar_or_dense_inputs(
@@ -2300,6 +2742,114 @@ def _v1_result_with_records(result: Any) -> Any:
     )
 
 
+def _fast_label_result_with_records(result: Any) -> Any:
+    if not hasattr(result, "records") or getattr(result, "records", ()):
+        return result
+    from alpha_system.labels.engine import LabelMaterializationResult
+
+    handle = result.value_store_handle
+    if handle is None or not handle.parquet_path:
+        raise ScaleoutError("fast label worker output is missing a Parquet handle")
+    return LabelMaterializationResult(
+        plan=result.plan,
+        records=_label_value_records_from_parquet(handle.parquet_path, result.plan),
+        dry_run=result.dry_run,
+        wrote_output=result.wrote_output,
+        output_path=result.output_path,
+        value_store_handle=handle,
+        planned_input_rows=result.planned_input_rows,
+        planned_label_count=result.planned_label_count,
+        runtime_seconds=result.runtime_seconds,
+    )
+
+
+def _fast_label_plan_from_manifest(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    pack: Any,
+) -> Any:
+    from alpha_system.features.consumption import AcceptedDatasetVersion
+    from alpha_system.data.foundation.datasets import DatasetVersion
+    from alpha_system.labels.engine import build_label_materialization_plan
+
+    dataset_version = DatasetVersion(
+        dataset_version_id=unit.dataset_version_id,
+        source="dsrc_manifest_resume",
+        symbol_universe=(unit.symbol,),
+        bar_size="1 min",
+        what_to_show="TRADES",
+        start_ts=_datetime_from_iso(unit.window_start_ts),
+        end_ts=_datetime_from_iso(unit.window_end_ts),
+        contract_universe=(unit.symbol,),
+        roll_policy_id="roll_cme_index_futures_quarterly",
+        manifest_hash="0" * 64,
+        code_hash="0" * 64,
+        config_hash="0" * 64,
+        quality_report_hash="0" * 64,
+        created_at=_datetime_from_iso(unit.window_end_ts),
+    )
+    accepted = AcceptedDatasetVersion(
+        registry_path="manifest_resume",
+        dataset_version=dataset_version,
+        lifecycle_state="VERSIONED",
+        quality_report=None,
+        coverage_report=None,
+    )
+    return build_label_materialization_plan(
+        pack.definitions,
+        accepted,
+        partition_id=unit.partition_id,
+        instrument_ids=(unit.symbol,),
+        alpha_data_root=alpha_data_root,
+        governance_metadata=_fast_label_registry_metadata(config, unit),
+        output_namespace=config.value_namespace,
+    )
+
+
+def _label_value_records_from_parquet(parquet_path: str | Path, plan: Any) -> tuple[Any, ...]:
+    from alpha_system.core.value_store import load_parquet_values
+    from alpha_system.labels.version import LabelValueRecord
+
+    contracts = {
+        contract.derive_label_version().label_version_id: contract
+        for contract in plan.label_contracts
+    }
+    records: list[LabelValueRecord] = []
+    for payload in load_parquet_values(parquet_path):
+        version_id = _require_text(payload.get("label_version_id"), "label_version_id")
+        contract = contracts.get(version_id)
+        if contract is None:
+            raise ScaleoutError(f"Parquet label row is not in plan: {version_id}")
+        records.append(
+            LabelValueRecord(
+                label_version_id=version_id,
+                entity_id=_require_text(payload.get("entity_id"), "entity_id"),
+                event_ts=_datetime_from_iso(payload.get("event_ts")),
+                horizon_end_ts=_datetime_from_iso(payload.get("horizon_end_ts")),
+                label_available_ts=_datetime_from_iso(payload.get("label_available_ts")),
+                value=payload.get("value"),
+                label_contract=contract,
+                quality_flags=tuple(
+                    _require_text(value, "quality_flag")
+                    for value in (
+                        payload.get("quality_flags")
+                        if isinstance(payload.get("quality_flags"), Sequence)
+                        and not isinstance(payload.get("quality_flags"), str)
+                        else ()
+                    )
+                ),
+            )
+        )
+    return tuple(records)
+
+
+def _datetime_from_iso(value: object) -> datetime:
+    text = _require_text(value, "datetime")
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
 def _feature_value_records_from_parquet(parquet_path: str | Path) -> tuple[Any, ...]:
     from alpha_system.core.value_store import load_parquet_values
     from alpha_system.features.contracts import FeatureValueRecord
@@ -2467,7 +3017,13 @@ def _unit_executor_for_family(
 ) -> UnitExecutor:
     engine_token = _normalize_engine(engine)
     if family in {"fixed_horizon", "session_close_maintenance_flat"}:
+        if engine_token == SCALEOUT_ENGINE_V1:
+            return materialize_fast_label_unit
         return materialize_fixed_horizon_label_unit
+    if family in {"cost_adjusted", "path"}:
+        if engine_token == SCALEOUT_ENGINE_V1:
+            return materialize_fast_label_unit
+        raise ScaleoutError(f"reference label executor is unsupported for {family}")
     if engine_token == SCALEOUT_ENGINE_V1:
         return materialize_v1_feature_unit
     if family == "base_ohlcv":
@@ -2967,7 +3523,7 @@ def _registry_completed_unit(
     """
 
     if _is_label_scaleout_config(config):
-        return _registry_completed_label_unit(config, unit, alpha_data_root)
+        return _registry_completed_label_unit(config, unit, alpha_data_root, engine=engine)
     try:
         feature_version_ids = _preview_feature_version_ids(config, unit)
     except (ValueError, ScaleoutError, KeyError, OSError):
@@ -3018,7 +3574,7 @@ def _completed_record_has_registry_truth(
             return False
         if record.label_version_ids != current_label_version_ids:
             return False
-        return _completed_label_record_has_registry_truth(record, alpha_data_root)
+        return _completed_label_record_has_registry_truth(record, alpha_data_root, engine=engine)
     if record.status != "completed" or not record.feature_version_ids:
         return False
     try:
@@ -3044,6 +3600,8 @@ def _registry_completed_label_unit(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
     alpha_data_root: Path,
+    *,
+    engine: str,
 ) -> ScaleoutUnitRecord | None:
     try:
         label_version_ids = _preview_label_version_ids(config, unit)
@@ -3066,6 +3624,8 @@ def _registry_completed_label_unit(
         except Exception:  # noqa: BLE001 - any resolve failure => not completed
             return None
         if record is None:
+            return None
+        if not _label_registry_record_matches_engine(record, engine):
             return None
         if record.dataset_version_id != unit.dataset_version_id:
             return None
@@ -3093,6 +3653,8 @@ def _registry_completed_label_unit(
 def _completed_label_record_has_registry_truth(
     record: ScaleoutUnitRecord,
     alpha_data_root: Path,
+    *,
+    engine: str,
 ) -> bool:
     if record.status != "completed" or not record.label_version_ids:
         return False
@@ -3108,6 +3670,8 @@ def _completed_label_record_has_registry_truth(
         except Exception:  # noqa: BLE001 - registry truth unavailable => not completed
             return False
         if registry_record is None:
+            return False
+        if not _label_registry_record_matches_engine(registry_record, engine):
             return False
         if registry_record.dataset_version_id != record.unit.dataset_version_id:
             return False
@@ -3126,6 +3690,11 @@ def _registry_record_matches_engine(record: Any, engine: str) -> bool:
     return getattr(record, "producer_engine_id", None) == expected
 
 
+def _label_registry_record_matches_engine(record: Any, engine: str) -> bool:
+    expected = _label_producer_engine_id_for_engine(engine)
+    return getattr(record, "producer_engine_id", None) == expected
+
+
 def _producer_engine_id_for_engine(engine: str) -> str:
     engine_token = _normalize_engine(engine)
     if engine_token == SCALEOUT_ENGINE_V1:
@@ -3135,6 +3704,15 @@ def _producer_engine_id_for_engine(engine: str) -> str:
     from alpha_system.features.registry import REFERENCE_FEATURE_PRODUCER_ENGINE_ID
 
     return REFERENCE_FEATURE_PRODUCER_ENGINE_ID
+
+
+def _label_producer_engine_id_for_engine(engine: str) -> str:
+    engine_token = _normalize_engine(engine)
+    if engine_token == SCALEOUT_ENGINE_V1:
+        from alpha_system.labels.fast import FAST_LABEL_PRODUCER_ENGINE_ID
+
+        return FAST_LABEL_PRODUCER_ENGINE_ID
+    return "alpha_system.labels.reference_engine.v1"
 
 
 def _execute_stage(
@@ -3251,13 +3829,21 @@ def _execute_stage(
                     continue
                 start_wait = perf_counter()
                 try:
-                    evidence = _register_v1_worker_output(
-                        config,
-                        unit,
-                        alpha_data_root=alpha_data_root,
-                        output=outcome,
-                        rebuild_request_against_live_registry=True,
-                    )
+                    if _is_label_scaleout_config(config):
+                        evidence = _register_fast_label_worker_output(
+                            config,
+                            unit,
+                            alpha_data_root=alpha_data_root,
+                            output=outcome,
+                        )
+                    else:
+                        evidence = _register_v1_worker_output(
+                            config,
+                            unit,
+                            alpha_data_root=alpha_data_root,
+                            output=outcome,
+                            rebuild_request_against_live_registry=True,
+                        )
                     queue_wait = perf_counter() - start_wait
                     record = ScaleoutUnitRecord(
                         unit=unit,
@@ -3332,6 +3918,16 @@ def _compute_v1_stage_outputs_in_workers(
     worker_plan: ScaleoutWorkerPlan,
     force_recompute: bool,
 ) -> dict[str, Any | BaseException]:
+    if _is_label_scaleout_config(config):
+        return _compute_fast_label_stage_outputs_in_workers(
+            config,
+            units,
+            alpha_data_root=alpha_data_root,
+            dataset_registry_path=dataset_registry_path,
+            canonical_root=canonical_root,
+            worker_plan=worker_plan,
+            force_recompute=force_recompute,
+        )
     outputs: dict[str, Any | BaseException] = {}
     jobs: list[_V1PreparedWorkerJob] = []
     for unit in units:
@@ -3389,6 +3985,156 @@ def _compute_v1_stage_outputs_in_workers(
             except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
                 outputs[unit.unit_id] = exc
     return outputs
+
+
+def _compute_fast_label_stage_outputs_in_workers(
+    config: ScaleoutConfig,
+    units: tuple[ScaleoutUnit, ...],
+    *,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    worker_plan: ScaleoutWorkerPlan,
+    force_recompute: bool,
+) -> dict[str, Any | BaseException]:
+    outputs: dict[str, Any | BaseException] = {}
+    jobs: list[ScaleoutUnit] = []
+    for unit in units:
+        try:
+            if not force_recompute:
+                resumed = _fast_label_worker_output_from_manifest(
+                    config,
+                    unit,
+                    alpha_data_root=alpha_data_root,
+                )
+                if resumed is not None:
+                    outputs[unit.unit_id] = resumed
+                    continue
+            jobs.append(unit)
+        except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
+            outputs[unit.unit_id] = exc
+    if not jobs:
+        return outputs
+    spawn_context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=worker_plan.effective_workers,
+        mp_context=spawn_context,
+    ) as pool:
+        futures = {
+            pool.submit(
+                _fast_label_worker_compute_entrypoint,
+                config,
+                unit,
+                alpha_data_root,
+                dataset_registry_path,
+                canonical_root,
+                worker_plan.threads_per_worker,
+            ): unit
+            for unit in jobs
+        }
+        for future in as_completed(futures):
+            unit = futures[future]
+            try:
+                outputs[unit.unit_id] = future.result()
+            except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
+                outputs[unit.unit_id] = exc
+    return outputs
+
+
+def _fast_label_worker_output_from_manifest(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+) -> Any | None:
+    """Rebuild a fast label worker output from a completed local manifest."""
+
+    from alpha_system.core.value_store import ValueStoreHandle, parquet_is_current
+    from alpha_system.labels.engine import LabelMaterializationResult
+    from alpha_system.labels.fast import (
+        FAST_LABEL_PRODUCER_ENGINE_ID,
+        FAST_LABEL_VALUE_SCHEMA_VERSION,
+        FAST_LABEL_WORKER_MANIFEST_SCHEMA,
+        FastLabelWorkerManifest,
+        FastLabelWorkerUnitOutput,
+        label_worker_manifest_path,
+    )
+
+    manifest_path = label_worker_manifest_path(
+        alpha_data_root,
+        checkpoint_root=config.checkpoint_root,
+        unit_id=unit.unit_id,
+    )
+    if not manifest_path.exists():
+        return None
+    payload = _load_json_mapping(manifest_path, "fast label worker manifest")
+    if payload.get("schema") != FAST_LABEL_WORKER_MANIFEST_SCHEMA:
+        raise ScaleoutError(f"fast label worker manifest schema is invalid: {manifest_path}")
+    if payload.get("producer_engine_id") != FAST_LABEL_PRODUCER_ENGINE_ID:
+        raise ScaleoutError(f"fast label worker manifest producer is invalid: {manifest_path}")
+    if payload.get("value_schema_version") != FAST_LABEL_VALUE_SCHEMA_VERSION:
+        raise ScaleoutError(f"fast label worker manifest value schema is invalid: {manifest_path}")
+    _require_worker_manifest_unit_key(payload.get("unit_key"), unit, manifest_path)
+    parquet_path = Path(_require_text(payload.get("parquet_path"), "parquet_path"))
+    if not parquet_path.exists():
+        raise ScaleoutError(f"fast label worker manifest Parquet is missing: {parquet_path}")
+    content_hash = _require_text(payload.get("content_hash"), "content_hash")
+    if not parquet_is_current(parquet_path, content_hash):
+        raise ScaleoutError(f"fast label worker manifest Parquet hash is stale: {parquet_path}")
+    label_version_ids = tuple(
+        _require_text(value, "label_version_id")
+        for value in _sequence(payload.get("label_version_ids"), "label_version_ids")
+    )
+    pack = _fast_label_pack_for_unit(config, unit)
+    if label_version_ids != tuple(pack.label_version_ids):
+        raise ScaleoutError("fast label worker manifest label_version_id order changed")
+    plan = _fast_label_plan_from_manifest(config, unit, alpha_data_root=alpha_data_root, pack=pack)
+    records = _label_value_records_from_parquet(parquet_path, plan)
+    handle = ValueStoreHandle(
+        format=ValueStoreFormat.PARQUET,
+        jsonl_path=None,
+        parquet_path=parquet_path.as_posix(),
+        value_count=len(records),
+        content_hash=content_hash,
+        schema_version=FAST_LABEL_VALUE_SCHEMA_VERSION,
+        dataset_version_id=unit.dataset_version_id,
+        set_id=unit.feature_set_id,
+        partition_id=unit.partition_id,
+        min_event_ts=min(record.event_ts.isoformat() for record in records),
+        max_event_ts=max(record.event_ts.isoformat() for record in records),
+        min_available_ts=min(record.label_available_ts.isoformat() for record in records),
+        max_available_ts=max(record.label_available_ts.isoformat() for record in records),
+    )
+    manifest = FastLabelWorkerManifest(
+        unit_key=_worker_unit_key(unit),
+        parquet_path=parquet_path.as_posix(),
+        content_hash=content_hash,
+        row_count=int(payload.get("row_count") or len(records)),
+        label_version_ids=label_version_ids,
+        producer_engine_id=FAST_LABEL_PRODUCER_ENGINE_ID,
+        value_schema_version=FAST_LABEL_VALUE_SCHEMA_VERSION,
+        manifest_path=manifest_path.as_posix(),
+    )
+    registry_metadata = {
+        **_fast_label_registry_metadata(config, unit),
+        "worker_manifest_path": manifest_path.as_posix(),
+    }
+    return FastLabelWorkerUnitOutput(
+        materialization_result=LabelMaterializationResult(
+            plan=plan,
+            records=records,
+            dry_run=False,
+            wrote_output=False,
+            output_path=parquet_path,
+            value_store_handle=handle,
+            planned_input_rows=0,
+            planned_label_count=len(pack.definitions),
+            runtime_seconds=0.0,
+        ),
+        pack=pack,
+        registry_metadata=registry_metadata,
+        manifest=manifest,
+    )
 
 
 def _v1_worker_output_from_manifest(
@@ -3612,11 +4358,32 @@ def _v1_worker_compute_entrypoint(
     )
 
 
+def _fast_label_worker_compute_entrypoint(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    threads_per_worker: int,
+) -> Any:
+    _pin_native_threads(threads_per_worker)
+    return _compute_fast_label_unit_output(
+        config,
+        unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=True,
+        include_records=False,
+    )
+
+
 def _pin_native_threads(threads_per_worker: int) -> None:
     token = str(max(1, threads_per_worker))
     os.environ["POLARS_MAX_THREADS"] = token
     os.environ["OMP_NUM_THREADS"] = token
     os.environ["RAYON_NUM_THREADS"] = token
+    os.environ["NUMBA_NUM_THREADS"] = token
 
 
 def _preview_record(config: ScaleoutConfig, unit: ScaleoutUnit, *, stage: str) -> ScaleoutUnitRecord:
@@ -3702,14 +4469,9 @@ def _preview_label_version_ids(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
 ) -> tuple[str, ...]:
-    if config.family not in {"fixed_horizon", "session_close_maintenance_flat"}:
-        raise ScaleoutError(f"unsupported label scaleout family: {config.family}")
-    from alpha_system.cli.seed_pack import preview_seed_label_pack
-
-    preview = preview_seed_label_pack(_label_seed_config(config, unit))
     return tuple(
-        _require_text(value, "label_version_id")
-        for value in _sequence(preview.get("label_version_ids"), "label_version_ids")
+        _require_text(getattr(definition, "label_version_id", ""), "label_version_id")
+        for definition in _fast_label_definitions_for_unit(config, unit)
     )
 
 
@@ -5757,7 +6519,7 @@ def _selected_label_names(
 ) -> tuple[str, ...]:
     if target.feature_ids or target.feature_groups:
         return ()
-    if not target.label_ids and not target.label_groups:
+    if not target.label_ids and not target.label_groups and not target.horizon_groups:
         return config.label_names
     selected: set[str] = set()
     known_labels = set(config.label_names)
@@ -5769,6 +6531,9 @@ def _selected_label_names(
         if group not in config.label_groups:
             raise ScaleoutError(f"unknown label_group target: {group}")
         selected.update(config.label_groups[group])
+    horizon_selected = set(_label_names_for_horizon_groups(config, target.horizon_groups))
+    if target.horizon_groups:
+        selected = selected.intersection(horizon_selected) if selected else horizon_selected
     return tuple(name for name in config.label_names if name in selected)
 
 
@@ -5783,6 +6548,78 @@ def _selected_names_for_config(
 
 def _is_label_scaleout_config(config: ScaleoutConfig) -> bool:
     return bool(config.label_names and not config.feature_names)
+
+
+def _scaleout_label_names(family: str, raw_names: tuple[str, ...]) -> tuple[str, ...]:
+    if family == "cost_adjusted":
+        from alpha_system.labels.fast import COST_ADJUSTED_LABEL_IDS
+
+        return COST_ADJUSTED_LABEL_IDS
+    return raw_names
+
+
+def _label_horizon_groups(
+    label_names: tuple[str, ...],
+    configured: object,
+) -> Mapping[str, tuple[str, ...]]:
+    groups: dict[str, tuple[str, ...]] = {}
+    if configured is not None:
+        groups.update(
+            _group_mapping(
+                configured,
+                "targeting.horizon_groups",
+                allowed_names=label_names,
+            )
+        )
+    label_set = set(label_names)
+    base = tuple(
+        name
+        for name in label_names
+        if _label_horizon_token(name) in {"1m", "3m", "5m", "10m", "15m", "30m"}
+    )
+    extended = tuple(
+        name
+        for name in label_names
+        if _label_horizon_token(name) in {"60m", "120m", "240m"}
+    )
+    close_out = tuple(
+        name
+        for name in label_names
+        if _label_horizon_token(name) in {"session_close", "maintenance_flat"}
+    )
+    if base:
+        groups.setdefault("base", base)
+        groups.setdefault("fixed", base)
+    if extended:
+        groups.setdefault("extended", extended)
+    if close_out:
+        groups.setdefault("close_out", close_out)
+    if label_set:
+        groups.setdefault("all", label_names)
+    return groups
+
+
+def _label_names_for_horizon_groups(
+    config: ScaleoutConfig,
+    horizon_groups: tuple[str, ...],
+) -> tuple[str, ...]:
+    if not horizon_groups:
+        return config.label_names
+    selected: set[str] = set()
+    for group in horizon_groups:
+        if group not in config.horizon_groups:
+            raise ScaleoutError(f"unknown horizon_group target: {group}")
+        selected.update(config.horizon_groups[group])
+    return tuple(name for name in config.label_names if name in selected)
+
+
+def _label_horizon_token(name: str) -> str:
+    if name in {"session_close", "maintenance_flat"}:
+        return name
+    for prefix in ("mid_fwd_ret_", "fwd_ret_"):
+        if name.startswith(prefix):
+            return name.removeprefix(prefix)
+    return name
 
 
 def _selected_symbols(config: ScaleoutConfig, target: ScaleoutTarget) -> tuple[str, ...]:
