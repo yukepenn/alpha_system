@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -155,6 +156,39 @@ def check_runtime(report: Report, campaign_id: str | None) -> None:
         report.warn("campaign.yaml runtime.python not found; cannot verify runtime contract.")
 
 
+def git_hooks_path() -> str | None:
+    """Return the configured ``core.hooksPath`` for this checkout, or None."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "core.hooksPath"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def check_hooks_floor(report: Report) -> None:
+    """WARN (not FAIL) when the deterministic hook floor is not armed locally.
+
+    Local enforcement requires ``core.hooksPath = .githooks``; this stays a
+    warning rather than a failure so CI containers (where hooks are irrelevant
+    and the workflows enforce the same guards) do not go red.
+    """
+    actual = git_hooks_path()
+    if actual == ".githooks":
+        report.ok("Hook floor armed: core.hooksPath = .githooks.")
+    else:
+        report.warn(
+            f"core.hooksPath is {actual!r} (expected '.githooks'); local guard hooks "
+            "are NOT armed. Fix: git config core.hooksPath .githooks"
+        )
+
+
 def check_stale_pointers(report: Report, live_phase: str | None) -> None:
     """Flag historical docs that hardcode a *different* live phase, so an agent
     does not treat them as current."""
@@ -174,6 +208,7 @@ def check_stale_pointers(report: Report, live_phase: str | None) -> None:
 
 def build_report(strict: bool) -> Report:
     report = Report()
+    check_hooks_floor(report)
     campaign_id = active_campaign_id()
     if not campaign_id:
         report.fail("ACTIVE_CAMPAIGN.md does not declare a campaign (Campaign: campaigns/<ID>).")

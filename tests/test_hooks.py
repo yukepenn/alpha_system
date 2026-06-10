@@ -118,3 +118,64 @@ def test_test_tamper_guard_blocks_skip(tmp_path, monkeypatch) -> None:
     path.write_text("import pytest\n\n@pytest.mark.skip(reason='bad')\ndef test_bad():\n    assert True\n", encoding="utf-8")
 
     assert test_tamper_guard.main([str(path)]) == 1
+
+
+def test_forbidden_pattern_guard_blocks_second_pnl_truth(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = Path("src/alpha_system/research_alt_pnl.py")
+    path.parent.mkdir(parents=True)
+    path.write_text("def compute_pnl(trades):\n    return 0.0\n", encoding="utf-8")
+
+    assert forbidden_pattern_guard.main([str(path)]) == 1
+
+
+def test_forbidden_pattern_guard_allows_sanctioned_reference_engine_pnl(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = Path("src/alpha_system/backtest/accounting_ext.py")
+    path.parent.mkdir(parents=True)
+    path.write_text("def realized_pnl(fills):\n    return 0.0\n", encoding="utf-8")
+
+    assert forbidden_pattern_guard.main([str(path)]) == 0
+
+
+def test_second_truth_pattern_does_not_match_equity_index_or_accounting_names() -> None:
+    text = (
+        "def build_cme_equity_index_quarterly_roll_policy():\n    return None\n\n"
+        "def accounting_weight(self, what):\n    return 1\n"
+    )
+    assert not forbidden_pattern_guard.second_truth_violation("src/alpha_system/data/foundation/rolls.py", text)
+
+
+def test_pre_push_force_push_detection() -> None:
+    from tools.hooks import pre_push
+
+    zero = "0" * 40
+    ancestors = {("aaa", "bbb")}  # aaa is an ancestor of bbb
+
+    def is_ancestor(remote_sha: str, local_sha: str) -> bool:
+        return (remote_sha, local_sha) in ancestors
+
+    # Fast-forward update: allowed.
+    assert pre_push.force_push_violations(
+        ["refs/heads/x bbb refs/heads/x aaa"], is_ancestor
+    ) == []
+    # Non-fast-forward (force) update: blocked.
+    violations = pre_push.force_push_violations(
+        ["refs/heads/x aaa refs/heads/x bbb"], is_ancestor
+    )
+    assert len(violations) == 1 and "Non-fast-forward" in violations[0]
+    # New remote ref: allowed.
+    assert pre_push.force_push_violations(
+        [f"refs/heads/x bbb refs/heads/x {zero}"], is_ancestor
+    ) == []
+    # Deleting a non-main remote branch: allowed.
+    assert pre_push.force_push_violations(
+        [f"refs/heads/x {zero} refs/heads/feature bbb"], is_ancestor
+    ) == []
+    # Deleting main: blocked.
+    violations = pre_push.force_push_violations(
+        [f"refs/heads/x {zero} refs/heads/main bbb"], is_ancestor
+    )
+    assert len(violations) == 1 and "protected ref refs/heads/main" in violations[0]
+    # Malformed lines are ignored.
+    assert pre_push.force_push_violations(["nonsense"], is_ancestor) == []

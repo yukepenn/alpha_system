@@ -17,3 +17,7 @@ jobs:
         run: |
           python tools/verify.py --boundaries
           python tools/verify.py --artifacts
+          python tools/hooks/canary_runner.py
+          # Status doctor is informational in CI: there is no runs/ state in a
+          # fresh checkout, so it cannot reconcile a live run. Keep exit-tolerant.
+          python tools/frontier/status_doctor.py || true

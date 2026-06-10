@@ -167,3 +167,21 @@ def test_env_overrides_provider_config(tmp_path, monkeypatch) -> None:
     assert config.mock_providers is True
     assert config.provider_timeout_seconds == 9
     assert config.codex_sandbox == "read-only"
+
+
+def test_null_max_estimated_usd_is_valid() -> None:
+    """frontier.yaml ships max_estimated_usd: null (inert until real USD accounting)."""
+    config = base_config()
+    config["workflow2"]["max_estimated_usd"] = None
+    assert validate_config(config) == []
+
+
+def test_null_max_estimated_usd_disarms_budget_gate() -> None:
+    """env_or_config_number(None) falls back to 0, and the driver gate
+    (estimated_cost_usd > limit > 0) never trips at limit 0."""
+    from tools.frontier.ralph_driver import env_or_config_number
+
+    limit = env_or_config_number("FRONTIER_MAX_ESTIMATED_USD_TEST_UNSET", None, 0)
+    assert limit == 0.0
+    estimated_cost_usd = 123.45
+    assert not (estimated_cost_usd > limit > 0)

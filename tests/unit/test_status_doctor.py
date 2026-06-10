@@ -72,3 +72,18 @@ def test_strict_makes_pointer_drift_fail(monkeypatch, tmp_path) -> None:
 def test_main_exit_zero_when_no_hard_failure() -> None:
     # Against the real repo: runtime is aligned and drift is a soft warning by default.
     assert sd.main([]) == 0
+
+
+def test_hooks_floor_warns_when_hooks_path_not_set(monkeypatch) -> None:
+    monkeypatch.setattr(sd, "git_hooks_path", lambda: None)
+    report = sd.Report()
+    sd.check_hooks_floor(report)
+    assert report.has_warn and not report.has_fail
+    assert any("core.hooksPath" in f.message for f in report.findings)
+
+
+def test_hooks_floor_ok_when_githooks_configured(monkeypatch) -> None:
+    monkeypatch.setattr(sd, "git_hooks_path", lambda: ".githooks")
+    report = sd.Report()
+    sd.check_hooks_floor(report)
+    assert not report.has_warn and not report.has_fail

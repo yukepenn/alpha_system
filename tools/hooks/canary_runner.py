@@ -191,6 +191,31 @@ def scenarios() -> list[Canary]:
             },
         ),
         Canary(
+            # AGENTS.md Hard Constraints: no second PnL/value truth. A module
+            # defining pnl/equity-curve math outside the sanctioned reference
+            # engine must be blocked by the forbidden-pattern guard.
+            "forbidden_second_pnl_truth",
+            [py, str(HOOKS / "forbidden_pattern_guard.py"), "src/alpha_system/research_alt_pnl.py"],
+            {
+                "src/alpha_system/research_alt_pnl.py": (
+                    "def compute_pnl(trades):\n    return sum(t.qty * t.px for t in trades)\n\n\n"
+                    "def build_equity_curve(trades):\n    return [compute_pnl(trades[:i]) for i in range(len(trades))]\n"
+                )
+            },
+        ),
+        Canary(
+            # The sanctioned reference engine path must NOT false-positive:
+            # pnl/equity-curve definitions are legitimate there.
+            "sanctioned_pnl_truth_allowed",
+            [py, str(HOOKS / "forbidden_pattern_guard.py"), "src/alpha_system/backtest/accounting_ext.py"],
+            {
+                "src/alpha_system/backtest/accounting_ext.py": (
+                    "def realized_pnl(fills):\n    return sum(f.qty * f.px for f in fills)\n"
+                )
+            },
+            expect_block=False,
+        ),
+        Canary(
             "generated_scaffold_allowed",
             [
                 py,
