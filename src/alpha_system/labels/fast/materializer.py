@@ -55,6 +55,7 @@ from alpha_system.labels.families.fixed_horizon import (
     FixedHorizonLabelError,
     compute_horizon_overlap_metadata,
 )
+from alpha_system.labels.families.path import PathLabelDefinition
 from alpha_system.labels.registry import LabelRegistry
 from alpha_system.labels.version import (
     FrozenJsonMapping,
@@ -70,7 +71,9 @@ FAST_LABEL_VALUE_SCHEMA_VERSION = "alpha_system.labels.fast.values.v1"
 _REGISTRY_WRITE_LOCK = Lock()
 
 type CanonicalRowLoader = Callable[..., Sequence[Mapping[str, Any]]]
-type FastSupportedLabelDefinition = FixedHorizonLabelDefinition | CostAdjustedLabelDefinition
+type FastSupportedLabelDefinition = (
+    FixedHorizonLabelDefinition | CostAdjustedLabelDefinition | PathLabelDefinition
+)
 
 
 class FastLabelPackError(ValueError):
@@ -554,22 +557,24 @@ def _terminal_models_for_pack(panel: Any, pack: FastLabelPack) -> dict[tuple[str
 
     models: dict[tuple[str, str], Any] = {}
     for definition in pack.definitions:
-        if not isinstance(definition, FixedHorizonLabelDefinition):
+        if not isinstance(definition, (FixedHorizonLabelDefinition, PathLabelDefinition)):
             continue
         terminal_key = _terminal_model_key(definition)
         if terminal_key in models:
             continue
-        horizon_minutes = _fixed_horizon_minutes_or_none(definition)
+        horizon_minutes = _terminal_horizon_minutes_or_none(definition)
         if horizon_minutes is not None:
             models[terminal_key] = resolve_terminal_indices(
                 panel,
                 TerminalRequest(
                     kind=TerminalKind.FIXED_HORIZON,
                     horizon_minutes=horizon_minutes,
-                    price_basis=definition.price_basis,
+                    price_basis=_terminal_price_basis(definition),
                 ),
             )
             continue
+        if not isinstance(definition, FixedHorizonLabelDefinition):
+            raise FastLabelPackError("path labels require a fixed horizon terminal model")
         models[terminal_key] = resolve_terminal_indices(
             panel,
             TerminalRequest(
@@ -592,6 +597,14 @@ def _compute_definition_records_from_panel(
         return _compute_close_out_records_from_panel(panel, definition, terminal_model)
     if isinstance(definition, CostAdjustedLabelDefinition):
         return _compute_cost_adjusted_records_from_panel(panel, definition)
+    if isinstance(definition, PathLabelDefinition):
+        from alpha_system.labels.fast.path import compute_path_records_from_panel
+
+        return compute_path_records_from_panel(
+            panel,
+            definition,
+            terminal_models[_terminal_model_key(definition)],
+        )
     raise FastLabelPackError("fast pack contains an unsupported label definition")
 
 
@@ -1034,6 +1047,7 @@ def _ohlcv_mapping_from_price_row(row: Mapping[str, Any]) -> dict[str, Any]:
     price = _to_positive_float(row["price"], "close")
     high = row.get("high")
     low = row.get("low")
+    open_ = row.get("open")
     return {
         "instrument_id": _require_text(row["instrument_id"]),
         "contract_id": _require_text(row["contract_id"]),
@@ -1041,6 +1055,7 @@ def _ohlcv_mapping_from_price_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "bar_end_ts": _coerce_datetime(row["bar_end_ts"], "bar_end_ts"),
         "event_ts": _coerce_datetime(row["event_ts"], "event_ts"),
         "available_ts": _coerce_datetime(row["available_ts"], "available_ts"),
+        "open": _to_positive_float(open_, "open") if open_ is not None else price,
         "close": price,
         "high": _to_positive_float(high, "high") if high is not None else price,
         "low": _to_positive_float(low, "low") if low is not None else price,
@@ -1153,6 +1168,7 @@ def _ohlcv_panel_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "bar_end_ts": _coerce_datetime(row["bar_end_ts"], "bar_end_ts"),
         "event_ts": _coerce_datetime(row["event_ts"], "event_ts"),
         "available_ts": _coerce_datetime(row["available_ts"], "available_ts"),
+        "open": _to_positive_float(row.get("open", row["close"]), "open"),
         "price": _to_positive_float(row["close"], "close"),
         "high": _to_positive_float(row.get("high", row["close"]), "high"),
         "low": _to_positive_float(row.get("low", row["close"]), "low"),
@@ -1442,11 +1458,18 @@ def _definition_contract(definition: object) -> LabelContractSpec:
         return definition.contract
     if isinstance(definition, CostAdjustedLabelDefinition):
         return definition.spec.label_contract
-    raise FastLabelPackError("fast label packs support fixed-horizon and cost-adjusted definitions")
+    if isinstance(definition, PathLabelDefinition):
+        return definition.contract
+    raise FastLabelPackError(
+        "fast label packs support fixed-horizon, cost-adjusted, and path definitions"
+    )
 
 
 def _definition_version(definition: object) -> LabelVersion:
-    if isinstance(definition, (FixedHorizonLabelDefinition, CostAdjustedLabelDefinition)):
+    if isinstance(
+        definition,
+        (FixedHorizonLabelDefinition, CostAdjustedLabelDefinition, PathLabelDefinition),
+    ):
         return definition.version
     raise FastLabelPackError("fast label definition does not expose a LabelVersion")
 
@@ -1456,6 +1479,8 @@ def _definition_price_basis(definition: FastSupportedLabelDefinition) -> str:
         return definition.price_basis
     if isinstance(definition, CostAdjustedLabelDefinition):
         return "mid"
+    if isinstance(definition, PathLabelDefinition):
+        return definition.price_field
     raise FastLabelPackError("unsupported fast label definition")
 
 
@@ -1468,11 +1493,31 @@ def _fixed_horizon_minutes_or_none(definition: FixedHorizonLabelDefinition) -> i
         raise FastLabelPackError(str(exc)) from exc
 
 
-def _terminal_model_key(definition: FixedHorizonLabelDefinition) -> tuple[str, str]:
-    horizon_minutes = _fixed_horizon_minutes_or_none(definition)
+def _terminal_model_key(
+    definition: FixedHorizonLabelDefinition | PathLabelDefinition,
+) -> tuple[str, str]:
+    horizon_minutes = _terminal_horizon_minutes_or_none(definition)
+    if isinstance(definition, PathLabelDefinition):
+        return ("path", f"{horizon_minutes}:close")
     if horizon_minutes is not None:
         return ("fixed_horizon", f"{definition.price_basis}:{horizon_minutes}")
     return ("close_out", definition.label_id)
+
+
+def _terminal_horizon_minutes_or_none(
+    definition: FixedHorizonLabelDefinition | PathLabelDefinition,
+) -> int | None:
+    if isinstance(definition, PathLabelDefinition):
+        return definition.horizon_steps
+    return _fixed_horizon_minutes_or_none(definition)
+
+
+def _terminal_price_basis(
+    definition: FixedHorizonLabelDefinition | PathLabelDefinition,
+) -> str:
+    if isinstance(definition, PathLabelDefinition):
+        return "close"
+    return definition.price_basis
 
 
 def _close_out_terminal_kind(definition: FixedHorizonLabelDefinition) -> Any:
@@ -1492,6 +1537,8 @@ def _metadata_horizon_minutes(definition: FastSupportedLabelDefinition) -> int:
     if isinstance(definition, CostAdjustedLabelDefinition):
         seconds = int(_cost_horizon_delta(definition).total_seconds())
         return seconds // 60 if seconds % 60 == 0 else 0
+    if isinstance(definition, PathLabelDefinition):
+        return definition.horizon_steps
     raise FastLabelPackError("unsupported fast label metadata definition")
 
 
@@ -1511,6 +1558,8 @@ def _metadata_horizon_overlap(
             {},
         )
         return dict(metadata) if isinstance(metadata, Mapping) else {}
+    if isinstance(definition, PathLabelDefinition):
+        return {}
     return {}
 
 
@@ -1523,6 +1572,8 @@ def _metadata_terminal_kind(definition: FastSupportedLabelDefinition) -> str:
         )
     if isinstance(definition, CostAdjustedLabelDefinition):
         return "cost_adjusted_exact_bbo_horizon"
+    if isinstance(definition, PathLabelDefinition):
+        return "path_guarded_horizon_scan"
     raise FastLabelPackError("unsupported fast label metadata definition")
 
 
@@ -1578,9 +1629,13 @@ def _require_pack(pack: FastLabelPack) -> FastLabelPack:
         raise FastLabelPackError("fast label materialization requires a FastLabelPack")
     for definition in pack.definitions:
         contract = _definition_contract(definition)
-        if contract.family not in {LabelFamily.FIXED_HORIZON, LabelFamily.COST_ADJUSTED}:
+        if contract.family not in {
+            LabelFamily.FIXED_HORIZON,
+            LabelFamily.COST_ADJUSTED,
+            LabelFamily.PATH,
+        }:
             raise FastLabelPackError(
-                "fast label pack supports fixed-horizon and cost-adjusted labels only"
+                "fast label pack supports fixed-horizon, cost-adjusted, and path labels only"
             )
         if isinstance(definition, FixedHorizonLabelDefinition):
             _fixed_horizon_minutes_or_none(definition)

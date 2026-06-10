@@ -115,6 +115,7 @@ class SharedLabelPanelRow:
     event_ts: datetime
     bar_end_ts: datetime
     available_ts: datetime
+    open: float | None
     trade_price: float
     high: float
     low: float
@@ -150,6 +151,11 @@ class SharedLabelPanelRow:
             self,
             "available_ts",
             _coerce_datetime(self.available_ts, "available_ts"),
+        )
+        object.__setattr__(
+            self,
+            "open",
+            _to_positive_float(self.open, "open") if self.open is not None else None,
         )
         for field_name in ("trade_price", "high", "low"):
             object.__setattr__(
@@ -254,7 +260,11 @@ class SharedLabelPanel:
     ) -> int | None:
         """Return the exact same-contract terminal row index, if present."""
 
-        key = (_require_text(series_id), _require_text(contract_id), _coerce_datetime(event_ts, "event_ts"))
+        key = (
+            _require_text(series_id),
+            _require_text(contract_id),
+            _coerce_datetime(event_ts, "event_ts"),
+        )
         return self._index_by_terminal_key.get(key)
 
 
@@ -493,7 +503,11 @@ def quality_metadata_for_resolution(
     if price_basis not in {"close", "mid"}:
         raise FastLabelPackError("price_basis must be close or mid")
     source = panel.row_at(resolution.source_index)
-    terminal = panel.row_at(resolution.terminal_index) if resolution.terminal_index is not None else None
+    terminal = (
+        panel.row_at(resolution.terminal_index)
+        if resolution.terminal_index is not None
+        else None
+    )
     flags = set(resolution.quality_flags)
     gap_reasons: set[str] = set()
     flags.update(_input_gap_flags(source, price_basis=price_basis, role="source"))
@@ -734,6 +748,7 @@ def _shared_panel_row(
         event_ts=event_ts,
         bar_end_ts=_coerce_datetime(ohlcv["bar_end_ts"], "bar_end_ts"),
         available_ts=_coerce_datetime(ohlcv["available_ts"], "available_ts"),
+        open=_to_positive_float(ohlcv.get("open", ohlcv["close"]), "open"),
         trade_price=_to_positive_float(ohlcv["close"], "close"),
         high=_to_positive_float(ohlcv["high"], "high"),
         low=_to_positive_float(ohlcv["low"], "low"),
@@ -747,7 +762,12 @@ def _shared_panel_row(
         microprice=_to_float_or_none(bbo.get("microprice"), "microprice")
         if bbo is not None
         else None,
-        bbo_present=bbo is not None and not bbo_missing and not bbo_quarantined and not bbo_invariant,
+        bbo_present=(
+            bbo is not None
+            and not bbo_missing
+            and not bbo_quarantined
+            and not bbo_invariant
+        ),
         bbo_missing=bbo_missing,
         bbo_quarantined=bbo_quarantined,
         bbo_invariant_violation=bbo_invariant,
@@ -970,6 +990,7 @@ def _replace_row_index(row: SharedLabelPanelRow, row_index: int) -> SharedLabelP
         event_ts=row.event_ts,
         bar_end_ts=row.bar_end_ts,
         available_ts=row.available_ts,
+        open=row.open,
         trade_price=row.trade_price,
         high=row.high,
         low=row.low,

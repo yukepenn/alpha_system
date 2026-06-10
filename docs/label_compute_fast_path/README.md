@@ -31,6 +31,9 @@ coordinator-owned; phase branches verify it but do not edit it.
 - [SESSION_MAINTENANCE_COST_PACKS.md](SESSION_MAINTENANCE_COST_PACKS.md)
   records the LCFP-P04 session-close, maintenance-flat, and cost-adjusted fast
   pack surfaces plus the read-only cost-profile consistency design.
+- [PATH_LABEL_PACKS.md](PATH_LABEL_PACKS.md) records the LCFP-P05 MFE, MAE,
+  target-before-stop, and triple-barrier pack surface, kernel/fallback routing,
+  and same-bar ambiguity policy.
 - LCFP-P03 extends the fixed-horizon fast pack to governed fixed-minute
   trade-price 1/3/5/10/15/30/60/120/240m labels, keeps existing governed
   midprice minute labels, and routes `session_close` / `maintenance_flat` to
@@ -38,6 +41,9 @@ coordinator-owned; phase branches verify it but do not edit it.
 - LCFP-P04 adds governed `session_close`, `maintenance_flat`,
   `cost_adjusted_fwd_ret`, and `spread_adjusted_fwd_ret` fast packs with
   synthetic parity coverage against the reference families.
+- LCFP-P05 adds governed `mfe`, `mae`, `target_before_stop`, and
+  `triple_barrier` fast path-label coverage with synthetic parity against the
+  reference path family and P02 guard checks for crossing rows.
 - [Research evidence root](../../research/label_compute_fast_path_v1/README.md)
   defines the value-free evidence policy for this campaign.
 - [LCFP-P01 inventory](../../research/label_compute_fast_path_v1/inventory/inventory.md)
@@ -83,5 +89,6 @@ Commit-eligible phase handoffs live under
 - `LCFP-P03.md` records the fixed + extended horizon pack repair and parity
   phase.
 - `LCFP-P04.md` records the session / maintenance / cost fast pack phase.
+- `LCFP-P05.md` records the path-label fast pack phase.
 - `FUTSUB_PAUSE_STATE.md` records the paused predecessor state and preserves the
   rule that reintegration/resume is coordinator-owned after LCFP-P09.
