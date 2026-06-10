@@ -155,6 +155,11 @@ frontier-tail $run_id:
 frontier-summary $run_id:
     cat "runs/$run_id/RUN_SUMMARY.md"
 
+# Regenerate runs/<run_id>/LESSONS_CANDIDATES.md (friction signals: repairs,
+# non-PASS verdicts, warnings) for closeout distillation into lessons.md.
+frontier-lessons $run_id:
+    python tools/frontier/lessons_candidates.py --run-id "$run_id"
+
 frontier-clean-worktrees:
     python tools/frontier/worktree_manager.py clean
 
