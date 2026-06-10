@@ -121,12 +121,15 @@ FUTSUB-P14 materializes all 8 feature families on V1 (above), then integrates th
 feature registry (consistent); feature resolver-smoke PASS (fail closed);
 feature-family coverage + quality/missingness matrix value-free with explicit gaps.
 
-### Gate `label_materialization` — FUTSUB-P16…P20
+### Gate `label_materialization` - FUTSUB-P16...P20
 Diagnostic/primary/extended/session-close/maintenance-flat/cost-adjusted/path
-LabelPacks materialized + registered with `label_available_ts`, roll-splice +
-maintenance-crossing guards applied, horizon coverage + N_eff/overlap metadata;
-cost-adjusted uses documented cost/fee/slippage with BBO as proxy; coverage
-summaries value-free; no value/SQLite committed; registry writes serialized.
+LabelPacks are materialized and registered with `label_available_ts`,
+roll-splice + maintenance-crossing guards, horizon coverage, and
+N_eff/overlap metadata. Engine selection follows the LCFP accepted per-family
+policy: V1 fast for `fixed_base` and `path`; reference for `fixed_extended`,
+`close_out`, and `cost_adjusted`. Cost-adjusted labels use documented
+cost/fee/slippage assumptions with BBO as a proxy. Coverage summaries are
+value-free; no value/SQLite payload is committed; registry writes are serial.
 
 ### Gate `label_integration` — FUTSUB-P21…P23
 Roll-splice + maintenance-crossing guards audited + demonstrated on a known roll
