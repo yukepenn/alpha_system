@@ -14,42 +14,30 @@ not a contract — the authoritative contracts live where this page points.
 It must never introduce alpha, profitability, tradability, or production-readiness
 claims without evidence and review.
 
-## Current baseline (what is complete)
+## Where things stand (do not read it from this file)
 
-Completed campaigns: `ALPHA_SYSTEM_V1` → `ASV1_RELEASE_HYGIENE` →
-`ALPHA_RESEARCH_GOVERNANCE_MVP` → `ALPHA_DATA_FOUNDATION_V1`.
+This page carries **no campaign status on purpose** — a hand-maintained status
+section rots within one campaign. Resolve status live:
 
-Two data providers were exercised post-closeout, with **distinct roles**:
+- Completed/active campaigns: `campaigns/README.md` + `ACTIVE_CAMPAIGN.md`.
+- Live in-flight phase: `python tools/frontier/status_doctor.py` (authoritative).
+- Repository structure: [`SYSTEM_MAP.md`](SYSTEM_MAP.md) — **generated** from the
+  code (anchors, packages, commands); CI fails when it drifts.
 
-- **Databento — PRIMARY deep-history research source.** Phase B (PR #107) pulled
-  the full GLBX.MDP3 ES/NQ/RTY continuous OHLCV-1m + BBO-1m history (2018–2026),
-  canonicalized it into **sparse provider truth + a derived dense research grid**,
-  quality/coverage-gated it, and registered **27 local-only DatasetVersions**.
-- **IBKR — read-only broker-validation source** (~2 years of available depth),
-  clientId `101`/`102` hard-blocked, with its own separate DatasetVersions.
-
-All raw/canonical data, registries, and reports are **local-only under
-`ALPHA_DATA_ROOT`** (outside the repo). Nothing market-data is committed.
-
-## Next campaign
-
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` (not yet authored). It will consume **accepted
-DatasetVersions** under governance + partition-contamination rules. Loading a
-DatasetVersion implies **no** alpha/tradability/profitability/paper/live/broker
-readiness. Its inputs are specified in
-[`FEATURE_LABEL_FOUNDATION_ENTRY_CONTRACT.md`](FEATURE_LABEL_FOUNDATION_ENTRY_CONTRACT.md).
-
-Roadmap: Governance → Data Foundation → **Feature/Label Foundation (next)** →
-Agent Factory → Futures Core Alpha → Strategy Reference Validation →
-AlphaBook/Portfolio → L1/ML/Monitoring/L2 (later).
+Standing data facts (stable, not status): Databento is the primary deep-history
+research source (GLBX.MDP3 ES/NQ/RTY OHLCV-1m + BBO-1m, 2018–2026, canonicalized
+to sparse provider truth + a derived dense research grid); IBKR is a read-only
+broker-validation source with clientId `101`/`102` hard-blocked. All raw/canonical
+data, registries, and reports stay **local-only under `ALPHA_DATA_ROOT`**; nothing
+market-data is ever committed.
 
 ## Read these first (in order)
 
 1. **This file** — orientation.
-2. [`../AGENTS.md`](../AGENTS.md) — the cross-agent constitution (roles, lanes, hard constraints).
-3. [`../CLAUDE.md`](../CLAUDE.md) — Claude-specific operating notes.
-4. [`../ACTIVE_CAMPAIGN.md`](../ACTIVE_CAMPAIGN.md) — the live campaign/phase pointer (Ralph-maintained).
-5. [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md) — stable project orientation (not the live ledger).
+2. [`SYSTEM_MAP.md`](SYSTEM_MAP.md) — generated structure map (anchors, packages, commands).
+3. [`../AGENTS.md`](../AGENTS.md) — the cross-agent constitution (roles, lanes, hard constraints).
+4. [`../CLAUDE.md`](../CLAUDE.md) — Claude-specific operating notes.
+5. [`../ACTIVE_CAMPAIGN.md`](../ACTIVE_CAMPAIGN.md) — the live campaign/phase pointer (Ralph-maintained).
 6. [`README.md`](README.md) — the docs index (everything in `docs/`, grouped).
 7. The relevant campaign contract under `campaigns/<ID>/` (GOAL/PHASE_PLAN/ACCEPTANCE).
 

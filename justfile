@@ -41,6 +41,11 @@ frontier-doctor:
 status-doctor:
     python tools/frontier/status_doctor.py
 
+# Regenerate docs/SYSTEM_MAP.md from the repo (anchors, packages, commands).
+# CI fails on drift via tests/tools/test_system_map.py.
+system-map:
+    python tools/frontier/system_map.py
+
 # One command an agent (or human) runs before a handoff/merge: live-status truth,
 # fast checks, the canary gate, and the artifact/boundary guards over the diff.
 agent-preflight:
