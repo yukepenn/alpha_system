@@ -3,6 +3,10 @@
 This file is the agent entry point. It exists so Claude/Codex land on the
 invariants and the live truth without spelunking stale docs. It is short on
 purpose. `AGENTS.md` is the full constitution; this is the pre-flight card.
+Strategy/roadmap canon: `docs/OPERATING_COMPASS_V4.md` (v4.1) — the stage-gated
+route (kill-shot → survivor gate → conditional factory), target calibration,
+and the REUSE-MAP / verdict-first operating rules. Read it before proposing
+any new campaign or mechanism.
 
 ## Where am I? (live truth, not committed prose)
 
