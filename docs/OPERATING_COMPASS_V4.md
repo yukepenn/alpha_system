@@ -1,11 +1,11 @@
-# Alpha System Operating Compass v4 — Consolidated Roadmap
+# Alpha System Operating Compass v4.1 — Consolidated Roadmap
 
 Status: canonical. Supersedes Compass v2 / v2.1 / v3 / v3.5 (chat-only). Where
 older routes conflict with this document, this document wins. Live phase status
 always comes from `python tools/frontier/status_doctor.py`, never from this
 file.
 
-Adopted 2026-06-10. Inputs: Compass v2.1 (post-Core-Pilot consolidation),
+Adopted 2026-06-10; patched to v4.1 same day (user review: power numbers = planning priors; pooled-evaluation hard rules; primary_state + reason_code taxonomy; Stage B parallelism limits; kill-shot Track A/B split; narrowed FactorLibrary trigger; engine policy live-state vs permanent; non-binding ETAs; ambition clause). Inputs: Compass v2.1 (post-Core-Pilot consolidation),
 Compass v3/v3.5 (Trustworthy Verdict First), the LCFP/FUTSUB execution record,
 and the coordinator's statistical power analysis (§2).
 
@@ -53,15 +53,23 @@ Return level:
   freedom (intraday micros) is a structural advantage: realized Sharpe
   here can exceed fund-scale benchmarks.
 
-Explicitly NOT a planning target:
-  ~1%/day average return. Math: 1%/day at book Sharpe 2 forces ~8% daily
-  volatility => routine 40-60% drawdowns (violates the drawdown
-  constraint); controlled-drawdown 1%/day requires sustained Sharpe ~8-12,
-  beyond documented precedent at any data tier. Revisit only if REALIZED
-  (live, not backtested) book Sharpe exceeds ~4 with capacity headroom.
-  The system earns return through Sharpe-then-leverage, never by reaching
-  for daily-return targets directly — that is the cost-fantasy failure
-  mode the truth chain exists to kill.
+Ambition clause (user-set, 2026-06-10):
+  All targets above are FLOORS, not ceilings. The factory's standing
+  mission is to keep accumulating low-correlation edges without any
+  documented-precedent argument used as a reason to stop; the aspirational
+  asymptote is on the order of ~1%/day portfolio growth, pursued by edge
+  accumulation (intraday PA, cross-asset spread, futures imbalance, and
+  whatever the mining loop discovers) until the binding constraint becomes
+  own-size liquidity impact and the associated alpha decay — a constraint
+  the system should eventually MEASURE (capacity/impact monitoring), not
+  assume. What stays non-negotiable on the way up: promotion is
+  evidence-gated, return is realized through Sharpe-then-leverage (never
+  by reaching for a daily-return number directly), and the drawdown
+  budget binds at every step. For honest planning: 1%/day at book
+  Sharpe 2 implies ~8% daily volatility and 40-60% drawdowns; the
+  evidence ladder must therefore climb through realized Sharpe tiers
+  (2 → 3 → 4+) with capacity headroom checks before each leverage step.
+  Aim unbounded; promote bounded.
 ```
 
 Permanent boundaries (any design that blurs one is wrong):
@@ -110,13 +118,20 @@ process, gates, serial merge.
 
 ---
 
-## 2. The math that shapes the whole roadmap
+## 2. The math that shapes the whole roadmap (planning priors, NOT hard gates)
 
-Statistical power on our corpus (ES/NQ/RTY, ~7 usable years 2019–2026, 1m
-sampling, overlap-corrected):
+[v4.1] Everything in this section is a **planning prior / power heuristic**,
+never an automatic pass/fail threshold. Our data is not IID annual returns:
+labels overlap (severely at 15m+), session/regime autocorrelation exists, cost
+and spread states are non-stationary, and IC diagnostics have different
+statistical structure than strategy PnL. Actual detectability must be measured
+per study using N_eff, purged/embargoed folds, day/session-level aggregation,
+and block-bootstrap / HAC-style robustness where appropriate. Final evidence =
+pre-registered splits + N_eff + cost stress + VariantLedger + holdout
+discipline + reviewer verdict — not a formula.
 
 ```text
-t ≈ SR_annual × sqrt(years)
+heuristic: t ≈ SR_annual × sqrt(years)            (planning prior only)
 2σ single-test detectability:        SR ≈ 0.75–0.85
 after multiple-testing correction
 (6 families × bounded variants):     SR ≈ 1.1–1.2 effectively required
@@ -125,18 +140,43 @@ after multiple-testing correction
 Consequences, baked into every stage below:
 
 1. **Individually-validatable edges (true SR ≥ ~1.1) will be rare.** Most real
-   edges in this space are weak (SR 0.3–0.8) and mathematically cannot clear a
+   edges in this space are weak (SR 0.3–0.8) and usually cannot clear a
    single-signal bar on 7 years. Therefore the system must support
-   **pre-declared pooled evaluation**: a family/ensemble tested as ONE
-   hypothesis (pooled across symbols, horizons, or signal variants declared
-   up-front) can validate weak edges that no member could validate alone.
-   Pooling declared after seeing results is p-hacking; pooling declared before
-   is the only honest path to a weak-edge portfolio.
-2. **Verdict taxonomy must distinguish underpowered from contradicted:**
-   `REJECT` (evidence against), `INCONCLUSIVE_UNDERPOWERED` (effect size below
-   detectability; eligible for pooled retest), `INCONCLUSIVE_SUBSTRATE`
-   (missing inputs; eligible for retest after blocker removal), `WATCH`,
-   `CANDIDATE_RESEARCH`. This taxonomy is a Rigor Floor deliverable.
+   **pre-declared pooled evaluation** — under strict rules [v4.1]:
+
+   ```text
+   ALLOWED pooled evaluation:
+     declared BEFORE seeing any results
+     mechanism-based rationale
+     fixed inclusion rule (membership cannot change post hoc)
+     fixed weighting / aggregation rule
+     fixed horizon / session / symbol set
+     logged as ONE VariantLedger hypothesis
+     pooled result AND individual components both reported
+
+   FORBIDDEN pooled evaluation (= p-hacking, refuse):
+     pooling after seeing which members worked
+     dropping losers post hoc
+     changing weights after validation
+     trying many pool compositions and reporting one
+     using the locked test to select the pool
+   ```
+
+2. **Verdict taxonomy: primary_state + reason_code** [v4.1 — keeps the existing
+   four-state boundary; reasons are codes, not new states]:
+
+   ```text
+   primary_state:  REJECT / INCONCLUSIVE / WATCH / CANDIDATE_RESEARCH
+   reason_code:    UNDERPOWERED / SUBSTRATE_GAP / COST_FRAGILE /
+                   DATA_QUALITY / LEAKAGE_BLOCKED / DUPLICATE_EXPOSURE /
+                   REGIME_UNSTABLE / BBO_PROXY_LIMITATION
+   ```
+
+   `INCONCLUSIVE + UNDERPOWERED` is eligible for pre-declared pooled retest;
+   `INCONCLUSIVE + SUBSTRATE_GAP` is eligible for retest after blocker removal.
+   Display names like "INCONCLUSIVE_UNDERPOWERED" are fine; registry/schema
+   layers keep state + code separate. This taxonomy is a Rigor Floor
+   deliverable that EXTENDS the existing Core Pilot verdict machinery.
 3. **The VariantLedger is the keystone gate.** Deflated-Sharpe math is only as
    honest as the variant count. Tool-boundary auto-increment (every StudySpec
    run logged, no manual reconciliation) is mandatory before the kill-shot.
@@ -151,8 +191,8 @@ Consequences, baked into every stage below:
 ## 3. The route — stages, gates, triggers
 
 Each stage lists ENTRY (trigger), WORK, EXIT (gate). Conditional stages do not
-start until their trigger fires. Time estimates are honest guesses, not
-commitments.
+start until their trigger fires. [v4.1] All ETAs are non-binding informational
+estimates and never override `status_doctor` / live run-state.
 
 ### Stage A — FUTSUB minimum trusted substrate  [ACTIVE]
 
@@ -168,8 +208,14 @@ commitments.
   missing packs, labels, BBO primitives, guards, or N_eff metadata.
 - ETA: ~1–2 days.
 
-### Stage B — Discovery Rigor Floor  [next; runs partly parallel to A's tail]
+### Stage B — Discovery Rigor Floor  [next; prep may overlap A's tail]
 
+- [v4.1] PARALLELISM LIMITS: while Stage A is in flight, ONLY value-free prep
+  may overlap — REUSE MAP inspection, campaign-file drafting, docs/tests,
+  VariantLedger design. FORBIDDEN until Stage A exits: mutating active
+  StudySpec semantics, changing verdict schemas an in-flight phase consumes,
+  consuming incomplete label substrate, or starting the kill-shot. Stage B's
+  enforcement gates must be ACTIVE before CORE_PILOT_RERUN begins.
 - ENTRY: REUSE MAP of existing governance surfaces (TrialLedger,
   RejectedIdeaLedger, duplicate-exposure hints, canary runner, locked-test
   policy, EvidenceBundle/FactorCard schemas) — inspect before building;
@@ -202,12 +248,19 @@ commitments.
 - ENTRY: Stage A + B exits green. Named explicitly; realized as FUTSUB P27–P29
   (re-lock StudySpecs, rerun, honest verdict refresh) if the do-not-duplicate
   check at the P26/P27 boundary confirms; else a narrow named campaign.
-- WORK: rerun exactly the six previously-INCONCLUSIVE Core Pilot families on
-  trusted substrate + rigor floor. Pre-declared variant budgets per family.
-  Pre-declared pooled-evaluation hypotheses where mechanism justifies pooling
-  (cross-symbol, cross-horizon). No new alpha batch, no broad mining.
-- OUTPUT: each family gets REJECT / INCONCLUSIVE_UNDERPOWERED /
-  INCONCLUSIVE_SUBSTRATE (must name the gap) / WATCH / CANDIDATE_RESEARCH.
+- WORK [v4.1 — two strictly separated tracks]:
+  - **Track A — Exact rerun:** the same (or faithfully translated) six
+    previously-INCONCLUSIVE Core Pilot studies on trusted substrate + rigor
+    floor, pre-declared variant budgets per family. Track A verdicts stand on
+    their own and are never rewritten by Track B.
+  - **Track B — Pre-declared pooled supplemental tests (optional):**
+    mechanism-justified pooled hypotheses (cross-symbol, cross-horizon),
+    REGISTERED BEFORE any Track A rerun metric is inspected, logged as
+    separate pooled VariantLedger hypotheses per §2.1 rules.
+  - No new alpha batch, no broad mining.
+- OUTPUT: each study gets primary_state + reason_code (REJECT / INCONCLUSIVE
+  [UNDERPOWERED | SUBSTRATE_GAP — must name the gap] / WATCH /
+  CANDIDATE_RESEARCH), Track A and Track B reported separately.
 - SUCCESS = conclusive, not positive. Zero clean survivors with no substrate
   excuse remaining is a successful kill-shot.
 - ETA: days, not weeks (labels are fast now; diagnostics are cheap).
@@ -262,8 +315,13 @@ commitments.
   if Stage B's inspection found only hint/manual duplicate machinery.
 - Outputs only REJECT / INCONCLUSIVE_* / WATCH / CANDIDATE_RESEARCH.
 
-### Stage G — FACTOR_LIBRARY_V1  [conditional: survivors or proven reject-memory need]
+### Stage G — FACTOR_LIBRARY_V1  [conditional — narrowed trigger, v4.1]
 
+- TRIGGER: ≥1 WATCH/CANDIDATE_RESEARCH survivor, OR repeated manual research
+  operation proves the ledger query surface is concretely blocking a named
+  next campaign. Rejected-idea memory ALONE never triggers this stage — that
+  function belongs to the Discovery Rigor Floor's TrialLedger/
+  RejectedIdeaLedger upgrades (Stage B), not to a full FactorLibrary.
 - Operational ingestion/query/memory over EXISTING schemas (FactorCard,
   EvidenceBundle, TrialLedger, PromotionDecision, FactorSpec — do not rebuild):
   EvidenceBundle→FactorCard ingestion, registry, verdict/decision links,
@@ -359,10 +417,15 @@ commitments.
 - **Agent constraints:** registry-resolved access only; no raw provider reads,
   no manual paths, no direct registry writes, no self-review/promotion, no
   unbounded grids, no profitability/tradability claims.
-- **Engine policy:** reference engine = correctness oracle forever; fast
-  producers per-family by benchmark (currently: path + fixed_base fast;
-  fixed_extended/close_out/cost_adjusted reference); reference-throughput
-  upgrade path pre-authorized in docs/STRUCTURAL_BACKLOG.md §6.
+- **Engine policy [v4.1 — permanent doctrine vs live state]:** PERMANENT:
+  reference engine remains the correctness oracle; a fast engine becomes the
+  trusted production path per family ONLY after parity + benchmark gates;
+  engine selection is recorded per family/version in the registry
+  (producer_engine_id), never assumed. LIVE-STATE (changeable by future
+  benchmarks, recorded here for context only): as of 2026-06-10, path +
+  fixed_base fast, fixed_extended/close_out/cost_adjusted reference;
+  reference-throughput upgrade path pre-authorized in
+  docs/STRUCTURAL_BACKLOG.md §6.
 - **Workflow:** every campaign = 6-file contract bundle + root
   ACTIVE_CAMPAIGN.md; frontier-plan → mock → live parallel; build parallel,
   merge serial; runs/** local-only; explicit staging; REUSE MAP before any new
