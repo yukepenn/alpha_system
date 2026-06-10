@@ -12,13 +12,10 @@ from tools.frontier.provider_config import ProviderConfigError, load_provider_co
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_LANES = {"green", "yellow", "red"}
 REQUIRED_LANE_KEYS = {
-    "required_checks",
     "require_claude_review",
     "auto_pr",
     "auto_merge",
-    "max_micro_loops",
     "max_repair_attempts",
-    "max_phase_minutes",
     "merge_policy",
 }
 REQUIRED_WORKFLOW2_KEYS = {
@@ -31,7 +28,6 @@ REQUIRED_WORKFLOW2_KEYS = {
     "max_estimated_usd",
     "semantic_done_check_required",
     "worktree_mode",
-    "worktree_mode_recommended",
     "auto_pr",
     "auto_merge",
 }
@@ -76,11 +72,9 @@ def _validate_lanes(data: dict[str, Any], errors: list[str]) -> None:
         missing_keys = sorted(REQUIRED_LANE_KEYS - set(lane))
         if missing_keys:
             errors.append(f"lanes.{lane_name} is missing: " + ", ".join(missing_keys))
-        if not isinstance(lane.get("required_checks", []), list):
-            errors.append(f"lanes.{lane_name}.required_checks must be a list.")
         if not isinstance(lane.get("merge_policy", {}), dict):
             errors.append(f"lanes.{lane_name}.merge_policy must be a mapping.")
-        for key in ("max_micro_loops", "max_repair_attempts", "max_phase_minutes"):
+        for key in ("max_repair_attempts",):
             value = lane.get(key)
             try:
                 if int(value) < 1:
