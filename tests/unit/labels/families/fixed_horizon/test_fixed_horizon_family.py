@@ -51,12 +51,15 @@ def test_all_fixed_horizon_labels_are_governed_versioned_and_label_only() -> Non
         assert definition.contract.path.window.offline_only is True
         assert definition.contract.availability_policy.future_data_legal_only_for_labels is True
         assert definition.name in results
-        horizon = _horizon_minutes(definition.name)
         records = results[definition.name]
-        # A forward-horizon label is undefined for the final `horizon` bars, so a
-        # horizon >= the fixture length yields zero records (floor at 0 rather than
-        # going negative for the extended 60m/120m/240m horizons).
-        assert len(records) == max(0, 35 - horizon)
+        if definition.name not in _CLOSE_OUT_LABEL_NAMES:
+            # A forward-horizon label is undefined for the final `horizon` bars, so a
+            # horizon >= the fixture length yields zero records (floor at 0 rather than
+            # going negative for the extended 60m/120m/240m horizons). Close-out
+            # labels exit at the session/maintenance boundary, so their record count is
+            # session-structure dependent, not horizon arithmetic — skip that check.
+            horizon = _horizon_minutes(definition.name)
+            assert len(records) == max(0, 35 - horizon)
         assert all(record.label_version_id == definition.label_version_id for record in records)
         assert all(record.label_spec_id == definition.label_spec_id for record in records)
 
@@ -242,11 +245,44 @@ def test_wrong_input_view_for_label_kind_fails_closed() -> None:
         compute_fixed_horizon_label(trade_definition, _bbo_view(length=3))
 
 
+_CLOSE_OUT_LABEL_NAMES = frozenset(
+    {FixedHorizonLabelName.SESSION_CLOSE, FixedHorizonLabelName.MAINTENANCE_FLAT}
+)
+
+
 def _label_spec(
     name: FixedHorizonLabelName,
     *,
     availability_time: str = "2024-01-02T14:00:00+00:00",
 ) -> LabelSpec:
+    if name in _CLOSE_OUT_LABEL_NAMES:
+        # Close-out labels carry the symbolic name as their horizon and the
+        # close-out return path (mirrors production validation + the P18
+        # session-close scaleout test).
+        return create_label_spec(
+            horizon=name.value,
+            path_rules={
+                "path": "trade_price_close_out_return",
+                "close_out_terminal": name.value,
+                "terminal_rule": "exact session/maintenance close-out terminal",
+                "terminal_key": "series_id+contract_id+event_ts",
+            },
+            cost_model={
+                "model": "gross_unadjusted_close_out_return",
+                "adjustment_scope": "not_applied_in_fixed_horizon_family",
+            },
+            target_stop_rules={
+                "target_rule": "not_used_for_close_out_return",
+                "stop_rule": "not_used_for_close_out_return",
+            },
+            availability_time=availability_time,
+            forbidden_feature_overlap={
+                "label_ids": [name.value],
+                "aliases": [name.value.replace("_ret_", "_return_")],
+                "transforms": [f"label({name.value})"],
+            },
+            leakage_checks=["label_as_feature", "availability_time"],
+        )
     horizon = _horizon_minutes(name)
     path = (
         "midprice_forward_return"
