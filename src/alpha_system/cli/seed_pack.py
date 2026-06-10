@@ -108,6 +108,8 @@ _TRADE_PRICE_LABELS: frozenset[str] = frozenset(
         FixedHorizonLabelName.FWD_RET_60M.value,
         FixedHorizonLabelName.FWD_RET_120M.value,
         FixedHorizonLabelName.FWD_RET_240M.value,
+        FixedHorizonLabelName.SESSION_CLOSE.value,
+        FixedHorizonLabelName.MAINTENANCE_FLAT.value,
     }
 )
 
@@ -123,6 +125,12 @@ _LABEL_HORIZON_MINUTES: dict[str, int] = {
     FixedHorizonLabelName.FWD_RET_120M.value: 120,
     FixedHorizonLabelName.FWD_RET_240M.value: 240,
 }
+_LABEL_SYMBOLIC_HORIZONS: frozenset[str] = frozenset(
+    {
+        FixedHorizonLabelName.SESSION_CLOSE.value,
+        FixedHorizonLabelName.MAINTENANCE_FLAT.value,
+    }
+)
 
 BarRowLoader = Callable[..., Sequence[Mapping[str, Any]]]
 # Builds (quality_report, coverage_report) over the loaded bars. The default runs
@@ -807,6 +815,41 @@ def _feature_input_scope(config: SeedPackConfig) -> dict[str, str]:
 
 
 def _build_label_spec(config: SeedPackConfig, entry: LabelSpecConfig) -> LabelSpec:
+    if entry.name in _LABEL_SYMBOLIC_HORIZONS:
+        if entry.horizon != entry.name:
+            raise SeedPackError(
+                f"label {entry.name} horizon must be {entry.name}, got {entry.horizon}"
+            )
+        return create_label_spec(
+            horizon=entry.horizon,
+            path_rules={
+                "path": "trade_price_close_out_return",
+                "close_out_terminal": entry.name,
+                "terminal_rule": _close_out_terminal_rule(entry.name),
+                "terminal_key": "series_id+contract_id+event_ts",
+                "terminal_scope": "series_id+contract_id+close_out_boundary",
+                "roll_policy_id": ROLL_POLICY_ID,
+                "roll_guard_version": ROLL_GUARD_VERSION,
+                "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+                "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+            },
+            cost_model={
+                "model": "gross_unadjusted_close_out_return",
+                "adjustment_scope": "not_applied_in_session_close_maintenance_flat_family",
+            },
+            target_stop_rules={
+                "target_rule": "not_used_for_close_out_return",
+                "stop_rule": "not_used_for_close_out_return",
+            },
+            availability_time=config.window_start_ts,
+            forbidden_feature_overlap={
+                "label_ids": [entry.name],
+                "aliases": [f"close_out_{entry.name}"],
+                "transforms": [f"label({entry.name})"],
+            },
+            leakage_checks=["label_as_feature", "availability_time"],
+        )
+
     horizon_minutes = _LABEL_HORIZON_MINUTES.get(entry.name)
     if horizon_minutes is None:
         raise SeedPackError(f"unsupported seed label: {entry.name}")
@@ -850,8 +893,22 @@ def _build_label_spec(config: SeedPackConfig, entry: LabelSpecConfig) -> LabelSp
     )
 
 
+def _close_out_terminal_rule(label_name: str) -> str:
+    if label_name == FixedHorizonLabelName.SESSION_CLOSE.value:
+        return (
+            "terminal is the same-contract RTH session close for the CME trade date; "
+            "missing or already-past terminals are dropped"
+        )
+    if label_name == FixedHorizonLabelName.MAINTENANCE_FLAT.value:
+        return (
+            "terminal is the same-contract last bar at or before the exchange daily "
+            "maintenance / trade-date break; missing or already-past terminals are dropped"
+        )
+    raise SeedPackError(f"unsupported close-out seed label: {label_name}")
+
+
 def _label_guard_metadata(config: SeedPackConfig) -> dict[str, object]:
-    return {
+    metadata: dict[str, object] = {
         "label_set_id": config.label_set.label_set_id if config.label_set else "",
         "materialization_scope": _label_materialization_scope(config),
         "roll_policy_id": ROLL_POLICY_ID,
@@ -862,6 +919,21 @@ def _label_guard_metadata(config: SeedPackConfig) -> dict[str, object]:
         "maintenance_crossing_policy": "drop",
         "terminal_key": "series_id+contract_id+event_ts",
     }
+    if config.label_set and any(
+        label.name in _LABEL_SYMBOLIC_HORIZONS for label in config.label_set.labels
+    ):
+        metadata.update(
+            {
+                "close_out_terminal_policy": "same_contract_same_break_scope",
+                "session_close_terminal": _close_out_terminal_rule(
+                    FixedHorizonLabelName.SESSION_CLOSE.value
+                ),
+                "maintenance_flat_terminal": _close_out_terminal_rule(
+                    FixedHorizonLabelName.MAINTENANCE_FLAT.value
+                ),
+            }
+        )
+    return metadata
 
 
 def _label_materialization_scope(config: SeedPackConfig) -> dict[str, str]:
