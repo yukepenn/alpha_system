@@ -20,13 +20,16 @@ fast pack to the governed fixed-minute trade-price horizons
 horizons, and routes symbolic `session_close` / `maintenance_flat` labels to
 LCFP-P04 without crashing on their enum tokens. `LCFP-P04` adds fast
 session-close, maintenance-flat, cost-adjusted, and spread-adjusted label packs
-with synthetic parity coverage against the reference families.
+with synthetic parity coverage against the reference families. `LCFP-P05` adds
+the governed path-label pack for MFE, MAE, target-before-stop, and
+triple-barrier labels with synthetic parity coverage against the reference path
+family and P02 guard checks for crossing rows.
 
-Active / next phase after this branch: `LCFP-P05` continues the parallel
-label-pack wave for path labels, followed by LCFP-P06 integration after the
-pack branches merge serially.
+Active / next phase after this branch: `LCFP-P06` wires the merged label packs
+into targeting, checkpoint, worker, registry, and resolver integration after
+the pack branches merge serially.
 
-New durable surfaces through this `LCFP-P03` executor snapshot:
+New durable surfaces through this `LCFP-P05` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -46,14 +49,22 @@ New durable surfaces through this `LCFP-P03` executor snapshot:
   `session_close` / `maintenance_flat` fast pack.
 - `src/alpha_system/labels/fast/cost_adjusted.py` declares the P04
   `cost_adjusted_fwd_ret` / `spread_adjusted_fwd_ret` fast pack.
+- `src/alpha_system/labels/fast/path.py` declares the P05 `mfe`, `mae`,
+  `target_before_stop`, and `triple_barrier` fast pack with reference fallback
+  routing outside the P02 proof boundary.
 - `tests/unit/label_compute_fast_path/test_fixed_horizon_extended_pack.py`
   covers all nine governed trade-price fixed-minute horizons plus roll and
   maintenance drop parity against the reference family.
 - `tests/unit/label_compute_fast_path/test_session_maintenance_cost_pack.py`
   covers P04 close-out and cost-adjusted parity, including session gaps,
   roll-drop rows, and BBO missingness flags.
+- `tests/unit/label_compute_fast_path/test_path_label_pack.py` covers P05 path
+  parity, same-bar ambiguity policy variants, timeout rows, no-trade session
+  gaps, and P02 roll/maintenance guard crossing rows.
 - `docs/label_compute_fast_path/SESSION_MAINTENANCE_COST_PACKS.md` documents
   the P04 pack surfaces and read-only `backtest/costs.py` cost-profile design.
+- `docs/label_compute_fast_path/PATH_LABEL_PACKS.md` documents the P05 path
+  pack surface, kernel/fallback routing, same-bar policy, and guard coverage.
 - `research/label_compute_fast_path_v1/` is the value-free evidence root for
   inventory, baseline, parity, benchmark, integration, and closeout summaries.
 - `research/label_compute_fast_path_v1/inventory/inventory.md` records the
@@ -64,6 +75,8 @@ New durable surfaces through this `LCFP-P03` executor snapshot:
   records the bounded reference-engine timing denominator for later comparison.
 - `research/label_compute_fast_path_v1/parity/LCFP-P04.md` records value-free
   P04 parity coverage and the documented cost-label float tolerance.
+- `research/label_compute_fast_path_v1/parity/LCFP-P05.md` records value-free
+  P05 path parity coverage and the documented path-label float tolerance.
 - `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
   reference-engine benchmark entrypoint for bounded slices.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
@@ -75,6 +88,9 @@ New durable surfaces through this `LCFP-P03` executor snapshot:
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04.md` records the
   session/maintenance/cost implementation, parity coverage, and local
   validation results for this phase.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05.md` records the path-label
+  implementation, parity coverage, and local validation results for this
+  phase.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run

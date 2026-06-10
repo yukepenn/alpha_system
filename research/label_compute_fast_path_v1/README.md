@@ -29,3 +29,6 @@ evidence as their scopes authorize them.
 
 LCFP-P04 owns `parity/LCFP-P04.md`, a value-free coverage summary for the
 session-close, maintenance-flat, and cost-adjusted synthetic parity tests.
+
+LCFP-P05 owns `parity/LCFP-P05.md`, a value-free coverage summary for the MFE,
+MAE, target-before-stop, and triple-barrier synthetic path-label parity tests.

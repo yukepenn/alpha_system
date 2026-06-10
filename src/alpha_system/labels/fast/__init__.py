@@ -49,6 +49,14 @@ from alpha_system.labels.fast.panel import (
     quality_metadata_for_resolution,
     resolve_terminal_indices,
 )
+from alpha_system.labels.fast.path import (
+    PATH_LABEL_IDS,
+    PathLabelPackCoverage,
+    PathLabelRoute,
+    build_path_label_pack,
+    path_label_pack_coverage,
+    supports_path_label_pack,
+)
 from alpha_system.labels.fast.session_maintenance import (
     SESSION_MAINTENANCE_LABEL_IDS,
     SessionMaintenancePackCoverage,
@@ -77,6 +85,9 @@ __all__ = [
     "MAINTENANCE_GUARD_VERSION",
     "MAINTENANCE_POLICY_ID",
     "MaintenanceWindow",
+    "PATH_LABEL_IDS",
+    "PathLabelPackCoverage",
+    "PathLabelRoute",
     "QUALITY_FLAG_BBO_GAP",
     "QUALITY_FLAG_INPUT_GAP",
     "QUALITY_FLAG_INSUFFICIENT_WINDOW",
@@ -93,15 +104,18 @@ __all__ = [
     "TerminalResolution",
     "build_cost_adjusted_label_pack",
     "build_fixed_horizon_label_pack",
+    "build_path_label_pack",
     "build_session_maintenance_label_pack",
     "build_shared_label_panel",
     "cost_adjusted_pack_coverage",
     "derive_label_available_ts",
     "fixed_horizon_pack_coverage",
+    "path_label_pack_coverage",
     "quality_metadata_for_resolution",
     "resolve_terminal_indices",
     "session_maintenance_pack_coverage",
     "supports_cost_adjusted_label_pack",
     "supports_fixed_horizon_label_pack",
+    "supports_path_label_pack",
     "supports_session_maintenance_label_pack",
 ]

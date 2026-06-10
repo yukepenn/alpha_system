@@ -65,6 +65,14 @@ cost-adjusted labels. `build_session_maintenance_label_pack(...)` computes
 `alpha_system.backtest.costs` primitives read-only. BBO spread remains a proxy
 input only; there is no execution-quality claim.
 
+LCFP-P05 consumes the same shared panel and guarded terminal model for path
+labels. `build_path_label_pack(...)` covers governed `mfe`, `mae`,
+`target_before_stop`, and `triple_barrier` definitions. First-touch scans are
+bounded by the retained P02 terminal; same-bar target/stop ambiguity follows
+`SameBarBarrierPolicy` exactly; unsupported panel/terminal shapes route to the
+reference path family rather than changing label semantics. The detailed table
+is documented in [PATH_LABEL_PACKS.md](PATH_LABEL_PACKS.md).
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs
