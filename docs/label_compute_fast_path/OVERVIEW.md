@@ -35,6 +35,13 @@ Parquet values, registries, checkpoints, and run artifacts remain outside git.
 Committed research evidence is value-free: counts, elapsed time, rows per
 second, file counts, registry deltas, parity summaries, and readiness decisions.
 
+LCFP-P01 establishes two read-only evidence inputs for later design and
+benchmark phases: the label-engine inventory under
+`research/label_compute_fast_path_v1/inventory/` and the bounded reference
+baseline under `research/label_compute_fast_path_v1/baseline/`. The baseline
+times the reference engine on a bounded slice only; full-window figures are
+extrapolated from measured rows per second.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs

@@ -10,21 +10,32 @@ The repository-level campaign pointer targets
 Current campaign progress:
 `LABEL_COMPUTE_FAST_PATH_V1` is the active Workflow 2 campaign. `LCFP-P00`
 adds the bootstrap documentation, value-free evidence root, and FUTSUB pause
-handoff; after this phase branch is merged, P00 is complete.
+handoff. `LCFP-P01` adds the value-free label-engine inventory, a bounded
+reference-engine baseline benchmark summary, and the read-only benchmark
+harness used to produce that baseline.
 
-Active / next phase: next `LCFP-P01` - Label Engine Inventory + Baseline
-Benchmark, then `LCFP-P02` - Shared Label Panel / Terminal / Guard Contract.
+Active / next phase after this branch: next `LCFP-P02` - Shared Label Panel /
+Terminal / Guard Contract, then `LCFP-P03` - Fixed Horizon / Session /
+Maintenance Family Fast Pack.
 
-New durable surfaces in this `LCFP-P00` executor snapshot:
+New durable surfaces through this `LCFP-P01` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
-  durable docs, value-free evidence root, and handoffs.
+  durable docs, value-free evidence root, P01 artifacts, benchmark command, and
+  handoffs.
 - `docs/label_compute_fast_path/OVERVIEW.md` summarizes the fast-label producer
   path, reference-oracle policy, parity/no-lookahead/guard gates, and FUTSUB
   supersession condition.
 - `research/label_compute_fast_path_v1/` is the value-free evidence root for
-  later inventory, baseline, parity, benchmark, integration, and closeout
-  summaries.
+  inventory, baseline, parity, benchmark, integration, and closeout summaries.
+- `research/label_compute_fast_path_v1/inventory/inventory.md` records the
+  reference label engine, current fast-label surface, FUTSUB label needs,
+  roll-guard and availability rules, overlap metadata, registry schema, and
+  parity-harness surface.
+- `research/label_compute_fast_path_v1/baseline/baseline_benchmark_summary.md`
+  records the bounded reference-engine timing denominator for later comparison.
+- `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
+  reference-engine benchmark entrypoint for bounded slices.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
   paused FUTSUB state without deleting or mutating run state, values, registry
   rows, or worktrees.
