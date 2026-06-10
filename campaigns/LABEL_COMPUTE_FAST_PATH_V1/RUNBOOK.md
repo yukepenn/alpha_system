@@ -15,6 +15,8 @@ python tools/verify.py --smoke
 python tools/verify.py --all
 python tools/hooks/canary_runner.py
 python -m pytest tests/unit/label_compute_fast_path/ -q
+# NOTE: the next test is currently RED with polars installed (stale FCFP-P10 pack
+# vs the extended governed enum); LCFP-P03 repairs it — required green from P03 onward.
 python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
 python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
 python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
@@ -62,7 +64,8 @@ action after LCFP-P09.
 - Extend the existing harness (`tests/unit/feature_compute_fast_path/parity_harness.py` —
   `LabelParityTolerance`, `assert_label_records_match`) rather than inventing a new one.
 - Documented float tolerance is allowed where expected; any unexplained difference is a blocker.
-- Benchmark rules are mandatory (FCFP-P13 took 3 repair attempts): bounded self-validating
+- Benchmark rules are mandatory (FCFP-P13 required multiple attempts — initial execution plus
+  bounded repairs/stops): bounded self-validating
   roll-containing slice; reference never timed on a full window; real runners wired, not stubbed.
 
 ## Artifact discipline

@@ -103,5 +103,7 @@ phase selection, execution, checks, review, PR, CI, merge gate, merge,
 done-check, and next-phase. Resume continues from recorded run state.
 Registry-touching phases (LCFP-P06/P08) share
 `resource_class: materialization_registry` and never run concurrently; merges
-are always serial. This pointer is updated by `LCFP-P00` and `LCFP-P09` only
-(coordinator-owned, `must_run_alone`).
+are always serial. Pointer ownership: `LCFP-P00` re-confirms this pointer at run
+start; at closeout the COORDINATOR (not a phase branch) repoints it back to
+FUTSUB per the LCFP-P09 reintegration handoff — LCFP-P09's `allowed_paths`
+exclude `ACTIVE_CAMPAIGN.md`, and phase branches never write it.

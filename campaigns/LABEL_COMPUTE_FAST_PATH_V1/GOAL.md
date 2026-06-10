@@ -14,10 +14,26 @@ FUTSUB is stopped at FUTSUB-P19 (19/34, run `2026-06-07T235209Z`, STOP active) b
 reference-engine label materialization is too slow at full-window scale: P19's cost-adjusted
 labels reached ~60% before the deliberate stop (checkpointed and durable; nothing lost).
 `FEATURE_COMPUTE_FAST_PATH_V1` (17/17, run `2026-06-08T160146Z`) already proved the pattern
-for features (~500x on base_ohlcv with reference parity) and shipped a **partial** fast label
+for features with reference parity. Calibrate speedup expectations honestly: the ~500x figure
+was the **pre-campaign compute-only proof** on base_ohlcv
+(`research/futures_substrate_scaleout_v1/producer_fast_path/V1_PROOF.md`); FCFP's committed
+**end-to-end** benchmark gate on the bounded slice measured **3.31x** for base_ohlcv and
+**1.59x** for fixed-horizon labels
+(`research/feature_compute_fast_path_v1/benchmark/benchmark_summary.md`). LCFP-P08
+expectations are set against measured end-to-end numbers, not the compute-only proof. FCFP
+also shipped a **partial** fast label
 path: `src/alpha_system/labels/fast/{materializer.py, fixed_horizon.py}` (FCFP-P10:
 `FastLabelMaterializer`, `FastLabelPack`, `build_fixed_horizon_label_pack`,
-`LabelPanelFrameRequest`) covering the base fixed horizons only. This campaign **extends that
+`LabelPanelFrameRequest`) covering the base fixed horizons only. **Disclosed defect:** that
+FCFP-P10 pack is currently **broken against the extended governed enum** — FUTSUB-P14+
+extended `FixedHorizonLabelName` (FWD_RET_60M/120M/240M, SESSION_CLOSE, MAINTENANCE_FLAT)
+after FCFP-P10, and `_horizon_minutes` in `labels/fast/fixed_horizon.py` plus the fixture
+`tests/fixtures/feature_compute_fast_path/fixed_horizon_label.py` crash with `ValueError` on
+the non-minute tokens, so `tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py`
+FAILS when polars is installed (CI is green only because polars is absent there). LCFP-P03
+repairs the pack + fixture and corrects the module's stale `governance_gap_note`
+(`labels/fast/fixed_horizon.py:96-101`); that test must be green from LCFP-P03 onward. This
+campaign **extends that
 existing module — it does not greenfield** — to the full governed label surface: fixed +
 extended horizons, session-close / maintenance-flat, cost-adjusted, and path labels, plus
 targeted/incremental/worker-parallel execution, a parity + no-lookahead + guard test suite,
@@ -44,7 +60,9 @@ it is the parity oracle forever.
    price/mid/high/low/BBO/cost/session/roll/maintenance panel; a terminal-index model;
    the `label_available_ts` + quality-metadata contract (`LabelAvailabilityPolicy` parity).
 4. **Fast fixed + extended horizon labels** (P03): all of 1m/3m/5m/10m/15m/30m/60m/120m/240m
-   batched in one pass per symbol-year where feasible, extending `labels/fast/fixed_horizon.py`.
+   batched in one pass per symbol-year where feasible, extending `labels/fast/fixed_horizon.py`
+   — repairing first the stale FCFP-P10 pack/fixture vs the extended governed enum (and the
+   stale `governance_gap_note`) so the existing fast-label test is green from P03 onward.
 5. **Fast session/maintenance/cost labels** (P04): session-close, maintenance-flat,
    cost-adjusted (`COST_ADJUSTED_FWD_RET`, `SPREAD_ADJUSTED_FWD_RET`) reusing fixed-horizon
    terminals and the **existing** cost profiles (`backtest/costs.py`, consumed read-only);

@@ -26,7 +26,10 @@ engine is the parity oracle for every pack and is never deleted or weakened.
 - **Inventory/baseline**: P01 (reference-path inventory + bounded baseline benchmark).
 - **Shared contract**: P02 (the panel/terminal/guard/`label_available_ts` contract every
   pack builds on — the LCFP analogue of FCFP-P01's engine core).
-- **Label packs (parallel build, serial merge)**: P03 (fixed + extended horizons),
+- **Label packs (parallel build, serial merge)**: P03 (fixed + extended horizons; also
+  repairs the stale FCFP-P10 fixed-horizon pack/fixture against the extended governed enum —
+  `tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py` is currently RED
+  with polars installed and must be green from P03 onward),
   P04 (session-close / maintenance-flat / cost-adjusted), P05 (path labels) depend only
   on P02 and edit distinct modules.
 - **Integration**: P06 (targeting / checkpoint / workers / serial registry / resolver smoke)

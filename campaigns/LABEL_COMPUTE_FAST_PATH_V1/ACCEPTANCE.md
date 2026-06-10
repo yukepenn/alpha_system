@@ -39,7 +39,11 @@ on the required parity set**:
 ## Family coverage gate (P03/P04/P05)
 
 - **Fixed + extended horizons** (1m/3m/5m/10m/15m/30m/60m/120m/240m) compute **batched in one
-  pass** per symbol-year where feasible (one panel load, one guard application).
+  pass** per symbol-year where feasible (one panel load, one guard application). P03 also
+  repairs the stale FCFP-P10 pack/fixture against the extended governed enum:
+  `tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py` (currently RED with
+  polars installed) must be green with polars from LCFP-P03 onward, and the stale
+  `governance_gap_note` in `labels/fast/fixed_horizon.py` is corrected.
 - **Session-close and maintenance-flat** labels have fast implementations on the shared
   terminal-index model.
 - **Cost-adjusted labels** (`COST_ADJUSTED_FWD_RET`, `SPREAD_ADJUSTED_FWD_RET`) are

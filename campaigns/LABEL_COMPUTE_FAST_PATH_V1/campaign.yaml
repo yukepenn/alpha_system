@@ -103,7 +103,7 @@ runtime:
   - src/alpha_system/cli/label.py + src/alpha_system/cli/scaleout.py + src/alpha_system/features/scaleout/driver.py (LCFP-P06 targeting/workers integration)
   - src/alpha_system/labels/store.py / labels/registry.py / core/value_store.py (LCFP-P06 minimal metadata extensions only)
   - tools/label_compute_fast_path/** (baseline + benchmark harness scripts)
-  - tests/unit/label_compute_fast_path/** + tests/fixtures/label_compute_fast_path/** + tests/unit/feature_compute_fast_path/** (parity suite; existing fast-label tests stay green)
+  - tests/unit/label_compute_fast_path/** + tests/fixtures/label_compute_fast_path/** + tests/unit/feature_compute_fast_path/** (parity suite; NOTE the existing fast-label test tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py is currently RED when polars is installed — the FCFP-P10 pack/fixture are stale vs the extended governed FixedHorizonLabelName enum (60m/120m/240m/session_close/maintenance_flat); CI is green only because polars is absent there. LCFP-P03 repairs it; it must be green from LCFP-P03 onward.)
 models:
   build_time_roles:
     strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
@@ -513,7 +513,6 @@ phases:
   checks:
   - git status --short
   - python tools/verify.py --smoke
-  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
   - test -f research/label_compute_fast_path_v1/inventory/inventory.md
   - test -f research/label_compute_fast_path_v1/baseline/baseline_benchmark_summary.md
   - git ls-files runs
@@ -557,11 +556,15 @@ phases:
   - Define the label_available_ts + quality/gap metadata contract (per-family LabelAvailabilityPolicy derivation; exact-match parity dimension) and the panel-level synthetic-fixture tests with roll-crossing + maintenance-crossing + session-gap cases.
   non_goals:
   - Family pack computation beyond what the contract tests need; CLI/targeting; real-data writes; identity changes (label_version_id stays content-addressed from LabelContractSpec).
-  checks: &lcfp_checks
+  checks:
+  # Early-phase checks: the existing fast-label test
+  # (tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py) is
+  # currently RED with polars installed (stale FCFP-P10 pack vs the extended
+  # governed enum) and is deliberately NOT gated here; LCFP-P03 repairs it and
+  # gates it from P03 onward (&lcfp_checks).
   - git status --short
   - python tools/verify.py --smoke
   - python -m pytest tests/unit/label_compute_fast_path/ -q
-  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
   - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
   - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
   - git ls-files runs
@@ -587,7 +590,7 @@ phases:
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
-  - Shared panel + terminal-index model + label_available_ts/quality contract land inside labels/fast; roll/maintenance guard semantics reproduced exactly (synthetic guard-case tests green); existing fixed-horizon fast tests stay green; no values/SQLite committed.
+  - Shared panel + terminal-index model + label_available_ts/quality contract land inside labels/fast; roll/maintenance guard semantics reproduced exactly (synthetic guard-case tests green); the existing fixed-horizon fast test is currently RED with polars installed (stale FCFP-P10 pack vs the extended governed enum — repaired in LCFP-P03) and must not be regressed further by this phase; no values/SQLite committed.
   handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P02.md
   review: yellow lane; fresh Opus review required.
 - id: LCFP-P03
@@ -601,12 +604,21 @@ phases:
   verifier: Claude Sonnet 4.6
   purpose: Extend the existing labels/fast/fixed_horizon.py so ALL fixed + extended horizons (1m/3m/5m/10m/15m/30m/60m/120m/240m) compute batched in one pass per symbol-year where feasible, on the shared panel/terminal contract, with parity.
   scope:
+  - 'REPAIR FIRST: the FCFP-P10 fast fixed-horizon pack (src/alpha_system/labels/fast/fixed_horizon.py _horizon_minutes) and its fixture (tests/fixtures/feature_compute_fast_path/fixed_horizon_label.py) are stale vs the governed FixedHorizonLabelName enum extended after FCFP-P10 (FWD_RET_60M/120M/240M, SESSION_CLOSE, MAINTENANCE_FLAT) and crash with ValueError on non-minute tokens; repair them so tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py is green with polars installed, and correct the module''s stale governance_gap_note (labels/fast/fixed_horizon.py:96-101). The existing fast-label test must be green from this phase onward.'
   - Extend build_fixed_horizon_label_pack / the fixed-horizon pack to the extended horizons (60m/120m/240m) using the P02 shared panel + terminal indices; one panel load, one guard application, all horizons in a single pass per symbol-year where feasible.
   - Preserve label_available_ts derivation, HorizonOverlapMetadata / N_eff overlap metadata, and gap/quality flags per horizon.
   - Synthetic-fixture parity tests vs the reference fixed_horizon family across all horizons, including roll-crossing and maintenance-crossing rows.
   non_goals:
   - Session-close/maintenance-flat/cost/path labels (P04/P05); CLI/targeting; real-data writes.
-  checks: *lcfp_checks
+  checks: &lcfp_checks
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
   handoff_required: true
   review_required: true
   auto_pr: true
@@ -627,8 +639,9 @@ phases:
   - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
-  done_criteria: &pack_done
-  - Pack implemented inside labels/fast on the shared panel/terminal contract; synthetic-fixture parity tests pass (value exact-or-documented-tolerance; label_available_ts exact; guard behavior exact; gap/quality flags exact); label_version_id matches reference identity; no values/SQLite committed.
+  done_criteria:
+  - &pack_done Pack implemented inside labels/fast on the shared panel/terminal contract; synthetic-fixture parity tests pass (value exact-or-documented-tolerance; label_available_ts exact; guard behavior exact; gap/quality flags exact); label_version_id matches reference identity; no values/SQLite committed.
+  - Stale FCFP-P10 fast fixed-horizon pack + fixture repaired against the extended governed enum (60m/120m/240m/session_close/maintenance_flat); tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py green with polars installed; the stale governance_gap_note in labels/fast/fixed_horizon.py corrected.
   handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03.md
   review: yellow lane; fresh Opus review required.
 - id: LCFP-P04
@@ -668,7 +681,8 @@ phases:
   - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
-  done_criteria: *pack_done
+  done_criteria:
+  - *pack_done
   handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04.md
   review: yellow lane; fresh Opus review required.
 - id: LCFP-P05
@@ -708,7 +722,8 @@ phases:
   - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
-  done_criteria: *pack_done
+  done_criteria:
+  - *pack_done
   handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05.md
   review: yellow lane; fresh Opus review required.
 - id: LCFP-P06
@@ -789,9 +804,19 @@ phases:
   - Extend the existing parity harness (tests/unit/feature_compute_fast_path/parity_harness.py LabelParityTolerance / assert_label_records_match, or a labels-local equivalent reusing it) to cover all LCFP families and all parity dimensions (value, label_available_ts EXACT, roll guard behavior EXACT, maintenance guard EXACT, same-bar policy EXACT, gap/quality flags, overlap/N_eff metadata, identity).
   - Required parity set includes roll-crossing cases, maintenance-crossing cases, session gaps, same-bar-ambiguous bars, BBO-missing rows, and barrier-never-touched rows per applicable family; unexplained differences fail the suite.
   - No-lookahead checks - every fast label's label_available_ts >= the reference derivation; the synthetic fail-closed boundary test stays green; no future-observed inputs enter any pack.
+  - 'New no-lookahead tests for the fast label path live under tests/no_lookahead/label_fast_path/** ONLY; existing tests under tests/no_lookahead/** (including feature_label/test_synthetic_fail_closed.py) are READ-ONLY in this phase and must stay green unmodified.'
   non_goals:
-  - Weakening or widening tolerances to pass (any tolerance must be documented and justified); real-data full-window runs; benchmark timing (P08).
-  checks: *lcfp_checks
+  - Weakening or widening tolerances to pass (any tolerance must be documented and justified); real-data full-window runs; benchmark timing (P08); editing existing no_lookahead tests.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
+  - test -f research/label_compute_fast_path_v1/parity/parity_report.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
   handoff_required: true
   review_required: true
   auto_pr: true
@@ -806,7 +831,7 @@ phases:
   - tests/unit/label_compute_fast_path/**
   - tests/fixtures/label_compute_fast_path/**
   - tests/unit/feature_compute_fast_path/**
-  - tests/no_lookahead/**
+  - tests/no_lookahead/label_fast_path/**
   - research/label_compute_fast_path_v1/parity/**
   - docs/label_compute_fast_path/**
   - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07.md
@@ -814,7 +839,7 @@ phases:
   forbidden_paths: *forbidden_paths
   artifact_policy: *ap
   done_criteria:
-  - CI-runnable parity suite covers every fast family on every parity dimension incl. roll/maintenance-crossing and same-bar cases; label_available_ts and label_version_id parity exact; no-lookahead checks green; value-free parity report committed; any tolerance documented; no values/SQLite committed.
+  - CI-runnable parity suite covers every fast family on every parity dimension incl. roll/maintenance-crossing and same-bar cases; label_available_ts and label_version_id parity exact; no-lookahead checks green; value-free parity report committed (research/label_compute_fast_path_v1/parity/parity_report.md); any tolerance documented; no values/SQLite committed.
   handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07.md
   review: yellow lane; fresh Opus review required.
 - id: LCFP-P08
@@ -827,7 +852,7 @@ phases:
   executor: Codex GPT-5.5 xhigh
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Prove the fast label path is actually fast and production-ready on a bounded real slice - worker sweep 1/2/4/8 where safe, rows/sec, file counts, registry deltas, resolver smoke, and real-data parity confirmation - and select the production worker policy. (FCFP-P13 took 3 repair attempts; the bounded-slice rules below are mandatory, not advisory.)
+  purpose: Prove the fast label path is actually fast and production-ready on a bounded real slice - worker sweep 1/2/4/8 where safe, rows/sec, file counts, registry deltas, resolver smoke, and real-data parity confirmation - and select the production worker policy. (FCFP-P13 required multiple attempts — initial execution plus bounded repairs/stops; the bounded-slice rules below are mandatory, not advisory.)
   scope:
   - Benchmark every fast label family vs the P01 reference baseline on a bounded, self-validating slice - one roll-containing month by default, asserting >= 1 contract-roll event and >= 1 session/maintenance gap, widening or failing with a clear message otherwise. The reference engine is NEVER timed on a full window; full-window estimates are extrapolated from measured rows/sec.
   - The benchmark entrypoint MUST wire and invoke the real reference and fast runners (executor has ALPHA_DATA_ROOT); stubbed timing callbacks or a blocked-only summary are failures unless the data root is genuinely absent.
