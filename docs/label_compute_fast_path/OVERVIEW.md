@@ -93,6 +93,15 @@ same-bar path policies, BBO missingness, horizon overlap metadata, exact
 `label_available_ts`, and exact identity parity, and records value-free evidence
 in `research/label_compute_fast_path_v1/parity/parity_report.md`.
 
+LCFP-P08 runs the bounded real-data benchmark/readiness gate on a
+roll-containing month with session/maintenance gaps. The gate backs up the
+local label registry, invokes the real P01 reference runner and the real fast
+label materializer, sweeps workers 1/2/4/8 where safe, confirms resolver smoke
+and parity per worker count, and records only value-free timing/readiness
+evidence in `research/label_compute_fast_path_v1/benchmark/benchmark_summary.md`.
+Production selection is per family: fast where measured materially faster and
+reference where the reference engine remains faster.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs

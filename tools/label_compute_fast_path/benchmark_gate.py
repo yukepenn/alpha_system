@@ -1299,6 +1299,17 @@ def _select_worker_policy(
         key=lambda result: result.effective_workers,
     )
     status = "NOT_RELEASED_WHILE_BLOCKED" if blocked else "SELECTED"
+    if blocked:
+        rationale = (
+            "Selected by highest aggregate bounded-slice rows/sec among worker "
+            "counts that passed resolver smoke and parity. The policy is not "
+            "released for downstream reruns while status is blocked."
+        )
+    else:
+        rationale = (
+            "Selected by highest aggregate bounded-slice rows/sec among worker "
+            "counts that passed resolver smoke and parity."
+        )
     return ProductionWorkerPolicy(
         requested_workers=best_workers,
         effective_workers_observed=representative.effective_workers,
@@ -1308,11 +1319,7 @@ def _select_worker_policy(
             "RAYON_NUM_THREADS": str(representative.threads_per_worker),
             "NUMBA_NUM_THREADS": str(representative.threads_per_worker),
         },
-        rationale=(
-            "Selected by highest aggregate bounded-slice rows/sec among worker "
-            "counts that passed resolver smoke and parity. The policy is not "
-            "released for downstream reruns while status is blocked."
-        ),
+        rationale=rationale,
         status=status,
     )
 
