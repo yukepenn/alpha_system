@@ -18,6 +18,9 @@ python tools/frontier/status_doctor.py     # authoritative campaign/phase + drif
 Do **not** trust these for live phase status: `PROJECT_STATUS.md`, `PROGRESS.md`,
 `CHANGELOG.md`, `README.md`, old campaign handoffs, anything under `docs/_historical/`.
 
+For repository structure (anchors, packages, commands) read `docs/SYSTEM_MAP.md` —
+it is generated from the code (`just system-map`) and CI fails when it drifts.
+
 ## Invariants (never violate)
 
 1. The reference compute engine is the **only** PnL/value truth. No second PnL or

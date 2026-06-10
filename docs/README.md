@@ -10,6 +10,7 @@ and [`_historical/`](_historical/) (superseded docs, kept for audit).
 
 ## Start here / guides
 - [AGENT_CONTEXT_MAP.md](AGENT_CONTEXT_MAP.md) — single orientation page (read first).
+- [SYSTEM_MAP.md](SYSTEM_MAP.md) — **generated** structure map (anchors, packages, commands); `just system-map` regenerates, CI fails on drift.
 - [ONBOARDING.md](ONBOARDING.md) — local-first quickstart.
 - [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — human research workflow.
 - [AI_AGENT_GUIDE.md](AI_AGENT_GUIDE.md) — Workflow-2 AI agent guide.
