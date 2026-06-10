@@ -1,5 +1,12 @@
 """Vectorized label producer core for the fast-path campaign."""
 
+from alpha_system.labels.fast.cost_adjusted import (
+    COST_ADJUSTED_LABEL_IDS,
+    CostAdjustedPackCoverage,
+    build_cost_adjusted_label_pack,
+    cost_adjusted_pack_coverage,
+    supports_cost_adjusted_label_pack,
+)
 from alpha_system.labels.fast.fixed_horizon import (
     FIXED_HORIZON_LABEL_IDS,
     FixedHorizonPackCoverage,
@@ -42,11 +49,20 @@ from alpha_system.labels.fast.panel import (
     quality_metadata_for_resolution,
     resolve_terminal_indices,
 )
+from alpha_system.labels.fast.session_maintenance import (
+    SESSION_MAINTENANCE_LABEL_IDS,
+    SessionMaintenancePackCoverage,
+    build_session_maintenance_label_pack,
+    session_maintenance_pack_coverage,
+    supports_session_maintenance_label_pack,
+)
 
 __all__ = [
+    "COST_ADJUSTED_LABEL_IDS",
     "FAST_LABEL_PRODUCER_ENGINE_ID",
     "FAST_LABEL_VALUE_SCHEMA_VERSION",
     "FIXED_HORIZON_LABEL_IDS",
+    "CostAdjustedPackCoverage",
     "FastFixedHorizonLabelMetadata",
     "FastLabelComputation",
     "FastLabelComputationMetadata",
@@ -66,6 +82,8 @@ __all__ = [
     "QUALITY_FLAG_INSUFFICIENT_WINDOW",
     "QUALITY_FLAG_MAINTENANCE_CROSSING",
     "QUALITY_FLAG_SESSION_RESET",
+    "SESSION_MAINTENANCE_LABEL_IDS",
+    "SessionMaintenancePackCoverage",
     "SharedLabelPanel",
     "SharedLabelPanelRow",
     "TerminalGuardDisposition",
@@ -73,11 +91,17 @@ __all__ = [
     "TerminalKind",
     "TerminalRequest",
     "TerminalResolution",
+    "build_cost_adjusted_label_pack",
     "build_fixed_horizon_label_pack",
+    "build_session_maintenance_label_pack",
     "build_shared_label_panel",
+    "cost_adjusted_pack_coverage",
     "derive_label_available_ts",
     "fixed_horizon_pack_coverage",
     "quality_metadata_for_resolution",
     "resolve_terminal_indices",
+    "session_maintenance_pack_coverage",
+    "supports_cost_adjusted_label_pack",
     "supports_fixed_horizon_label_pack",
+    "supports_session_maintenance_label_pack",
 ]

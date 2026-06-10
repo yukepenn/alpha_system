@@ -57,6 +57,14 @@ existing governed midprice minute labels from the shared panel while preserving
 reference-derived `label_version_id` identity. Symbolic close-out labels
 `session_close` and `maintenance_flat` are recognized but routed to LCFP-P04.
 
+LCFP-P04 consumes the same shared panel for governed close-out and
+cost-adjusted labels. `build_session_maintenance_label_pack(...)` computes
+`session_close` and `maintenance_flat` with the P02 terminal-index model.
+`build_cost_adjusted_label_pack(...)` computes `cost_adjusted_fwd_ret` and
+`spread_adjusted_fwd_ret` from exact BBO horizons while applying the sanctioned
+`alpha_system.backtest.costs` primitives read-only. BBO spread remains a proxy
+input only; there is no execution-quality claim.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs
