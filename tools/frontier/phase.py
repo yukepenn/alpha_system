@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def phase_slug(name: str) -> str:
@@ -52,9 +55,13 @@ def new_phase(name: str, lane: str, campaign: str) -> int:
 
 
 def status() -> int:
-    active = ROOT / "ACTIVE_CAMPAIGN.md"
-    print(active.read_text(encoding="utf-8") if active.exists() else "No ACTIVE_CAMPAIGN.md found.")
-    return 0
+    # Delegate to the single authoritative status reader. The committed
+    # ACTIVE_CAMPAIGN.md pointer lags a running campaign (see CRITICAL.md /
+    # "Live status authority"), so status_doctor — which reconciles live run
+    # state — is the canonical source rather than a second, weaker reader.
+    from tools.frontier.status_doctor import main as status_doctor_main
+
+    return status_doctor_main([])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -64,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     new_parser.add_argument("--name", required=True)
     new_parser.add_argument("--lane", default="yellow")
     new_parser.add_argument("--campaign", default="MANUAL")
-    subparsers.add_parser("status", help="Show active campaign.")
+    subparsers.add_parser("status", help="Show authoritative live status (delegates to status_doctor).")
     workflow_parser = subparsers.add_parser("workflow1", help="Preview Workflow 1 phase execution.")
     workflow_parser.add_argument("--phase", required=True)
     review_parser = subparsers.add_parser("review", help="Preview review request.")
