@@ -223,6 +223,25 @@ selected it. Correctness is parity-gated and identity is engine-independent.
 
 ## Reset P16-P20 State
 
+### Coordinator deviation note (2026-06-10)
+
+The coordinator deliberately did NOT apply this section's P16-P18 reset.
+P16/P17/P18 remain merged PASS: their full-window reference-produced values are
+valid and parity-equivalent, so recomputing them would destroy harness-recorded
+success only to reproduce identical values. Under the accepted per-family
+policy, P17 (`fixed_extended`) and P18 (`close_out`) stay on the reference
+engine anyway, and P16's `fixed_base` v1 selection (1.03x) applies to future
+appends/recomputes only - it does not invalidate the existing reference-produced
+substrate. Resetting them would violate preserve-valid-work (the
+Preserve-Don't-Delete rules below) and the Compass v3 minimum-substrate
+principle (do the minimum work that yields a valid substrate; do not rebuild
+valid substrate for engine symmetry). Only `FUTSUB-P19` (resume reference from
+its ~60% durable checkpoint) and `FUTSUB-P20` (fresh on the V1 fast path) are
+reset/resumed. The state-surgery recipe below therefore applies with
+`targets = {"FUTSUB-P19", "FUTSUB-P20"}` and an expected pending order of
+`FUTSUB-P19`, `FUTSUB-P20`; everything else in this handoff (backups, STOP
+removal ordering, preserve rules, rerun commands for P19/P20) stands.
+
 Coordinator-only steps:
 
 1. Back up the stopped run state before editing:

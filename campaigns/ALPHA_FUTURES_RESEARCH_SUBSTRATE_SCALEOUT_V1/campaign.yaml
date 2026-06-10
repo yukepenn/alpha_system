@@ -23,6 +23,12 @@ project_profile:
     materialized inputs. It is NOT new alpha ideation, NOT a platform rewrite,
     NOT FactorLibrary/AlphaBook/Strategy Reference, and NOT paper/live/broker.
     It makes no profitability or tradability claim.
+    After LABEL_COMPUTE_FAST_PATH_V1 acceptance, FUTSUB P16-P20 use the LCFP-P08
+    accepted per-family engine policy: V1 fast labels for fixed_base and path at
+    requested workers 8 with thread controls, and reference labels for
+    fixed_extended, close_out, and cost_adjusted because reference remains faster
+    for those families. The reference label engine remains the correctness oracle
+    and no existing reference outputs are deleted.
 workflow:
   active: workflow2
   workflow1:
@@ -66,6 +72,12 @@ workflow2:
     forcing unsafe parallel registry writes.
   - Any future deferred-registry-write design may re-enable parallel waves for
     path-disjoint materialization; until then materialization is serial.
+  - 'After LABEL_COMPUTE_FAST_PATH_V1 acceptance, FUTSUB P16-P20 use the LCFP-P08
+    accepted per-family engine policy: V1 fast labels for fixed_base and path at
+    requested workers 8 with thread controls, and reference labels for
+    fixed_extended, close_out, and cost_adjusted because reference remains faster
+    for those families. The reference label engine remains the correctness oracle
+    and no existing reference outputs are deleted.'
   - Bootstrap / contract / integration / audit / wiring / rerun / closeout
     phases are must_run_alone.
 runtime:
@@ -1423,7 +1435,16 @@ phases:
   verifier: Claude Sonnet 4.6
   purpose: Materialize full accepted-window fixed-horizon LabelPacks (diagnostic 1m/3m + primary 5m/10m/15m/30m) with label_available_ts and roll/maintenance guards applied.
   scope:
-  - 'Materialize + register fixed-horizon labels over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded) with the roll-splice + maintenance-crossing guards applied at materialization. ENGINE POLICY (post-FCFP, see GOAL.md): labels materialize on the per-row REFERENCE label engine via cli/seed_pack.run_seed_label_pack (the official label engine + keystone registry write path). A V1 fast LABEL scaleout/worker path is OUT OF SCOPE — do NOT build one; the scaleout driver V1 fast path and --workers are feature-only. Extend the driver only with a thin label-mode dispatch that wraps run_seed_label_pack if a single entrypoint is convenient. Reuse the same checkpoint/restart, Parquet-first, and serial-registry guarantees. The label registry was reset before resume, so no duplicate-exposure reconciliation is needed.'
+  - 'Materialize + register fixed-horizon labels over the full accepted materialization window (ACCEPTED + ACCEPTED_WITH_WARNINGS DatasetVersions; BLOCKED 2018 excluded) with the roll-splice + maintenance-crossing guards applied at materialization.'
+  - 'ENGINE POLICY (post-LCFP acceptance, see GOAL.md and
+    handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_REINTEGRATION_ON_FAST_LABELS.md):
+    fixed_base labels use the V1 fast label producer path selected by
+    LCFP-P08. Invoke the official label scaleout path with --engine v1,
+    requested --workers 8, and thread controls POLARS_MAX_THREADS=2,
+    OMP_NUM_THREADS=2, RAYON_NUM_THREADS=2, NUMBA_NUM_THREADS=2. The reference
+    label engine remains the parity oracle; label_version_id identity,
+    label_available_ts, roll/maintenance guards, checkpoint/restart,
+    Parquet-first values, and serial registry writes remain mandatory.'
   - Enforce label_available_ts, horizon coverage report, and N_eff / overlap metadata.
   - 'ROLL-CROSSING GUARD (RISK_REGISTER R-037, no-lookahead audit 2026-06-09): src/alpha_system/labels/roll_guard.py is currently UNWIRED DEAD CODE (zero callers) and the canonical series is continuous front-month UNADJUSTED, so forward-return / path / MFE-MAE / triple-barrier label windows that cross a quarterly contract roll silently measure the cross-contract price gap as a spurious return. WIRE roll_guard.py into the shared label terminal-resolution path (labels/engine + families) so cross-roll and maintenance-crossing forward windows are DROPPED or flagged, never silently measured. Confirm the forward-terminal key is contract-scoped: if the per-partition input view is a stitched continuous series, add contract_id to the terminal key (fixed_horizon + path families) so a terminal in a different contract is never spliced. Add a test proving a roll-crossing forward window is dropped/flagged. This wiring is SHARED so P17-P20 inherit it; P21 audits it.'
   - Commit only the value-free driver-label-mode code + tests + coverage summary + config; values/registries/checkpoints local-only.
@@ -1461,7 +1482,6 @@ phases:
   - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P16/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria: &label_done
@@ -1480,6 +1500,10 @@ phases:
   purpose: Materialize full accepted-window extended-horizon LabelPacks (60m/120m/240m) with stronger roll/maintenance guards and overlap-aware N_eff metadata.
   scope:
   - Materialize + register extended-horizon labels with roll-splice + maintenance-crossing guards (no silent crossing).
+  - 'ENGINE POLICY (post-LCFP acceptance): fixed_extended labels stay on the
+    reference engine because LCFP-P08 measured the reference engine faster
+    (best fast speedup 0.55x). Do not force the fast path for this family.
+    Correctness remains parity-gated and engine-independent.'
   - Enforce label_available_ts, horizon coverage report, and overlap-aware N_eff metadata (extended horizons must not overstate N_eff).
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1507,7 +1531,6 @@ phases:
   - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P17/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria: *label_done
@@ -1525,6 +1548,12 @@ phases:
   purpose: Materialize full accepted-window session-close and maintenance-flat LabelPacks with close-out semantics that never silently cross a maintenance break.
   scope:
   - Materialize + register to-session-close and to-maintenance-flat labels with explicit close-out semantics.
+  - 'ENGINE POLICY (post-LCFP acceptance): close_out labels
+    (session_close/maintenance_flat) stay on the reference engine because
+    LCFP-P08 measured the reference engine faster (best fast speedup 0.40x).
+    The old reference-engine-only non-goal is retired as a blanket policy; this
+    phase uses reference by per-family benchmark selection, not because fast
+    labels are globally out of scope.'
   - Enforce label_available_ts, the maintenance-crossing guard, and horizon coverage.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1553,7 +1582,6 @@ phases:
   - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P18/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria: *label_done
@@ -1572,6 +1600,12 @@ phases:
   purpose: Materialize full accepted-window cost-adjusted LabelPacks (mid-to-mid, spread crossing, fee-adjusted where a cost model exists, slippage-stress adjusted where supported).
   scope:
   - Materialize + register cost-adjusted labels using the existing cost model and BBO spreads as a proxy (not execution truth).
+  - 'ENGINE POLICY (post-LCFP acceptance): cost_adjusted labels stay on the
+    reference engine because LCFP-P08 measured the reference engine faster
+    (best fast speedup 0.72x). Preserve valid checkpointed reference-engine
+    progress and let checkpoint + registry truth skip completed valid units.
+    Do not force-recompute unless the coordinator documents a specific
+    supersession, corruption, or schema-version reason.'
   - Enforce label_available_ts, roll/maintenance guards, and horizon coverage; document cost/fee/slippage assumptions and versions.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1599,7 +1633,6 @@ phases:
   - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria:
@@ -1618,6 +1651,13 @@ phases:
   purpose: Materialize full accepted-window path LabelPacks (MFE, MAE, target-before-stop, triple-barrier where feasible) with roll/maintenance guards.
   scope:
   - Materialize + register path-dependent labels over the full accepted materialization window where feasible; flag where compute is too expensive/unstable and record the bound.
+  - 'ENGINE POLICY (post-LCFP acceptance): path labels use the V1 fast label
+    producer path selected by LCFP-P08. Invoke the official label scaleout path
+    with --engine v1, requested --workers 8, and thread controls
+    POLARS_MAX_THREADS=2, OMP_NUM_THREADS=2, RAYON_NUM_THREADS=2,
+    NUMBA_NUM_THREADS=2. The reference label engine remains the parity oracle;
+    same-bar policy, label_available_ts, roll/maintenance guards, and identity
+    parity remain mandatory.'
   - Enforce label_available_ts, roll/maintenance guards, and horizon coverage.
   - Commit only the value-free coverage summary + config.
   non_goals:
@@ -1645,7 +1685,6 @@ phases:
   - tests/unit/futures_substrate_scaleout/scaleout/**
   - handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20.md
   - reviews/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20/**
-  - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy: *materialization_artifact_policy
   done_criteria: *label_done

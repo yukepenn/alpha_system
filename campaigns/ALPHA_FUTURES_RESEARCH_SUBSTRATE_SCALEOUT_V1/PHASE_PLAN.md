@@ -231,6 +231,14 @@ wiring / rerun / closeout phases are `must_run_alone`.
 - **Expected files**: `research/…/matrices/feature_family_coverage.md`, `docs/…/FEATURE_COVERAGE.md`, handoff/review.
 - **Done**: coverage matrix + quality report value-free; gaps explicit/machine-reviewable; no values committed.
 
+**Post-LCFP label engine policy:** FUTSUB-P16 through P20 use the
+`LABEL_COMPUTE_FAST_PATH_V1` accepted per-family policy. P16 fixed-base and P20
+path labels run on the V1 fast label producer path with requested workers 8 and
+the LCFP thread controls. P17 fixed-extended, P18 close-out, and P19
+cost-adjusted labels remain on the reference engine because P08 measured the
+reference engine faster for those families. The reference engine remains the
+oracle; existing valid reference outputs are preserved.
+
 ### FUTSUB-P16 — Fixed-Horizon LabelPack Scaleout: 1m/3m/5m/10m/15m/30m
 - **Lane**: YELLOW · **Deps**: P15 · **resource_class**: materialization_registry
 - **Purpose**: Materialize fixed-horizon LabelPacks (diagnostic 1m/3m + primary 5m/10m/15m/30m) with `label_available_ts` and roll/maintenance guards applied at materialization.

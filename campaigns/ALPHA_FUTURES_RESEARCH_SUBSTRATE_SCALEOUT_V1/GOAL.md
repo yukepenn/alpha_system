@@ -43,12 +43,23 @@ as follows:
   registry was reset so V1 owns the feature substrate cleanly (no reference/V1
   mixing). FUTSUB-P14 runs this materialization (bounded-real 2024 first, then the
   full accepted window).
-- **Labels → reference engine.** Governed LabelPacks materialize on the per-row
-  reference label engine (`cli/seed_pack.run_seed_label_pack`) with serial registry
-  writes. A V1 fast **label** scaleout/worker path is **out of scope** (labels are
-  inherently light, the fast-label speedup is marginal, and labels are a separate
-  substrate so single-engine holds per-substrate). The label registry was reset
-  alongside the feature registry.
+- **Labels -> LCFP accepted per-family engine policy.** Governed LabelPacks
+  materialize through the official label scaleout path using the
+  `LABEL_COMPUTE_FAST_PATH_V1` accepted engine policy:
+  `fixed_base` and `path` use the V1 fast label producer path with requested
+  workers 8 and thread controls `POLARS_MAX_THREADS=2`, `OMP_NUM_THREADS=2`,
+  `RAYON_NUM_THREADS=2`, and `NUMBA_NUM_THREADS=2`; `fixed_extended`,
+  `close_out`, and `cost_adjusted` use the reference engine because the P08
+  benchmark measured the reference engine faster for those families. Both
+  engines are parity-gated, emit the same governed `label_version_id`
+  identities, and write only through the official serial label registry path.
+  Existing valid reference-produced labels are preserved as the parity oracle
+  and are not deleted.
+- **Reference engine = oracle forever.** The per-row reference label engine is
+  retained as the correctness oracle for parity checks and for families where it
+  remains the selected materialization engine. Producer provenance
+  (`producer_engine_id`) and `value_schema_version` are registry/value metadata;
+  they never enter `label_version_id`.
 - **Reference engine = parity oracle only.** The per-row reference feature engine
   is retained as the correctness oracle (recomputed on demand for parity checks)
   and stores no feature values. `Fast path ≠ Reference truth` still holds; producer

@@ -148,10 +148,17 @@ just frontier-promote-reviews <run_id> ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT
 
 - **Feature integration + resolver smoke** — `FUTSUB-P14`; coverage matrix
   `FUTSUB-P15`.
-- **Label materialization workflow** — `FUTSUB-P16…P20` (serialized):
+- **Label materialization workflow** - `FUTSUB-P16...P20` (serialized):
 
   ```bash
-  alpha label materialize --execute     # with the horizon/guard/dataset args from the P05 plan
+  # values are local-only under $ALPHA_DATA_ROOT; never staged
+  # P16 fixed_base and P20 path after LCFP acceptance:
+  POLARS_MAX_THREADS=2 OMP_NUM_THREADS=2 RAYON_NUM_THREADS=2 NUMBA_NUM_THREADS=2 \
+    alpha scaleout label-pack --execute --engine v1 --workers 8 ...
+
+  # P17 fixed_extended, P18 close_out, P19 cost_adjusted:
+  alpha scaleout label-pack --execute --engine reference ...
+
   alpha label list
   ```
 
