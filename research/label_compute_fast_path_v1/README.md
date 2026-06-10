@@ -42,3 +42,9 @@ benchmark/readiness summary. It records slice self-validation, reference and
 fast timing, worker sweep results, resolver and parity outcomes, file counts,
 registry deltas, full-window extrapolations, and selected per-family production
 engine/worker policy without committing label values or local registry content.
+
+LCFP-P09 owns `closeout/CLOSEOUT.md`, the value-free campaign closeout verdict.
+It records the five acceptance status fields separately, cites P07 parity and
+P08 benchmark evidence, records local validation results, and points to the
+coordinator-only FUTSUB reintegration handoff. It does not execute FUTSUB
+amendment, reset, resume, registry cleanup, or value writes.
