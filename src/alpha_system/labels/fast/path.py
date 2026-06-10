@@ -1,8 +1,11 @@
-"""Path-label fast pack declarations and guarded scan kernels.
+"""Path-label fast pack declarations and vectorized positional scan kernels.
 
-The reference path family remains the oracle. This module only emits values
-under reference-derived identities, using the LCFP-P02 shared panel and
-terminal-index model when the panel shape is inside the proven boundary.
+The reference path family remains the oracle. Its horizon is positional —
+``horizon_steps`` forward REAL TRADE BARS, not fixed minutes — and it applies
+no roll or maintenance terminal guard. The fast kernel reproduces exactly that
+record set (LCFP-P08 repair: the earlier fixed-minute guarded terminal model
+dropped records the reference emits near gaps, maintenance breaks, and roll
+windows). Values are emitted under reference-derived identities only.
 """
 
 from __future__ import annotations
@@ -34,9 +37,7 @@ from alpha_system.labels.fast.panel import (
     LabelAvailabilityFamily,
     SharedLabelPanel,
     SharedLabelPanelRow,
-    TerminalGuardDisposition,
     TerminalIndexModel,
-    TerminalKind,
     derive_label_available_ts,
 )
 
@@ -114,13 +115,12 @@ def path_label_pack_coverage() -> PathLabelPackCoverage:
     routes = tuple(
         PathLabelRoute(
             label_id=label_id,
-            route="p02_guarded_panel_scan_kernel",
+            route="positional_trade_bar_scan_kernel",
             fallback="reference_path_family_per_row",
             reason=(
-                "Kernelized when the P02 terminal model is a fixed-horizon "
-                "guarded endpoint for the path horizon and the shared panel "
-                "carries the requested OHLCV entry field. Otherwise callers "
-                "must route the label through the reference path family."
+                "Kernelized when the shared panel carries the requested OHLCV "
+                "entry field for every real trade row. Otherwise callers must "
+                "route the label through the reference path family."
             ),
         )
         for label_id in PATH_LABEL_IDS
@@ -131,8 +131,10 @@ def path_label_pack_coverage() -> PathLabelPackCoverage:
         fallback_label_ids=PATH_LABEL_IDS,
         routes=routes,
         terminal_model=(
-            "LCFP-P02 TerminalKind.FIXED_HORIZON with roll and maintenance "
-            "guard disposition; scans are bounded to the retained terminal row"
+            "reference positional horizon: horizon_steps forward real trade "
+            "bars per entry row, exactly as the reference path family resolves "
+            "them; no fixed-minute terminal lookup and no roll/maintenance "
+            "terminal guard is applied because the reference oracle applies none"
         ),
         same_bar_policy_note=(
             "Same-bar target/stop touches follow SameBarBarrierPolicy exactly: "
@@ -150,53 +152,180 @@ def path_label_pack_coverage() -> PathLabelPackCoverage:
 def compute_path_records_from_panel(
     panel: SharedLabelPanel,
     definition: PathLabelDefinition,
-    terminal_model: TerminalIndexModel,
+    terminal_model: TerminalIndexModel | None = None,
 ) -> tuple[LabelValueRecord, ...]:
-    """Compute one path label from a P02 shared panel and terminal model."""
+    """Compute one path label from a shared panel with reference semantics.
+
+    ``terminal_model`` is accepted for backward signature compatibility and is
+    ignored: the reference path family resolves horizons positionally over
+    real trade bars, so no fixed-minute terminal-index model participates.
+    """
 
     if not isinstance(panel, SharedLabelPanel):
         raise FastLabelPackError("path label computation requires a SharedLabelPanel")
     if not isinstance(definition, PathLabelDefinition):
         raise FastLabelPackError("path label computation requires a PathLabelDefinition")
-    if not isinstance(terminal_model, TerminalIndexModel):
-        raise FastLabelPackError("path label computation requires a TerminalIndexModel")
-    if not _kernel_supported(panel, definition, terminal_model):
+    if terminal_model is not None and not isinstance(terminal_model, TerminalIndexModel):
+        raise FastLabelPackError("terminal_model must be a TerminalIndexModel or None")
+    trade_rows = _sorted_real_trade_rows(panel)
+    if not _kernel_supported(definition, trade_rows):
         return _reference_records_from_panel(panel, definition)
+    if not trade_rows:
+        return ()
+
+    if definition.name in (PathLabelName.MFE, PathLabelName.MAE):
+        return _excursion_records(definition, trade_rows)
+    return _barrier_records(definition, trade_rows)
+
+
+def _sorted_real_trade_rows(panel: SharedLabelPanel) -> tuple[SharedLabelPanelRow, ...]:
+    """Return real trade rows ordered exactly like the reference family."""
+
+    return tuple(
+        sorted(
+            (row for row in panel.rows if _is_real_trade_row(row)),
+            key=lambda row: row.event_ts,
+        )
+    )
+
+
+def _excursion_records(
+    definition: PathLabelDefinition,
+    trade_rows: tuple[SharedLabelPanelRow, ...],
+) -> tuple[LabelValueRecord, ...]:
+    """Vectorized MFE/MAE over the positional forward trade-bar window.
+
+    The reference emits one record per entry row with a FULL ``horizon_steps``
+    forward window; the excursion extreme over the window factors through the
+    window max(high)/min(low) because float subtraction and division by a
+    fixed positive entry price are monotone in the bar extreme.
+    """
+
+    horizon = definition.horizon_steps
+    count = len(trade_rows)
+    if count <= horizon:
+        return ()
+    window_max_high, window_min_low = _forward_window_extremes(trade_rows, horizon)
+    is_mfe = definition.name is PathLabelName.MFE
+    is_long = definition.direction is PathDirection.LONG
+    records: list[LabelValueRecord] = []
+    for index in range(count - horizon):
+        source = trade_rows[index]
+        entry = _entry_price(source, definition.price_field)
+        if is_long:
+            value = (
+                (window_max_high[index] - entry) / entry
+                if is_mfe
+                else (window_min_low[index] - entry) / entry
+            )
+        else:
+            value = (
+                (entry - window_min_low[index]) / entry
+                if is_mfe
+                else (entry - window_max_high[index]) / entry
+            )
+        if not math.isfinite(value):
+            raise FastLabelPackError(
+                "path label return calculation produced a non-finite value"
+            )
+        records.append(
+            _value_record(
+                definition,
+                source=source,
+                resolution_row=trade_rows[index + horizon],
+                value=value,
+                quality_flags=(),
+            )
+        )
+    return tuple(records)
+
+
+def _forward_window_extremes(
+    trade_rows: tuple[SharedLabelPanelRow, ...],
+    horizon: int,
+) -> tuple[list[float], list[float]]:
+    """Return (max high, min low) over rows[i+1 : i+1+horizon] for full windows.
+
+    Output index ``i`` covers entries ``0 .. len(rows) - horizon - 1`` — exactly
+    the entries whose forward window holds ``horizon`` trade bars. Computed with
+    Polars rolling extremes (O(n) native) instead of a per-entry rescan.
+    """
+
+    import polars as pl
+
+    high = pl.Series("high", [row.high for row in trade_rows], dtype=pl.Float64)
+    low = pl.Series("low", [row.low for row in trade_rows], dtype=pl.Float64)
+    # rolling extreme at index j summarizes [j - horizon + 1, j]; the forward
+    # window of entry i is [i + 1, i + horizon], i.e. trailing index i + horizon.
+    window_max_high = high.rolling_max(window_size=horizon).slice(horizon).to_list()
+    window_min_low = low.rolling_min(window_size=horizon).slice(horizon).to_list()
+    return window_max_high, window_min_low
+
+
+def _barrier_records(
+    definition: PathLabelDefinition,
+    trade_rows: tuple[SharedLabelPanelRow, ...],
+) -> tuple[LabelValueRecord, ...]:
+    """Target-before-stop / triple-barrier with reference positional semantics.
+
+    A vectorized full-window screen resolves the common no-touch case
+    (HORIZON outcome) without scanning; only entries whose forward window can
+    touch a barrier run the first-touch scan, which stops at the touching bar
+    exactly like the reference family.
+    """
+
+    if definition.target_return is None or definition.stop_return is None:
+        raise FastLabelPackError("target and stop returns are required for barrier labels")
+    horizon = definition.horizon_steps
+    count = len(trade_rows)
+    if count < 2:
+        return ()
+    full_window_count = max(count - horizon, 0)
+    no_touch = [False] * (count - 1)
+    if full_window_count > 0:
+        window_max_high, window_min_low = _forward_window_extremes(trade_rows, horizon)
+        for index in range(full_window_count):
+            entry = _entry_price(trade_rows[index], definition.price_field)
+            if definition.direction is PathDirection.LONG:
+                favorable_max = (window_max_high[index] - entry) / entry
+                adverse_min = (window_min_low[index] - entry) / entry
+            else:
+                favorable_max = (entry - window_min_low[index]) / entry
+                adverse_min = (entry - window_max_high[index]) / entry
+            no_touch[index] = (
+                favorable_max < definition.target_return
+                and adverse_min > definition.stop_return
+            )
 
     records: list[LabelValueRecord] = []
-    for resolution in terminal_model.resolutions:
-        source = panel.row_at(resolution.source_index)
-        if not _is_real_trade_row(source):
-            continue
-        if resolution.disposition in {
-            TerminalGuardDisposition.DROP,
-            TerminalGuardDisposition.INVALID,
-        }:
-            continue
-        if resolution.terminal_index is None:
-            continue
-        terminal = panel.row_at(resolution.terminal_index)
-        future_rows = _future_trade_rows(panel, source=source, terminal=terminal)
-        outcome = _resolve_path_outcome(
-            definition,
-            source=source,
-            future_rows=future_rows,
-            terminal_was_truncated=resolution.disposition
-            is TerminalGuardDisposition.TRUNCATE,
-        )
-        if outcome is None:
-            continue
-        value, resolution_row, quality_flags = outcome
+    for index in range(count - 1):
+        source = trade_rows[index]
+        if no_touch[index]:
+            barrier: PathBarrier | None = PathBarrier.HORIZON
+            resolution_row = trade_rows[index + horizon]
+        else:
+            future_rows = trade_rows[index + 1 : index + 1 + horizon]
+            barrier, resolution_row = _first_barrier(definition, source, future_rows)
+            if barrier is None:
+                if len(future_rows) < horizon:
+                    continue
+                barrier = PathBarrier.HORIZON
+                resolution_row = future_rows[-1]
+        if definition.name is PathLabelName.TARGET_BEFORE_STOP:
+            value: bool | int | None = (
+                None if barrier is PathBarrier.AMBIGUOUS else barrier is PathBarrier.TARGET
+            )
+        elif definition.name is PathLabelName.TRIPLE_BARRIER:
+            value = _triple_barrier_value(barrier)
+        else:  # pragma: no cover - guarded by caller routing
+            raise FastLabelPackError(f"unsupported path label: {definition.name.value}")
         records.append(
             _value_record(
                 definition,
                 source=source,
                 resolution_row=resolution_row,
                 value=value,
-                quality_flags=_merged_quality_flags(
-                    quality_flags,
-                    resolution.quality_flags,
-                ),
+                quality_flags=_barrier_quality_flags(barrier),
             )
         )
     return tuple(records)
@@ -225,60 +354,14 @@ def _ordered_path_definitions(
 
 
 def _kernel_supported(
-    panel: SharedLabelPanel,
     definition: PathLabelDefinition,
-    terminal_model: TerminalIndexModel,
+    trade_rows: tuple[SharedLabelPanelRow, ...],
 ) -> bool:
-    if terminal_model.request.kind is not TerminalKind.FIXED_HORIZON:
-        return False
-    if terminal_model.request.horizon_minutes != definition.horizon_steps:
-        return False
     if definition.price_field not in {"open", "high", "low", "close"}:
         return False
-    if definition.price_field == "open" and any(row.open is None for row in panel.rows):
+    if definition.price_field == "open" and any(row.open is None for row in trade_rows):
         return False
     return True
-
-
-def _resolve_path_outcome(
-    definition: PathLabelDefinition,
-    *,
-    source: SharedLabelPanelRow,
-    future_rows: tuple[SharedLabelPanelRow, ...],
-    terminal_was_truncated: bool,
-) -> tuple[bool | int | float | None, SharedLabelPanelRow, tuple[str, ...]] | None:
-    if not future_rows:
-        return None
-
-    if definition.name is PathLabelName.MFE:
-        if len(future_rows) < definition.horizon_steps and not terminal_was_truncated:
-            return None
-        value = max(_bar_returns(definition, source, row).favorable for row in future_rows)
-        return value, future_rows[-1], ()
-
-    if definition.name is PathLabelName.MAE:
-        if len(future_rows) < definition.horizon_steps and not terminal_was_truncated:
-            return None
-        value = min(_bar_returns(definition, source, row).adverse for row in future_rows)
-        return value, future_rows[-1], ()
-
-    barrier, resolution_row = _first_barrier(definition, source, future_rows)
-    if barrier is None:
-        if len(future_rows) < definition.horizon_steps and not terminal_was_truncated:
-            return None
-        barrier = PathBarrier.HORIZON
-        resolution_row = future_rows[-1]
-
-    if definition.name is PathLabelName.TARGET_BEFORE_STOP:
-        value: bool | None = (
-            None if barrier is PathBarrier.AMBIGUOUS else barrier is PathBarrier.TARGET
-        )
-        return value, resolution_row, _barrier_quality_flags(barrier)
-
-    if definition.name is PathLabelName.TRIPLE_BARRIER:
-        return _triple_barrier_value(barrier), resolution_row, _barrier_quality_flags(barrier)
-
-    raise FastLabelPackError(f"unsupported path label: {definition.name.value}")
 
 
 def _first_barrier(
@@ -345,23 +428,6 @@ def _entry_price(row: SharedLabelPanelRow, price_field: str) -> float:
     return value
 
 
-def _future_trade_rows(
-    panel: SharedLabelPanel,
-    *,
-    source: SharedLabelPanelRow,
-    terminal: SharedLabelPanelRow,
-) -> tuple[SharedLabelPanelRow, ...]:
-    rows = []
-    for row in panel.rows[source.row_index + 1 : terminal.row_index + 1]:
-        if row.series_id != source.series_id or row.contract_id != source.contract_id:
-            continue
-        if row.event_ts <= source.event_ts or row.event_ts > terminal.event_ts:
-            continue
-        if _is_real_trade_row(row):
-            rows.append(row)
-    return tuple(rows)
-
-
 def _is_real_trade_row(row: SharedLabelPanelRow) -> bool:
     return "no_trade" not in row.quality_flags
 
@@ -411,18 +477,6 @@ def _triple_barrier_value(barrier: PathBarrier) -> int | None:
     if barrier is PathBarrier.AMBIGUOUS:
         return None
     raise FastLabelPackError(f"unsupported barrier outcome: {barrier}")
-
-
-def _merged_quality_flags(
-    path_flags: Sequence[str],
-    terminal_flags: Sequence[str],
-) -> tuple[str, ...]:
-    merged: list[str] = []
-    for flag in (*path_flags, *terminal_flags):
-        token = str(flag).strip().lower()
-        if token and token not in merged:
-            merged.append(token)
-    return tuple(merged)
 
 
 def _reference_records_from_panel(
