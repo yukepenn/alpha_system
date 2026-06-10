@@ -42,6 +42,15 @@ baseline under `research/label_compute_fast_path_v1/baseline/`. The baseline
 times the reference engine on a bounded slice only; full-window figures are
 extrapolated from measured rows per second.
 
+LCFP-P02 adds the shared `alpha_system.labels.fast` panel and terminal contract
+that P03/P04/P05 consume. It builds one immutable symbol-year panel with
+trade-price, high/low, BBO proxy, cost-input, session, ex-ante roll, and
+maintenance metadata; resolves terminal indices once for fixed-horizon,
+session-close, maintenance-flat, and roll-truncation modes; and derives
+`label_available_ts` plus gap/quality metadata without computing label values.
+The detailed surface is documented in
+[PANEL_TERMINAL_CONTRACT.md](PANEL_TERMINAL_CONTRACT.md).
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs

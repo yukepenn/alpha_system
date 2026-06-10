@@ -25,6 +25,9 @@ coordinator-owned; phase branches verify it but do not edit it.
 
 - [OVERVIEW.md](OVERVIEW.md) summarizes the fast-label producer path, reference
   oracle, parity gates, and FUTSUB policy supersession condition.
+- [PANEL_TERMINAL_CONTRACT.md](PANEL_TERMINAL_CONTRACT.md) records the LCFP-P02
+  shared panel, terminal-index, guard-disposition, availability, and quality
+  metadata contract consumed by P03/P04/P05.
 - [Research evidence root](../../research/label_compute_fast_path_v1/README.md)
   defines the value-free evidence policy for this campaign.
 - [LCFP-P01 inventory](../../research/label_compute_fast_path_v1/inventory/inventory.md)
@@ -65,5 +68,7 @@ Commit-eligible phase handoffs live under
 
 - `LCFP-P00.md` records this bootstrap phase.
 - `LCFP-P01.md` records the inventory and bounded baseline benchmark phase.
+- `LCFP-P02.md` records the shared panel / terminal / availability contract
+  phase.
 - `FUTSUB_PAUSE_STATE.md` records the paused predecessor state and preserves the
   rule that reintegration/resume is coordinator-owned after LCFP-P09.
