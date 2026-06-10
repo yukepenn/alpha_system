@@ -4,45 +4,30 @@
 Alpha Research Platform under Frontier Harness Generic `0.3.0-rc1`.
 
 The repository-level campaign pointer targets
-`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
+`LABEL_COMPUTE_FAST_PATH_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
 Current campaign progress:
-`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` has completed `FUTSUB-P18`
-within the `label_materialization` gate. The session-close and maintenance-flat
-LabelPacks are materialized alongside the FUTSUB-P16 fixed-horizon and
-FUTSUB-P17 extended-horizon LabelPacks.
+`LABEL_COMPUTE_FAST_PATH_V1` is the active Workflow 2 campaign. `LCFP-P00`
+adds the bootstrap documentation, value-free evidence root, and FUTSUB pause
+handoff; after this phase branch is merged, P00 is complete.
 
-Active / next phase: next `FUTSUB-P19` - Cost-Adjusted LabelPack Scaleout,
-then `FUTSUB-P20` - Path LabelPack Scaleout, before the `label_integration`
-gate FUTSUB-P21 through FUTSUB-P23.
+Active / next phase: next `LCFP-P01` - Label Engine Inventory + Baseline
+Benchmark, then `LCFP-P02` - Shared Label Panel / Terminal / Guard Contract.
 
-New durable surfaces in this `FUTSUB-P18` executor snapshot:
+New durable surfaces in this `LCFP-P00` executor snapshot:
 
-- `src/alpha_system/labels/roll_guard.py` is wired into the shared
-  fixed-horizon label terminal-resolution path.
-- `alpha scaleout label-pack` provides a thin reference-engine dispatch through
-  the existing scaleout driver and `run_seed_label_pack`.
-- `configs/labels/scaleout/fixed_horizon.json` defines the fixed-horizon
-  LabelPack scaleout grid and guard policy.
-- `configs/labels/scaleout/extended_horizon.json` defines the extended-horizon
-  60m/120m/240m LabelPack scaleout grid and overlap metadata policy.
-- `configs/labels/scaleout/session_close_maintenance_flat.json` defines the
-  session-close / maintenance-flat LabelPack scaleout grid and guard policy.
-- `research/futures_substrate_scaleout_v1/label_packs/fixed_horizon/coverage_summary.md`
-  records the value-free horizon coverage and guard summary.
-- `research/futures_substrate_scaleout_v1/label_packs/extended_horizon/coverage_summary.md`
-  records value-free extended-horizon coverage, guard counts, accepted-window
-  states, and rows-vs-effective-samples metadata.
-- `research/futures_substrate_scaleout_v1/label_packs/session_close_maintenance_flat/coverage_summary.md`
-  records value-free close-out coverage, guard counts, accepted-window states,
-  and close-out terminal-event `N_eff` metadata.
-- `tests/unit/futures_substrate_scaleout/labels/test_session_close_scaleout.py`
-  covers close-out `label_available_ts`, maintenance/roll guard drops, and
-  reference label scaleout planning on synthetic data.
-- `tests/unit/futures_substrate_scaleout/labels/test_extended_horizon_scaleout.py`
-  covers Parquet registry fields, `label_available_ts`, extended guard drops,
-  and overlap-aware effective sample metadata on synthetic data.
+- `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
+  durable docs, value-free evidence root, and handoffs.
+- `docs/label_compute_fast_path/OVERVIEW.md` summarizes the fast-label producer
+  path, reference-oracle policy, parity/no-lookahead/guard gates, and FUTSUB
+  supersession condition.
+- `research/label_compute_fast_path_v1/` is the value-free evidence root for
+  later inventory, baseline, parity, benchmark, integration, and closeout
+  summaries.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
+  paused FUTSUB state without deleting or mutating run state, values, registry
+  rows, or worktrees.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run
@@ -52,17 +37,11 @@ snapshot text.
 ## Source Of Truth
 
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
-- Campaign bundle: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
-- Futures substrate docs: `docs/futures_substrate_scaleout/`
-- Feature coverage matrix:
-  `research/futures_substrate_scaleout_v1/matrices/feature_family_coverage.md`
-- Feature scaleout configs: `configs/features/scaleout/`
-- V1 fast producer engine: `src/alpha_system/features/fast/`
-- Feature scaleout driver: `src/alpha_system/features/scaleout/driver.py`
-- Value-free research evidence root:
-  `research/futures_substrate_scaleout_v1/`
+- Campaign bundle: `campaigns/LABEL_COMPUTE_FAST_PATH_V1/`
+- Label compute fast path docs: `docs/label_compute_fast_path/`
+- Value-free research evidence root: `research/label_compute_fast_path_v1/`
 - Commit-eligible handoffs:
-  `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
+  `handoffs/LABEL_COMPUTE_FAST_PATH_V1/`
 
 ## Safety Boundaries
 
@@ -71,27 +50,26 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-The reference feature/label engine remains the parity oracle. Fast path !=
-Reference truth. BBO proxy != execution truth. Approximate roll calendar !=
-provider-exact. Resolver exact-id semantics, official keystone registry writes,
-and serial registry writes are preserved; worker processes compute values only
-and never write SQLite registry rows. Producer provenance does not enter
-identity. Extended labels do not overstate effective sample count and never
-silently cross a roll or maintenance break. Close-out labels never silently
-cross the daily maintenance / trade-date break or a roll, and resolver
-semantics remain fail-closed with no fuzzy fallback. No manual SQLite write,
-paper/live/broker/order behavior, or profitability/tradability claim is
-authorized. Feature/label values, registries, roll-calendar data, and
-checkpoint ledgers remain local-only under `ALPHA_DATA_ROOT`. The campaign uses
-Green/Yellow scope only and introduces no Red scope.
+The per-row reference label engine remains the correctness oracle forever. The
+fast label producer path emits values only, stays reference-parity-gated, and is
+not the sanctioned production label materialization path until
+`LABEL_COMPUTE_FAST_PATH_V1` acceptance passes. Resolver exact-id semantics,
+official keystone registry writes, serial registry writes, roll and maintenance
+guards, and `label_available_ts` no-lookahead behavior are preserved.
+
+FUTSUB-P18/P19 historical "reference-engine-only" text is superseded only by
+this campaign's explicit acceptance condition: production label materialization
+may move to the fast path after LCFP acceptance and the LCFP-P09 coordinator
+reintegration handoff. Until then, the reference engine remains the production
+label path.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data, feature
 or label values, provider responses, heavy artifacts, local databases, logs,
 caches, secrets, and credentials are never committed.
 
-This campaign makes no profitability or tradability claim. Research outputs are
-evidence for review only.
+This campaign makes no alpha, profitability, tradability, execution-quality, or
+production-trading claim. Research outputs are evidence for review only.
 
 ## Validation Commands
 
