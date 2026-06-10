@@ -1,0 +1,940 @@
+campaign_id: LABEL_COMPUTE_FAST_PATH_V1
+campaign_name: 'Label Compute Fast Path V1: a single-machine, local, columnar (Polars/NumPy/Numba where correct), batch/vectorized, incremental, reference-parity-gated, registry-safe fast producer path for label materialization — the label analogue of FEATURE_COMPUTE_FAST_PATH_V1 — so the paused ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1 full-window label backfill stops depending on the per-row Python reference label engine (which remains the correctness oracle forever).'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: label_compute_fast_path
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Substrate/infra engineering only. This campaign extends the existing partial
+    fast label path (src/alpha_system/labels/fast/**, built by FCFP-P10) to the
+    full governed label surface (fixed + extended horizons, session-close /
+    maintenance-flat, cost-adjusted, path labels) under a reference-parity /
+    no-lookahead / guard gate, plus targeted incremental worker-parallel
+    execution and a benchmark readiness gate, so FUTSUB P16-P20 can rerun on the
+    fast path. POLICY SUPERSESSION: FUTSUB-P18/P19 specs listed "a V1 fast label
+    path" as a non-goal; this campaign deliberately supersedes that policy —
+    after LCFP acceptance the fast path is the sanctioned production label
+    materialization path and FUTSUB P16-P20 are amended to use it (LCFP-P09
+    handoff). The per-row reference label engine is never deleted and stays the
+    oracle. It is NOT Ray/GPU/cluster, NOT a label-compiler platform, NOT alpha
+    ideation, NOT FactorLibrary/AlphaBook/Strategy Reference, NOT
+    paper/live/broker. It makes no alpha, profitability, or tradability claim.
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available but not the default for this campaign.
+  workflow2:
+    description: Ralph strict autonomous campaign loop with DAG-wave scheduling and a serial merge queue. Registry-writing / benchmark phases are serialized by a shared registry resource_class.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 3
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  notes:
+  - Build phases in DAG order in isolated worktrees; merge one PR at a time.
+  - Phase branches must never write ACTIVE_CAMPAIGN.md; the coordinator owns it.
+  - Label-pack phases (LCFP-P03/P04/P05) edit distinct modules + tests and use
+    synthetic fixtures, so they are parallel-safe BUILD but serial MERGE. They
+    do NOT write the production registry.
+  - Phases that touch the real local label registry or run benchmarks against
+    real data (LCFP-P06 integration, LCFP-P08 benchmark/readiness) share
+    resource_class materialization_registry and are NOT parallel_safe; the
+    scheduler serializes them. No parallel SQLite writes.
+  - Bootstrap / inventory / shared-contract / integration / parity / benchmark /
+    closeout phases are must_run_alone.
+  - POLICY SUPERSESSION is campaign-level and explicit (see GOAL.md). Old
+    FUTSUB-P18/P19 spec text saying "labels stay reference-engine-only" is
+    historical data, not instruction; per the headless trust boundary, agents
+    follow this contract, AGENTS.md, and frontier.yaml only.
+runtime:
+  python: '3.12'
+  package_root: src/alpha_system
+  test_root: tests
+  smoke_command: python tools/verify.py --smoke
+  full_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+  research_venv: ~/.venvs/alpha_system_research
+  data_root_env: ALPHA_DATA_ROOT
+  optional_dependency_pattern: 'require_dependency("polars") / require_dependency("numba"); core dependencies stay empty; the reference engine remains the dependency-free fallback.'
+  consumed_primitives:
+  - src/alpha_system/labels/engine.py + labels/families/** (fixed_horizon incl. session_close/maintenance_flat, cost_adjusted, path, event) — the per-row REFERENCE oracle; never deleted or weakened
+  - src/alpha_system/labels/roll_guard.py (RollCrossPolicy, DROP default, ex-ante roll calendar; R-036/R-037) — guard semantics the fast path must reproduce EXACTLY
+  - src/alpha_system/labels/version.py (LabelAvailabilityPolicy — per-family label_available_ts derivation; parity must be exact-match)
+  - src/alpha_system/labels/families/fixed_horizon/family.py (HorizonOverlapMetadata / OVERLAP_METADATA_VERSION — N_eff overlap metadata)
+  - src/alpha_system/labels/store.py + labels/registry.py (official keystone label registry write/resolve path; SQLite; serial writes)
+  - src/alpha_system/backtest/costs.py (existing cost profiles; consumed READ-ONLY — no second cost/PnL truth; path stays forbidden to edit)
+  - src/alpha_system/core/value_store.py (Parquet-first value sink/reader, content hash, available_ts)
+  - src/alpha_system/cli/label.py (alpha label plan|materialize --execute|list|report|leakage-audit|input-pack)
+  - src/alpha_system/cli/scaleout.py + features/scaleout/driver.py (scaleout driver + --workers/ALPHA_CPU_WORKERS convention from FCFP-P15)
+  - tests/unit/feature_compute_fast_path/parity_harness.py (LabelParityTolerance, assert_label_records_match — existing label parity harness to extend)
+  editable_in_campaign:
+  - src/alpha_system/labels/fast/** (EXTEND the existing FCFP-P10 module — do not greenfield)
+  - src/alpha_system/cli/label.py + src/alpha_system/cli/scaleout.py + src/alpha_system/features/scaleout/driver.py (LCFP-P06 targeting/workers integration)
+  - src/alpha_system/labels/store.py / labels/registry.py / core/value_store.py (LCFP-P06 minimal metadata extensions only)
+  - tools/label_compute_fast_path/** (baseline + benchmark harness scripts)
+  - tests/unit/label_compute_fast_path/** + tests/fixtures/label_compute_fast_path/** + tests/unit/feature_compute_fast_path/** (parity suite; NOTE the existing fast-label test tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py is currently RED when polars is installed — the FCFP-P10 pack/fixture are stale vs the extended governed FixedHorizonLabelName enum (60m/120m/240m/session_close/maintenance_flat); CI is green only because polars is absent there. LCFP-P03 repairs it; it must be green from LCFP-P03 onward.)
+models:
+  build_time_roles:
+    strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
+    specs_semantic_review_done_check: Claude Opus 4.8 xhigh
+    source_map_verifier_mechanical_audit: Claude Sonnet 4.6
+    execution_tests_repair_handoffs: Codex GPT-5.5 xhigh
+    orchestration_state_machine_dag_merge_queue: Ralph
+  notes:
+  - Build-time model roles write/review/merge the campaign.
+  - No in-product autonomous agents are instantiated; this is engineering work driven by the strict Workflow 2 loop.
+lane_policy:
+  green: Low-risk automatic work (campaign control docs, indexes, value-free scaffolding).
+  yellow: Material engineering work requiring fresh Claude Opus review.
+  red: External, destructive, live, production, costly, or broker-adjacent work; requires scoped authorization.
+  red_authorization_required:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  red_expected_in_campaign: false
+  default_lane: yellow
+state_machine:
+  driver: ralph
+  strict: true
+  stop_checks_before:
+  - provider calls
+  - phase selection
+  - codex execution
+  - validation
+  - review
+  - PR creation
+  - CI waiting
+  - merge gate
+  - merge
+  - done-check
+  - next-phase selection
+  resume: from recorded run state, never regenerating completed work
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - local SQLite registries (datasets/features/labels) and journals/WAL
+  - benchmark output values / heavy artifacts
+  - heavy artifacts (parquet/arrow/feather)
+  - research run logs and caches
+  never_commit_globs: &never_commit_globs
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - runs/**
+  - artifacts/**
+  - '**/*credential*'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - campaign control files
+  - docs
+  - fast label pack code (labels/fast/** extensions)
+  - reference-parity / no-lookahead / guard test code + tiny synthetic fixtures
+  - benchmark harness code + value-free benchmark summaries
+  - targeting/incremental/worker CLI code + tests
+  - value-free inventory / baseline / parity / readiness summaries
+  - handoffs
+  - reviews
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/label_compute_fast_path/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - documented
+    - not real market data
+    - not alpha evidence
+  research_evidence_artifacts:
+    note: >-
+      Evidence under research/label_compute_fast_path_v1/** is commit-eligible
+      ONLY when value-free: inventory/baseline summaries (counts, elapsed,
+      rows/sec), parity reports (counts, max/median diffs, tolerances),
+      benchmark/readiness summaries (elapsed, rows/sec, speedup, worker policy,
+      file counts, registry deltas). Per-row label values, Parquet, SQLite
+      registries, and provider responses remain local-only under runs/** or
+      $ALPHA_DATA_ROOT/** and are never committed. Full-history JSONL payloads
+      are forbidden everywhere — Parquet-first; JSONL is sample/manifest/audit
+      tier only.
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_local_db_commits: true
+    no_heavy_artifact_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  yellow_requires_fresh_review: true
+  green_review_optional: true
+  red_requires_scoped_authorization: true
+  review_artifacts:
+    commit_eligible: reviews/LABEL_COMPUTE_FAST_PATH_V1/<phase_id>/**
+    run_local: runs/<run_id>/phases/<phase_id>/review.md and verdict.json
+  semantic_done_check_required: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - BLOCKED
+merge_policy:
+  merge_queue: serial
+  auto_merge_for_green: true
+  auto_merge_for_yellow_after_review: true
+  auto_merge_for_red: false
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  protected_branch: main
+  no_force_push: true
+  one_pr_at_a_time: true
+parity_policy:
+  reference_engine_is_oracle: true
+  reference_engine_never_deleted: true
+  parity_required_before_fast_path_is_production_for_labels: true
+  parity_dimensions:
+  - label value (exact where expected; documented numeric tolerance where float differences expected)
+  - label_available_ts (EXACT match; per-family LabelAvailabilityPolicy derivation)
+  - roll-crossing guard behavior (drop/truncate/flag/invalid) — EXACT
+  - maintenance-crossing guard behavior — EXACT
+  - same-bar barrier ambiguity policy (path labels; SameBarBarrierPolicy) — EXACT
+  - insufficient_window / input_gap / session_reset gap rows
+  - missingness / quality flags
+  - horizon-overlap / N_eff metadata (HorizonOverlapMetadata)
+  - label_version_id identity (content-addressed from LabelContractSpec; fast path emits values only, never new identities)
+  unexplained_difference_is_blocker: true
+  synthetic_fixture_tests_required: true
+  ci_runnable_parity_required: true
+  roll_and_maintenance_crossing_cases_required: true
+benchmark_policy:
+  bounded_real_benchmark_required_before_resume: true
+  baseline_reference_benchmark_bounded_slice_only: true
+  reference_never_timed_on_full_window: true
+  bounded_slice_self_validating: at least one contract-roll event and at least one session/maintenance gap, or widen/fail with a clear message
+  real_wiring_required: benchmark entrypoints must invoke the real reference and fast runners; stubbed timing callbacks or blocked-only summaries are failures unless the data root is genuinely absent
+  worker_sweep: [1, 2, 4, 8]
+  report_fields_required:
+  - elapsed
+  - rows_per_sec
+  - canonical_reads_per_symbol_year
+  - labels_per_read
+  - file_counts
+  - registry_deltas
+  - full_accepted_window_runtime_estimate
+  - speedup_vs_reference
+  - selected_production_worker_policy
+  benchmark_values_local_only: true
+identity_and_registry_policy:
+  exact_label_version_id_semantics_required: true
+  keystone_identity_preserved: true
+  label_version_id_content_addressed_from_label_contract_spec: true
+  fast_path_emits_values_only_never_new_identities: true
+  serial_registry_writes_required: true
+  no_parallel_sqlite_writes: true
+  no_manual_sqlite_writes: true
+  official_keystone_write_path_required: true
+  parquet_first_required: true
+  jsonl_audit_tier_only: true
+  no_full_history_jsonl_payloads: true
+engine_versioning_policy:
+  producer_engine_id_recorded: true
+  value_schema_version_recorded: true
+  never_mix_engines_silently_in_one_value_series: true
+  stale_reference_outputs_preserve_dont_delete: true
+  on_within_tolerance_difference:
+  - keep existing valid reference outputs as parity reference
+  - record producer_engine_id so reference-vs-fast provenance is explicit
+  on_beyond_tolerance_difference:
+  - treat as a fast-path bug, OR
+  - version the value schema explicitly, OR
+  - re-materialize via the official path
+targeting_policy:
+  targeting_dimensions_required:
+  - label_group
+  - horizon_group
+  - symbols
+  - years / dataset_version_ids
+  dry_run_estimate_required: true
+  execute_selected_units_only_required: true
+  checkpoint_restart_required: true
+  force_recompute_supported: true
+  skip_completed_via_checkpoint_and_registry_truth_required: true
+  workers_over_independent_units_only: label_group x symbol x dataset_version/year; registry writes strictly serial
+  worker_flag_convention: '--workers CLI flag takes precedence over ALPHA_LABEL_CPU_WORKERS, then ALPHA_CPU_WORKERS; default 1 = serial.'
+phase_defaults:
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  handoff_required: true
+  checks_required: true
+  review_required: true
+  artifact_policy_required: true
+  semantic_done_check_required: true
+  explicit_staging_only: true
+  auto_pr: true
+  auto_merge_for_yellow_after_review: true
+  repair_attempt_limit: 2
+  default_parallel_safe: false
+  default_must_run_alone: true
+  forbidden_global_changes:
+  - broker integration
+  - paper trading
+  - live trading
+  - order routing
+  - order placement
+  - production execution adapter
+  - real-time market data loop
+  - external provider call
+  - raw provider data access by agents
+  - direct SQLite registry writes outside sanctioned tool/CLI APIs
+  - parallel SQLite/registry writes
+  - deleting or weakening the reference label engine
+  - weakening or bypassing roll_guard / maintenance-crossing guard semantics
+  - silently crossing rolls or ignoring the maintenance break
+  - weakening resolver exact-id semantics
+  - future-observed label contract changes
+  - consuming labels as features
+  - editing cost/value/accounting math (backtest/costs.py is read-only; no second PnL truth)
+  - full-history JSONL value payloads (Parquet-first; JSONL sample/manifest/audit only)
+  - new alpha ideation or new AlphaSpec batch
+  - new label families beyond existing governed families
+  - parameter optimization / param search
+  - Ray / GPU / distributed / cluster compute
+  - label compiler / DSL platform
+  - factor library V1 ingestion pipeline
+  - strategy reference validation
+  - AlphaBook construction
+  - ML/DL/RL training
+  - edits to execution/broker/live/signals/strategies/portfolio/management/l2/backtest/agent_factory
+  - raw / canonical / feature value / label value / local DB / provider response / heavy artifact commit
+  - alpha/profitability/tradability/production claim
+  - test weakening or gaming
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/agent_factory/**
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.sqlite'
+  - '**/*.db'
+run_outputs:
+  run_level:
+  - runs/<run_id>/RUN_GOAL.md
+  - runs/<run_id>/PHASE_PLAN.md
+  - runs/<run_id>/prd.json
+  - runs/<run_id>/progress.txt
+  - runs/<run_id>/state.json
+  - runs/<run_id>/events.jsonl
+  - runs/<run_id>/costs.jsonl
+  - runs/<run_id>/STOP
+  - runs/<run_id>/RUN_SUMMARY.md
+  phase_level:
+  - runs/<run_id>/phases/<phase_id>/spec.md
+  - runs/<run_id>/phases/<phase_id>/executor_prompt.md
+  - runs/<run_id>/phases/<phase_id>/executor_notes.md
+  - runs/<run_id>/phases/<phase_id>/handoff.md
+  - runs/<run_id>/phases/<phase_id>/review.md
+  - runs/<run_id>/phases/<phase_id>/verdict.json
+  - runs/<run_id>/phases/<phase_id>/checks.json
+  - runs/<run_id>/phases/<phase_id>/repair_attempts/
+phases:
+- id: LCFP-P00
+  name: Campaign Bootstrap + FUTSUB Pause Handoff
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the campaign contract bundle and docs/evidence scaffolding, verify + record the FUTSUB stop state (P19 ~60% cost-adjusted labels, checkpointed; worktrees preserved), and preserve all valid values/registries — NO deletion.
+  scope:
+  - Confirm the 6-file campaign bundle is present and internally consistent; confirm the root ACTIVE_CAMPAIGN.md pointer selects this campaign (coordinator-owned).
+  - Create the fast-label docs index and the value-free evidence directory skeleton.
+  - Verify and record the FUTSUB pause state in handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md - run 2026-06-07T235209Z stopped at FUTSUB-P19 (19/34, STOP present, state.json stale-RUNNING), P19 cost-adjusted labels ~60% materialized (checkpointed/durable), two leftover worktrees preserved; all existing label values and registry rows preserved as-is.
+  - NO deletion, NO registry mutation, NO value writes anywhere in this phase.
+  non_goals:
+  - Any fast-path implementation, parity test, benchmark, or value/DB writes; resuming or modifying the FUTSUB run itself.
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - test -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/GOAL.md
+  - test -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/PHASE_PLAN.md
+  - test -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/campaign.yaml
+  - test -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/ACCEPTANCE.md
+  - test -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/RISK_REGISTER.md
+  - test -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/RUNBOOK.md
+  - test '!' -f campaigns/LABEL_COMPUTE_FAST_PATH_V1/ACTIVE_CAMPAIGN.md
+  - grep -q "LABEL_COMPUTE_FAST_PATH_V1" ACTIVE_CAMPAIGN.md
+  - test -f handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md
+  - python -c "import yaml; yaml.safe_load(open('campaigns/LABEL_COMPUTE_FAST_PATH_V1/campaign.yaml'))"
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/LABEL_COMPUTE_FAST_PATH_V1/**
+  - docs/label_compute_fast_path/README.md
+  - docs/label_compute_fast_path/OVERVIEW.md
+  - research/label_compute_fast_path_v1/README.md
+  - research/label_compute_fast_path_v1/.gitkeep
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P00.md
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P00/**
+  - ACTIVE_CAMPAIGN.md
+  - README.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy: &ap
+    commit_only:
+    - campaign control + overview docs
+    - value-free evidence directory skeleton
+    - fast label path code + parity/benchmark tests + tiny synthetic fixtures
+    - value-free inventory/baseline/parity/benchmark/readiness summaries
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle present and consistent; root pointer selects this campaign; no campaign-local ACTIVE_CAMPAIGN.md; FUTSUB pause state recorded with zero deletion/mutation; YAML parses; smoke passes; runs/ untracked.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P00.md
+  review: green lane; review optional.
+- id: LCFP-P01
+  name: Label Engine Inventory + Baseline Benchmark
+  lane: YELLOW
+  dependencies:
+  - LCFP-P00
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Inventory the reference label path, the existing labels/fast coverage, the FUTSUB P16-P20 label configs, roll_guard, and the label registry; benchmark the reference path on a bounded slice so the fast path has a measured baseline.
+  scope:
+  - Write a value-free inventory of the reference label engine (labels/engine.py + families fixed_horizon incl. extended horizons + session_close/maintenance_flat, cost_adjusted, path, event), the existing labels/fast surface (FastLabelMaterializer / FastLabelPack / build_fixed_horizon_label_pack / LabelPanelFrameRequest — fixed-horizon coverage only), the FUTSUB P16-P20 label configs/specs, roll_guard semantics (RollCrossPolicy DROP default, ex-ante calendar), LabelAvailabilityPolicy derivation rules, HorizonOverlapMetadata, and the label registry schema (producer_engine_id, value_schema_version, parquet_path, content hashes).
+  - Benchmark the REFERENCE label path on a bounded representative slice only (compute-only timing or a scratch-rooted run; NO production registry writes; the reference is never timed on a full window). Record elapsed, rows/sec, and the extrapolated full-window estimate per label family in a value-free baseline summary.
+  non_goals:
+  - Any fast-path implementation; production registry writes; full-window runs; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - test -f research/label_compute_fast_path_v1/inventory/inventory.md
+  - test -f research/label_compute_fast_path_v1/baseline/baseline_benchmark_summary.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: inventory
+  allowed_paths:
+  - tools/label_compute_fast_path/**
+  - tests/unit/label_compute_fast_path/**
+  - research/label_compute_fast_path_v1/inventory/**
+  - research/label_compute_fast_path_v1/baseline/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P01.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P01/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Value-free inventory + bounded baseline benchmark summaries committed; reference never timed on a full window; no production registry writes; no values/SQLite committed.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P01.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P02
+  name: Shared Label Panel / Terminal / Guard Contract
+  lane: YELLOW
+  dependencies:
+  - LCFP-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build the shared substrate every fast label pack consumes - one price/mid/high/low/BBO/cost/session/roll/maintenance panel per symbol-year, a terminal-index model (horizon / session-close / maintenance / roll-truncation terminals computed once), and the label_available_ts + quality-metadata contract matching LabelAvailabilityPolicy exactly.
+  scope:
+  - Extend src/alpha_system/labels/fast/** (do NOT greenfield) with a shared label panel builder (trade price, mid, high/low, BBO columns, cost inputs, session segments, ex-ante roll calendar, maintenance windows) loaded once per symbol-year.
+  - Add a terminal-index model that resolves, vectorized and once, each row's terminal bar per horizon/terminal-kind, reproducing roll_guard (RollCrossPolicy drop/truncate/flag/invalid) and maintenance-crossing semantics EXACTLY via the same shared terminal path the reference uses.
+  - Define the label_available_ts + quality/gap metadata contract (per-family LabelAvailabilityPolicy derivation; exact-match parity dimension) and the panel-level synthetic-fixture tests with roll-crossing + maintenance-crossing + session-gap cases.
+  non_goals:
+  - Family pack computation beyond what the contract tests need; CLI/targeting; real-data writes; identity changes (label_version_id stays content-addressed from LabelContractSpec).
+  checks:
+  # Early-phase checks: the existing fast-label test
+  # (tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py) is
+  # currently RED with polars installed (stale FCFP-P10 pack vs the extended
+  # governed enum) and is deliberately NOT gated here; LCFP-P03 repairs it and
+  # gates it from P03 onward (&lcfp_checks).
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: shared_contract
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/fixtures/label_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - research/label_compute_fast_path_v1/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P02.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P02/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Shared panel + terminal-index model + label_available_ts/quality contract land inside labels/fast; roll/maintenance guard semantics reproduced exactly (synthetic guard-case tests green); the existing fixed-horizon fast test is currently RED with polars installed (stale FCFP-P10 pack vs the extended governed enum — repaired in LCFP-P03) and must not be regressed further by this phase; no values/SQLite committed.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P02.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P03
+  name: Fast Fixed + Extended Horizon Labels
+  lane: YELLOW
+  dependencies:
+  - LCFP-P02
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Extend the existing labels/fast/fixed_horizon.py so ALL fixed + extended horizons (1m/3m/5m/10m/15m/30m/60m/120m/240m) compute batched in one pass per symbol-year where feasible, on the shared panel/terminal contract, with parity.
+  scope:
+  - 'REPAIR FIRST: the FCFP-P10 fast fixed-horizon pack (src/alpha_system/labels/fast/fixed_horizon.py _horizon_minutes) and its fixture (tests/fixtures/feature_compute_fast_path/fixed_horizon_label.py) are stale vs the governed FixedHorizonLabelName enum extended after FCFP-P10 (FWD_RET_60M/120M/240M, SESSION_CLOSE, MAINTENANCE_FLAT) and crash with ValueError on non-minute tokens; repair them so tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py is green with polars installed, and correct the module''s stale governance_gap_note (labels/fast/fixed_horizon.py:96-101). The existing fast-label test must be green from this phase onward.'
+  - Extend build_fixed_horizon_label_pack / the fixed-horizon pack to the extended horizons (60m/120m/240m) using the P02 shared panel + terminal indices; one panel load, one guard application, all horizons in a single pass per symbol-year where feasible.
+  - Preserve label_available_ts derivation, HorizonOverlapMetadata / N_eff overlap metadata, and gap/quality flags per horizon.
+  - Synthetic-fixture parity tests vs the reference fixed_horizon family across all horizons, including roll-crossing and maintenance-crossing rows.
+  non_goals:
+  - Session-close/maintenance-flat/cost/path labels (P04/P05); CLI/targeting; real-data writes.
+  checks: &lcfp_checks
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_packs
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/fixtures/label_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - research/label_compute_fast_path_v1/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - &pack_done Pack implemented inside labels/fast on the shared panel/terminal contract; synthetic-fixture parity tests pass (value exact-or-documented-tolerance; label_available_ts exact; guard behavior exact; gap/quality flags exact); label_version_id matches reference identity; no values/SQLite committed.
+  - Stale FCFP-P10 fast fixed-horizon pack + fixture repaired against the extended governed enum (60m/120m/240m/session_close/maintenance_flat); tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py green with polars installed; the stale governance_gap_note in labels/fast/fixed_horizon.py corrected.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P04
+  name: Fast Session / Maintenance / Cost Labels
+  lane: YELLOW
+  dependencies:
+  - LCFP-P02
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement fast session-close, maintenance-flat, and cost-adjusted labels (COST_ADJUSTED_FWD_RET / SPREAD_ADJUSTED_FWD_RET) reusing the shared fixed-horizon terminals, with vectorized application of the EXISTING cost profiles and BBO spread as proxy only; with parity. This is the family that stalled FUTSUB-P19.
+  scope:
+  - Implement session_close and maintenance_flat terminal labels on the P02 terminal-index model (session/maintenance terminals computed once per panel).
+  - Implement cost_adjusted labels by vectorizing the EXISTING cost profiles from src/alpha_system/backtest/costs.py (consumed READ-ONLY; the cost math itself is never edited or re-derived — no second cost/PnL truth) and the BBO spread proxy, layered on the fixed-horizon terminal returns.
+  - Synthetic-fixture parity tests vs the reference fixed_horizon (session_close/maintenance_flat) and cost_adjusted families, including roll/maintenance-crossing rows and BBO-missingness flags.
+  non_goals:
+  - New cost models or cost parameter changes; path labels (P05); CLI/targeting; real-data writes; any execution-quality claim (BBO stays a proxy).
+  checks: *lcfp_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_packs
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/fixtures/label_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - research/label_compute_fast_path_v1/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - *pack_done
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P05
+  name: Fast Path Labels (MFE/MAE/Target-Before-Stop/Triple-Barrier)
+  lane: YELLOW
+  dependencies:
+  - LCFP-P02
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Implement fast path labels (MFE, MAE, TARGET_BEFORE_STOP, TRIPLE_BARRIER) with NumPy/Numba/Polars kernels where correctness is provable, reproducing the reference same-bar ambiguity policy (SameBarBarrierPolicy) exactly; documented safe fallback to the reference where a kernel cannot be proven.
+  scope:
+  - Implement vectorized/compiled kernels for the path-scan labels over the P02 shared panel + terminal indices (first-touch scans within guard-truncated windows); numba via require_dependency (lazy-loaded; core deps stay empty).
+  - The same-bar high/low ambiguity policy MUST match the reference SameBarBarrierPolicy semantics exactly; any label where the kernel cannot provably match falls back to the reference per-row computation, documented per label.
+  - Synthetic-fixture parity tests vs the reference path family, including same-bar-ambiguous bars, roll/maintenance-crossing rows, and barrier-never-touched rows.
+  non_goals:
+  - Event-family labels beyond the governed path set; CLI/targeting; real-data writes; new barrier parameterizations (no param search).
+  checks: *lcfp_checks
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: label_packs
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/fixtures/label_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - research/label_compute_fast_path_v1/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - *pack_done
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P05.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P06
+  name: Worker / Checkpoint / Registry / Resolver Integration
+  lane: YELLOW
+  dependencies:
+  - LCFP-P03
+  - LCFP-P04
+  - LCFP-P05
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Wire the fast label packs into the CLI/driver with targeted incremental materialization, CPU worker parallelism over independent units, checkpoint/restart, STRICTLY serial registry writes via the official keystone path, and a resolver smoke on fast-produced values.
+  scope:
+  - 'Extend cli/label.py (and the scaleout driver where labels route through it) with targeting: --label-group / --horizon-group / --symbols / --years / --dataset-version-ids; --dry-run (row/unit/time estimate); --execute (selected units only); checkpoint/restart; --force (recompute); skip units already registry-valid.'
+  - Workers parallelize COMPUTE over independent units (label_group x symbol x dataset_version/year); each worker writes a LOCAL Parquet + deterministic manifest; exactly ONE serial writer registers outputs through the official labels store/registry keystone path in deterministic unit order — NEVER parallel SQLite writes.
+  - Add --workers (CLI precedence) with ALPHA_LABEL_CPU_WORKERS then ALPHA_CPU_WORKERS env fallback per the FCFP-P15 repo convention; default 1 = serial; control thread oversubscription (POLARS_MAX_THREADS etc.).
+  - Materialize a representative bounded-real slice via the fast path and run resolver smoke on it; record a value-free integration report. Back up the local label registry before any registry-touching run.
+  non_goals:
+  - Full accepted-window backfill (that is FUTSUB P16-P20 rerun after LCFP-P09); benchmark sweep (P08); identity or registry schema redesign.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/unit/feature_compute_fast_path/ -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
+  - test -f research/label_compute_fast_path_v1/integration/integration_report.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - src/alpha_system/cli/label.py
+  - src/alpha_system/cli/scaleout.py
+  - src/alpha_system/features/scaleout/driver.py
+  - src/alpha_system/labels/store.py
+  - src/alpha_system/labels/registry.py
+  - src/alpha_system/core/value_store.py
+  - tools/label_compute_fast_path/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - tests/unit/futures_substrate_scaleout/**
+  - tests/fixtures/label_compute_fast_path/**
+  - research/label_compute_fast_path_v1/integration/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P06.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P06/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Targeting + dry-run + execute-selected + checkpoint/restart + force + skip-registry-valid work; workers parallelize independent units with exactly one serial official-keystone registry writer; --workers/ALPHA_LABEL_CPU_WORKERS/ALPHA_CPU_WORKERS wired; bounded-real slice materialized and resolver smoke passes; value-free integration report committed; no values/SQLite committed.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P06.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P07
+  name: Parity / No-Lookahead / Guard Test Suite
+  lane: YELLOW
+  dependencies:
+  - LCFP-P03
+  - LCFP-P04
+  - LCFP-P05
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Consolidate the campaign's correctness gate - a CI-runnable suite proving fast == reference on the required parity set, including roll-crossing and maintenance-crossing cases, exact label_available_ts parity, and label_version_id identity parity, for every fast label family.
+  scope:
+  - Extend the existing parity harness (tests/unit/feature_compute_fast_path/parity_harness.py LabelParityTolerance / assert_label_records_match, or a labels-local equivalent reusing it) to cover all LCFP families and all parity dimensions (value, label_available_ts EXACT, roll guard behavior EXACT, maintenance guard EXACT, same-bar policy EXACT, gap/quality flags, overlap/N_eff metadata, identity).
+  - Required parity set includes roll-crossing cases, maintenance-crossing cases, session gaps, same-bar-ambiguous bars, BBO-missing rows, and barrier-never-touched rows per applicable family; unexplained differences fail the suite.
+  - No-lookahead checks - every fast label's label_available_ts >= the reference derivation; the synthetic fail-closed boundary test stays green; no future-observed inputs enter any pack.
+  - 'New no-lookahead tests for the fast label path live under tests/no_lookahead/label_fast_path/** ONLY; existing tests under tests/no_lookahead/** (including feature_label/test_synthetic_fail_closed.py) are READ-ONLY in this phase and must stay green unmodified.'
+  non_goals:
+  - Weakening or widening tolerances to pass (any tolerance must be documented and justified); real-data full-window runs; benchmark timing (P08); editing existing no_lookahead tests.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
+  - python -m pytest tests/no_lookahead/feature_label/test_synthetic_fail_closed.py -q
+  - python -m pytest tests/unit/test_fast_path_artifact_policy.py -q
+  - test -f research/label_compute_fast_path_v1/parity/parity_report.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: parity
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/fixtures/label_compute_fast_path/**
+  - tests/unit/feature_compute_fast_path/**
+  - tests/no_lookahead/label_fast_path/**
+  - research/label_compute_fast_path_v1/parity/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - CI-runnable parity suite covers every fast family on every parity dimension incl. roll/maintenance-crossing and same-bar cases; label_available_ts and label_version_id parity exact; no-lookahead checks green; value-free parity report committed (research/label_compute_fast_path_v1/parity/parity_report.md); any tolerance documented; no values/SQLite committed.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P08
+  name: Benchmark + Production Readiness Gate
+  lane: YELLOW
+  dependencies:
+  - LCFP-P06
+  - LCFP-P07
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Prove the fast label path is actually fast and production-ready on a bounded real slice - worker sweep 1/2/4/8 where safe, rows/sec, file counts, registry deltas, resolver smoke, and real-data parity confirmation - and select the production worker policy. (FCFP-P13 required multiple attempts — initial execution plus bounded repairs/stops; the bounded-slice rules below are mandatory, not advisory.)
+  scope:
+  - Benchmark every fast label family vs the P01 reference baseline on a bounded, self-validating slice - one roll-containing month by default, asserting >= 1 contract-roll event and >= 1 session/maintenance gap, widening or failing with a clear message otherwise. The reference engine is NEVER timed on a full window; full-window estimates are extrapolated from measured rows/sec.
+  - The benchmark entrypoint MUST wire and invoke the real reference and fast runners (executor has ALPHA_DATA_ROOT); stubbed timing callbacks or a blocked-only summary are failures unless the data root is genuinely absent.
+  - Sweep workers 1/2/4/8 where safe; record elapsed, rows/sec, canonical reads, file counts, registry deltas, peak memory where available, resolver smoke, and parity confirmation (value/label_available_ts/guards/identity) on the same slice for each worker count; select and document the production worker policy.
+  - Commit only the value-free benchmark/readiness summary; benchmark values/Parquet stay local-only. Back up the local label registry first.
+  non_goals:
+  - Full accepted-window backfill; tuning that changes label semantics; alpha work.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python -m pytest tests/unit/label_compute_fast_path/ -q
+  - python -m pytest tests/unit/feature_compute_fast_path/test_fixed_horizon_label_pack.py -q
+  - test -f research/label_compute_fast_path_v1/benchmark/benchmark_summary.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: integration
+  allowed_paths:
+  - src/alpha_system/labels/fast/**
+  - tools/label_compute_fast_path/**
+  - tests/unit/label_compute_fast_path/**
+  - tests/fixtures/label_compute_fast_path/**
+  - research/label_compute_fast_path_v1/benchmark/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P08.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P08/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Bounded self-validating real benchmark run with real wiring; worker sweep 1/2/4/8 where safe with parity + resolver smoke per count; value-free summary committed with elapsed/rows-per-sec/file-counts/registry-deltas/speedup/full-window-estimate and the selected production worker policy; fast path materially faster than the P01 baseline; no values/SQLite committed.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P08.md
+  review: yellow lane; fresh Opus review required.
+- id: LCFP-P09
+  name: FUTSUB Reintegration Handoff + Closeout
+  lane: YELLOW
+  dependencies:
+  - LCFP-P08
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Close out LCFP with a CLOSEOUT verdict and an EXECUTABLE handoff for the coordinator to amend FUTSUB so P16-P20 rerun on the fast label path, including preserve-don't-delete state-cleanup rules for stale reference-label registry rows/values. NO alpha mining.
+  scope:
+  - Write CLOSEOUT.md with a {COMPLETE|COMPLETE_WITH_WARNINGS|BLOCKED} verdict and the fast_label_path_v1_status, parity, and benchmark evidence.
+  - Write handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_REINTEGRATION_ON_FAST_LABELS.md with exact executable instructions - which FUTSUB campaign/spec text to amend (incl. retiring the superseded "labels stay reference-engine-only" non-goal in P18/P19), how to reset FUTSUB P16-P20 phase state and rerun them on the fast path with the selected worker policy, how to resume the stopped run (state.json reset recipe, STOP clearing, worktree cleanup), and the state-cleanup rules for stale reference-label registry rows/values - preserve-don't-delete unless superseded-and-verified (provenance via producer_engine_id; never mix engines silently in one series).
+  - The coordinator (not a phase branch) repoints ACTIVE_CAMPAIGN.md afterwards; the closeout records the recommended repoint only.
+  non_goals:
+  - Executing the FUTSUB amendment/reset/resume itself (coordinator action); editing FUTSUB campaign files from this phase branch; any alpha mining, study rerun, or promotion work; any alpha/profitability/tradability claim.
+  checks:
+  - git status --short
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - test -f research/label_compute_fast_path_v1/closeout/CLOSEOUT.md
+  - test -f handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_REINTEGRATION_ON_FAST_LABELS.md
+  - git ls-files runs
+  - git ls-files '**/*.parquet' '**/*.sqlite'
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/label_compute_fast_path_v1/closeout/**
+  - docs/label_compute_fast_path/**
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P09.md
+  - handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_REINTEGRATION_ON_FAST_LABELS.md
+  - reviews/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P09/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - CLOSEOUT.md with verdict + parity/benchmark evidence; executable FUTSUB reintegration handoff written (amendment text, P16-P20 reset/rerun recipe, resume recipe, preserve-don't-delete cleanup rules); canaries pass; no alpha mining; no values/SQLite committed.
+  handoff: handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P09.md
+  review: yellow lane; fresh Opus review required.
