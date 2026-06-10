@@ -27,6 +27,11 @@ coordinator-owned; phase branches verify it but do not edit it.
   oracle, parity gates, and FUTSUB policy supersession condition.
 - [Research evidence root](../../research/label_compute_fast_path_v1/README.md)
   defines the value-free evidence policy for this campaign.
+- [LCFP-P01 inventory](../../research/label_compute_fast_path_v1/inventory/inventory.md)
+  records the reference label engine, current fast-label surface, FUTSUB label
+  needs, guard, availability, overlap, registry, and parity-harness contracts.
+- [LCFP-P01 baseline](../../research/label_compute_fast_path_v1/baseline/baseline_benchmark_summary.md)
+  records the bounded reference-engine timing denominator for later comparison.
 
 ## Evidence Root
 
@@ -44,11 +49,21 @@ Owning phases create their own subdirectories:
 - `integration/` in LCFP-P06
 - `closeout/` in LCFP-P09
 
+LCFP-P01 also adds the bounded reference benchmark entrypoint:
+
+```bash
+PYTHONPATH=src python -m tools.label_compute_fast_path.baseline_benchmark
+```
+
+The command is read-only with respect to production registries and emits only a
+value-free summary.
+
 ## Handoffs
 
 Commit-eligible phase handoffs live under
 `handoffs/LABEL_COMPUTE_FAST_PATH_V1/`.
 
 - `LCFP-P00.md` records this bootstrap phase.
+- `LCFP-P01.md` records the inventory and bounded baseline benchmark phase.
 - `FUTSUB_PAUSE_STATE.md` records the paused predecessor state and preserves the
   rule that reintegration/resume is coordinator-owned after LCFP-P09.

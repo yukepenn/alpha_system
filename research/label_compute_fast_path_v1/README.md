@@ -15,6 +15,14 @@ provider payloads, logs, caches, full-history JSONL payloads, or local run
 artifacts. Those remain under `runs/**` or `ALPHA_DATA_ROOT` as local-only
 state.
 
-Phase-owned subdirectories are created only by the phase that owns them:
-`inventory/`, `baseline/`, `parity/`, `benchmark/`, `integration/`, and
-`closeout/` are not placeholders in this bootstrap phase.
+Phase-owned subdirectories are created only by the phase that owns them.
+LCFP-P01 owns:
+
+- `inventory/inventory.md`: value-free inventory of the reference label engine,
+  existing fast-label surface, FUTSUB label needs, guard and availability
+  contracts, overlap metadata, registry schema, and parity harness.
+- `baseline/baseline_benchmark_summary.md`: value-free bounded reference-engine
+  timing summary for later comparison.
+
+Later phases own `parity/`, `benchmark/`, `integration/`, and `closeout/`
+evidence as their scopes authorize them.
