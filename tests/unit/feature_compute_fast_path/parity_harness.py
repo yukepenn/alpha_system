@@ -4,6 +4,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from statistics import median
 from typing import Any
 
 import pytest
@@ -74,6 +75,20 @@ class LabelParityTolerance:
     reason: str = "exact label parity expected"
 
 
+@dataclass(frozen=True, slots=True)
+class LabelParityStats:
+    """Value-free summary of one label parity comparison."""
+
+    label_version_id: str
+    record_count: int
+    compared_value_count: int
+    null_value_count: int
+    quality_flagged_count: int
+    max_abs_diff: float
+    median_abs_diff: float
+    tolerance: LabelParityTolerance
+
+
 def assert_label_records_match(
     reference_records: tuple[LabelValueRecord, ...],
     fast_records: tuple[LabelValueRecord, ...],
@@ -105,6 +120,38 @@ def assert_label_records_match(
         _assert_values_match(reference.value, fast.value, tolerance=tolerance)
 
 
+def assert_and_summarize_label_records_match(
+    reference_records: tuple[LabelValueRecord, ...],
+    fast_records: tuple[LabelValueRecord, ...],
+    *,
+    expected_label_version_id: str,
+    tolerance: LabelParityTolerance = LabelParityTolerance(),
+) -> LabelParityStats:
+    """Assert parity and return value-free comparison counts/diff stats."""
+
+    assert_label_records_match(
+        reference_records,
+        fast_records,
+        expected_label_version_id=expected_label_version_id,
+        tolerance=tolerance,
+    )
+    reference_by_key = {_label_record_key(record): record for record in reference_records}
+    fast_by_key = {_label_record_key(record): record for record in fast_records}
+    numeric_diffs: list[float] = []
+    for key, reference in reference_by_key.items():
+        _collect_numeric_abs_diffs(reference.value, fast_by_key[key].value, numeric_diffs)
+    return LabelParityStats(
+        label_version_id=expected_label_version_id,
+        record_count=len(reference_records),
+        compared_value_count=len(reference_records),
+        null_value_count=sum(1 for record in reference_records if record.value is None),
+        quality_flagged_count=sum(1 for record in reference_records if record.quality_flags),
+        max_abs_diff=max(numeric_diffs, default=0.0),
+        median_abs_diff=median(numeric_diffs) if numeric_diffs else 0.0,
+        tolerance=tolerance,
+    )
+
+
 def _record_key(record: FeatureValueRecord) -> tuple[str, str, datetime, datetime]:
     return (
         record.feature_version_id,
@@ -130,7 +177,7 @@ def _assert_values_match(
     reference_value: Any,
     fast_value: Any,
     *,
-    tolerance: FeatureParityTolerance,
+    tolerance: FeatureParityTolerance | LabelParityTolerance,
 ) -> None:
     if reference_value is None or fast_value is None:
         assert fast_value is reference_value
@@ -143,6 +190,9 @@ def _assert_values_match(
                 fast_value[key],
                 tolerance=tolerance,
             )
+        return
+    if isinstance(reference_value, bool) or isinstance(fast_value, bool):
+        assert fast_value == reference_value
         return
     if isinstance(reference_value, int | float) and isinstance(fast_value, int | float):
         if tolerance.abs == 0.0 and tolerance.rel == 0.0:
@@ -157,3 +207,23 @@ def _assert_values_match(
         ), tolerance.reason
         return
     assert fast_value == reference_value
+
+
+def _collect_numeric_abs_diffs(
+    reference_value: Any,
+    fast_value: Any,
+    diffs: list[float],
+) -> None:
+    if reference_value is None or fast_value is None:
+        return
+    if isinstance(reference_value, Mapping) and isinstance(fast_value, Mapping):
+        for key, nested_reference in reference_value.items():
+            _collect_numeric_abs_diffs(nested_reference, fast_value[key], diffs)
+        return
+    if (
+        isinstance(reference_value, int | float)
+        and not isinstance(reference_value, bool)
+        and isinstance(fast_value, int | float)
+        and not isinstance(fast_value, bool)
+    ):
+        diffs.append(abs(float(fast_value) - float(reference_value)))

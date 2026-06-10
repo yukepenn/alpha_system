@@ -84,6 +84,15 @@ registry truth skip completed units by default; `--force` recomputes selected
 units. Label worker precedence is `--workers`, then `ALPHA_LABEL_CPU_WORKERS`,
 then `ALPHA_CPU_WORKERS`, then serial default.
 
+LCFP-P07 consolidates the correctness gate into
+`tests/unit/label_compute_fast_path/test_parity_matrix_suite.py` and
+`tests/no_lookahead/label_fast_path/test_fast_label_available_ts.py`. The suite
+reuses the existing parity harness, verifies every fast label family against
+the reference oracle on synthetic fixtures, exercises roll/maintenance guards,
+same-bar path policies, BBO missingness, horizon overlap metadata, exact
+`label_available_ts`, and exact identity parity, and records value-free evidence
+in `research/label_compute_fast_path_v1/parity/parity_report.md`.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs

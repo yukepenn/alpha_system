@@ -32,3 +32,7 @@ session-close, maintenance-flat, and cost-adjusted synthetic parity tests.
 
 LCFP-P05 owns `parity/LCFP-P05.md`, a value-free coverage summary for the MFE,
 MAE, target-before-stop, and triple-barrier synthetic path-label parity tests.
+
+LCFP-P07 owns `parity/parity_report.md`, the consolidated value-free parity,
+no-lookahead, and guard report for all governed fast label families delivered
+by LCFP-P03 through LCFP-P05.

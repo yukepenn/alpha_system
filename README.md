@@ -26,12 +26,15 @@ triple-barrier labels with synthetic parity coverage against the reference path
 family and P02 guard checks for crossing rows. `LCFP-P06` wires the merged fast
 label packs into targeted dry-run/execute materialization, checkpoint/restart,
 compute-only label workers, strictly serial registry registration, and strict
-identity resolver smoke coverage.
+identity resolver smoke coverage. `LCFP-P07` adds the consolidated synthetic
+parity, no-lookahead, and guard suite for every governed fast label family,
+including exact `label_available_ts` and identity parity plus a value-free
+parity report.
 
-Active / next phase after this branch: `LCFP-P07` parity suite, followed by
-`LCFP-P08` benchmark/readiness per the campaign DAG.
+Active / next phase after this branch: `LCFP-P08` benchmark/readiness, followed
+by `LCFP-P09` FUTSUB reintegration handoff and closeout per the campaign DAG.
 
-New durable surfaces through this `LCFP-P06` executor snapshot:
+New durable surfaces through this `LCFP-P07` executor snapshot:
 
 - `docs/label_compute_fast_path/README.md` indexes the campaign bundle,
   durable docs, value-free evidence root, P01 artifacts, benchmark command, and
@@ -75,6 +78,15 @@ New durable surfaces through this `LCFP-P06` executor snapshot:
 - `tests/unit/label_compute_fast_path/test_worker_checkpoint_registry_integration.py`
   covers P06 targeting, dry-run, checkpoint skip, force recompute, worker order,
   and label worker env precedence.
+- `tests/unit/label_compute_fast_path/test_parity_matrix_suite.py` covers the
+  consolidated P07 family-by-dimension parity matrix, required synthetic guard
+  cases, same-bar policy variants, roll policy dispositions, and overlap
+  metadata preservation.
+- `tests/no_lookahead/label_fast_path/test_fast_label_available_ts.py` covers
+  fast label `label_available_ts` parity against the reference derivation and
+  labels-only canonical input contracts.
+- `tests/unit/feature_compute_fast_path/parity_harness.py` now includes
+  value-free label parity summary statistics used by the P07 report.
 - `docs/label_compute_fast_path/SESSION_MAINTENANCE_COST_PACKS.md` documents
   the P04 pack surfaces and read-only `backtest/costs.py` cost-profile design.
 - `docs/label_compute_fast_path/PATH_LABEL_PACKS.md` documents the P05 path
@@ -94,6 +106,9 @@ New durable surfaces through this `LCFP-P06` executor snapshot:
 - `research/label_compute_fast_path_v1/integration/integration_report.md`
   records value-free P06 targeting, worker, checkpoint, registry, and resolver
   smoke evidence.
+- `research/label_compute_fast_path_v1/parity/parity_report.md` records the
+  consolidated P07 parity/no-lookahead/guard matrix, case counts, tolerances,
+  optional-dependency behavior, and residual-gap status.
 - `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
   reference-engine benchmark entrypoint for bounded slices.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
@@ -111,6 +126,8 @@ New durable surfaces through this `LCFP-P06` executor snapshot:
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P06.md` records the worker,
   checkpoint, registry, resolver, integration-smoke, and validation evidence
   for this phase.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P07.md` records the consolidated
+  parity, no-lookahead, guard, report, and validation evidence for this phase.
 
 The repository-level campaign pointer and live Workflow 2 state are
 coordinator-owned. For current in-flight status, run
