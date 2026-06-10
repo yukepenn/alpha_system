@@ -18,11 +18,13 @@ contract in `alpha_system.labels.fast`. `LCFP-P03` extends the fixed-horizon
 fast pack to the governed fixed-minute trade-price horizons
 1/3/5/10/15/30/60/120/240m, preserves the existing governed midprice minute
 horizons, and routes symbolic `session_close` / `maintenance_flat` labels to
-LCFP-P04 without crashing on their enum tokens.
+LCFP-P04 without crashing on their enum tokens. `LCFP-P04` adds fast
+session-close, maintenance-flat, cost-adjusted, and spread-adjusted label packs
+with synthetic parity coverage against the reference families.
 
-Active / next phase after this branch: `LCFP-P04` and `LCFP-P05` continue the
-parallel label-pack wave for session/maintenance/cost and path labels, followed
-by LCFP-P06 integration after the pack branches merge serially.
+Active / next phase after this branch: `LCFP-P05` continues the parallel
+label-pack wave for path labels, followed by LCFP-P06 integration after the
+pack branches merge serially.
 
 New durable surfaces through this `LCFP-P03` executor snapshot:
 
@@ -40,9 +42,18 @@ New durable surfaces through this `LCFP-P03` executor snapshot:
   and value-free quality metadata helpers.
 - `src/alpha_system/labels/fast/fixed_horizon.py` declares the P03 fixed-minute
   fast pack coverage and explicit P04 routing for symbolic close-out labels.
+- `src/alpha_system/labels/fast/session_maintenance.py` declares the P04
+  `session_close` / `maintenance_flat` fast pack.
+- `src/alpha_system/labels/fast/cost_adjusted.py` declares the P04
+  `cost_adjusted_fwd_ret` / `spread_adjusted_fwd_ret` fast pack.
 - `tests/unit/label_compute_fast_path/test_fixed_horizon_extended_pack.py`
   covers all nine governed trade-price fixed-minute horizons plus roll and
   maintenance drop parity against the reference family.
+- `tests/unit/label_compute_fast_path/test_session_maintenance_cost_pack.py`
+  covers P04 close-out and cost-adjusted parity, including session gaps,
+  roll-drop rows, and BBO missingness flags.
+- `docs/label_compute_fast_path/SESSION_MAINTENANCE_COST_PACKS.md` documents
+  the P04 pack surfaces and read-only `backtest/costs.py` cost-profile design.
 - `research/label_compute_fast_path_v1/` is the value-free evidence root for
   inventory, baseline, parity, benchmark, integration, and closeout summaries.
 - `research/label_compute_fast_path_v1/inventory/inventory.md` records the
@@ -51,6 +62,8 @@ New durable surfaces through this `LCFP-P03` executor snapshot:
   parity-harness surface.
 - `research/label_compute_fast_path_v1/baseline/baseline_benchmark_summary.md`
   records the bounded reference-engine timing denominator for later comparison.
+- `research/label_compute_fast_path_v1/parity/LCFP-P04.md` records value-free
+  P04 parity coverage and the documented cost-label float tolerance.
 - `tools/label_compute_fast_path/baseline_benchmark.py` is a read-only
   reference-engine benchmark entrypoint for bounded slices.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_PAUSE_STATE.md` records the
@@ -58,6 +71,9 @@ New durable surfaces through this `LCFP-P03` executor snapshot:
   rows, or worktrees.
 - `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P03.md` records the fixed-horizon
   enum repair, shared-panel terminal implementation, parity coverage, and local
+  validation results for this phase.
+- `handoffs/LABEL_COMPUTE_FAST_PATH_V1/LCFP-P04.md` records the
+  session/maintenance/cost implementation, parity coverage, and local
   validation results for this phase.
 
 The repository-level campaign pointer and live Workflow 2 state are

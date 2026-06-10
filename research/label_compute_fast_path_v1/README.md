@@ -26,3 +26,6 @@ LCFP-P01 owns:
 
 Later phases own `parity/`, `benchmark/`, `integration/`, and `closeout/`
 evidence as their scopes authorize them.
+
+LCFP-P04 owns `parity/LCFP-P04.md`, a value-free coverage summary for the
+session-close, maintenance-flat, and cost-adjusted synthetic parity tests.

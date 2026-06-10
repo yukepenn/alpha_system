@@ -12,12 +12,14 @@ from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Lock
 from time import perf_counter
 from typing import Any
 
+from alpha_system.backtest.costs import BpsCost, CostInput, SpreadCost
 from alpha_system.core.value_store import (
     ValueStoreFormat,
     ValueStoreHandle,
@@ -44,6 +46,10 @@ from alpha_system.labels.engine import (
     SupportedLabelDefinition,
     build_label_materialization_plan,
 )
+from alpha_system.labels.families.cost_adjusted import (
+    CostAdjustedLabelDefinition,
+    CostAdjustedLabelName,
+)
 from alpha_system.labels.families.fixed_horizon import (
     FixedHorizonLabelDefinition,
     FixedHorizonLabelError,
@@ -64,6 +70,7 @@ FAST_LABEL_VALUE_SCHEMA_VERSION = "alpha_system.labels.fast.values.v1"
 _REGISTRY_WRITE_LOCK = Lock()
 
 type CanonicalRowLoader = Callable[..., Sequence[Mapping[str, Any]]]
+type FastSupportedLabelDefinition = FixedHorizonLabelDefinition | CostAdjustedLabelDefinition
 
 
 class FastLabelPackError(ValueError):
@@ -116,15 +123,14 @@ class LabelPanelFrameRequest:
 class FastLabelDeclaration:
     """One governed label definition in a vectorized pack."""
 
-    definition: FixedHorizonLabelDefinition
+    definition: FastSupportedLabelDefinition
 
     def __post_init__(self) -> None:
-        if not isinstance(self.definition, FixedHorizonLabelDefinition):
-            raise FastLabelPackError("fast label declarations require fixed-horizon definitions")
+        _definition_contract(self.definition)
 
     @property
     def label_contract(self) -> LabelContractSpec:
-        return self.definition.contract
+        return _definition_contract(self.definition)
 
     @property
     def label_version(self) -> LabelVersion:
@@ -140,7 +146,7 @@ class FastLabelPack:
     """A governed label pack and its reference-derived identities."""
 
     pack_id: str
-    definitions: Sequence[FixedHorizonLabelDefinition]
+    definitions: Sequence[FastSupportedLabelDefinition]
     declarations: Sequence[FastLabelDeclaration]
     metadata: Mapping[str, Any] | FrozenJsonMapping = FrozenJsonMapping()
 
@@ -153,14 +159,10 @@ class FastLabelPack:
         if len(definitions) != len(declarations):
             raise FastLabelPackError("FastLabelPack declarations must match definitions")
         for definition, declaration in zip(definitions, declarations, strict=True):
-            if not isinstance(definition, FixedHorizonLabelDefinition):
-                raise FastLabelPackError(
-                    "FastLabelPack currently supports fixed-horizon definitions only"
-                )
             if declaration.definition != definition:
                 raise FastLabelPackError("FastLabelPack declaration order must match definitions")
-            expected = LabelVersion.derive(definition.contract)
-            if definition.version != expected:
+            expected = LabelVersion.derive(_definition_contract(definition))
+            if _definition_version(definition) != expected:
                 raise FastLabelPackError("fast label definition identity mismatch")
         object.__setattr__(self, "pack_id", pack_id)
         object.__setattr__(self, "definitions", definitions)
@@ -178,7 +180,7 @@ class FastLabelPack:
 
     @property
     def label_contracts(self) -> tuple[LabelContractSpec, ...]:
-        return tuple(definition.contract for definition in self.definitions)
+        return tuple(_definition_contract(definition) for definition in self.definitions)
 
     @property
     def label_version_ids(self) -> tuple[str, ...]:
@@ -197,8 +199,15 @@ class FastFixedHorizonLabelMetadata:
     null_value_count: int
     horizon_overlap_event_count: int
     horizon_overlap_metadata: Mapping[str, JsonValue] | FrozenJsonMapping = FrozenJsonMapping()
+    label_family: str = ""
+    terminal_kind: str = ""
 
     def to_dict(self) -> dict[str, JsonValue]:
+        overlap_metadata = (
+            self.horizon_overlap_metadata.to_dict()
+            if isinstance(self.horizon_overlap_metadata, FrozenJsonMapping)
+            else dict(self.horizon_overlap_metadata)
+        )
         return {
             "label_id": self.label_id,
             "label_version_id": self.label_version_id,
@@ -207,7 +216,9 @@ class FastFixedHorizonLabelMetadata:
             "n_eff": self.n_eff,
             "null_value_count": self.null_value_count,
             "horizon_overlap_event_count": self.horizon_overlap_event_count,
-            "horizon_overlap_metadata": dict(self.horizon_overlap_metadata),
+            "horizon_overlap_metadata": overlap_metadata,
+            "label_family": self.label_family,
+            "terminal_kind": self.terminal_kind,
         }
 
 
@@ -439,10 +450,10 @@ class FastLabelMaterializer:
         all_records: list[LabelValueRecord] = []
         for declaration in pack.declarations:
             all_records.extend(
-                _compute_fixed_horizon_records_from_panel(
+                _compute_definition_records_from_panel(
                     panel,
                     declaration.definition,
-                    terminal_models[declaration.definition.horizon_minutes],
+                    terminal_models,
                 )
             )
         return tuple(all_records)
@@ -465,13 +476,13 @@ class FastLabelMaterializer:
 
         for declaration in pack.declarations:
             definition = declaration.definition
-            records = _compute_fixed_horizon_records_from_panel(
+            records = _compute_definition_records_from_panel(
                 panel,
                 definition,
-                terminal_models[definition.horizon_minutes],
+                terminal_models,
             )
             records_by_label[definition.label_version_id] = records
-            event_sets[definition.price_basis][definition.label_version_id] = {
+            event_sets[_definition_price_basis(definition)][definition.label_version_id] = {
                 record.event_ts for record in records
             }
             all_records.extend(records)
@@ -505,10 +516,11 @@ class FastLabelMaterializer:
         with _REGISTRY_WRITE_LOCK:
             for declaration in pack.declarations:
                 definition = declaration.definition
+                contract = _definition_contract(definition)
                 lineage = LabelLineageRecord(
-                    label_version=definition.version,
-                    label_contract=definition.contract,
-                    label_spec_id=definition.label_spec_id,
+                    label_version=_definition_version(definition),
+                    label_contract=contract,
+                    label_spec_id=contract.label_spec_id,
                     contract_provenance={
                         "producer_engine_id": FAST_LABEL_PRODUCER_ENGINE_ID,
                         "value_schema_version": FAST_LABEL_VALUE_SCHEMA_VERSION,
@@ -517,8 +529,8 @@ class FastLabelMaterializer:
                 records.append(
                     label_registry.register_materialized_label(
                         materialization_result,
-                        label_contract=definition.contract,
-                        label_version=definition.version,
+                        label_contract=contract,
+                        label_version=_definition_version(definition),
                         lineage=lineage,
                         registry_metadata=metadata,
                     )
@@ -533,18 +545,23 @@ class _WriteResult:
     handle: ValueStoreHandle
 
 
-def _terminal_models_for_pack(panel: Any, pack: FastLabelPack) -> dict[int, Any]:
+def _terminal_models_for_pack(panel: Any, pack: FastLabelPack) -> dict[tuple[str, str], Any]:
     from alpha_system.labels.fast.panel import (
         TerminalKind,
         TerminalRequest,
         resolve_terminal_indices,
     )
 
-    models: dict[int, Any] = {}
+    models: dict[tuple[str, str], Any] = {}
     for definition in pack.definitions:
-        horizon_minutes = definition.horizon_minutes
-        if horizon_minutes not in models:
-            models[horizon_minutes] = resolve_terminal_indices(
+        if not isinstance(definition, FixedHorizonLabelDefinition):
+            continue
+        terminal_key = _terminal_model_key(definition)
+        if terminal_key in models:
+            continue
+        horizon_minutes = _fixed_horizon_minutes_or_none(definition)
+        if horizon_minutes is not None:
+            models[terminal_key] = resolve_terminal_indices(
                 panel,
                 TerminalRequest(
                     kind=TerminalKind.FIXED_HORIZON,
@@ -552,7 +569,30 @@ def _terminal_models_for_pack(panel: Any, pack: FastLabelPack) -> dict[int, Any]
                     price_basis=definition.price_basis,
                 ),
             )
+            continue
+        models[terminal_key] = resolve_terminal_indices(
+            panel,
+            TerminalRequest(
+                kind=_close_out_terminal_kind(definition),
+                price_basis=definition.price_basis,
+            ),
+        )
     return models
+
+
+def _compute_definition_records_from_panel(
+    panel: Any,
+    definition: FastSupportedLabelDefinition,
+    terminal_models: Mapping[tuple[str, str], Any],
+) -> tuple[LabelValueRecord, ...]:
+    if isinstance(definition, FixedHorizonLabelDefinition):
+        terminal_model = terminal_models[_terminal_model_key(definition)]
+        if _fixed_horizon_minutes_or_none(definition) is not None:
+            return _compute_fixed_horizon_records_from_panel(panel, definition, terminal_model)
+        return _compute_close_out_records_from_panel(panel, definition, terminal_model)
+    if isinstance(definition, CostAdjustedLabelDefinition):
+        return _compute_cost_adjusted_records_from_panel(panel, definition)
+    raise FastLabelPackError("fast pack contains an unsupported label definition")
 
 
 def _compute_fixed_horizon_records_from_panel(
@@ -599,6 +639,93 @@ def _compute_fixed_horizon_records_from_panel(
     return tuple(records)
 
 
+def _compute_close_out_records_from_panel(
+    panel: Any,
+    definition: FixedHorizonLabelDefinition,
+    terminal_model: Any,
+) -> tuple[LabelValueRecord, ...]:
+    from alpha_system.labels.fast.panel import (
+        LabelAvailabilityFamily,
+        TerminalGuardDisposition,
+        derive_label_available_ts,
+    )
+
+    records: list[LabelValueRecord] = []
+    for resolution in terminal_model.resolutions:
+        if resolution.disposition in {
+            TerminalGuardDisposition.DROP,
+            TerminalGuardDisposition.INVALID,
+        }:
+            continue
+        if resolution.terminal_index is None:
+            continue
+        source = panel.row_at(resolution.source_index)
+        terminal = panel.row_at(resolution.terminal_index)
+        value, flags = _label_value_and_flags_from_panel(source, terminal, definition)
+        label_available_ts = derive_label_available_ts(
+            LabelAvailabilityFamily.FIXED_HORIZON,
+            definition.contract.availability_policy,
+            horizon_end_ts=terminal.event_ts,
+            terminal_available_ts=terminal.available_ts,
+        )
+        records.append(
+            LabelValueRecord(
+                label_version_id=definition.label_version_id,
+                entity_id=source.series_id,
+                event_ts=source.event_ts,
+                horizon_end_ts=terminal.event_ts,
+                label_available_ts=label_available_ts,
+                value=value,
+                label_contract=definition.contract,
+                quality_flags=_quality_flags((*flags, *resolution.quality_flags)),
+            )
+        )
+    return tuple(records)
+
+
+def _compute_cost_adjusted_records_from_panel(
+    panel: Any,
+    definition: CostAdjustedLabelDefinition,
+) -> tuple[LabelValueRecord, ...]:
+    from alpha_system.labels.fast.panel import (
+        LabelAvailabilityFamily,
+        derive_label_available_ts,
+    )
+
+    horizon = _cost_horizon_delta(definition)
+    bbo_rows_by_key = _cost_bbo_rows_by_key(panel)
+    records: list[LabelValueRecord] = []
+    for source in panel.rows:
+        if not _panel_has_bbo_row(source):
+            continue
+        horizon_end_ts = source.event_ts + horizon
+        terminal = bbo_rows_by_key.get((source.series_id, horizon_end_ts))
+        label_available_ts = derive_label_available_ts(
+            LabelAvailabilityFamily.COST_ADJUSTED,
+            definition.spec.label_contract.availability_policy,
+            horizon_end_ts=horizon_end_ts,
+            terminal_available_ts=terminal.available_ts if terminal is not None else None,
+        )
+        value, flags = _cost_adjusted_value_and_flags(
+            source,
+            terminal,
+            definition,
+        )
+        records.append(
+            LabelValueRecord(
+                label_version_id=definition.label_version_id,
+                entity_id=source.series_id,
+                event_ts=source.event_ts,
+                horizon_end_ts=horizon_end_ts,
+                label_available_ts=label_available_ts,
+                value=value,
+                label_contract=definition.spec.label_contract,
+                quality_flags=flags,
+            )
+        )
+    return tuple(records)
+
+
 def _label_value_and_flags_from_panel(
     source: Any,
     terminal: Any,
@@ -617,6 +744,166 @@ def _label_value_and_flags_from_panel(
     if not math.isfinite(value):
         return None, ("non_finite_return",)
     return value, ()
+
+
+def _cost_adjusted_value_and_flags(
+    source: Any,
+    terminal: Any | None,
+    definition: CostAdjustedLabelDefinition,
+) -> tuple[float | None, tuple[str, ...]]:
+    if not _is_valid_panel_bbo_quote(source):
+        return None, _cost_gap_flags(
+            "entry_bbo_gap",
+            extra_flags=_cost_bbo_gap_flags(source),
+        )
+    if terminal is None:
+        return None, _cost_gap_flags("missing_terminal_bbo")
+    if not _is_valid_panel_bbo_quote(terminal):
+        return None, _cost_gap_flags(
+            "terminal_bbo_gap",
+            extra_flags=_cost_bbo_gap_flags(terminal),
+        )
+
+    source_mid = _decimal_from_panel(source.mid, "source mid")
+    terminal_mid = _decimal_from_panel(terminal.mid, "terminal mid")
+    if source_mid <= 0 or terminal_mid <= 0:
+        return None, _cost_gap_flags("zero_or_negative_mid")
+
+    raw_return = (terminal_mid / source_mid) - Decimal("1")
+    adjusted_return = raw_return - _cost_adjustment_return(definition, source, terminal)
+    if not adjusted_return.is_finite():
+        return None, _cost_gap_flags("non_finite_return")
+    return float(adjusted_return), ()
+
+
+def _cost_adjustment_return(
+    definition: CostAdjustedLabelDefinition,
+    source: Any,
+    terminal: Any,
+) -> Decimal:
+    payload = definition.spec.cost_adjustment.cost_model.to_dict()
+    spread_model = _spread_cost_profile(payload)
+    entry_fill = _cost_input(source, side="buy")
+    exit_fill = _cost_input(terminal, side="sell")
+    adjustment = (
+        spread_model.cost_for_fill(entry_fill).total / entry_fill.notional
+        + spread_model.cost_for_fill(exit_fill).total / exit_fill.notional
+    )
+    if definition.name is CostAdjustedLabelName.COST_ADJUSTED_FWD_RET:
+        fixed_bps = _decimal_from_payload(
+            payload.get("fixed_cost_bps"),
+            "cost_model.fixed_cost_bps",
+        )
+        bps_model = BpsCost(fixed_bps)
+        adjustment += bps_model.cost_for_fill(entry_fill).total / entry_fill.notional
+    return adjustment
+
+
+def _spread_cost_profile(payload: Mapping[str, Any]) -> SpreadCost:
+    adjustment = _require_text(payload.get("spread_adjustment"))
+    if adjustment == "half_spread_round_trip":
+        return SpreadCost("half_spread")
+    if adjustment == "full_spread_round_trip":
+        return SpreadCost("full_spread")
+    raise FastLabelPackError(
+        "fast cost-adjusted labels support backtest SpreadCost half/full spread "
+        "profiles only"
+    )
+
+
+def _cost_input(row: Any, *, side: str) -> CostInput:
+    return CostInput(
+        price=_decimal_from_panel(row.mid, "BBO mid"),
+        quantity=Decimal("1"),
+        side=side,
+        bid=_decimal_from_panel(row.bid, "BBO bid"),
+        ask=_decimal_from_panel(row.ask, "BBO ask"),
+        spread=_decimal_from_panel(row.spread, "BBO spread"),
+    )
+
+
+def _cost_gap_flags(reason: str, *, extra_flags: Sequence[str] = ()) -> tuple[str, ...]:
+    return _ordered_quality_flags(("label_gap", reason, *extra_flags))
+
+
+def _cost_bbo_gap_flags(row: Any) -> tuple[str, ...]:
+    flags = {"bbo_gap", *_quality_flags(row.bbo_quality_flags)}
+    if row.bbo_missing:
+        flags.add(MISSING_BBO_QUALITY_FLAG)
+    if row.bbo_quarantined:
+        flags.add(BBO_QUARANTINE_QUALITY_FLAG)
+    if not _panel_bbo_invariants_hold(row):
+        flags.add("bbo_invariant_violation")
+    return tuple(sorted(flags))
+
+
+def _ordered_quality_flags(flags: Sequence[str]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    for flag in flags:
+        if not isinstance(flag, str) or not flag.strip():
+            raise FastLabelPackError("quality flag entries must be non-empty strings")
+        token = flag.strip().lower()
+        if token not in normalized:
+            normalized.append(token)
+    return tuple(normalized)
+
+
+def _cost_bbo_rows_by_key(panel: Any) -> dict[tuple[str, datetime], Any]:
+    by_key: dict[tuple[str, datetime], Any] = {}
+    for row in panel.rows:
+        if not _panel_has_bbo_row(row):
+            continue
+        key = (row.series_id, row.event_ts)
+        if key in by_key:
+            raise FastLabelPackError("cost-adjusted BBO rows must not duplicate series_id/event_ts")
+        by_key[key] = row
+    return by_key
+
+
+def _panel_has_bbo_row(row: Any) -> bool:
+    return (
+        row.bid is not None
+        or row.ask is not None
+        or row.mid is not None
+        or row.spread is not None
+        or bool(row.bbo_quality_flags)
+    )
+
+
+def _cost_horizon_delta(definition: CostAdjustedLabelDefinition) -> timedelta:
+    value = definition.spec.label_contract.horizon.horizon
+    text = _require_text(value).lower()
+    if text.endswith("m"):
+        return _positive_horizon_delta(float(text[:-1]), multiplier=60)
+    if text.endswith("s"):
+        return _positive_horizon_delta(float(text[:-1]), multiplier=1)
+    if text.endswith("h"):
+        return _positive_horizon_delta(float(text[:-1]), multiplier=3600)
+    raise FastLabelPackError("cost-adjusted horizon must use an s, m, or h duration suffix")
+
+
+def _positive_horizon_delta(value: float, *, multiplier: int) -> timedelta:
+    if not math.isfinite(value) or value <= 0:
+        raise FastLabelPackError("cost-adjusted horizon must be positive and finite")
+    return timedelta(seconds=value * multiplier)
+
+
+def _decimal_from_panel(value: Any, field_name: str) -> Decimal:
+    if isinstance(value, bool) or value is None:
+        raise FastLabelPackError(f"{field_name} must be numeric")
+    parsed = Decimal(str(value))
+    if not parsed.is_finite():
+        raise FastLabelPackError(f"{field_name} must be finite")
+    return parsed
+
+
+def _decimal_from_payload(value: Any, field_name: str) -> Decimal:
+    if isinstance(value, bool) or value is None:
+        raise FastLabelPackError(f"{field_name} must be numeric")
+    parsed = Decimal(str(value))
+    if not parsed.is_finite() or parsed < 0:
+        raise FastLabelPackError(f"{field_name} must be finite and non-negative")
+    return parsed
 
 
 def _trade_price_flags_from_panel(source: Any, terminal: Any) -> tuple[str, ...]:
@@ -913,12 +1200,13 @@ def _computation_metadata(
     event_sets: Mapping[str, Mapping[str, set[datetime]]],
 ) -> FastLabelComputationMetadata:
     shared_counts = {"close": len(panel.rows)}
-    if any(definition.price_basis == "mid" for definition in pack.definitions):
+    if any(_definition_price_basis(definition) == "mid" for definition in pack.definitions):
         shared_counts["mid"] = len(panel.rows)
     labels: list[FastFixedHorizonLabelMetadata] = []
     for definition in pack.definitions:
         records = records_by_label[definition.label_version_id]
-        same_basis_events = event_sets[definition.price_basis]
+        price_basis = _definition_price_basis(definition)
+        same_basis_events = event_sets[price_basis]
         peer_events = set().union(
             *(
                 events
@@ -931,15 +1219,14 @@ def _computation_metadata(
             FastFixedHorizonLabelMetadata(
                 label_id=definition.label_id,
                 label_version_id=definition.label_version_id,
-                price_basis=definition.price_basis,
-                horizon_minutes=definition.horizon_minutes,
+                price_basis=price_basis,
+                horizon_minutes=_metadata_horizon_minutes(definition),
                 n_eff=len(records),
                 null_value_count=sum(1 for record in records if record.value is None),
                 horizon_overlap_event_count=overlap_count,
-                horizon_overlap_metadata=compute_horizon_overlap_metadata(
-                    definition.name,
-                    raw_row_count=len(records),
-                ).to_dict(),
+                horizon_overlap_metadata=_metadata_horizon_overlap(definition, len(records)),
+                label_family=_definition_contract(definition).family.value,
+                terminal_kind=_metadata_terminal_kind(definition),
             )
         )
     return FastLabelComputationMetadata(
@@ -1100,7 +1387,8 @@ def _validate_plan_matches_pack(plan: LabelMaterializationPlan, pack: FastLabelP
         for contract in plan.label_contracts
     }
     pack_contracts_by_version = {
-        definition.label_version_id: definition.contract for definition in pack.definitions
+        definition.label_version_id: _definition_contract(definition)
+        for definition in pack.definitions
     }
     if contracts_by_version != pack_contracts_by_version:
         raise FastLabelPackError("LabelMaterializationPlan contracts must match fast pack")
@@ -1147,6 +1435,95 @@ def _registry_metadata(metadata: Mapping[str, Any] | None) -> dict[str, JsonValu
     if metadata:
         merged.update(metadata)
     return FrozenJsonMapping.from_mapping(merged, field_name="registry_metadata").to_dict()
+
+
+def _definition_contract(definition: object) -> LabelContractSpec:
+    if isinstance(definition, FixedHorizonLabelDefinition):
+        return definition.contract
+    if isinstance(definition, CostAdjustedLabelDefinition):
+        return definition.spec.label_contract
+    raise FastLabelPackError("fast label packs support fixed-horizon and cost-adjusted definitions")
+
+
+def _definition_version(definition: object) -> LabelVersion:
+    if isinstance(definition, (FixedHorizonLabelDefinition, CostAdjustedLabelDefinition)):
+        return definition.version
+    raise FastLabelPackError("fast label definition does not expose a LabelVersion")
+
+
+def _definition_price_basis(definition: FastSupportedLabelDefinition) -> str:
+    if isinstance(definition, FixedHorizonLabelDefinition):
+        return definition.price_basis
+    if isinstance(definition, CostAdjustedLabelDefinition):
+        return "mid"
+    raise FastLabelPackError("unsupported fast label definition")
+
+
+def _fixed_horizon_minutes_or_none(definition: FixedHorizonLabelDefinition) -> int | None:
+    try:
+        return definition.horizon_minutes
+    except FixedHorizonLabelError as exc:
+        if definition.label_id in {"session_close", "maintenance_flat"}:
+            return None
+        raise FastLabelPackError(str(exc)) from exc
+
+
+def _terminal_model_key(definition: FixedHorizonLabelDefinition) -> tuple[str, str]:
+    horizon_minutes = _fixed_horizon_minutes_or_none(definition)
+    if horizon_minutes is not None:
+        return ("fixed_horizon", f"{definition.price_basis}:{horizon_minutes}")
+    return ("close_out", definition.label_id)
+
+
+def _close_out_terminal_kind(definition: FixedHorizonLabelDefinition) -> Any:
+    from alpha_system.labels.fast.panel import TerminalKind
+
+    if definition.label_id == "session_close":
+        return TerminalKind.SESSION_CLOSE
+    if definition.label_id == "maintenance_flat":
+        return TerminalKind.MAINTENANCE_FLAT
+    raise FastLabelPackError(f"unsupported close-out label: {definition.label_id}")
+
+
+def _metadata_horizon_minutes(definition: FastSupportedLabelDefinition) -> int:
+    if isinstance(definition, FixedHorizonLabelDefinition):
+        horizon_minutes = _fixed_horizon_minutes_or_none(definition)
+        return horizon_minutes if horizon_minutes is not None else 0
+    if isinstance(definition, CostAdjustedLabelDefinition):
+        seconds = int(_cost_horizon_delta(definition).total_seconds())
+        return seconds // 60 if seconds % 60 == 0 else 0
+    raise FastLabelPackError("unsupported fast label metadata definition")
+
+
+def _metadata_horizon_overlap(
+    definition: FastSupportedLabelDefinition,
+    record_count: int,
+) -> Mapping[str, JsonValue]:
+    if isinstance(definition, FixedHorizonLabelDefinition):
+        horizon_minutes = _fixed_horizon_minutes_or_none(definition)
+        if horizon_minutes is not None:
+            return compute_horizon_overlap_metadata(
+                definition.name,
+                raw_row_count=record_count,
+            ).to_dict()
+        metadata = definition.contract.contract_metadata.to_dict().get(
+            "horizon_overlap_metadata",
+            {},
+        )
+        return dict(metadata) if isinstance(metadata, Mapping) else {}
+    return {}
+
+
+def _metadata_terminal_kind(definition: FastSupportedLabelDefinition) -> str:
+    if isinstance(definition, FixedHorizonLabelDefinition):
+        return (
+            "fixed_horizon"
+            if _fixed_horizon_minutes_or_none(definition) is not None
+            else definition.label_id
+        )
+    if isinstance(definition, CostAdjustedLabelDefinition):
+        return "cost_adjusted_exact_bbo_horizon"
+    raise FastLabelPackError("unsupported fast label metadata definition")
 
 
 def _coerce_frame(frame: Any, polars: Any) -> Any:
@@ -1200,15 +1577,13 @@ def _require_pack(pack: FastLabelPack) -> FastLabelPack:
     if not isinstance(pack, FastLabelPack):
         raise FastLabelPackError("fast label materialization requires a FastLabelPack")
     for definition in pack.definitions:
-        if definition.contract.family is not LabelFamily.FIXED_HORIZON:
-            raise FastLabelPackError("fast label pack supports fixed-horizon labels only")
-        try:
-            definition.horizon_minutes
-        except FixedHorizonLabelError as exc:
+        contract = _definition_contract(definition)
+        if contract.family not in {LabelFamily.FIXED_HORIZON, LabelFamily.COST_ADJUSTED}:
             raise FastLabelPackError(
-                "fast fixed-horizon pack supports fixed-minute labels only; "
-                f"{definition.label_id} is routed to LCFP-P04"
-            ) from exc
+                "fast label pack supports fixed-horizon and cost-adjusted labels only"
+            )
+        if isinstance(definition, FixedHorizonLabelDefinition):
+            _fixed_horizon_minutes_or_none(definition)
     return pack
 
 
