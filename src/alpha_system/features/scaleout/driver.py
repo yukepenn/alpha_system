@@ -762,6 +762,23 @@ def _unit_identity_payload(
     return payload
 
 
+def _resolve_engine_token(engine: str | None, config: ScaleoutConfig) -> str:
+    """Resolve the effective engine for one scaleout run.
+
+    An explicit ``engine`` request is honored for every config type. When the
+    caller does not request an engine, label scaleout configs default to the
+    reference engine — the only production label path until the LCFP-P07 parity
+    and LCFP-P08 benchmark gates accept the fast label path — while feature
+    configs keep the V1 default.
+    """
+
+    if engine is None:
+        if _is_label_scaleout_config(config):
+            return SCALEOUT_ENGINE_REFERENCE
+        return DEFAULT_SCALEOUT_ENGINE
+    return _normalize_engine(engine)
+
+
 def run_scaleout(
     config: ScaleoutConfig,
     *,
@@ -771,7 +788,7 @@ def run_scaleout(
     rollout: str = "bounded-then-full",
     execute: bool = False,
     bounded_year: int | None = None,
-    engine: str = DEFAULT_SCALEOUT_ENGINE,
+    engine: str | None = None,
     unit_executor: UnitExecutor | None = None,
     target: ScaleoutTarget | None = None,
     workers: int | None = DEFAULT_CPU_WORKERS,
@@ -784,10 +801,15 @@ def run_scaleout(
     than one effective worker, canonical loading and value computation happen in
     worker processes and registry registration is replayed by this process in
     deterministic unit order.
+
+    ``engine=None`` means "default per config type": label scaleout configs
+    default to the reference engine until LCFP acceptance, feature configs
+    default to V1. An explicit ``engine="v1"`` opt-in on a label config is
+    honored.
     """
 
     rollout_token = _normalize_rollout(rollout)
-    engine_token = _normalize_engine(engine)
+    engine_token = _resolve_engine_token(engine, config)
     requested_workers = _normalize_workers(workers)
     force_recompute_token = _normalize_force_recompute(force_recompute)
     target = target or ScaleoutTarget()

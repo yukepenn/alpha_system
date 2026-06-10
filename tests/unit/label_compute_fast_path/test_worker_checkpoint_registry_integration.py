@@ -27,6 +27,7 @@ def test_label_fast_path_dry_run_targets_horizon_group_without_writes(tmp_path: 
     summary = run_scaleout(
         config,
         rollout="full-window",
+        engine="v1",
         target=ScaleoutTarget(
             label_groups=("extended",),
             horizon_groups=("extended",),
@@ -48,6 +49,17 @@ def test_label_fast_path_dry_run_targets_horizon_group_without_writes(tmp_path: 
         "fwd_ret_60m",
     ]
     assert not any(tmp_path.iterdir())
+
+
+def test_label_engine_defaults_to_reference_until_explicit_v1_opt_in() -> None:
+    config = load_scaleout_config(FIXED_CONFIG)
+    target = ScaleoutTarget(label_ids=("fwd_ret_1m",), symbols=("ES",), years=(2024,))
+
+    default_summary = run_scaleout(config, rollout="full-window", target=target)
+    opt_in_summary = run_scaleout(config, rollout="full-window", engine="v1", target=target)
+
+    assert default_summary.engine == "reference"
+    assert opt_in_summary.engine == "v1"
 
 
 def test_label_worker_env_and_cli_precedence() -> None:
@@ -179,6 +191,7 @@ def test_label_worker_compute_registers_serially_in_unit_order(
         canonical_root=tmp_path / "canonical",
         rollout="bounded-real",
         execute=True,
+        engine="v1",
         workers=8,
         target=target,
     )
@@ -235,6 +248,7 @@ def test_label_materialize_fast_path_cli_builds_targeting_request(
     assert target.symbols == ("ES", "NQ")
     assert target.years == (2024,)
     assert target.dataset_version_ids == ("dsv_one",)
+    assert captured["engine"] == "v1"
     assert captured["workers"] == 3
     assert captured["force_recompute"] is True
     assert captured["execute"] is False

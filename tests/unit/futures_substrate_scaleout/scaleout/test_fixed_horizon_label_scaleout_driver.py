@@ -118,6 +118,7 @@ def test_fixed_horizon_label_execute_is_serial_and_preserves_label_versions(
         canonical_root=tmp_path / "canonical",
         rollout="full-window",
         execute=True,
+        engine="v1",
         unit_executor=fake_executor,
         target=ScaleoutTarget(label_ids=("fwd_ret_10m",), symbols=("NQ",), years=(2024,)),
         workers=4,

@@ -396,7 +396,7 @@ def _emit_seed_label_pack(args: argparse.Namespace) -> None:
 def _emit_fast_label_materialize(args: argparse.Namespace) -> None:
     from alpha_system.cli.scaleout import _resolve_canonical_root, _resolve_label_workers
     from alpha_system.features.scaleout import (
-        DEFAULT_SCALEOUT_ENGINE,
+        SCALEOUT_ENGINE_V1,
         ScaleoutTarget,
         load_scaleout_config,
         render_scaleout_summary_markdown,
@@ -412,7 +412,9 @@ def _emit_fast_label_materialize(args: argparse.Namespace) -> None:
         rollout=args.rollout,
         execute=bool(args.execute),
         bounded_year=args.bounded_year,
-        engine=DEFAULT_SCALEOUT_ENGINE,
+        # --fast-path is the explicit V1 fast-label opt-in; label scaleout
+        # otherwise defaults to the reference engine until LCFP acceptance.
+        engine=SCALEOUT_ENGINE_V1,
         workers=_resolve_label_workers(args.workers, env=os.environ),
         force_recompute=args.force or None,
         target=ScaleoutTarget(

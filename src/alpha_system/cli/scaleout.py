@@ -317,8 +317,11 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     label_parser.add_argument(
         "--engine",
         choices=(SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE),
-        default=DEFAULT_SCALEOUT_ENGINE,
-        help="Producer engine for labels; defaults to V1 fast labels.",
+        default=None,
+        help=(
+            "Producer engine for labels; defaults to the reference engine until "
+            "the LCFP fast label path is accepted. Pass v1 to opt in explicitly."
+        ),
     )
     label_parser.add_argument(
         "--workers",

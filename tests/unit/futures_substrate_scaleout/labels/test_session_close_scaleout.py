@@ -103,7 +103,7 @@ def test_close_out_windows_do_not_cross_maintenance_or_roll() -> None:
 def test_session_close_maintenance_flat_scaleout_plans_reference_label_units() -> None:
     config = load_scaleout_config(CONFIG_PATH)
 
-    summary = run_scaleout(config, rollout="full-window", engine="v1", workers=4)
+    summary = run_scaleout(config, rollout="full-window", workers=4)
 
     assert config.label_names == ("session_close", "maintenance_flat")
     assert summary.engine == "reference"
