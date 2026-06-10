@@ -2574,6 +2574,42 @@ risk_controls:
     - frontier-plan
     - dag_scheduler
     - artifact audit
+executor_test_hygiene_policy:
+  added: '2026-06-10'
+  effective_from_phase: FUTSUB-P20
+  rationale: >-
+    Recurring CI test breaks in the label_materialization gate (FUTSUB-P14/P17/P18)
+    came from a predictable executor blind spot. The local research venv has the
+    polars data layer installed, but CI deliberately runs WITHOUT it (lean CI), so a
+    new data-layer test passes locally yet errors in CI; and extending an existing
+    label/feature family enum without updating that family's governance tests breaks
+    those tests. These rules close that gap at the source. They are test/CI hygiene
+    only and do NOT weaken any test, guard, gate, or coverage.
+  rules:
+  - id: polars-import-guard
+    rule: >-
+      Any new or modified test that imports or transitively exercises the polars data
+      layer (cli/seed_pack, core/value_store, data/storage, features/fast
+      pack_materializer, or any module that raises DataDependencyError when polars is
+      absent) MUST call pytest.importorskip("polars") at function or module level,
+      matching the existing repo convention, so CI without polars SKIPS rather than
+      errors. Do not blanket-skip pure-compute tests that do not need polars.
+  - id: family-extension-tests
+    rule: >-
+      When a phase adds members to an existing label or feature family enum, it MUST
+      update that family's existing governance / parametrized tests so their helpers
+      cover the new members (e.g. symbolic close-out horizons, extended horizons) and
+      never assume the prior taxonomy. Keep all existing assertions; only generalize.
+  - id: pre-handoff-test-check
+    rule: >-
+      Before writing the handoff, grep new/modified test files for data-layer imports
+      and confirm the importorskip guard is present; state this check explicitly in
+      the handoff validation section.
+  enforced_by: >-
+    Generated phase specs from FUTSUB-P20 onward must surface these rules in their
+    validation and handoff requirements. The Ralph driver and the Claude reviewer
+    treat a missing polars guard on a new data-layer test, or an un-updated family
+    governance test after an enum extension, as a phase defect (rework), not a pass.
 stop_conditions:
 - name: STOP file active
   condition: runs/<run_id>/STOP indicates active stop
