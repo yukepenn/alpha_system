@@ -16,6 +16,7 @@ import argparse
 import contextlib
 import json
 import os
+import re
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.frontier import lessons_candidates
 from tools.frontier.command_runner import CommandRunner
 from tools.frontier.config import load_config
 from tools.frontier.git_utils import (
@@ -192,6 +194,9 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
+    # Wall-clock of the underlying provider/CLI call. 0 for synthetic results
+    # (mock, replay-disabled) so existing constructors stay valid.
+    duration_ms: int = 0
 
 
 TOY_PHASES = (
@@ -1103,6 +1108,21 @@ def initialize_ledger_only_run(campaign_id: str) -> Path:
     return run_dir
 
 
+# Codex `exec` prints a trailing usage footer (e.g. "tokens used: 12,345").
+# Claude `-p` plain-text output carries no usage, so tokens stay None there —
+# never fabricated. The last match wins (the footer follows any echoed text).
+TOKENS_USED_RE = re.compile(r"tokens\s+used[:\s]+([\d,]+)", re.IGNORECASE)
+
+
+def parse_provider_tokens(result: CommandResult) -> int | None:
+    match = None
+    for match in TOKENS_USED_RE.finditer(f"{result.stdout}\n{result.stderr}"):
+        pass
+    if match is None:
+        return None
+    return int(match.group(1).replace(",", ""))
+
+
 def append_cost_record(
     run_dir: Path,
     state: dict[str, Any],
@@ -1111,6 +1131,8 @@ def append_cost_record(
     model: str | None,
     phase_id: str | None,
     note: str,
+    duration_ms: int | None = None,
+    tokens: int | None = None,
 ) -> None:
     with _RUN_WRITE_LOCK:
         state["estimated_cost_usd"] = float(state.get("estimated_cost_usd", 0.0))
@@ -1122,12 +1144,51 @@ def append_cost_record(
             "driver": PROVIDER_WIRED_DRIVER,
             "provider": provider,
             "model": model,
+            # USD stays 0.0 until a provider exposes real cost; tokens/duration
+            # are the honest measurements available today.
             "cost_usd": 0.0,
             "estimated_usd": 0.0,
+            "duration_ms": duration_ms,
+            "tokens": tokens,
             "note": note,
         }
         with (run_dir / "costs.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def cost_breakdown_lines(run_dir: Path) -> list[str]:
+    """Per-provider/stage rollup of costs.jsonl for the run summary."""
+    path = run_dir / "costs.jsonl"
+    if not path.exists():
+        return []
+    totals: dict[tuple[str, str], dict[str, float]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        key = (str(record.get("provider")), str(record.get("note")))
+        entry = totals.setdefault(key, {"calls": 0.0, "duration_ms": 0.0, "tokens": 0.0, "tokens_seen": 0.0})
+        entry["calls"] += 1
+        entry["duration_ms"] += float(record.get("duration_ms") or 0)
+        tokens = record.get("tokens")
+        if tokens:
+            entry["tokens"] += float(tokens)
+            entry["tokens_seen"] = 1
+    if not totals:
+        return []
+    lines = [
+        "",
+        "## Provider Time And Tokens",
+        "",
+        "| Provider | Stage | Calls | Wall-clock | Tokens |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for (provider, note), entry in sorted(totals.items()):
+        seconds = entry["duration_ms"] / 1000.0
+        tokens_cell = f"{int(entry['tokens']):,}" if entry["tokens_seen"] else "n/a"
+        lines.append(f"| {provider} | {note} | {int(entry['calls'])} | {seconds:,.0f}s | {tokens_cell} |")
+    return lines
 
 
 def initialize_provider_wired_run(
@@ -1582,6 +1643,21 @@ def write_provider_summary(run_dir: Path, state: dict[str, Any], note: str | Non
         for phase in blocked:
             reason = f" - {phase.get('status_reason')}" if phase.get("status_reason") else ""
             lines.append(f"- {phase['phase_id']}: {phase['status']}{reason}")
+    lines.extend(cost_breakdown_lines(run_dir))
+    with contextlib.suppress(Exception):
+        # Refresh friction signals for closeout distillation; never block a run.
+        if lessons_candidates.write_for_run(run_dir, state) is not None:
+            lines.extend(
+                [
+                    "",
+                    "## Lessons Flywheel",
+                    "",
+                    f"- Friction signals: `{lessons_candidates.OUTPUT_NAME}` (this run dir).",
+                    "- At closeout, promote validated entries into "
+                    "`.claude/skills/project-skill/lessons.md` (injected into all "
+                    "Workflow 2 prompts); prune to stay under the 12k cap.",
+                ]
+            )
     lines.extend(
         [
             "",
@@ -2384,7 +2460,13 @@ def claude_headless(prompt: str, *, root: Path = ROOT) -> CommandResult:
         )
     config = load_provider_config(root)
     response = ClaudeProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
-    return CommandResult(tuple(response.command), response.return_code, response.stdout, response.stderr)
+    return CommandResult(
+        tuple(response.command),
+        response.return_code,
+        response.stdout,
+        response.stderr,
+        response.duration_ms,
+    )
 
 
 def codex_noninteractive(prompt: str, *, root: Path = ROOT) -> CommandResult:
@@ -2397,7 +2479,13 @@ def codex_noninteractive(prompt: str, *, root: Path = ROOT) -> CommandResult:
         )
     config = load_provider_config(root)
     response = CodexProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
-    return CommandResult(tuple(response.command), response.return_code, response.stdout, response.stderr)
+    return CommandResult(
+        tuple(response.command),
+        response.return_code,
+        response.stdout,
+        response.stderr,
+        response.duration_ms,
+    )
 
 
 def write_provider_failure(path: Path, title: str, result: CommandResult) -> None:
@@ -4266,8 +4354,11 @@ def execute_provider_phase(
             state["claude_called_by_driver"] = True
             state["external_providers_called"] = True
             state["network_used"] = True
-            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="spec_generation")
             result = claude_headless(spec_prompt_text)
+            append_cost_record(
+                run_dir, state, provider="claude", model=None, phase_id=phase_id, note="spec_generation",
+                duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+            )
             if result.returncode != 0:
                 if handle_provider_nonzero(
                     run_dir,
@@ -4311,8 +4402,11 @@ def execute_provider_phase(
             state["codex_called_by_driver"] = True
             state["external_providers_called"] = True
             state["network_used"] = True
-            append_cost_record(run_dir, state, provider="codex", model=None, phase_id=phase_id, note="phase_execution")
             result = codex_noninteractive(exec_prompt_text, root=execution_root)
+            append_cost_record(
+                run_dir, state, provider="codex", model=None, phase_id=phase_id, note="phase_execution",
+                duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+            )
             executor_text = command_block(result)
             if result.returncode != 0:
                 (phase_dir / "executor_output.md").write_text(executor_text, encoding="utf-8")
@@ -4387,8 +4481,11 @@ def execute_provider_phase(
             review_text = mock_review_text(phase)
             append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_review")
         else:
-            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_review")
             result = claude_headless(review_prompt_text, root=execution_root)
+            append_cost_record(
+                run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_review",
+                duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+            )
             review_text = result.stdout if result.returncode == 0 else command_block(result)
             if result.returncode != 0:
                 if handle_provider_nonzero(
@@ -4475,8 +4572,11 @@ def execute_provider_phase(
                 done_text = mock_done_check_text(phase)
                 append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_done_check")
             else:
-                append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_done_check")
                 result = claude_headless(done_prompt, root=execution_root)
+                append_cost_record(
+                    run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_done_check",
+                    duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+                )
                 done_text = result.stdout if result.returncode == 0 else command_block(result)
                 if result.returncode != 0:
                     if handle_provider_nonzero(
@@ -4564,8 +4664,11 @@ def run_provider_repair_loop(
             state["codex_called_by_driver"] = True
             state["external_providers_called"] = True
             state["network_used"] = True
-            append_cost_record(run_dir, state, provider="codex", model=None, phase_id=phase_id, note="repair_execution")
             result = codex_noninteractive(repair_prompt_text, root=execution_root)
+            append_cost_record(
+                run_dir, state, provider="codex", model=None, phase_id=phase_id, note="repair_execution",
+                duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+            )
             repair_text = command_block(result)
             if result.returncode != 0:
                 (attempt_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
@@ -4613,8 +4716,11 @@ def run_provider_repair_loop(
             repaired_review_text = mock_review_text(phase)
             append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_repair_review")
         else:
-            append_cost_record(run_dir, state, provider="claude", model=None, phase_id=phase_id, note="repair_review")
             result = claude_headless(review_prompt_text, root=execution_root)
+            append_cost_record(
+                run_dir, state, provider="claude", model=None, phase_id=phase_id, note="repair_review",
+                duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+            )
             repaired_review_text = result.stdout if result.returncode == 0 else command_block(result)
             if result.returncode != 0:
                 if handle_provider_nonzero(
@@ -4669,8 +4775,11 @@ def run_campaign_done_check(run_dir: Path, state: dict[str, Any]) -> str:
         text = mock_campaign_done_check_text(state["campaign_id"])
         append_cost_record(run_dir, state, provider="mock", model=None, phase_id=None, note="mock_campaign_done_check")
     else:
-        append_cost_record(run_dir, state, provider="claude", model=None, phase_id=None, note="campaign_done_check")
         result = claude_headless(prompt)
+        append_cost_record(
+            run_dir, state, provider="claude", model=None, phase_id=None, note="campaign_done_check",
+            duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+        )
         text = result.stdout if result.returncode == 0 else command_block(result)
         if result.returncode != 0:
             status = classify_provider_nonzero("claude", result.stdout, result.stderr, result.returncode)
