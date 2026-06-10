@@ -268,3 +268,101 @@ def _definition(
     matches = tuple(definition for definition in definitions if definition.name is label_name)
     assert len(matches) == 1
     return matches[0]
+
+
+@pytest.mark.parametrize(
+    ("rows_factory", "expected_full_window_entries"),
+    (
+        # 7 rows around the maintenance break + timestamp gap, horizon 3:
+        # the reference emits the 4 entries with full positional windows.
+        ("maintenance_gap_recovery", 4),
+        # 8 contiguous rows inside the ES analytic roll window, horizon 3:
+        # the reference applies no roll guard and emits 5 entries.
+        ("roll_window_recovery", 5),
+    ),
+)
+def test_mfe_record_set_matches_reference_across_gaps_and_roll_windows(
+    rows_factory: str,
+    expected_full_window_entries: int,
+) -> None:
+    """Regression for LCFP-P08 finding 3 (1628 missing fast mfe records).
+
+    The reference path family resolves horizons positionally over real trade
+    bars with no roll or maintenance terminal guard; the fast kernel must emit
+    exactly the same record set on panels containing maintenance breaks,
+    timestamp gaps, and roll windows.
+    """
+
+    pytest.importorskip("polars")
+    from tests.fixtures.label_compute_fast_path.path_labels import (
+        maintenance_gap_recovery_ohlcv_rows,
+        roll_window_recovery_ohlcv_rows,
+    )
+
+    ohlcv_rows = (
+        maintenance_gap_recovery_ohlcv_rows()
+        if rows_factory == "maintenance_gap_recovery"
+        else roll_window_recovery_ohlcv_rows()
+    )
+    accepted = accepted_version(DATASET_ID)
+    definitions = _definitions(horizon_steps=3)
+
+    # Prove the fixture actually triggers the pre-repair drop mechanism: the
+    # fixed-minute guarded terminal model (which the old kernel consumed)
+    # drops at least one entry that the reference emits positionally.
+    panel = build_shared_label_panel(
+        symbol="ES",
+        year=2024,
+        ohlcv_rows=ohlcv_rows,
+        root_symbol="ES",
+    )
+    guarded = resolve_terminal_indices(
+        panel,
+        TerminalRequest(kind=TerminalKind.FIXED_HORIZON, horizon_minutes=3),
+    )
+    assert any(
+        resolution.disposition is TerminalGuardDisposition.DROP
+        for resolution in guarded.resolutions
+    ), "fixture no longer exercises the guarded-drop mechanism"
+
+    reference_records = compute_path_labels(
+        definitions,
+        build_ohlcv_input_view(
+            accepted,
+            ohlcv_rows,
+            partition_id=PARTITION_ID,
+            purpose=f"lcfp_p08_repair_{rows_factory}_reference",
+        ),
+    )
+
+    materializer = FastLabelMaterializer()
+    computation = materializer.compute_values_with_metadata(
+        materializer.frame_from_rows(ohlcv_rows=ohlcv_rows, bbo_rows=()),
+        build_path_label_pack(definitions),
+    )
+    fast_records = _records_by_label_version(computation.records)
+
+    mfe_definition = _definition(PathLabelName.MFE, definitions)
+    mfe_reference = reference_records[PathLabelName.MFE]
+    mfe_fast = fast_records.get(mfe_definition.label_version_id, ())
+
+    # The mechanism requires the reference to emit records here at all.
+    assert len(mfe_reference) == expected_full_window_entries
+    reference_keys = {(record.entity_id, record.event_ts) for record in mfe_reference}
+    fast_keys = {(record.entity_id, record.event_ts) for record in mfe_fast}
+    assert fast_keys == reference_keys, (
+        f"missing_fast_records={len(reference_keys - fast_keys)} "
+        f"extra_fast_records={len(fast_keys - reference_keys)}"
+    )
+    tolerance = LabelParityTolerance(
+        abs=1e-12,
+        rel=1e-12,
+        reason="Decimal reference path arithmetic is compared to float panel arithmetic",
+    )
+    for definition in definitions:
+        assert_label_records_match(
+            reference_records[definition.name],
+            fast_records.get(definition.label_version_id, ()),
+            expected_label_version_id=definition.label_version_id,
+            tolerance=tolerance,
+        )

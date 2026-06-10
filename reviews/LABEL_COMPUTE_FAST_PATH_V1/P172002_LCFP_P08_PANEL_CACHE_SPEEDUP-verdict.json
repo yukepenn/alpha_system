@@ -1,0 +1,31 @@
+{
+  "schema_version": "frontier-review-verdict-v1",
+  "campaign_id": "LABEL_COMPUTE_FAST_PATH_V1",
+  "phase_id": "P172002_LCFP_P08_PANEL_CACHE_SPEEDUP",
+  "verdict": "REWORK",
+  "severity": "warning",
+  "findings": [
+    "Contract amendment is honest re-scoping, not gate weakening: dated/attributed in both ACCEPTANCE.md and campaign.yaml, texts mutually consistent, path-family 'must be materially faster' floor preserved; 9.24hr claim traces to committed P01 baseline (baseline_benchmark_summary.md:51) and 0.34-0.73x figures trace to the committed benchmark_summary.md.",
+    "Cache safety PASS: frame cache keyed on full LabelPanelFrameRequest (canonical root + OHLCV dsv + BBO dsv + symbol + year + window + partition schemas), bounded FIFO (2) with eviction that also drops derived panel/terminal caches; id()-keyed panel cache holds a strong ref + identity check so stale aliasing is impossible; process-local only; reset_fast_label_materializer_caches() called per benchmark cell; reference engine untouched (no labels/families/** change).",
+    "Semantic invisibility PASS at the strongest level: test_panel_frame_cache.py proves cached == uncached on full record sets AND registry-eligible payloads (compute_value_content_hash of canonical record dicts + metadata.to_dict()), plus no-aliasing-across-dataset-versions and bounded-eviction tests.",
+    "Parity/guard/identity PASS: parity_harness.py and all pre-existing tests unmodified (tracked test diffs purely additive; 1e-12 path tolerance matches pre-existing test_path_label_pack.py:75); path fast-kernel guard removal verified against the oracle (labels/families/path/family.py applies no roll/maintenance guard and resolves horizons positionally) - the old guarded kernel WAS the 1628-missing-records bug; label_version_id identity and label_available_ts derivation unchanged.",
+    "Engine default PASS: driver.py:838-841 - labels default to reference engine, v1 is explicit opt-in; _resolve_engine_token untouched.",
+    "Benchmark methodology matches code: _run_worker_count separates fast_compute / registration / parity timers (benchmark_gate.py:793-859); throughput uses fast_compute only; reference timed bounded-slice only; asymmetry disclosure true; component-timing regression test pins the contamination fix.",
+    "All five blocker fixes verified with recurrence-catching regression tests: grid coverage (test_label_horizon_grid_coverage.py incl. golden name-grain unit id mbu_68b7777e24a6eb98ef16e40d for FUTSUB stability), BBO DatasetVersion routing (materializer + driver fail-closed + 2 tests), mfe record-set parity across gaps/roll windows (fixture proves the old DROP mechanism fires), timing decomposition, cost_adjusted un-joined SharedBBOQuoteRow iteration with sub-minute-jitter regression test.",
+    "Artifact policy PASS: git ls-files runs empty; parquet/sqlite/arrow/feather/db globs empty; summary value-free (counts/timings/ids only).",
+    "Validation green: 71+83+65 tests passed across label_compute_fast_path, futures_substrate_scaleout (full), feature_compute_fast_path, no_lookahead fail-closed, artifact policy; verify.py --smoke exit 0; all canaries PASS.",
+    "BLOCKING (required repair 1, mtime-confirmed): committed benchmark_summary.md (generated 2026-06-10T17:18:35Z) predates the panel-cache materializer code (labels/fast/materializer.py mtime 17:28Z, ten minutes AFTER summary generation; no benchmark process currently running) - it is the WF1 spec's own 'before' evidence; the mandated post-cache re-run/regeneration must land before merge.",
+    "BLOCKING (required repair 2): benchmark_gate.py still implements the superseded criterion - status goes BLOCKED_SPEEDUP if ANY family <= 1.0 (lines ~676-686) and render_summary_markdown emits no per-family engine+worker policy, so even the regenerated summary cannot satisfy the amended done_criterion ('selected production engine + worker policy PER FAMILY' in the committed summary)."
+  ],
+  "required_repairs": [
+    "Re-run the full benchmark gate on the current code (workers 1/2/4/8, parity + resolver smoke per count) and commit the regenerated value-free benchmark_summary.md; do not merge the branch with the stale 2026-06-10T17:18Z pre-cache summary.",
+    "Align tools/label_compute_fast_path/benchmark_gate.py with the amended LCFP-P08 done_criterion: emit the selected production engine + worker policy PER FAMILY in the summary; keep path-family speedup <= 1.0 as a hard block; treat cheap-family speedup <= 1.0 as a documented per-family reference-engine selection instead of a global BLOCKED_SPEEDUP; fix the 'Status: SELECTED' policy field shown inside blocked summaries."
+  ],
+  "warnings": [
+    "campaign.yaml amendment rationale cites uncommitted local profiling ('warm residual is kernel + value-store write'); ensure the regenerated summary's component timings independently support it or soften the wording.",
+    "Scope formally exceeds the WF2 run-spec Allowed Paths (features/scaleout/driver.py) and Allowed Test Paths (new test under tests/unit/futures_substrate_scaleout/labels/); authorized by the WF1 phase spec and the coordinator-run repair branch, additive-only - the P08 re-reviewer should treat the WF1 spec as the authorization.",
+    "_LABEL_ACCEPTED_CONTEXT_CACHE key omits partition_id/label-set/repo_root; safe today (accepted DatasetVersion handle built only from dataset_version_id/symbol/window, partition_id passed per-unit) but a staleness trap if _build_accepted_context ever embeds partition or label-set data - add a guard."
+  ],
+  "source": "review",
+  "parsed_at": "2026-06-10T17:45:51Z"
+}

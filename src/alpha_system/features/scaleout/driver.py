@@ -200,6 +200,7 @@ class ScaleoutConfig:
     symbols: tuple[str, ...]
     years: tuple[int, ...]
     input_schemas: tuple[str, ...]
+    horizons: tuple[str, ...]
     dense_grid_required: bool
     row_budget_per_unit: int
     estimated_seconds_per_unit: float
@@ -254,12 +255,13 @@ class ScaleoutUnit:
     feature_set_id: str
     feature_set_version: str
     feature_names: tuple[str, ...]
+    horizon: str = ""
     input_datasets: tuple[ScaleoutInputDataset, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible unit summary."""
 
-        return {
+        payload: dict[str, object] = {
             "unit_id": self.unit_id,
             "family": self.family,
             "schema": self.schema_id,
@@ -278,6 +280,9 @@ class ScaleoutUnit:
                 "features": list(self.feature_names),
             },
         }
+        if self.horizon:
+            payload["horizon"] = self.horizon
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -560,6 +565,7 @@ def load_scaleout_config(path: str | Path = DEFAULT_SCALEOUT_CONFIG) -> Scaleout
         symbols=_text_tuple(grid.get("symbols"), "batch_unit_grid.symbols"),
         years=_int_tuple(grid.get("years"), "batch_unit_grid.years"),
         input_schemas=_text_tuple(grid.get("input_schemas"), "batch_unit_grid.input_schemas"),
+        horizons=_optional_text_tuple(grid.get("horizons"), "batch_unit_grid.horizons"),
         dense_grid_required=_optional_bool(
             grid.get("dense_grid_required"),
             "batch_unit_grid.dense_grid_required",
@@ -664,26 +670,35 @@ def build_scaleout_units(
             continue
         primary = _primary_input_dataset(config, tuple(input_datasets))
         for symbol in selected_symbols:
-            name_groups = (
-                tuple((name,) for name in selected_names)
-                if _is_label_scaleout_config(config)
-                else (selected_names,)
-            )
-            for names in name_groups:
-                horizon = names[0] if _is_label_scaleout_config(config) else ""
+            if _is_label_scaleout_config(config):
+                if _label_config_needs_horizon_grid(config):
+                    # The configured horizon grid is orthogonal to the label
+                    # names (cost_adjusted, path): one unit per horizon carries
+                    # every governed label name so the full name x horizon
+                    # surface is wired (LCFP-P08 coverage repair).
+                    unit_axes = tuple(
+                        (selected_names, horizon, horizon) for horizon in config.horizons
+                    )
+                else:
+                    # Label names embed their horizon (fixed/extended/close-out):
+                    # keep the established one-name-per-unit grain and identity.
+                    unit_axes = tuple(((name,), name, "") for name in selected_names)
+            else:
+                unit_axes = ((selected_names, "", ""),)
+            for names, horizon_token, grid_horizon in unit_axes:
                 partition_id = _render_partition(
                     config.partition_template,
                     symbol=symbol,
                     year=year,
-                    horizon=horizon,
+                    horizon=horizon_token,
                 )
                 set_kind = "label_set" if _is_label_scaleout_config(config) else "feature_set"
                 set_id = f"{set_kind}_futures_scaleout_{config.family}"
                 if _is_label_scaleout_config(config):
-                    set_id = f"{set_id}_{horizon}"
+                    set_id = f"{set_id}_{horizon_token}"
                 set_version = f"v1_{symbol.lower()}_{year}"
                 if _is_label_scaleout_config(config):
-                    set_version = f"{set_version}_{horizon}"
+                    set_version = f"{set_version}_{horizon_token}"
                 unit_payload = _unit_identity_payload(
                     config,
                     symbol=symbol,
@@ -693,6 +708,7 @@ def build_scaleout_units(
                     feature_set_id=set_id,
                     feature_set_version=set_version,
                     feature_names=names,
+                    horizon=grid_horizon,
                 )
                 units.append(
                     ScaleoutUnit(
@@ -713,10 +729,21 @@ def build_scaleout_units(
                         feature_set_id=set_id,
                         feature_set_version=set_version,
                         feature_names=names,
+                        horizon=grid_horizon,
                         input_datasets=tuple(input_datasets),
                     )
                 )
     return tuple(sorted(units, key=lambda item: (item.year, item.symbol, item.schema_id)))
+
+
+def _label_config_needs_horizon_grid(config: ScaleoutConfig) -> bool:
+    """True when the configured horizon grid is orthogonal to the label names."""
+
+    if not config.horizons:
+        return False
+    return all(
+        _label_horizon_token(name) not in config.horizons for name in config.label_names
+    )
 
 
 def _primary_input_dataset(
@@ -740,6 +767,7 @@ def _unit_identity_payload(
     feature_set_id: str,
     feature_set_version: str,
     feature_names: tuple[str, ...],
+    horizon: str = "",
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "schema": SCALEOUT_CONFIG_SCHEMA,
@@ -753,6 +781,11 @@ def _unit_identity_payload(
         "feature_set_id": feature_set_id,
         "feature_set_version": feature_set_version,
     }
+    if horizon:
+        # Horizon-grid label units (cost_adjusted, path) key identity on the
+        # grid horizon per the config unit_id_formula. Name-grain units keep
+        # the established payload so previously materialized unit ids hold.
+        payload["horizon"] = horizon
     configured_names = config.label_names if _is_label_scaleout_config(config) else config.feature_names
     if feature_names != configured_names:
         key = "selected_label_names" if _is_label_scaleout_config(config) else "selected_feature_names"
@@ -1240,10 +1273,10 @@ def _compute_fast_label_unit_output(
     """Compute and persist one fast label unit without mutating the registry."""
 
     from alpha_system.core.value_store import ValueStoreHandle
+    from alpha_system.data.foundation.canonical_loader import DEFAULT_BBO_PARTITION_SCHEMA
     from alpha_system.labels.fast import (
         FAST_LABEL_PRODUCER_ENGINE_ID,
         FAST_LABEL_VALUE_SCHEMA_VERSION,
-        FastLabelMaterializer,
         FastLabelWorkerUnitOutput,
         LabelPanelFrameRequest,
         label_worker_manifest_from_result,
@@ -1259,11 +1292,14 @@ def _compute_fast_label_unit_output(
         dataset_registry_path=dataset_registry_path,
         canonical_root=canonical_root,
     )
-    materializer = (
-        FastLabelMaterializer()
-        if _fast_label_pack_requires_bbo(pack)
-        else FastLabelMaterializer(canonical_bbo_loader=_empty_bbo_loader)
-    )
+    requires_bbo = _fast_label_pack_requires_bbo(pack)
+    materializer = _shared_fast_label_materializer(requires_bbo=requires_bbo)
+    bbo_dataset = _label_bbo_input_dataset(unit) if requires_bbo else None
+    if requires_bbo and bbo_dataset is None:
+        raise ScaleoutError(
+            f"unit {unit.unit_id} requires a BBO input DatasetVersion but none "
+            "is wired in unit.input_datasets"
+        )
     request = LabelPanelFrameRequest(
         canonical_root=canonical_root,
         dataset_version_id=unit.dataset_version_id,
@@ -1275,6 +1311,18 @@ def _compute_fast_label_unit_output(
             canonical_root,
             unit.dataset_version_id,
             unit.schema_id,
+        ),
+        bbo_partition_schema=(
+            _on_disk_partition_schema(
+                canonical_root,
+                bbo_dataset.dataset_version_id,
+                bbo_dataset.schema_id,
+            )
+            if bbo_dataset is not None
+            else DEFAULT_BBO_PARTITION_SCHEMA
+        ),
+        bbo_dataset_version_id=(
+            bbo_dataset.dataset_version_id if bbo_dataset is not None else None
         ),
     )
     result = materializer.materialize_pack(
@@ -1528,6 +1576,16 @@ def _generic_label_seed_config(config: ScaleoutConfig, unit: ScaleoutUnit) -> An
     )
 
 
+# Process-local accepted-context cache. The accepted context (canonical bar
+# load + quality/coverage reports + DatasetVersion handle) depends only on the
+# dataset/window identity, never on the unit's label set, so consecutive
+# per-horizon units of one symbol-year reuse one validation instead of
+# re-parsing the canonical slice per unit. Bounded; cleared with the
+# materializer caches for benchmark cold starts.
+_LABEL_ACCEPTED_CONTEXT_CACHE: dict[tuple[str, ...], Any] = {}
+_LABEL_ACCEPTED_CONTEXT_CACHE_MAX = 2
+
+
 def _label_accepted_context(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
@@ -1537,7 +1595,19 @@ def _label_accepted_context(
 ) -> Any:
     from alpha_system.cli.seed_pack import _build_accepted_context
 
-    return _build_accepted_context(
+    cache_key = (
+        unit.dataset_version_id,
+        unit.symbol,
+        unit.schema_id,
+        unit.window_start_ts,
+        unit.window_end_ts,
+        str(canonical_root),
+        str(dataset_registry_path),
+    )
+    cached = _LABEL_ACCEPTED_CONTEXT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    context = _build_accepted_context(
         _generic_label_seed_config(config, unit),
         canonical_root=canonical_root,
         datasets_registry_path=dataset_registry_path,
@@ -1546,6 +1616,10 @@ def _label_accepted_context(
         quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
     )
+    while len(_LABEL_ACCEPTED_CONTEXT_CACHE) >= _LABEL_ACCEPTED_CONTEXT_CACHE_MAX:
+        _LABEL_ACCEPTED_CONTEXT_CACHE.pop(next(iter(_LABEL_ACCEPTED_CONTEXT_CACHE)), None)
+    _LABEL_ACCEPTED_CONTEXT_CACHE[cache_key] = context
+    return context
 
 
 def _label_input_dataset_version_ids(unit: ScaleoutUnit) -> tuple[str, ...]:
@@ -1553,7 +1627,9 @@ def _label_input_dataset_version_ids(unit: ScaleoutUnit) -> tuple[str, ...]:
     return values or (unit.dataset_version_id,)
 
 
-def _scaleout_label_horizon(name: str) -> str:
+def _scaleout_label_horizon(name: str, unit: ScaleoutUnit | None = None) -> str:
+    if unit is not None and unit.horizon:
+        return unit.horizon
     if name in {"session_close", "maintenance_flat"}:
         return name
     token = _label_horizon_token(name)
@@ -1565,7 +1641,7 @@ def _scaleout_label_horizon(name: str) -> str:
 def _cost_adjusted_label_spec(name: str, unit: ScaleoutUnit) -> Any:
     from alpha_system.governance.label_spec import create_label_spec
 
-    horizon = _scaleout_label_horizon(name)
+    horizon = _scaleout_label_horizon(name, unit)
     model = "spread_plus_bps" if name == "cost_adjusted_fwd_ret" else "spread_adjusted"
     cost_model: dict[str, Any] = {
         "model": model,
@@ -1598,7 +1674,7 @@ def _cost_adjusted_label_spec(name: str, unit: ScaleoutUnit) -> Any:
 def _path_label_spec(name: str, unit: ScaleoutUnit) -> Any:
     from alpha_system.governance.label_spec import create_label_spec
 
-    horizon_steps = int(_scaleout_label_horizon(name).removesuffix("m"))
+    horizon_steps = int(_scaleout_label_horizon(name, unit).removesuffix("m"))
     path_label_ids = [f"path_{label_name}" for label_name in unit.feature_names]
     return create_label_spec(
         horizon=f"{horizon_steps}_trade_bars",
@@ -1639,6 +1715,48 @@ def _fast_label_pack_requires_bbo(pack: Any) -> bool:
 
 def _empty_bbo_loader(**_kwargs: Any) -> tuple[Mapping[str, Any], ...]:
     return ()
+
+
+def _label_bbo_input_dataset(unit: ScaleoutUnit) -> ScaleoutInputDataset | None:
+    """Return the unit's BBO input DatasetVersion, if one is wired.
+
+    The BBO panel must load from the BBO DatasetVersion, never from a
+    ``schema=bbo_1m`` path under the OHLCV DatasetVersion (LCFP-P08 repair).
+    """
+
+    for dataset in unit.input_datasets:
+        if dataset.schema_id.startswith("bbo"):
+            return dataset
+    return None
+
+
+# Process-local fast-label materializers. Sharing one materializer per BBO
+# flavor lets consecutive units of the same symbol-year reuse the loaded frame,
+# prepared shared panel, and terminal-index models (the once-per-batch input
+# adaptation), instead of re-running them per horizon unit. The materializer
+# bounds its own caches, and registry writes stay on the serial keystone path.
+_FAST_LABEL_MATERIALIZERS: dict[bool, Any] = {}
+
+
+def _shared_fast_label_materializer(*, requires_bbo: bool) -> Any:
+    from alpha_system.labels.fast import FastLabelMaterializer
+
+    materializer = _FAST_LABEL_MATERIALIZERS.get(requires_bbo)
+    if materializer is None:
+        materializer = (
+            FastLabelMaterializer()
+            if requires_bbo
+            else FastLabelMaterializer(canonical_bbo_loader=_empty_bbo_loader)
+        )
+        _FAST_LABEL_MATERIALIZERS[requires_bbo] = materializer
+    return materializer
+
+
+def reset_fast_label_materializer_caches() -> None:
+    """Drop process-local fast-label caches (benchmark cold starts)."""
+
+    _FAST_LABEL_MATERIALIZERS.clear()
+    _LABEL_ACCEPTED_CONTEXT_CACHE.clear()
 
 
 def _bar_or_dense_inputs(

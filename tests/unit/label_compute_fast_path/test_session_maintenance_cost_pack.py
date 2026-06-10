@@ -364,3 +364,190 @@ def _cost_label_spec(
         },
         leakage_checks=["label_as_feature", "availability_time"],
     )
+
+
+def test_panel_frame_request_routes_bbo_to_the_bbo_dataset_version() -> None:
+    """Regression for LCFP-P08 finding 2: the BBO panel must load from the BBO
+    DatasetVersion, never from a schema=bbo_1m path under the OHLCV
+    DatasetVersion."""
+
+    pytest.importorskip("polars")
+    from alpha_system.labels.fast import LabelPanelFrameRequest
+
+    captured: dict[str, dict[str, object]] = {}
+
+    def _fake_ohlcv_loader(**kwargs: object):
+        captured["ohlcv"] = kwargs
+        return cost_adjusted_ohlcv_rows()
+
+    def _fake_bbo_loader(**kwargs: object):
+        captured["bbo"] = kwargs
+        return cost_adjusted_bbo_rows()
+
+    materializer = FastLabelMaterializer(
+        canonical_ohlcv_loader=_fake_ohlcv_loader,
+        canonical_bbo_loader=_fake_bbo_loader,
+    )
+    request = LabelPanelFrameRequest(
+        canonical_root="/tmp/synthetic_canonical_root",
+        dataset_version_id="dsv_synthetic_ohlcv",
+        bbo_dataset_version_id="dsv_synthetic_bbo",
+        symbol="ES",
+        year=2024,
+    )
+    materializer.load_symbol_year_price_frame(request)
+
+    assert captured["ohlcv"]["dataset_version_id"] == "dsv_synthetic_ohlcv"
+    assert captured["bbo"]["dataset_version_id"] == "dsv_synthetic_bbo"
+    # Backward-compatible fallback: single-DatasetVersion synthetic requests
+    # keep loading both views from the one id.
+    fallback = LabelPanelFrameRequest(
+        canonical_root="/tmp/synthetic_canonical_root",
+        dataset_version_id="dsv_synthetic_only",
+        symbol="ES",
+        year=2024,
+    )
+    materializer.load_symbol_year_price_frame(fallback)
+    assert captured["bbo"]["dataset_version_id"] == "dsv_synthetic_only"
+
+
+def test_scaleout_unit_bbo_input_dataset_selection() -> None:
+    """The driver must wire the unit's bbo_1m input DatasetVersion into the
+    panel request (LCFP-P08 finding 2)."""
+
+    from alpha_system.features.scaleout.driver import (
+        ScaleoutInputDataset,
+        ScaleoutUnit,
+        _label_bbo_input_dataset,
+    )
+
+    ohlcv = ScaleoutInputDataset(
+        schema_id="ohlcv_1m",
+        dataset_version_id="dsv_databento_ohlcv_05404069799decb0",
+        acceptance_state="ACCEPTED",
+        acceptance_state_source="committed_summary",
+    )
+    bbo = ScaleoutInputDataset(
+        schema_id="bbo_1m",
+        dataset_version_id="dsv_databento_bbo_f9e1d70a04d9dae4",
+        acceptance_state="ACCEPTED",
+        acceptance_state_source="committed_summary",
+    )
+    unit = ScaleoutUnit(
+        unit_id="mbu_synthetic_bbo_routing",
+        family="cost_adjusted",
+        schema_id="ohlcv_1m",
+        symbol="ES",
+        year=2024,
+        dataset_version_id=ohlcv.dataset_version_id,
+        acceptance_state="ACCEPTED",
+        acceptance_state_source="committed_summary",
+        partition_id="ES.2024.5m",
+        window_start_ts="2024-01-01T00:00:00+00:00",
+        window_end_ts="2025-01-01T00:00:00+00:00",
+        feature_set_id="label_set_futures_scaleout_cost_adjusted_5m",
+        feature_set_version="v1_es_2024_5m",
+        feature_names=("cost_adjusted_fwd_ret", "spread_adjusted_fwd_ret"),
+        horizon="5m",
+        input_datasets=(ohlcv, bbo),
+    )
+
+    selected = _label_bbo_input_dataset(unit)
+    assert selected is not None
+    assert selected.dataset_version_id == "dsv_databento_bbo_f9e1d70a04d9dae4"
+    assert selected.schema_id == "bbo_1m"
+
+    ohlcv_only = ScaleoutUnit(
+        unit_id="mbu_synthetic_no_bbo",
+        family="path",
+        schema_id="ohlcv_1m",
+        symbol="ES",
+        year=2024,
+        dataset_version_id=ohlcv.dataset_version_id,
+        acceptance_state="ACCEPTED",
+        acceptance_state_source="committed_summary",
+        partition_id="ES.2024.5m",
+        window_start_ts="2024-01-01T00:00:00+00:00",
+        window_end_ts="2025-01-01T00:00:00+00:00",
+        feature_set_id="label_set_futures_scaleout_path_5m",
+        feature_set_version="v1_es_2024_5m",
+        feature_names=("mfe", "mae", "target_before_stop", "triple_barrier"),
+        horizon="5m",
+        input_datasets=(ohlcv,),
+    )
+    assert _label_bbo_input_dataset(ohlcv_only) is None
+
+
+def test_cost_adjusted_matches_reference_on_misaligned_bbo_timestamps() -> None:
+    """Regression for the LCFP-P08 cost-adjusted real-slice failure mechanism.
+
+    Real canonical BBO event timestamps are not minute-aligned, so the
+    OHLCV-anchored panel join attaches no BBO and the old kernel emitted zero
+    records. The fast kernel must iterate the BBO quote rows directly, like
+    the reference family, and emit one record per quote row at the quote's own
+    timestamp.
+    """
+
+    pytest.importorskip("polars")
+    accepted = accepted_version(DATASET_ID)
+    definitions = _cost_adjusted_definitions()
+    ohlcv_rows = cost_adjusted_ohlcv_rows()
+    offset = timedelta(seconds=-0.389711)  # sub-minute sampling jitter
+
+    def _shift(value: str) -> str:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return (parsed + offset).isoformat()
+
+    bbo_rows = tuple(
+        {
+            **dict(row),
+            "event_ts": _shift(row["event_ts"]),
+            "bar_end_ts": _shift(row["bar_end_ts"]),
+            "available_ts": _shift(row["available_ts"]),
+        }
+        for row in cost_adjusted_bbo_rows()
+    )
+    ohlcv_view = build_ohlcv_input_view(
+        accepted,
+        ohlcv_rows,
+        partition_id=PARTITION_ID,
+        purpose="lcfp_p08_cost_misaligned_reference",
+    )
+    bbo_view = build_bbo_input_view(
+        accepted,
+        bbo_rows,
+        partition_id=PARTITION_ID,
+        purpose="lcfp_p08_cost_misaligned_reference",
+    )
+    reference_records = compute_cost_adjusted_labels(
+        definitions,
+        bbo_view,
+        trade_rows=ohlcv_view.rows,
+    )
+
+    materializer = FastLabelMaterializer()
+    computation = materializer.compute_values_with_metadata(
+        materializer.frame_from_rows(ohlcv_rows=ohlcv_rows, bbo_rows=bbo_rows),
+        build_cost_adjusted_label_pack(definitions),
+    )
+    fast_records = _records_by_label_version(computation.records)
+
+    tolerance = LabelParityTolerance(
+        abs=1e-12,
+        rel=1e-12,
+        reason="Decimal reference arithmetic is reconstructed from a float Polars panel",
+    )
+    for definition in definitions:
+        reference = reference_records[definition.name]
+        fast = fast_records.get(definition.label_version_id, ())
+        # One record per BBO quote row, at the quote's own (shifted) ts.
+        assert len(reference) == len(bbo_rows)
+        assert {record.event_ts for record in fast} == {
+            record.event_ts for record in reference
+        }
+        assert_label_records_match(
+            reference,
+            fast,
+            expected_label_version_id=definition.label_version_id,
+            tolerance=tolerance,
+        )
