@@ -194,3 +194,32 @@ Relevant docs:
 - `docs/REVIEW_BUNDLES.md`
 - `docs/SOURCE_MAPS.md`
 - `docs/AUDIT_REPORTS.md`
+
+## Research Workflow — Governance Order (folded from RESEARCH_WORKFLOW.md)
+
+Local, reviewable, staged from diagnostics to validation:
+
+1. Validate local input data and quality flags.
+2. Build canonical bars with point-in-time timestamp semantics.
+3. Validate factor definitions and declared inputs.
+4. Run factor diagnostics before any strategy/grid interpretation.
+5. Run bounded study grids for specific hypotheses.
+6. Run survivor management grids only after initial diagnostics.
+7. Validate finalists with the Reference 1-minute bar execution truth.
+8. Build Markdown/CSV/optional static HTML reports.
+9. Review evidence, limitations, versions, and run manifests.
+
+This is research governance, not a tradability/profitability claim.
+
+**Grid discipline:** diagnostics first; bounded grids defined before execution;
+only survivors enter management-rule exploration; finalists return to the
+Reference truth model. Fast paths add throughput only after Reference parity —
+they never change the evidence standard. ML/factor-combination work uses
+versioned factor inputs, must be purge/embargo/walk-forward ready, and labels are
+never live features.
+
+**Failure visibility:** failed runs stay visible in local run artifacts and
+handoffs; never hide a failed run by rerunning until only successes remain.
+
+> The Workflow-2 agent contract (Ralph/Codex/Claude roles, state machine, lanes,
+> run artifacts) lives in `AGENTS.md` and `docs/AI_AGENT_GUIDE.md`.

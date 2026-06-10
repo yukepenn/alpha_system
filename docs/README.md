@@ -13,7 +13,7 @@ and [`_historical/`](_historical/) (superseded docs, kept for audit).
 - [ONBOARDING.md](ONBOARDING.md) — local-first quickstart.
 - [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — human research workflow.
 - [AI_AGENT_GUIDE.md](AI_AGENT_GUIDE.md) — Workflow-2 AI agent guide.
-- [CLI_REFERENCE.md](CLI_REFERENCE.md) · [CLI_COMMANDS_TARGET.md](CLI_COMMANDS_TARGET.md) — current and target CLI surface.
+- [CLI_REFERENCE.md](CLI_REFERENCE.md) — current CLI surface (incl. a "Planned / Target CLI Surface" section).
 - [EXAMPLE_WORKFLOWS.md](EXAMPLE_WORKFLOWS.md) · [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## Feature/Label Foundation (next campaign)
@@ -24,9 +24,9 @@ and [`_historical/`](_historical/) (superseded docs, kept for audit).
 - [DOMAIN_BOUNDARIES.md](DOMAIN_BOUNDARIES.md) · [INSTRUMENT_MASTER.md](INSTRUMENT_MASTER.md) · [METADATA_REGISTRY.md](METADATA_REGISTRY.md) · [SOURCE_MAPS.md](SOURCE_MAPS.md)
 
 ## Harness & process (Workflow 1 / Workflow 2)
-- [HARNESS_WORKFLOW_2.md](HARNESS_WORKFLOW_2.md) — Ralph Workflow-2 driver contract.
+- Workflow-2 driver contract: see [`../AGENTS.md`](../AGENTS.md) and [AI_AGENT_GUIDE.md](AI_AGENT_GUIDE.md) (state machine, roles, lanes, run artifacts).
 - [GIT_AND_ARTIFACT_DISCIPLINE.md](GIT_AND_ARTIFACT_DISCIPLINE.md) · [ARTIFACT_POLICY.md](ARTIFACT_POLICY.md) · [STOP_AND_RESUME.md](STOP_AND_RESUME.md)
-- [RESEARCH_WORKFLOW.md](RESEARCH_WORKFLOW.md) · [MANAGEMENT_GRID_WORKFLOW.md](MANAGEMENT_GRID_WORKFLOW.md)
+- Research workflow governance order: see [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) · [MANAGEMENT_GRID_WORKFLOW.md](MANAGEMENT_GRID_WORKFLOW.md)
 - [automation_lanes.md](automation_lanes.md) · [campaign_authoring.md](campaign_authoring.md) · [model_routing.md](model_routing.md) · [operations.md](operations.md) · [validation.md](validation.md) · [workflow.md](workflow.md)
 - See also [`harness/HARNESS_NOTES.md`](harness/HARNESS_NOTES.md) — harness maintainability backlog, and [`STRUCTURAL_BACKLOG.md`](STRUCTURAL_BACKLOG.md) — deferred data-layer / provider-boundary refactors.
 
