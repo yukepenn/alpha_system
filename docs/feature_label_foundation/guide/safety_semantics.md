@@ -117,5 +117,8 @@ QUARANTINED
 DEPRECATED
 ```
 
-Only `READY_FOR_STUDY` is the terminal study-consumable state in this substrate.
-It means a governed study may reference the object. It is not a result claim.
+As of 2026-06-11, `READY_FOR_STUDY` is reserved, not the runtime-admissible
+study-consumable state. No production writer promotes substrate objects into
+that state, and runtime pack resolution admits `REGISTERED` only until a
+reviewed promotion API explicitly extends admissibility. It remains not a
+result claim.

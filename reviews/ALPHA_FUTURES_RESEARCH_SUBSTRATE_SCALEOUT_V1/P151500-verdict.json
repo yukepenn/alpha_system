@@ -1,0 +1,116 @@
+{
+  "phase_id": "P151500_FUTSUB_P22_LIFECYCLE_ENFORCEMENT",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "verdict": "PASS_WITH_WARNINGS",
+  "severity": "minor",
+  "history": [
+    {
+      "verdict": "REWORK",
+      "reviewed_at": "2026-06-11T18:30:00Z",
+      "summary": "Core enforcement mutation-verified PASS, but diff broke 3 unmodified tests (F1), inverted documented READY_FOR_STUDY admissibility without a recorded decision (F2), and handoff validation set missed the breakage (repair 3)."
+    },
+    {
+      "verdict": "PASS_WITH_WARNINGS",
+      "reviewed_at": "2026-06-11T22:30:00Z",
+      "summary": "Bounded repair delta re-review: all 3 required repairs verified complete; full suite green modulo 3 proven pre-existing env failures; enforcement core byte-stable since the mutation-verified review (diff-stat delta 330/32 - 306/19 accounted exactly by 5 docs amendments + 2 one-line fixture flips)."
+    }
+  ],
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "pass",
+      "summary": "Repair 1 VERIFIED: tests/no_lookahead/research_runtime/test_input_resolver_available_ts.py:199 and tests/integration/runtime/test_smoke.py:167 each flipped READY_FOR_STUDY->REGISTERED (one line each, no assertion added/deleted/relaxed anywhere in the delta). Availability-gate assertions exercised again (reason codes label_available_ts_precedes_event_ts / *_available_ts_missing only producible by the availability gates); test_smoke.py:62 asserts RuntimeSmokeStatus.PASS strictly. Both files 8 passed."
+    },
+    {
+      "id": "R2",
+      "severity": "pass",
+      "summary": "Repair 2 VERIFIED: spec section 'Admissibility decision (coordinator, 2026-06-11T15:45Z)' records REGISTERED-only; all 5 contradicting docs (docs/feature_label_foundation/LABEL_STORE.md, README.md, guide/README.md, guide/request_to_study.md, guide/safety_semantics.md) amended with a dated 2026-06-11 note stating exactly the verified facts: READY_FOR_STUDY reserved, no production writer, runtime pack resolution admits REGISTERED only, not runtime-admissible until a reviewed promotion API explicitly extends admissibility; research-only 'not a result claim' language preserved; no overclaiming."
+    },
+    {
+      "id": "R3",
+      "severity": "pass",
+      "summary": "F3 sweep VERIFIED NOT GATE-ROUTED: all 10 remaining READY_FOR_STUDY test references audited individually (test_session_label_guard.py:288, test_no_lookahead_audit.py:162, test_no_lookahead_runtime_audit.py:172, test_signal_probe_runtime.py:195, test_label_diagnostics_runtime.py:165+255, test_e2e_dryrun.py:304/306/353/946). All construct post-gate output objects directly (LabelPackHandle/RuntimeInputPack dataclass imports, zero resolve_runtime_input_pack/FeatureLabelPackResolver calls) or are pure data/enum-progression literals (e2e_dryrun has no resolver import at all; diagnostics :255 is a string in a synthetic audit-report dict). The gate's only consumer entry points are input_resolver.py:470 and :544 inside the resolver; none of the 10 reach them. No missed repair."
+    },
+    {
+      "id": "R4",
+      "severity": "pass",
+      "summary": "Repair 3 VERIFIED: handoff gained 'Bounded repair attempt 1 validation' with full-suite counts (3 failed, 2830 passed, 1 skipped), the 3 named pre-existing failures, and base-archive triage at 6f405bc reproducing all 3. Every claim reproduced by the re-reviewer; consistent with the original review's stash-baseline triage."
+    },
+    {
+      "id": "R5",
+      "severity": "pass",
+      "summary": "Independent re-validation in worktree: pytest tests/unit tests/no_lookahead tests/integration -q = 3 failed, 2830 passed, 1 skipped (failures exactly databento_canonicalize quality coverage, duckdb_query_fixture, polars_lazy_fixture - all pre-existing at base; the 3 F1 diff-caused failures are gone); tools/verify.py --smoke exit 0; canary_runner all Frontier canaries passed; git ls-files runs empty; git diff --check clean; no values/SQLite/heavy artifacts in delta; all changes unstaged."
+    },
+    {
+      "id": "R6",
+      "severity": "pass",
+      "summary": "Enforcement core byte-stable since the mutation-verified original review: diff stat grew 306(+)/19(-) -> 330(+)/32(-), and the +24/-13 delta is exactly the 5 docs amendments (+22/-11) plus the 2 fixture flips (+2/-2); no src/ file changed since review. Mutation results below remain valid."
+    },
+    {
+      "id": "W1",
+      "severity": "warning",
+      "summary": "No separate decisions/ entry was added for the admissibility decision; it is durably recorded in the committed spec section + 5 amended docs. Non-blocking (repair contract anchored to the spec section), recorded for completeness."
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "summary": "The 10 remaining READY_FOR_STUDY fixtures depict a now-reserved state on non-gate paths. Harmless and justified (none gate-routed; e2e_dryrun legitimately tests the enum lifecycle progression), but they will read oddly against the amended docs; candidate for a later hygiene sweep."
+    },
+    {
+      "id": "W3",
+      "severity": "note",
+      "summary": "Original F4 (case-normalization via .strip().upper() admits lowercase 'registered') and F5 (test seeding via private registry._persist_label) notes stand unchanged."
+    },
+    {
+      "id": "P1",
+      "severity": "pass",
+      "summary": "Original review pass findings P1-P6 (fixture honesty, no assertion weakening, forbidden paths untouched, audit access preserved, error semantics, artifact policy) carry forward unchanged; core not re-reviewed per bounded-repair contract."
+    }
+  ],
+  "required_repairs": [],
+  "mutation_test_results": {
+    "resolver_gate_neutered": {
+      "mutation": "early return in _require_registered_pack_lifecycle (src/alpha_system/runtime/input_resolver.py) before the state comparison",
+      "result": "FAIL as required: tests/unit/labels/test_registry_lifecycle_resolution.py::test_runtime_resolver_fails_closed_for_deprecated_label_with_replacement FAILED; tests/unit/runtime/test_input_resolver.py::test_deprecated_feature_pack_blocks_with_replacement_pointer FAILED (2 failed, 2 passed)",
+      "restored": "yes — md5 of input_resolver.py matches pre-mutation backup"
+    },
+    "registry_filter_neutered": {
+      "mutation": "removed the include_deprecated=False REGISTERED filter in BOTH labels/registry.py and features/registry.py",
+      "result": "FAIL as required: tests/unit/labels/test_registry_lifecycle_resolution.py::test_label_registry_keeps_raw_audit_access_and_registered_active_resolution FAILED; tests/unit/features/test_feature_store.py::test_deprecation_preserves_lineage_and_excludes_prohibited_states FAILED (2 failed, 2 passed)",
+      "restored": "yes — exact reverse replacement; target 28-test set re-run green; git diff --stat matches original (306 insertions, 19 deletions)"
+    }
+  },
+  "repair_delta": {
+    "delta_files": [
+      "docs/feature_label_foundation/LABEL_STORE.md",
+      "docs/feature_label_foundation/README.md",
+      "docs/feature_label_foundation/guide/README.md",
+      "docs/feature_label_foundation/guide/request_to_study.md",
+      "docs/feature_label_foundation/guide/safety_semantics.md",
+      "tests/no_lookahead/research_runtime/test_input_resolver_available_ts.py",
+      "tests/integration/runtime/test_smoke.py",
+      "handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/P151500_FUTSUB_P22_LIFECYCLE_ENFORCEMENT.md"
+    ],
+    "core_unchanged_since_review": true,
+    "full_suite": "3 failed, 2830 passed, 1 skipped (pytest tests/unit tests/no_lookahead tests/integration -q)",
+    "failures_all_preexisting_at_base": [
+      "tests/unit/data/test_databento_canonicalize.py::test_databento_canonicalize_quality_coverage_and_register_offline",
+      "tests/integration/test_duckdb_query_fixture.py::test_duckdb_query_over_tiny_csv_fixture",
+      "tests/integration/test_polars_lazy_fixture.py::test_polars_lazy_transformation_over_tiny_fixture"
+    ],
+    "verify_smoke": "exit 0 PASS",
+    "canary_runner": "all Frontier canaries passed",
+    "git_ls_files_runs": "empty",
+    "ready_for_study_gate_routed_references_remaining": 0
+  },
+  "validation_reproduction": {
+    "targeted_set_28": "28 passed",
+    "k_registry_or_resolver": "74 passed, 2520 deselected (matches handoff claim of 74)",
+    "futsub_labels": "37 passed (matches handoff)",
+    "verify_smoke": "exit 0 PASS",
+    "canary_runner": "all Frontier canaries passed",
+    "full_tests_unit": "1 failed (test_databento_canonicalize — pre-existing at base), 2592 passed, 1 skipped",
+    "no_lookahead_plus_integration": "5 failed, 235 passed — 2 pre-existing at base (duckdb, polars), 3 CAUSED BY THIS DIFF (F1) — RESOLVED by repair delta, see repair_delta.full_suite"
+  },
+  "reviewed_at": "2026-06-11T22:30:00Z"
+}

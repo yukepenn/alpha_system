@@ -39,8 +39,10 @@ The required framing is:
 - A FeatureStore is not a factor library.
 - A materialized FeatureSet is not a promoted candidate.
 - A diagnostic report is not a research verdict.
-- `READY_FOR_STUDY` means a governed study may reference the substrate object;
-  it is not a result claim.
+- As of 2026-06-11, `READY_FOR_STUDY` is reserved: no production writer promotes
+  substrate objects into that state, and runtime pack resolution admits
+  `REGISTERED` only until a reviewed promotion API explicitly extends
+  admissibility. It remains not a result claim.
 
 ## Authoritative Contract Links
 

@@ -568,8 +568,18 @@ class LabelRegistry:
             )
         return record
 
-    def resolve_label(self, label_version_id: object) -> LabelRegistryRecord | None:
-        """Resolve one registered label by deterministic LabelVersion id."""
+    def resolve_label(
+        self,
+        label_version_id: object,
+        *,
+        include_deprecated: bool = True,
+    ) -> LabelRegistryRecord | None:
+        """Resolve one label by deterministic LabelVersion id.
+
+        By default this is the raw by-id audit/deprecation-tooling path and
+        returns deprecated rows. Runtime code should use the explicit
+        registered/active resolver or enforce the returned lifecycle state.
+        """
 
         version_id = _require_label_version_id(label_version_id)
         with self._connect(read_only=True) as connection:
@@ -577,12 +587,39 @@ class LabelRegistry:
             row = _fetch_record_row(connection, version_id)
         if row is None:
             return None
-        return _record_from_row(row)
+        record = _record_from_row(row)
+        if (
+            not include_deprecated
+            and record.lifecycle_state is not LabelRegistryLifecycleState.REGISTERED
+        ):
+            return None
+        return record
 
-    def resolve_label_by_version(self, label_version_id: object) -> LabelRegistryRecord | None:
-        """Resolve one registered label by deterministic LabelVersion id."""
+    def resolve_label_by_version(
+        self,
+        label_version_id: object,
+        *,
+        include_deprecated: bool = True,
+    ) -> LabelRegistryRecord | None:
+        """Resolve one label by deterministic LabelVersion id."""
 
-        return self.resolve_label(label_version_id)
+        return self.resolve_label(
+            label_version_id,
+            include_deprecated=include_deprecated,
+        )
+
+    def resolve_registered_label(
+        self,
+        label_version_id: object,
+    ) -> LabelRegistryRecord | None:
+        """Resolve a runtime-admissible REGISTERED label by id."""
+
+        return self.resolve_label(label_version_id, include_deprecated=False)
+
+    def resolve_active_label(self, label_version_id: object) -> LabelRegistryRecord | None:
+        """Alias for REGISTERED-only label resolution."""
+
+        return self.resolve_registered_label(label_version_id)
 
     def resolve_lineage(self, label_version_id: object) -> LabelLineageRecord | None:
         """Resolve lineage for one registered label version."""

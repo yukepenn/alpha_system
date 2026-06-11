@@ -147,8 +147,11 @@ QUARANTINED
 DEPRECATED
 ```
 
-`READY_FOR_STUDY` means the substrate object can be referenced by a governed
-study input. It is not a result claim.
+As of 2026-06-11, `READY_FOR_STUDY` is a reserved substrate state. No production
+writer promotes feature or label packs into that state, and runtime pack
+resolution admits `REGISTERED` only. `READY_FOR_STUDY` is not
+runtime-admissible until a reviewed promotion API explicitly extends
+admissibility. It remains not a result claim.
 
 ## Local-Only Values
 

@@ -541,8 +541,18 @@ class FeatureRegistry:
             _insert_feature_set_membership(connection, record)
         return record
 
-    def resolve_feature(self, feature_version_id: object) -> FeatureRegistryRecord | None:
-        """Resolve one registered feature by deterministic FeatureVersion id."""
+    def resolve_feature(
+        self,
+        feature_version_id: object,
+        *,
+        include_deprecated: bool = True,
+    ) -> FeatureRegistryRecord | None:
+        """Resolve one feature by deterministic FeatureVersion id.
+
+        By default this is the raw by-id audit/deprecation-tooling path and
+        returns deprecated rows. Runtime code should use the explicit
+        registered/active resolver or enforce the returned lifecycle state.
+        """
 
         version_id = _require_feature_version_id(feature_version_id)
         with self._connect(read_only=True) as connection:
@@ -550,7 +560,39 @@ class FeatureRegistry:
             row = _fetch_record_row(connection, version_id)
         if row is None:
             return None
-        return _record_from_row(row)
+        record = _record_from_row(row)
+        if (
+            not include_deprecated
+            and record.lifecycle_state is not FeatureRegistryLifecycleState.REGISTERED
+        ):
+            return None
+        return record
+
+    def resolve_feature_by_version(
+        self,
+        feature_version_id: object,
+        *,
+        include_deprecated: bool = True,
+    ) -> FeatureRegistryRecord | None:
+        """Resolve one feature by deterministic FeatureVersion id."""
+
+        return self.resolve_feature(
+            feature_version_id,
+            include_deprecated=include_deprecated,
+        )
+
+    def resolve_registered_feature(
+        self,
+        feature_version_id: object,
+    ) -> FeatureRegistryRecord | None:
+        """Resolve a runtime-admissible REGISTERED feature by id."""
+
+        return self.resolve_feature(feature_version_id, include_deprecated=False)
+
+    def resolve_active_feature(self, feature_version_id: object) -> FeatureRegistryRecord | None:
+        """Alias for REGISTERED-only feature resolution."""
+
+        return self.resolve_registered_feature(feature_version_id)
 
     def resolve_feature_set(self, feature_set: FeatureSetSpec) -> tuple[FeatureRegistryRecord, ...]:
         """Resolve registered records for every member of a FeatureSetSpec."""

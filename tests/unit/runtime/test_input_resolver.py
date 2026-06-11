@@ -177,6 +177,35 @@ def test_pack_dataset_mismatch_blocks_databento_ibkr_merge_path() -> None:
     assert "feature_pack_dataset_version_mismatch" in _reason_codes(result)
 
 
+def test_deprecated_feature_pack_blocks_with_replacement_pointer() -> None:
+    replacement_feature_version_id = "fver_" + "c" * 64
+    deprecated_feature = replace(
+        _feature_record(),
+        lifecycle_state="DEPRECATED",
+        replacement_feature_version_id=replacement_feature_version_id,
+    )
+
+    result = resolve_runtime_input_pack(
+        _entry_result(),
+        registry_path="/tmp/alpha_registry/datasets.sqlite",
+        dataset_lifecycle_state="VERSIONED",
+        feature_pack_refs=(FEATURE_VERSION_ID,),
+        label_pack_refs=(LABEL_VERSION_ID,),
+        partition_scope=PARTITION_SCOPE,
+        session_scope=SESSION_SCOPE,
+        feature_label_resolver=FeatureLabelPackResolver(
+            feature_store=_FeatureStore({FEATURE_VERSION_ID: deprecated_feature}),
+            label_registry=_LabelRegistry({LABEL_VERSION_ID: _label_record()}),
+        ),
+        dataset_version_resolver=lambda _path, _id: _dataset_version(),
+    )
+
+    assert result.status is RuntimeEntryStatus.INPUTS_BLOCKED
+    reason = result.reasons[0]
+    assert reason.code == "feature_pack_deprecated"
+    assert replacement_feature_version_id in reason.actual
+
+
 def test_locked_partition_requires_metadata_and_refuses_selection() -> None:
     locked_scope = {"partition_id": "locked_test_candidate"}
 
@@ -293,6 +322,7 @@ class _FeatureRecord:
     first_available_ts: datetime = BASE_TS
     last_available_ts: datetime = BASE_TS + timedelta(minutes=2)
     lifecycle_state: str = "REGISTERED"
+    replacement_feature_version_id: str = ""
     feature_spec: _FeatureSpec = _FeatureSpec()
 
 
@@ -308,7 +338,7 @@ class _LabelRecord:
     last_event_ts: datetime = BASE_TS + timedelta(minutes=2)
     first_label_available_ts: datetime = BASE_TS + timedelta(minutes=5)
     last_label_available_ts: datetime = BASE_TS + timedelta(minutes=7)
-    lifecycle_state: str = "READY_FOR_STUDY"
+    lifecycle_state: str = "REGISTERED"
 
 
 class _FeatureStore:

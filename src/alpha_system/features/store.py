@@ -205,18 +205,52 @@ class FeatureStore:
             registry_metadata=registry_metadata,
         )
 
-    def resolve_feature(self, feature_version_id: object) -> FeatureRegistryRecord | None:
+    def resolve_feature(
+        self,
+        feature_version_id: object,
+        *,
+        include_deprecated: bool = True,
+    ) -> FeatureRegistryRecord | None:
         """Resolve one feature by deterministic FeatureVersion id."""
 
-        return self.registry.resolve_feature(feature_version_id)
+        return self.registry.resolve_feature(
+            feature_version_id,
+            include_deprecated=include_deprecated,
+        )
 
     def resolve_feature_by_version(
         self,
         feature_version_id: object,
+        *,
+        include_deprecated: bool = True,
     ) -> FeatureRegistryRecord | None:
         """Resolve one feature by deterministic FeatureVersion id."""
 
-        return self.resolve_feature(feature_version_id)
+        return self.resolve_feature(
+            feature_version_id,
+            include_deprecated=include_deprecated,
+        )
+
+    def resolve_registered_feature(
+        self,
+        feature_version_id: object,
+    ) -> FeatureRegistryRecord | None:
+        """Resolve a runtime-admissible REGISTERED feature by id."""
+
+        return self.registry.resolve_registered_feature(feature_version_id)
+
+    def resolve_active_feature(self, feature_version_id: object) -> FeatureRegistryRecord | None:
+        """Alias for REGISTERED-only feature resolution."""
+
+        return self.resolve_registered_feature(feature_version_id)
+
+    def resolve_deprecation(
+        self,
+        feature_version_id: object,
+    ) -> FeatureDeprecationRecord | None:
+        """Resolve a feature deprecation record by version id."""
+
+        return self.registry.resolve_deprecation(feature_version_id)
 
     def resolve_feature_set(self, feature_set: FeatureSetSpec) -> tuple[FeatureRegistryRecord, ...]:
         """Resolve every registered feature in a FeatureSetSpec."""
