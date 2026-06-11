@@ -75,14 +75,85 @@
     "roll_splice_guard_required": true,
     "maintenance_crossing_guard_required": true,
     "overlap_aware_n_eff_metadata_required": true,
+    "label_anchor": "source_bar_end_ts",
+    "terminal_key": "series_id+contract_id+bar_end_ts",
+    "terminal_resolution": "bar_end_aligned_bbo_proxy",
     "roll_policy_ref": "docs/futures_substrate_scaleout/ROLL_GUARD.md",
     "bbo_is_tradability_proxy_not_execution_truth": true
   },
+  "engine": {
+    "selected": "reference",
+    "selection_basis": "LCFP-P08 accepted cost_adjusted on the reference label engine because the accepted benchmark did not release the fast path for this family.",
+    "worker_opt_in_for_p19_resume": {
+      "authorized": true,
+      "cli": "--engine reference --workers 8",
+      "env": {
+        "ALPHA_LABEL_CPU_WORKERS": "8",
+        "POLARS_MAX_THREADS": "2",
+        "OMP_NUM_THREADS": "2",
+        "RAYON_NUM_THREADS": "2",
+        "NUMBA_NUM_THREADS": "2"
+      },
+      "default_policy_elsewhere": "workers=1 remains the default; this opt-in applies only to the FUTSUB-P19 resume."
+    },
+    "registry_writes": "parent_only_serial"
+  },
   "cost_model": {
+    "label_cost_model_version": "cost_adjusted_reference_v1",
     "config_refs": [
       "configs/execution/cost_models/default_conservative.json",
       "configs/execution/cost_models/spread_sensitive_conservative.json"
     ],
+    "label_variants": {
+      "mid_to_mid_terminal": {
+        "status": "internal_gross_terminal",
+        "definition": "BBO mid-to-mid bar-end-aligned proxy terminal used as the gross return before subtracting governed costs; not emitted as a separate P19 label id."
+      },
+      "cost_adjusted_fwd_ret": {
+        "model": "spread_plus_bps",
+        "fixed_cost_bps": "0.25",
+        "spread_adjustment": "half_spread_round_trip",
+        "definition": "gross BBO mid-to-mid forward return minus fixed bps and half-spread entry plus half-spread exit proxy costs."
+      },
+      "spread_adjusted_fwd_ret": {
+        "model": "spread_adjusted",
+        "fixed_cost_bps": "0",
+        "spread_adjustment": "half_spread_round_trip",
+        "definition": "gross BBO mid-to-mid forward return minus half-spread entry plus half-spread exit proxy costs."
+      },
+      "slippage_stress_adjusted": {
+        "supported": false,
+        "reason": "No sanctioned slippage-stress-adjusted P19 label variant exists in the current cost_adjusted label contract; the phase records the gap and does not fabricate a curve."
+      }
+    },
+    "sanctioned_cost_context": [
+      {
+        "config_ref": "configs/execution/cost_models/default_conservative.json",
+        "model_name": "default_conservative",
+        "engine_version": "reference_1min_v1",
+        "bps_cost": "1.0",
+        "slippage": {
+          "model": "bps",
+          "bps": "0.5"
+        }
+      },
+      {
+        "config_ref": "configs/execution/cost_models/spread_sensitive_conservative.json",
+        "model_name": "spread_sensitive_conservative",
+        "engine_version": "reference_1min_v1",
+        "bps_cost": "1.0",
+        "spread_cost": {
+          "model": "half_spread"
+        },
+        "slippage": {
+          "model": "spread_sensitive",
+          "spread_fraction": "0.25",
+          "fallback_bps": "0.5"
+        }
+      }
+    ],
+    "bbo_proxy_semantics": "BBO-1m spreads are a time-sampled, forward-filled tradability proxy only. Label anchors and terminals resolve on source/terminal bar_end_ts; missing, bad-quote, wide-spread, or duplicate-key rows are surfaced as warning/gap metadata and are never treated as execution truth.",
+    "terminal_supersession_reason": "FUTSUB-P19 repair: canonical BBO event_ts is an intra-bar quote timestamp, so cost-adjusted terminals resolve on the one-minute bar_end_ts proxy grid rather than exact quote-event timestamps.",
     "stale_fee_or_slippage_assumptions_forbidden": true
   },
   "value_store": {

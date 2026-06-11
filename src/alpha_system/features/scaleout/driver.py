@@ -1847,6 +1847,11 @@ def _label_scaleout_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict
     )
     from alpha_system.labels.roll_guard import ROLL_GUARD_VERSION, ROLL_POLICY_ID
 
+    terminal_key = "series_id+contract_id+event_ts"
+    terminal_resolution = "exact_event_ts"
+    if config.family == "cost_adjusted":
+        terminal_key = "series_id+contract_id+bar_end_ts"
+        terminal_resolution = "bar_end_aligned_bbo_proxy"
     return {
         "campaign_id": config.campaign_id,
         "phase_id": config.phase_id,
@@ -1862,7 +1867,8 @@ def _label_scaleout_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict
         "maintenance_policy_id": MAINTENANCE_POLICY_ID,
         "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
         "maintenance_crossing_policy": "drop",
-        "terminal_key": "series_id+contract_id+event_ts",
+        "terminal_key": terminal_key,
+        "terminal_resolution": terminal_resolution,
         "producer_engine_id": "alpha_system.labels.reference_engine.v1",
     }
 
@@ -1944,6 +1950,7 @@ def _fast_label_definitions_for_unit(config: ScaleoutConfig, unit: ScaleoutUnit)
                 name,
                 _cost_adjusted_label_spec(name, unit),
                 dataset_version_ids=dataset_version_ids,
+                materialization_scope=_label_unit_materialization_scope(unit),
             )
             for name in unit.feature_names
         )
@@ -2032,6 +2039,20 @@ def _label_input_dataset_version_ids(unit: ScaleoutUnit) -> tuple[str, ...]:
     return values or (unit.dataset_version_id,)
 
 
+def _label_unit_materialization_scope(unit: ScaleoutUnit) -> dict[str, str]:
+    scope = {
+        "dataset_version_id": unit.dataset_version_id,
+        "partition_id": unit.partition_id,
+        "partition_schema": unit.schema_id,
+        "symbol": unit.symbol.upper(),
+        "window_end_ts": unit.window_end_ts,
+        "window_start_ts": unit.window_start_ts,
+    }
+    if unit.horizon:
+        scope["horizon"] = unit.horizon
+    return scope
+
+
 def _scaleout_label_horizon(name: str, unit: ScaleoutUnit | None = None) -> str:
     if unit is not None and unit.horizon:
         return unit.horizon
@@ -2058,7 +2079,7 @@ def _cost_adjusted_label_spec(name: str, unit: ScaleoutUnit) -> Any:
         horizon=horizon,
         path_rules={
             "path": "bbo_mid_forward_return",
-            "terminal_rule": "exact event_ts match with valid BBO only",
+            "terminal_rule": "bar_end_aligned_bbo_proxy",
             "horizon_steps": int(horizon.removesuffix("m")),
         },
         cost_model=cost_model,

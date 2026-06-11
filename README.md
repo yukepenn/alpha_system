@@ -6,42 +6,53 @@ and validating offline research substrate under Frontier Harness Generic
 
 ## Current Snapshot
 
-The repository-level campaign pointer selects
-`REFERENCE_LABEL_PARALLEL_COMPUTE_V1`. This Workflow 2 campaign is at 5/5
-phases complete pending RLPC-P04 merge. It added and validated an opt-in
-unit-level worker path around the unchanged reference label engine, then closed
-the release gate honestly.
+The repository-level campaign pointer targets
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
+`ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-RLPC-P03 measured the real `cost_adjusted` driver path over a self-validating
-ES/2024 grid at workers 1/2/4/8, confirmed deterministic
-label-version/content-hash equality, and recorded `NOT_RELEASED` because
-workers=8 measured 2.14x versus the 3.0x release gate. RLPC-P04 records that
-outcome in the structural backlog and handoff. Default reference workers remain
-1; FUTSUB remains the next active campaign after the coordinator repoints
-`ACTIVE_CAMPAIGN.md`, and FUTSUB resumes on unchanged serial reference policy.
+`REFERENCE_LABEL_PARALLEL_COMPUTE_V1` is closed as historical context: it added
+an opt-in reference-worker path, measured workers=8 at 2.14x for
+`cost_adjusted`, and kept default reference workers at 1 outside the documented
+FUTSUB-P19 resume deviation.
 
-Durable artifacts in this campaign snapshot:
+Current campaign progress:
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
+campaign. `FUTSUB-P19` materialized and registered the cost-adjusted
+LabelPacks for ES/NQ/RTY across the accepted 2019-2026 window, alongside the
+fixed-horizon (P16), extended-horizon (P17), and session-close /
+maintenance-flat (P18) packs already in the `label_materialization` gate.
 
-- `campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/` - campaign contract bundle.
-- `research/reference_label_parallel_compute_v1/` - value-free evidence
-  root, including the RLPC-P02 synthetic determinism evidence note and the
-  RLPC-P03 benchmark summary.
-- `tools/reference_label_parallel_compute/` - RLPC-P03 bounded real benchmark
-  harness.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md` -
-  committed record of the stopped FUTSUB-P19 pause state and preservation
-  boundary.
-- `tests/unit/reference_label_parallel_compute/` - synthetic structural,
-  determinism, resume, single-writer audit, and canary tests for the reference
-  worker path.
-- `research/reference_label_parallel_compute_v1/benchmark/benchmark_summary.md`
-  - value-free RLPC-P03 worker sweep and release decision.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P03.md` - executor handoff
-  for the bounded real benchmark and release gate.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_RESUME_ON_PARALLEL_REFERENCE.md`
-  - coordinator handoff for resuming FUTSUB-P19 after RLPC closeout.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P04.md` - executor handoff
-  for the NOT_RELEASED backlog closeout and FUTSUB resume handoff.
+Active / next phase after this branch: Ralph owns validation, review, staging,
+PR creation, CI, merge, and live run state transitions for `FUTSUB-P19`. The
+next serial label-materialization phase is `FUTSUB-P20` for path labels before
+P21/P22/P23 perform guard audit, resolver integration, and coverage matrices.
+
+New durable surfaces through this `FUTSUB-P19` executor snapshot:
+
+- `configs/labels/scaleout/cost_adjusted.json` is the governed cost-adjusted
+  label scaleout config for ES/NQ/RTY accepted windows, including documented
+  cost/fee/slippage assumptions, BBO-proxy semantics, reference-engine
+  selection, and the one-off P19 worker opt-in record.
+- `src/alpha_system/labels/families/cost_adjusted/family.py` applies the shared
+  roll-splice and maintenance-crossing terminal guard and records cost,
+  BBO-proxy, bar-end terminal resolution, and guard metadata in the label
+  contract. Ambiguous duplicate BBO source or terminal keys become gap metadata
+  rather than a silent quote choice.
+- `src/alpha_system/features/scaleout/driver.py` owns the P19 reference-engine
+  cost-adjusted materialization path, registry-truth skip checks, and
+  supersession metadata for bar-end-aligned BBO terminals.
+- `research/futures_substrate_scaleout_v1/label_packs/cost_adjusted/coverage_summary.md`
+  is the value-free coverage summary for the completed accepted-window
+  materialization, including documented cost/fee/slippage versions, BBO-proxy
+  gap counts, `label_available_ts`, registry metadata, and overlap-aware
+  N_eff summaries.
+- `tests/unit/futures_substrate_scaleout/labels/test_cost_adjusted_scaleout.py`
+  covers synthetic variant emission, intra-bar BBO terminal resolution,
+  `label_available_ts`, guard drops, duplicate BBO-key gaps, cost-version
+  metadata, and checkpoint skip behavior.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19.md`
+  records materialization evidence, validation, and residual review focus for
+  reviewer and coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -55,6 +66,11 @@ run-local state owned by Ralph.
   `research/reference_label_parallel_compute_v1/`
 - Commit-eligible handoffs:
   `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/`
+- Campaign bundle: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
+- Futures substrate scaleout docs: `docs/futures_substrate_scaleout/`
+- Value-free research evidence root: `research/futures_substrate_scaleout_v1/`
+- Commit-eligible handoffs:
+  `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
 
 ## Safety Boundaries
 
