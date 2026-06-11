@@ -1,0 +1,72 @@
+{
+  "phase_id": "P183000_FUTSUB_SESSION_SEGMENT_REPAIR",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "verdict": "PASS_WITH_WARNINGS",
+  "severity": "medium",
+  "reviewed_at": "2026-06-11",
+  "reviewer": "claude-fresh-adversarial-yellow",
+  "target": {
+    "worktree": "/home/yuke_zhang/projects/alpha_system_wt/session-repair",
+    "branch": "repair/futsub-session-segmentation",
+    "base": "e520c6e",
+    "state": "uncommitted working tree (9 files changed, +563/-77, plus untracked spec and handoff)"
+  },
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "medium",
+      "kind": "residual_second_truth",
+      "summary": "Reference OHLCV family (src/alpha_system/features/families/ohlcv/family.py, ~719-869) still derives RTH/ETH membership from static canonical session_label; the repaired fast vwap_session_auction pack now diverges from its reference twin on real data (label statically ETH) for RTH-conditioned features (opening_range, rth/eth flags, overnight_range, anchored_vwap). Fixture parity passes only because fixture labels were aligned with timestamps. Spec-scoped residual, honestly recorded in the handoff Risks section."
+    },
+    {
+      "id": "W2",
+      "severity": "low",
+      "kind": "latent_parity_edge",
+      "summary": "Fast _template_trade_date uses local + polars.duration(days=1) (physical 24h) where reference uses calendar-date + timedelta(days=1); divergence only reachable for bars Sat 23:00-24:00 America/Chicago before a Sunday 02:00 DST shift, when CME index futures are closed. Recommend dt.offset_by('1d')."
+    },
+    {
+      "id": "N1",
+      "severity": "info",
+      "kind": "boundary_semantics_note",
+      "summary": "Labels close-out anchor (_is_close_out_terminal_candidate, fixed_horizon/family.py:962) treats 15:00:00 CT event_ts as RTH-eligible (inclusive) while the new feature truth is bar-start [08:30,15:00) exclusive; different objects (anchor eligibility vs segment membership), not a present contradiction, but must be carried into the recorded labels-adoption follow-up."
+    },
+    {
+      "id": "N2",
+      "severity": "info",
+      "kind": "minor_code_and_coverage_note",
+      "summary": "Unreachable final return in reference _rth_minutes_point (dead code); vwap fixture row 0 HALT->ETH removed the only non-RTH/ETH static-label scenario (halt truth lives in unchanged, separately tested halt_status_flag); no_overnight_range->no_overnight_trade expectation change is a correct consequence of that fixture change, exact-tuple assertion retained."
+    }
+  ],
+  "required_repairs": [
+    "Follow-up phase (not in-phase rework): repoint families/ohlcv/family.py session-conditioned reference helpers at data.foundation.sessions.classify_session_timestamp before any reference recomputation or fast-vs-reference reconciliation of vwap_session_auction on real data is treated as authoritative, and before P28 vwap alpha specs rely on reference-engine RTH conditioning (W1).",
+    "Include the 15:00-inclusive close-out anchor boundary note (N1) in the recorded labels-adoption follow-up.",
+    "Optional: replace polars.duration(days=1) with dt.offset_by('1d') in fast _template_trade_date (W2)."
+  ],
+  "mutation_test_results": {
+    "mutation_a_label_copy_reference_engine": {
+      "mutation": "families/session/family.py rth_segment_flag reads row.session_label again",
+      "result": "FAIL as required: test_session_position_features_ignore_static_session_label_for_rth_truth + test_session_calendar_roll_pack_matches_reference_on_synthetic_fixture (2 failed, 7 passed)",
+      "restored": "byte-identical (diff -q vs saved pristine copy), re-run green"
+    },
+    "mutation_b_fixed_utc_fast_twin": {
+      "mutation": "fast/session_calendar_roll.py _local_bar_start drops dt.convert_time_zone",
+      "result": "FAIL as required: parity vs now-correct reference (parity_harness.py:209; 1 failed, 28 passed)",
+      "restored": "byte-identical, re-run green"
+    },
+    "mutation_c_shared_truth_utc": {
+      "mutation": "data/foundation/sessions.py classify_session_timestamp drops astimezone (corrupts shared truth, undetectable by parity)",
+      "result": "FAIL as required: test_session_timestamp_classification_is_dst_aware + family absolute test (2 failed, 34 passed)",
+      "restored": "byte-identical, re-run green"
+    }
+  },
+  "validation_reproduced": {
+    "pytest_tests_unit_features": "128 passed",
+    "pytest_session_vwap_rth_filter": "119 passed, 2498 deselected",
+    "pytest_full": "3 failed, 2853 passed, 1 skipped (failures exactly the 3 known pre-existing env failures: databento_canonicalize, duckdb_query_fixture, polars_lazy_fixture)",
+    "verify_smoke": "pass",
+    "canary_runner": "All Frontier canaries passed",
+    "dst_manual_recompute": "EST 2024-01-10: 08:30 CT == 14:30 UTC; EDT 2024-07-10: 08:30 CT == 13:30 UTC; both pinned by tests",
+    "artifact_policy": "git ls-files runs empty; no heavy artifacts; staged set empty",
+    "forbidden_paths": "labels/**, canonicalize.py, dataset configs, registry write-paths untouched; sessions.py purely additive (0 deletions)"
+  }
+}
