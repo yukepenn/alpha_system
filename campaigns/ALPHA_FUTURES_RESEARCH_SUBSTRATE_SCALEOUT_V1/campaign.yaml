@@ -1606,6 +1606,17 @@ phases:
     progress and let checkpoint + registry truth skip completed valid units.
     Do not force-recompute unless the coordinator documents a specific
     supersession, corruption, or schema-version reason.'
+  - 'COORDINATOR DEVIATION (2026-06-11, user-directed): the P19 resume may run
+    the reference engine with explicit opt-in unit-parallel workers
+    (`--engine reference --workers 8`, ALPHA_LABEL_CPU_WORKERS=8, per-worker
+    thread caps =2). Evidence: REFERENCE_LABEL_PARALLEL_COMPUTE_V1 RLPC-P03
+    measured 2.14x at 8 workers with determinism PASS at every worker count
+    (research/reference_label_parallel_compute_v1/benchmark/benchmark_summary.md);
+    the 3.0x default-release gate was NOT met, so workers=1 remains the default
+    policy everywhere else and this opt-in applies to the P19 resume only,
+    authorized by the user directive of 2026-06-11 requesting parallel reference
+    workers even below the release gate. No parity or identity semantics change;
+    serial==parallel equivalence is enforced by the merged RLPC-P02 gate.'
   - Enforce label_available_ts, roll/maintenance guards, and horizon coverage; document cost/fee/slippage assumptions and versions.
   - Commit only the value-free coverage summary + config.
   non_goals:
