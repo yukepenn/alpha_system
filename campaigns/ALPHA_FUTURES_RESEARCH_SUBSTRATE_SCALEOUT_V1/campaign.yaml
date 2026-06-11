@@ -1770,6 +1770,20 @@ phases:
   purpose: Integrate all LabelPack registrations, audit registry consistency, and prove a label resolver-smoke gate (every label lock resolves to a real Parquet value).
   scope:
   - Audit label registry records for label_available_ts, content hash, registry metadata across all horizon/label families.
+  - 'N_EFF/OVERLAP EVIDENCE CONTRACT (coordinator clarification 2026-06-11,
+    resolving the first P22 review blocking finding 2): horizon_overlap_metadata
+    is attached by the fixed_horizon family to EXTENDED horizons (>=60m) only,
+    by family design (family.py _is_extended_horizon); base horizons and the
+    cost_adjusted/path/close_out families do not emit registry-level overlap
+    metadata - their overlap/N_eff context is carried in committed value-free
+    coverage reports (R-017). The P22 presence audit must therefore verify:
+    registry contract_metadata.horizon_overlap_metadata for extended-horizon
+    records, and committed report-level overlap/N_eff context for the other
+    families - per-family provenance recorded, neither overstated. RECORDED
+    FOLLOW-UP (not P22 scope): the v1 fast register_pack registry_metadata
+    path would not propagate horizon_overlap_metadata if extended horizons
+    ever register via v1 - latent-only today (extended registers via
+    reference); fix before any v1 extended-horizon registration.'
   - Run a label resolver-smoke over representative locks (fail closed).
   - Commit only the value-free integration + resolver-smoke report.
   non_goals:
