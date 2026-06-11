@@ -39,6 +39,10 @@ from alpha_system.features.registry import (
     FeatureRegistryError,
     FeatureRegistryLifecycleState,
 )
+from alpha_system.features.request_gate import (
+    FeatureRequestGateRejectionReason,
+    evaluate_feature_request_gate,
+)
 from alpha_system.features.store import FeatureStore, FeatureStoreError
 from alpha_system.governance.duplicate_exposure import (
     ExposureCheckResult,
@@ -457,6 +461,95 @@ def test_duplicate_or_equivalent_exposure_is_not_silently_admitted(
         == first_spec.feature_id
     )
     assert store.registry.count_feature_records() == 2
+
+
+def test_deprecated_feature_rows_are_raw_audit_only_for_exposure_guard(
+    tmp_path: Path,
+) -> None:
+    store = FeatureStore(FeatureRegistry(tmp_path / "features.sqlite"))
+    first_request = _feature_request("synthetic_close_return_deprecated_guard")
+    first_spec, first_checked_request = _implementation_spec(
+        feature_id="base_ohlcv_close_return_deprecated_guard",
+        request=first_request,
+        registry_reader=EmptyRegistryReader(),
+    )
+    first_result = _materialization_result(tmp_path, first_spec)
+    first_version = first_spec.derive_feature_version()
+    store.register_materialized_feature(
+        first_result,
+        feature_spec=first_spec,
+        feature_version=first_version,
+        feature_request=first_checked_request,
+    )
+    store.deprecate_feature(
+        first_version.feature_version_id,
+        reason="P200000 synthetic supersession",
+        deprecated_by="P200000 unit test",
+        deprecated_at=_dt("2024-01-03T00:00:00+00:00"),
+    )
+
+    raw = store.registry.resolve_feature(first_version.feature_version_id)
+    assert raw is not None
+    assert raw.lifecycle_state is FeatureRegistryLifecycleState.DEPRECATED
+    assert store.registry.count_feature_records() == 1
+    assert store.registry.read_factor_versions() == []
+
+    superseding_request = _feature_request(
+        first_spec.feature_id,
+        requested_inputs=[first_spec.feature_id],
+        exposure_family=first_spec.feature_id,
+    )
+    decision = evaluate_feature_request_gate(superseding_request, store.registry)
+
+    assert decision.implementation_allowed is True
+    assert decision.duplicate_exposure_report is not None
+    assert decision.duplicate_exposure_report.registry_entries_checked == 0
+    assert decision.checked_feature_request is not None
+    assert (
+        decision.checked_feature_request.approval_status
+        == FeatureRequestApprovalStatus.APPROVED.value
+    )
+
+
+def test_registered_feature_rows_still_block_duplicate_exposure(
+    tmp_path: Path,
+) -> None:
+    store = FeatureStore(FeatureRegistry(tmp_path / "features.sqlite"))
+    first_request = _feature_request("synthetic_close_return_registered_guard")
+    first_spec, first_checked_request = _implementation_spec(
+        feature_id="base_ohlcv_close_return_registered_guard",
+        request=first_request,
+        registry_reader=EmptyRegistryReader(),
+    )
+    first_result = _materialization_result(tmp_path, first_spec)
+    first_version = first_spec.derive_feature_version()
+    store.register_materialized_feature(
+        first_result,
+        feature_spec=first_spec,
+        feature_version=first_version,
+        feature_request=first_checked_request,
+    )
+
+    duplicate_request = _feature_request(
+        first_spec.feature_id,
+        requested_inputs=[first_spec.feature_id],
+        exposure_family=first_spec.feature_id,
+    )
+    decision = evaluate_feature_request_gate(duplicate_request, store.registry)
+
+    assert decision.implementation_allowed is False
+    assert (
+        decision.rejection_reason
+        is FeatureRequestGateRejectionReason.BLOCKED_DUPLICATE
+    )
+    assert decision.duplicate_exposure_report is not None
+    assert decision.duplicate_exposure_report.registry_entries_checked == 1
+    assert decision.duplicate_exposure_report.has_blocking_findings is True
+    assert decision.checked_feature_request is not None
+    assert (
+        decision.checked_feature_request.approval_status
+        == FeatureRequestApprovalStatus.BLOCKED_DUPLICATE.value
+    )
 
 
 def test_deprecation_preserves_lineage_and_excludes_prohibited_states(

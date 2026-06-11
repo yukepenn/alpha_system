@@ -753,8 +753,10 @@ class FeatureRegistry:
                 """
                 SELECT metadata_json
                 FROM feature_registry_records
+                WHERE lifecycle_state = ?
                 ORDER BY feature_id, feature_version_id
-                """
+                """,
+                (FeatureRegistryLifecycleState.REGISTERED.value,),
             ).fetchall()
         return [
             _duplicate_exposure_registry_entry(_record_from_json(str(row["metadata_json"])))

@@ -294,6 +294,72 @@ def test_duplicate_exposure_is_recorded_and_deprecation_preserves_lineage(
         replace(first, lifecycle_state="TRADABLE")
 
 
+def test_label_exposure_view_ignores_deprecated_rows_but_raw_reads_keep_them(
+    tmp_path: Path,
+) -> None:
+    registry = LabelRegistry(tmp_path / "labels.sqlite")
+    first_result, first_definition = _materialization_result(
+        tmp_path,
+        "dsv_synthetic_label_store_deprecated_guard_a",
+    )
+    second_result, second_definition = _materialization_result(
+        tmp_path,
+        "dsv_synthetic_label_store_deprecated_guard_b",
+    )
+    third_result, third_definition = _materialization_result(
+        tmp_path,
+        "dsv_synthetic_label_store_registered_guard_c",
+    )
+    first = registry.register_materialized_label(
+        first_result,
+        label_contract=first_definition.contract,
+        label_version=first_definition.version,
+    )
+    registry.deprecate_label(
+        first.label_version_id,
+        reason="P200000 synthetic supersession",
+        deprecated_by="P200000 unit test",
+        deprecated_at=_dt("2024-01-03T00:00:00+00:00"),
+    )
+
+    raw_records = registry.read_label_records()
+    assert len(raw_records) == 1
+    assert raw_records[0].label_version_id == first.label_version_id
+    assert raw_records[0].lifecycle_state is LabelRegistryLifecycleState.DEPRECATED
+    assert registry.read_label_versions() == []
+
+    second = registry.register_materialized_label(
+        second_result,
+        label_contract=second_definition.contract,
+        label_version=second_definition.version,
+    )
+
+    assert second.exposure_status == "NO_FINDINGS"
+    assert second.exposure_report.registry_entries_checked == 0
+    assert registry.count_label_records() == 2
+
+    third = registry.register_materialized_label(
+        third_result,
+        label_contract=third_definition.contract,
+        label_version=third_definition.version,
+    )
+
+    assert third.exposure_status == "DUPLICATE_RECORDED"
+    assert third.exposure_report.registry_entries_checked == 1
+    assert third.exposure_report.duplicate_label_version_ids == (
+        second.label_version_id,
+    )
+    assert (
+        first.label_version_id
+        not in third.exposure_report.duplicate_label_version_ids
+    )
+    assert {record.label_version_id for record in registry.read_label_records()} == {
+        first.label_version_id,
+        second.label_version_id,
+        third.label_version_id,
+    }
+
+
 def _materialization_result(
     tmp_path: Path,
     dataset_id: str,

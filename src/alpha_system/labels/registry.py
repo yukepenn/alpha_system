@@ -758,7 +758,7 @@ class LabelRegistry:
 
         contract = _require_validated_label_contract(label_contract)
         version = _require_matching_label_version(label_version, contract)
-        existing_records = self.read_label_records()
+        existing_records = self._read_registered_label_records()
         duplicate_ids: list[str] = []
         equivalent_ids: list[str] = []
         incoming_key = _equivalence_key(contract)
@@ -783,10 +783,13 @@ class LabelRegistry:
     def read_label_versions(self) -> list[dict[str, object]]:
         """Expose a read-only duplicate/equivalent guard view over labels."""
 
-        return [_label_registry_entry(record) for record in self.read_label_records()]
+        return [
+            _label_registry_entry(record)
+            for record in self._read_registered_label_records()
+        ]
 
     def read_label_records(self) -> tuple[LabelRegistryRecord, ...]:
-        """Return registered label metadata records ordered by label id and version."""
+        """Return raw label metadata records ordered by label id and version."""
 
         with self._connect(read_only=True) as connection:
             _ensure_schema(connection)
@@ -796,6 +799,22 @@ class LabelRegistry:
                 FROM label_registry_records
                 ORDER BY label_id, label_version_id
                 """
+            ).fetchall()
+        return tuple(_record_from_json(str(row["metadata_json"])) for row in rows)
+
+    def _read_registered_label_records(self) -> tuple[LabelRegistryRecord, ...]:
+        """Return REGISTERED-only label records for exposure guard accounting."""
+
+        with self._connect(read_only=True) as connection:
+            _ensure_schema(connection)
+            rows = connection.execute(
+                """
+                SELECT metadata_json
+                FROM label_registry_records
+                WHERE lifecycle_state = ?
+                ORDER BY label_id, label_version_id
+                """,
+                (LabelRegistryLifecycleState.REGISTERED.value,),
             ).fetchall()
         return tuple(_record_from_json(str(row["metadata_json"])) for row in rows)
 

@@ -329,7 +329,7 @@ def _template_trade_date(polars: Any, rth_clock: _RthClock) -> Any:
         return local.dt.strftime("%Y-%m-%d")
     seconds = _local_seconds(polars, rth_clock)
     trade_dt = polars.when(seconds >= rth_clock.eth_start_seconds).then(
-        local + polars.duration(days=1)
+        local.dt.offset_by("1d")
     ).otherwise(local)
     return trade_dt.dt.strftime("%Y-%m-%d")
 
