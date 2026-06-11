@@ -5,13 +5,21 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
+from datetime import datetime, time
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
 from alpha_system.data.foundation.grid import DenseGridBarRecord
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+    SessionTemplate,
+    SessionWindowState,
+    classify_session_timestamp,
+    load_session_template_by_id,
+    session_segment_id,
+)
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -378,8 +386,9 @@ def build_session_feature_definition(
     registry_reader: RegistryReader | object | None,
     *,
     dataset_version_ids: Sequence[str] = (),
-    rth_open_time: str = "14:30",
-    rth_close_time: str = "21:00",
+    session_template_id: str = CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+    rth_open_time: str | None = None,
+    rth_close_time: str | None = None,
     input_view_name: str = "canonical_ohlcv",
     input_scope: Mapping[str, Any] | None = None,
     window: WindowSpec | None = None,
@@ -391,8 +400,21 @@ def build_session_feature_definition(
     """
 
     feature_name = _coerce_feature_name(name)
-    open_time = _parse_clock_time(rth_open_time, "rth_open_time")
-    close_time = _parse_clock_time(rth_close_time, "rth_close_time")
+    template = _session_template(session_template_id)
+    open_time = (
+        template.rth_start
+        if rth_open_time is None
+        else _parse_clock_time(rth_open_time, "rth_open_time")
+    )
+    close_time = (
+        template.rth_end
+        if rth_close_time is None
+        else _parse_clock_time(rth_close_time, "rth_close_time")
+    )
+    if open_time != template.rth_start:
+        raise SessionFeatureError("rth_open_time must match the session template")
+    if close_time != template.rth_end:
+        raise SessionFeatureError("rth_close_time must match the session template")
     input_view = _input_view_name(input_view_name)
     if close_time <= open_time:
         raise SessionFeatureError("rth_close_time must be after rth_open_time")
@@ -405,6 +427,7 @@ def build_session_feature_definition(
         feature_name,
         gate_decision,
         dataset_version_ids=dataset_version_ids,
+        session_template=template,
         rth_open_time=open_time,
         rth_close_time=close_time,
         input_view_name=input_view,
@@ -447,9 +470,19 @@ def compute_session_feature(
     rows = _validated_rows(_coerce_rows(input_view))
     metadata = _coerce_metadata(metadata)
     roll_proximity = _roll_proximity_by_row(rows)
+    session_template = _session_template_for_definition(definition)
     return _records_from_points(
         definition,
-        tuple(_feature_point(definition, row, metadata, roll_proximity) for row in rows),
+        tuple(
+            _feature_point(
+                definition,
+                row,
+                metadata,
+                roll_proximity,
+                session_template,
+            )
+            for row in rows
+        ),
     )
 
 
@@ -471,6 +504,7 @@ def _feature_spec(
     gate_decision: FeatureRequestGateDecision,
     *,
     dataset_version_ids: Sequence[str],
+    session_template: SessionTemplate,
     rth_open_time: time,
     rth_close_time: time,
     input_view_name: str,
@@ -499,8 +533,10 @@ def _feature_spec(
         )
     parameters = {
         "feature_name": name.value,
-        "rth_open_time_utc": _clock_time_text(rth_open_time),
-        "rth_close_time_utc": _clock_time_text(rth_close_time),
+        "session_template_id": session_template.template_id,
+        "session_timezone": session_template.timezone,
+        "rth_open_time_local": _clock_time_text(rth_open_time),
+        "rth_close_time_local": _clock_time_text(rth_close_time),
         "roll_transition_source": "contract_id_or_series_id_transition",
         "metadata_absence_policy": "flag_absent_never_fabricate",
     }
@@ -757,19 +793,20 @@ def _feature_point(
     row: TradeBarRow,
     metadata: SessionCalendarRollMetadata,
     roll_proximity: Mapping[int, _RollProximity],
+    session_template: SessionTemplate,
 ) -> _FeaturePoint:
     name = definition.name
     if name is SessionFeatureName.SESSION_ID:
-        value = f"{row.series_id}:{row.bar_start_ts.date().isoformat()}:{_session_label(row)}"
+        value = session_segment_id(row.series_id, row.bar_start_ts, template=session_template)
         return _point(row, value)
     if name is SessionFeatureName.MINUTES_FROM_RTH_OPEN:
-        return _rth_minutes_point(row, definition, from_open=True)
+        return _rth_minutes_point(row, session_template, from_open=True)
     if name is SessionFeatureName.MINUTES_TO_RTH_CLOSE:
-        return _rth_minutes_point(row, definition, from_open=False)
+        return _rth_minutes_point(row, session_template, from_open=False)
     if name is SessionFeatureName.RTH_SEGMENT_FLAG:
-        return _point(row, 1 if _session_label(row) == "RTH" else 0)
+        return _point(row, 1 if _session_state(row, session_template).is_rth else 0)
     if name is SessionFeatureName.ETH_SEGMENT_FLAG:
-        return _point(row, 1 if _session_label(row) == "ETH" else 0)
+        return _point(row, 1 if _session_state(row, session_template).is_eth else 0)
     if name is SessionFeatureName.DAY_OF_WEEK:
         return _point(row, row.bar_start_ts.weekday())
     if name is SessionFeatureName.BARS_TO_ROLL:
@@ -799,22 +836,24 @@ def _point(
 
 def _rth_minutes_point(
     row: TradeBarRow,
-    definition: SessionFeatureDefinition,
+    session_template: SessionTemplate,
     *,
     from_open: bool,
 ) -> _FeaturePoint:
-    if _session_label(row) != "RTH":
-        return _point(row, None, ("outside_rth",))
-    rth_open = _time_parameter(definition, "rth_open_time_utc")
-    rth_close = _time_parameter(definition, "rth_close_time_utc")
-    session_date = row.bar_start_ts.date()
-    open_dt = _combine_session_time(session_date, rth_open, row.bar_start_ts)
-    close_dt = _combine_session_time(session_date, rth_close, row.bar_start_ts)
+    state = _session_state(row, session_template)
     if from_open:
-        minutes = _minutes_between(open_dt, row.bar_start_ts)
-        return _non_negative_point(row, minutes, "before_rth_open")
-    minutes = _minutes_between(row.bar_start_ts, close_dt)
-    return _non_negative_point(row, minutes, "after_rth_close")
+        value = state.minutes_from_rth_open
+        negative_flag = "before_rth_open"
+    else:
+        value = state.minutes_to_rth_close
+        negative_flag = "after_rth_close"
+    if value is not None:
+        return _point(row, value)
+    if state.local_ts < state.rth_open_ts:
+        return _point(row, None, ("outside_rth", "before_rth_open"))
+    if state.local_ts >= state.rth_close_ts:
+        return _point(row, None, ("outside_rth", "after_rth_close"))
+    return _point(row, None, ("outside_rth", negative_flag))
 
 
 def _expiration_point(
@@ -914,15 +953,30 @@ def _row_semantic_flags(row: TradeBarRow, extra_flags: Sequence[str] = ()) -> tu
     return tuple(sorted(flags))
 
 
-def _session_label(row: TradeBarRow) -> str:
-    return _require_text(row.session_label, "trade_row.session_label").upper()
+def _session_template(template_id: str) -> SessionTemplate:
+    try:
+        return load_session_template_by_id(template_id=template_id)
+    except DataFoundationValidationError as exc:
+        raise SessionFeatureError(str(exc)) from exc
 
 
-def _time_parameter(definition: SessionFeatureDefinition, name: str) -> time:
-    value = definition.spec.transform.parameters.to_dict().get(name)
-    if not isinstance(value, str):
-        raise SessionFeatureError(f"{name} parameter must be HH:MM text")
-    return _parse_clock_time(value, name)
+def _session_template_for_definition(definition: SessionFeatureDefinition) -> SessionTemplate:
+    parameters = definition.spec.transform.parameters.to_dict()
+    template_id = parameters.get("session_template_id")
+    if not isinstance(template_id, str):
+        raise SessionFeatureError("session_template_id parameter must be text")
+    template = _session_template(template_id)
+    timezone = parameters.get("session_timezone")
+    if timezone != template.timezone:
+        raise SessionFeatureError("session_timezone parameter must match session template")
+    return template
+
+
+def _session_state(row: TradeBarRow, template: SessionTemplate) -> SessionWindowState:
+    try:
+        return classify_session_timestamp(row.bar_start_ts, template=template)
+    except DataFoundationValidationError as exc:
+        raise SessionFeatureError(str(exc)) from exc
 
 
 def _parse_clock_time(value: str, field_name: str) -> time:
@@ -943,10 +997,6 @@ def _parse_clock_time(value: str, field_name: str) -> time:
 
 def _clock_time_text(value: time) -> str:
     return f"{value.hour:02d}:{value.minute:02d}"
-
-
-def _combine_session_time(session_date: date, session_time: time, reference: datetime) -> datetime:
-    return datetime.combine(session_date, session_time, tzinfo=reference.tzinfo)
 
 
 def _minutes_between(start: datetime, end: datetime) -> int:

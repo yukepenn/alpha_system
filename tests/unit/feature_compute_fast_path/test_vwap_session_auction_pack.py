@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ from alpha_system.features.families.ohlcv import (
     build_ohlcv_feature_definition,
     compute_ohlcv_feature,
 )
-from alpha_system.features.input_views import OHLCVInputView
+from alpha_system.features.input_views import OHLCVInputRow, OHLCVInputView
 from tests.fixtures.feature_compute_fast_path.vwap_session_auction import (
     DATASET_ID,
     FIRST_RTH_NO_TRADE_INDEX,
@@ -64,8 +65,10 @@ VWAP_TOLERANCE = FeatureParityTolerance(
 
 def test_vwap_session_auction_pack_matches_reference_on_synthetic_fixture() -> None:
     pytest.importorskip("polars")
-    reference_rows = vwap_session_auction_input_rows()
-    frame_rows = vwap_session_auction_frame_rows()
+    # P194500 repair provenance: canonical session_label can be static metadata;
+    # both engines must derive RTH/ETH membership from bar_start_ts.
+    reference_rows = _static_session_input_rows()
+    frame_rows = _static_session_frame_rows()
     definitions, feature_set = _vwap_pack_contracts()
     reference_view = OHLCVInputView(reference_rows)
     reference_records = {
@@ -108,8 +111,8 @@ def test_vwap_session_auction_pack_matches_reference_on_synthetic_fixture() -> N
 
 def test_vwap_session_minute_binding_matches_reference_on_multi_session_fixture() -> None:
     pytest.importorskip("polars")
-    reference_rows = vwap_session_auction_input_rows()
-    frame_rows = vwap_session_auction_frame_rows()
+    reference_rows = _static_session_input_rows()
+    frame_rows = _static_session_frame_rows()
     definition, feature_set = _vwap_session_minute_contracts()
     reference_records = compute_ohlcv_feature(definition, OHLCVInputView(reference_rows))
     materializer = PackMaterializer()
@@ -125,6 +128,31 @@ def test_vwap_session_minute_binding_matches_reference_on_multi_session_fixture(
         fast_records[definition.feature_version_id],
         expected_feature_version_id=definition.feature_version_id,
     )
+
+
+def test_vwap_opening_range_uses_timestamp_rth_when_session_label_is_static_eth() -> None:
+    pytest.importorskip("polars")
+    frame_rows = tuple(
+        {**row, "session_label": "ETH"} for row in vwap_session_auction_frame_rows()
+    )
+    definitions, feature_set = _vwap_pack_contracts()
+    opening_definition = next(
+        definition
+        for definition in definitions
+        if definition.name is OHLCVFeatureName.OPENING_RANGE
+    )
+    materializer = PackMaterializer()
+    pack = build_fast_feature_pack(feature_set)
+
+    fast_records = _records_by_feature_version(
+        materializer.compute_values(materializer.frame_from_rows(frame_rows), pack)
+    )
+    opening_records = fast_records[opening_definition.feature_version_id]
+
+    assert opening_records[FIRST_RTH_NO_TRADE_INDEX].value is None
+    assert opening_records[5].value is not None
+    assert opening_records[RTH_ZERO_VOLUME_INDEX].value is not None
+    assert "outside_rth" in opening_records[0].quality_flags
 
 
 def test_vwap_session_auction_pack_materialization_records_fast_provenance(
@@ -254,7 +282,7 @@ def _assert_fixture_coverage(
         RTH_ZERO_VOLUME_INDEX
     ].value is not None
     assert reference_records[OHLCVFeatureName.OVERNIGHT_RANGE][0].quality_flags == (
-        "no_overnight_range",
+        "no_overnight_trade",
         "no_trade",
         "ohlcv_gap",
     )
@@ -278,3 +306,11 @@ def _records_by_feature_version(
     for record in records:
         grouped[record.feature_version_id].append(record)
     return {feature_version_id: tuple(values) for feature_version_id, values in grouped.items()}
+
+
+def _static_session_input_rows() -> tuple[OHLCVInputRow, ...]:
+    return tuple(replace(row, session_label="ETH") for row in vwap_session_auction_input_rows())
+
+
+def _static_session_frame_rows() -> tuple[dict[str, object], ...]:
+    return tuple({**row, "session_label": "ETH"} for row in vwap_session_auction_frame_rows())

@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+    SESSION_TYPE_ETH,
+    SESSION_TYPE_RTH,
+    SessionTemplate,
+    SessionWindowState,
+    classify_session_timestamp,
+    load_session_template_by_id,
+)
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -28,6 +38,7 @@ from alpha_system.features.input_views import (
     OHLCVInputView,
 )
 from alpha_system.features.primitives import (
+    OHLCVPrimitiveBar,
     PrimitivePoint,
     PrimitiveResult,
     average_true_range,
@@ -118,6 +129,18 @@ _ROLLING_FEATURES = frozenset(
 )
 _EXPANDING_FEATURES = frozenset(
     {
+        OHLCVFeatureName.OPENING_RANGE,
+        OHLCVFeatureName.OVERNIGHT_RANGE,
+        OHLCVFeatureName.VWAP,
+        OHLCVFeatureName.ANCHORED_VWAP,
+        OHLCVFeatureName.DISTANCE_TO_VWAP,
+    }
+)
+_SESSION_TRUTH_FEATURES = frozenset(
+    {
+        OHLCVFeatureName.SESSION_MINUTE,
+        OHLCVFeatureName.RTH_FLAG,
+        OHLCVFeatureName.ETH_FLAG,
         OHLCVFeatureName.OPENING_RANGE,
         OHLCVFeatureName.OVERNIGHT_RANGE,
         OHLCVFeatureName.VWAP,
@@ -246,7 +269,7 @@ def compute_ohlcv_feature(
             definition,
             rows,
             simple_returns(
-                points_from_trade_rows(rows, "close"),
+                _primitive_points_from_trade_rows(rows, "close"),
                 _int_parameter(definition, "horizon"),
                 reset_on_session=_bool_parameter(definition, "reset_on_session"),
             ),
@@ -256,7 +279,7 @@ def compute_ohlcv_feature(
             definition,
             rows,
             log_returns(
-                points_from_trade_rows(rows, "close"),
+                _primitive_points_from_trade_rows(rows, "close"),
                 _int_parameter(definition, "horizon"),
                 reset_on_session=_bool_parameter(definition, "reset_on_session"),
             ),
@@ -279,7 +302,7 @@ def compute_ohlcv_feature(
             definition,
             rows,
             average_true_range(
-                bars_from_trade_rows(rows),
+                _primitive_bars_from_trade_rows(rows),
                 definition.spec.window,
                 reset_on_session=_bool_parameter(definition, "reset_on_session"),
             ),
@@ -289,7 +312,7 @@ def compute_ohlcv_feature(
             definition,
             rows,
             causal_zscore(
-                points_from_trade_rows(rows, "volume"),
+                _primitive_points_from_trade_rows(rows, "volume"),
                 definition.spec.window,
                 ddof=_int_parameter(definition, "ddof"),
                 reset_on_session=_bool_parameter(definition, "reset_on_session"),
@@ -300,9 +323,9 @@ def compute_ohlcv_feature(
     if definition.name is OHLCVFeatureName.SESSION_MINUTE:
         return _records_from_points(definition, _session_minute_points(rows))
     if definition.name is OHLCVFeatureName.RTH_FLAG:
-        return _records_from_points(definition, _session_flag_points(rows, "RTH"))
+        return _records_from_points(definition, _session_flag_points(rows, SESSION_TYPE_RTH))
     if definition.name is OHLCVFeatureName.ETH_FLAG:
-        return _records_from_points(definition, _session_flag_points(rows, "ETH"))
+        return _records_from_points(definition, _session_flag_points(rows, SESSION_TYPE_ETH))
     if definition.name is OHLCVFeatureName.OPENING_RANGE:
         return _records_from_points(definition, _opening_range_points(rows, definition))
     if definition.name is OHLCVFeatureName.OVERNIGHT_RANGE:
@@ -487,7 +510,17 @@ def _transform_parameters(
         parameters["opening_range_minutes"] = opening_range_minutes
     if name is OHLCVFeatureName.ANCHORED_VWAP and anchor_session_label is not None:
         parameters["anchor_session_label"] = anchor_session_label.upper()
+    if _requires_session_truth_parameters(name, reset_on_session=reset_on_session):
+        parameters.update(_session_contract_parameters())
     return parameters
+
+
+def _requires_session_truth_parameters(
+    name: OHLCVFeatureName,
+    *,
+    reset_on_session: bool,
+) -> bool:
+    return reset_on_session or name in _SESSION_TRUTH_FEATURES
 
 
 def _input_fields(name: OHLCVFeatureName) -> tuple[str, ...]:
@@ -612,7 +645,7 @@ def _return_points(
     definition: OHLCVFeatureDefinition,
 ) -> tuple[PrimitivePoint, ...]:
     returns = simple_returns(
-        points_from_trade_rows(rows, "close"),
+        _primitive_points_from_trade_rows(rows, "close"),
         _int_parameter(definition, "horizon"),
         reset_on_session=_bool_parameter(definition, "reset_on_session"),
     )
@@ -687,9 +720,15 @@ def _rolling_reduce_rows(
 ) -> tuple[_FeaturePoint, ...]:
     window_length = definition.spec.window.length
     reset_on_session = _bool_parameter(definition, "reset_on_session")
+    session_labels = _session_segment_labels(rows) if reset_on_session else ()
     results: list[_FeaturePoint] = []
     for index, row in enumerate(rows):
-        start = _window_start(rows, index, window_length, reset_on_session=reset_on_session)
+        start = _window_start(
+            index,
+            window_length,
+            reset_on_session=reset_on_session,
+            session_labels=session_labels,
+        )
         window_rows = rows[start : index + 1]
         if len(window_rows) < window_length:
             results.append(_gap_feature_point(row, "insufficient_window"))
@@ -707,28 +746,29 @@ def _rolling_reduce_rows(
 
 
 def _window_start(
-    rows: Sequence[OHLCVInputRow],
     index: int,
     window_length: int,
     *,
     reset_on_session: bool,
+    session_labels: Sequence[str],
 ) -> int:
     start = max(0, index - window_length + 1)
     if not reset_on_session:
         return start
-    current_session = rows[index].session_label
+    current_session = session_labels[index]
     for prior_index in range(index - 1, start - 1, -1):
-        if rows[prior_index].session_label != current_session:
+        if session_labels[prior_index] != current_session:
             return prior_index + 1
     return start
 
 
 def _session_minute_points(rows: Sequence[OHLCVInputRow]) -> tuple[_FeaturePoint, ...]:
+    states = _session_states(rows)
     results: list[_FeaturePoint] = []
     segment_start: datetime | None = None
     previous_session = object()
-    for row in rows:
-        session_key = (row.series_id, row.session_label)
+    for row, state in zip(rows, states, strict=True):
+        session_key = (row.series_id, state.segment_label)
         if session_key != previous_session:
             segment_start = row.bar_start_ts
             previous_session = session_key
@@ -747,8 +787,8 @@ def _session_flag_points(
 ) -> tuple[_FeaturePoint, ...]:
     normalized = session_label.upper()
     return tuple(
-        _FeaturePoint(row=row, value=1 if row.session_label.upper() == normalized else 0)
-        for row in rows
+        _FeaturePoint(row=row, value=1 if state.segment_label == normalized else 0)
+        for row, state in zip(rows, _session_states(rows), strict=True)
     )
 
 
@@ -762,14 +802,15 @@ def _opening_range_points(
     session_start: datetime | None = None
     previous_key: tuple[str, str] | None = None
     results: list[_FeaturePoint] = []
-    for row in rows:
-        key = (row.series_id, row.session_label)
+    states = _session_states(rows)
+    for row, state in zip(rows, states, strict=True):
+        key = (row.series_id, state.segment_label)
         if key != previous_key:
             previous_key = key
             session_start = row.bar_start_ts
             opening_high = None
             opening_low = None
-        if row.session_label.upper() != "RTH":
+        if not state.is_rth:
             results.append(_gap_feature_point(row, "outside_rth"))
             continue
         assert session_start is not None
@@ -792,19 +833,20 @@ def _overnight_range_points(rows: Sequence[OHLCVInputRow]) -> tuple[_FeaturePoin
     frozen_overnight_range: float | None = None
     previous_session: str | None = None
     results: list[_FeaturePoint] = []
-    for row in rows:
-        session = row.session_label.upper()
-        if session != previous_session and session == "ETH":
+    states = _session_states(rows)
+    for row, state in zip(rows, states, strict=True):
+        session = state.segment_label
+        if session != previous_session and session == SESSION_TYPE_ETH:
             eth_high = None
             eth_low = None
             frozen_overnight_range = None
-        if session != previous_session and previous_session == "ETH":
+        if session != previous_session and previous_session == SESSION_TYPE_ETH:
             frozen_overnight_range = (
                 None if eth_high is None or eth_low is None else eth_high - eth_low
             )
         previous_session = session
 
-        if session == "ETH":
+        if state.is_eth:
             if _is_trade_row(row):
                 row_high = _to_float(row.high, "high")
                 row_low = _to_float(row.low, "low")
@@ -816,7 +858,7 @@ def _overnight_range_points(rows: Sequence[OHLCVInputRow]) -> tuple[_FeaturePoin
                 results.append(_FeaturePoint(row=row, value=eth_high - eth_low))
             continue
 
-        if session == "RTH" and frozen_overnight_range is not None:
+        if state.is_rth and frozen_overnight_range is not None:
             results.append(_FeaturePoint(row=row, value=frozen_overnight_range))
         else:
             results.append(_gap_feature_point(row, "no_overnight_range", row.quality_flags))
@@ -832,8 +874,9 @@ def _vwap_points(
     cumulative_volume = 0.0
     previous_session: tuple[str, str] | None = None
     results: list[_FeaturePoint] = []
-    for row in rows:
-        session_key = (row.series_id, row.session_label)
+    states = _session_states(rows)
+    for row, state in zip(rows, states, strict=True):
+        session_key = (row.series_id, state.segment_label)
         if session_reset and session_key != previous_session:
             cumulative_price_volume = 0.0
             cumulative_volume = 0.0
@@ -863,10 +906,11 @@ def _anchored_vwap_points(
     active = anchor_session_label is None
     previous_session: tuple[str, str] | None = None
     results: list[_FeaturePoint] = []
-    for row in rows:
-        session_key = (row.series_id, row.session_label)
+    states = _session_states(rows)
+    for row, state in zip(rows, states, strict=True):
+        session_key = (row.series_id, state.segment_label)
         if session_key != previous_session and (
-            anchor_session_label is None or row.session_label.upper() == anchor_session_label
+            anchor_session_label is None or state.segment_label == anchor_session_label
         ):
             active = True
             cumulative_price_volume = 0.0
@@ -932,6 +976,63 @@ def _typical_price(row: OHLCVInputRow) -> float:
     return (
         _to_float(row.high, "high") + _to_float(row.low, "low") + _to_float(row.close, "close")
     ) / 3.0
+
+
+def _primitive_points_from_trade_rows(
+    rows: Sequence[OHLCVInputRow],
+    field: str,
+) -> tuple[PrimitivePoint, ...]:
+    points = points_from_trade_rows(rows, field)
+    return tuple(
+        replace(point, session_label=state.segment_label)
+        for point, state in zip(points, _session_states(rows), strict=True)
+    )
+
+
+def _primitive_bars_from_trade_rows(
+    rows: Sequence[OHLCVInputRow],
+) -> tuple[OHLCVPrimitiveBar, ...]:
+    bars = bars_from_trade_rows(rows)
+    return tuple(
+        replace(bar, session_label=state.segment_label)
+        for bar, state in zip(bars, _session_states(rows), strict=True)
+    )
+
+
+def _session_contract_parameters() -> dict[str, object]:
+    template = _session_template()
+    return {
+        "session_template_id": template.template_id,
+        "session_timezone": template.timezone,
+        "rth_open_time_local": template.rth_start.isoformat(timespec="minutes"),
+        "rth_close_time_local": template.rth_end.isoformat(timespec="minutes"),
+        "session_truth_source": "alpha_system.data.foundation.sessions",
+    }
+
+
+def _session_template() -> SessionTemplate:
+    try:
+        return load_session_template_by_id(
+            template_id=CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+        )
+    except DataFoundationValidationError as exc:
+        raise OHLCVFeatureError(str(exc)) from exc
+
+
+def _session_states(rows: Sequence[OHLCVInputRow]) -> tuple[SessionWindowState, ...]:
+    template = _session_template()
+    return tuple(_session_state(row, template) for row in rows)
+
+
+def _session_segment_labels(rows: Sequence[OHLCVInputRow]) -> tuple[str, ...]:
+    return tuple(state.segment_label for state in _session_states(rows))
+
+
+def _session_state(row: OHLCVInputRow, template: SessionTemplate) -> SessionWindowState:
+    try:
+        return classify_session_timestamp(row.bar_start_ts, template=template)
+    except DataFoundationValidationError as exc:
+        raise OHLCVFeatureError(str(exc)) from exc
 
 
 def _int_parameter(definition: OHLCVFeatureDefinition, name: str) -> int:

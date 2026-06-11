@@ -24,7 +24,7 @@ def vwap_session_auction_input_rows() -> tuple[OHLCVInputRow, ...]:
         _row(
             0,
             "2024-01-02T13:57:00+00:00",
-            "HALT",
+            "ETH",
             open_="100",
             high="100",
             low="100",
@@ -104,9 +104,11 @@ def vwap_session_auction_input_rows() -> tuple[OHLCVInputRow, ...]:
             close="104",
             volume="200",
         ),
+        # FUTSUB session-segment repair provenance: these ETH rows intentionally
+        # sit at/after 15:00 America/Chicago, not 15:00 UTC.
         _row(
             8,
-            "2024-01-02T15:00:00+00:00",
+            "2024-01-02T21:00:00+00:00",
             "ETH",
             open_="104",
             high="104",
@@ -117,7 +119,7 @@ def vwap_session_auction_input_rows() -> tuple[OHLCVInputRow, ...]:
         ),
         _row(
             9,
-            "2024-01-02T15:01:00+00:00",
+            "2024-01-02T21:01:00+00:00",
             "ETH",
             open_="105",
             high="106",

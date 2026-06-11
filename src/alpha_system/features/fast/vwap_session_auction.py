@@ -5,8 +5,13 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import time
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    load_session_template_by_id,
+)
 from alpha_system.data.storage import require_dependency
 from alpha_system.features.contracts import (
     FeatureFamily,
@@ -78,6 +83,13 @@ _PREVIOUS_SEGMENT_ETH_RANGE = f"{_PREFIX}_previous_segment_eth_range"
 class _PackExpression:
     value: Any
     flags: Any
+
+
+@dataclass(frozen=True, slots=True)
+class _SessionClock:
+    timezone: str
+    rth_open_seconds: int
+    rth_close_seconds: int
 
 
 def build_vwap_session_auction_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
@@ -153,6 +165,7 @@ def _validate_vwap_session_auction_feature(feature: FeatureSpec) -> None:
     parameters = feature.transform.parameters.to_dict()
     _require_parameter(parameters, "feature_name", feature_name.value, feature.feature_id)
     _require_parameter(parameters, "reset_on_session", True, feature.feature_id)
+    _validate_session_contract_parameters(parameters, feature.feature_id)
     if feature_name is OHLCVFeatureName.OPENING_RANGE:
         opening_minutes = parameters.get("opening_range_minutes")
         if not isinstance(opening_minutes, int) or isinstance(opening_minutes, bool):
@@ -192,6 +205,25 @@ def _require_parameter(
 ) -> None:
     if parameters.get(name) != expected:
         raise PackMaterializerError(f"{feature_id} requires {name}={expected!r}")
+
+
+def _validate_session_contract_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> None:
+    try:
+        template = load_session_template_by_id()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    expected = {
+        "session_template_id": template.template_id,
+        "session_timezone": template.timezone,
+        "rth_open_time_local": template.rth_start.isoformat(timespec="minutes"),
+        "rth_close_time_local": template.rth_end.isoformat(timespec="minutes"),
+        "session_truth_source": "alpha_system.data.foundation.sessions",
+    }
+    for name, value in expected.items():
+        _require_parameter(parameters, name, value, feature_id)
 
 
 def _anchor_labels(features: Sequence[FeatureSpec]) -> tuple[str, ...]:
@@ -262,9 +294,9 @@ def _prepare_frame(frame: Any, *, anchor_labels: Sequence[str]) -> Any:
             "close",
             "volume",
             "quality_flags",
-            "session_label",
         ),
     )
+    session_clock = _session_clock()
     prepared = frame.with_columns(
         (
             _bar_start_ts(pl).alias(_BAR_START),
@@ -273,7 +305,7 @@ def _prepare_frame(frame: Any, *, anchor_labels: Sequence[str]) -> Any:
             pl.col("close").cast(pl.Float64, strict=False).alias(_CLOSE),
             pl.col("volume").cast(pl.Float64, strict=False).alias(_VOLUME),
             _input_quality_flags(pl).alias(_INPUT_FLAGS),
-            _session_label(pl).alias(_SESSION),
+            _template_session_label(pl, session_clock).alias(_SESSION),
         )
     )
     segment_start = (
@@ -290,8 +322,8 @@ def _prepare_frame(frame: Any, *, anchor_labels: Sequence[str]) -> Any:
             .fill_null(False)
             .not_()
             .alias(_IS_TRADE),
-            (pl.col(_SESSION) == "RTH").alias(_IS_RTH),
-            (pl.col(_SESSION) == "ETH").alias(_IS_ETH),
+            _is_rth(pl, session_clock).alias(_IS_RTH),
+            _is_rth(pl, session_clock).not_().alias(_IS_ETH),
             segment_start.alias(_IS_SEGMENT_START),
         )
     )
@@ -574,8 +606,46 @@ def _bar_start_ts(polars: Any) -> Any:
     return polars.col("bar_start_ts").cast(polars.Datetime("us", "UTC"), strict=False)
 
 
-def _session_label(polars: Any) -> Any:
-    return polars.col("session_label").cast(polars.Utf8).str.to_uppercase()
+def _session_clock() -> _SessionClock:
+    try:
+        template = load_session_template_by_id()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    return _SessionClock(
+        timezone=template.timezone,
+        rth_open_seconds=_seconds_since_midnight(template.rth_start),
+        rth_close_seconds=_seconds_since_midnight(template.rth_end),
+    )
+
+
+def _seconds_since_midnight(value: time) -> int:
+    return value.hour * 3600 + value.minute * 60 + value.second
+
+
+def _local_bar_start(polars: Any, session_clock: _SessionClock) -> Any:
+    return _bar_start_ts(polars).dt.convert_time_zone(session_clock.timezone)
+
+
+def _local_seconds(polars: Any, session_clock: _SessionClock) -> Any:
+    local = _local_bar_start(polars, session_clock)
+    return (
+        local.dt.hour().cast(polars.Int64) * 3600
+        + local.dt.minute().cast(polars.Int64) * 60
+        + local.dt.second().cast(polars.Int64)
+    )
+
+
+def _is_rth(polars: Any, session_clock: _SessionClock) -> Any:
+    seconds = _local_seconds(polars, session_clock)
+    return (seconds >= session_clock.rth_open_seconds) & (
+        seconds < session_clock.rth_close_seconds
+    )
+
+
+def _template_session_label(polars: Any, session_clock: _SessionClock) -> Any:
+    return polars.when(_is_rth(polars, session_clock)).then(
+        polars.lit("RTH")
+    ).otherwise(polars.lit("ETH"))
 
 
 def _flags(polars: Any, values: Sequence[str]) -> Any:

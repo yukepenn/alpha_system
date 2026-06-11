@@ -75,7 +75,13 @@ def test_running_vwap_uses_current_available_ts_not_final_session_vwap() -> None
 
 
 def test_anchored_eth_vwap_carries_only_available_anchor_rows() -> None:
-    rows = _rows(("ETH", "RTH", "RTH"), prices=(90, 120, 600))
+    # P194500 repair provenance: anchor truth is timestamp-derived, so the
+    # synthetic ETH anchor row sits one minute before the 08:30 CT RTH open.
+    rows = _rows(
+        ("ETH", "ETH", "ETH"),
+        prices=(90, 120, 600),
+        start=datetime(2024, 1, 2, 14, 29, tzinfo=UTC),
+    )
     definition = build_ohlcv_feature_definition(
         OHLCVFeatureName.ANCHORED_VWAP,
         _approved_request("anchored_eth_vwap"),
@@ -98,9 +104,9 @@ def _rows(
     session_labels: tuple[str, ...],
     *,
     prices: tuple[int, ...],
+    start: datetime = datetime(2024, 1, 2, 14, 30, tzinfo=UTC),
 ) -> tuple[OHLCVInputRow, ...]:
     assert len(session_labels) == len(prices)
-    start = datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
     return tuple(
         _row(
             start + timedelta(minutes=index),

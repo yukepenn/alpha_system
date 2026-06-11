@@ -88,6 +88,13 @@ def test_all_session_features_are_gated_versioned_and_available() -> None:
         assert len(records) == len(rows)
         assert all(record.feature_version_id == definition.feature_version_id for record in records)
         assert [record.available_ts for record in records] == [row.available_ts for row in rows]
+        parameters = definition.spec.transform.parameters.to_dict()
+        assert parameters["session_template_id"] == "session_cme_index_futures_eth"
+        assert parameters["session_timezone"] == "America/Chicago"
+        assert parameters["rth_open_time_local"] == "08:30"
+        assert parameters["rth_close_time_local"] == "15:00"
+        assert "rth_open_time_utc" not in parameters
+        assert "rth_close_time_utc" not in parameters
 
     assert isinstance(
         _definition(definitions, SessionFeatureName.SESSION_ID).spec,
@@ -151,6 +158,79 @@ def test_synthetic_no_trade_rows_retain_session_position_but_are_flagged() -> No
     assert synthetic_record.value == "ES_c_0:2024-01-02:RTH"
     assert NO_TRADE_QUALITY_FLAG in synthetic_record.quality_flags
     assert "synthetic_no_trade_position_only" in synthetic_record.quality_flags
+
+
+def test_session_position_features_ignore_static_session_label_for_rth_truth() -> None:
+    # P183000 repair provenance: canonical session_label is a coverage descriptor;
+    # RTH/ETH truth comes from bar_start_ts converted through the session template.
+    rows = (
+        _ohlcv_row(_dt("2024-01-10T14:29:00+00:00"), "ETH", contract_id="ESM4"),
+        _ohlcv_row(_dt("2024-01-10T14:30:00+00:00"), "ETH", contract_id="ESM4"),
+        _ohlcv_row(_dt("2024-01-10T20:59:00+00:00"), "ETH", contract_id="ESM4"),
+        _ohlcv_row(_dt("2024-01-10T21:00:00+00:00"), "ETH", contract_id="ESM4"),
+        _ohlcv_row(_dt("2024-07-10T13:30:00+00:00"), "ETH", contract_id="ESU4"),
+        _ohlcv_row(_dt("2024-07-10T20:00:00+00:00"), "ETH", contract_id="ESU4"),
+    )
+    registry = EmptyRegistryReader()
+    definitions = {
+        feature: build_session_feature_definition(
+            feature,
+            _approved_request(feature),
+            registry,
+            dataset_version_ids=("dsv_synthetic_session",),
+        )
+        for feature in (
+            SessionFeatureName.SESSION_ID,
+            SessionFeatureName.MINUTES_FROM_RTH_OPEN,
+            SessionFeatureName.MINUTES_TO_RTH_CLOSE,
+            SessionFeatureName.RTH_SEGMENT_FLAG,
+            SessionFeatureName.ETH_SEGMENT_FLAG,
+        )
+    }
+
+    records = {
+        feature: compute_session_feature(definition, rows)
+        for feature, definition in definitions.items()
+    }
+
+    assert [record.value for record in records[SessionFeatureName.RTH_SEGMENT_FLAG]] == [
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+    ]
+    assert [record.value for record in records[SessionFeatureName.ETH_SEGMENT_FLAG]] == [
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+    ]
+    assert [record.value for record in records[SessionFeatureName.MINUTES_FROM_RTH_OPEN]] == [
+        None,
+        0,
+        389,
+        None,
+        0,
+        None,
+    ]
+    assert [record.value for record in records[SessionFeatureName.MINUTES_TO_RTH_CLOSE]] == [
+        None,
+        390,
+        1,
+        None,
+        390,
+        None,
+    ]
+    assert records[SessionFeatureName.SESSION_ID][1].value == "ES_c_0:2024-01-10:RTH"
+    assert records[SessionFeatureName.SESSION_ID][3].value == "ES_c_0:2024-01-10:ETH"
+    assert records[SessionFeatureName.SESSION_ID][4].value == "ES_c_0:2024-07-10:RTH"
+    assert "outside_rth" in records[SessionFeatureName.MINUTES_FROM_RTH_OPEN][0].quality_flags
+    assert "before_rth_open" in records[SessionFeatureName.MINUTES_FROM_RTH_OPEN][0].quality_flags
+    assert "after_rth_close" in records[SessionFeatureName.MINUTES_TO_RTH_CLOSE][3].quality_flags
 
 
 def test_missing_optional_metadata_is_flagged_not_fabricated() -> None:
