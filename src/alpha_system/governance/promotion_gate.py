@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import stat
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -102,6 +105,7 @@ class PromotionGateContext:
     rejected_idea_record: RejectedIdeaRecord | Mapping[str, Any] | None = None
     rejection_reason: str | None = None
     locked_test_contamination_metadata: Mapping[str, Any] | None = None
+    trial_ledger_path: str | Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +204,7 @@ def validate_governance_transition(
         )
 
     if previous_state is PromotionLifecycleState.DIAGNOSTICS_RUN:
+        require_trial_ledger_present(active_context.trial_ledger_path)
         evidence_bundle = validate_evidence_ready_gate(active_context.evidence_bundle)
         return GovernanceTransition(
             previous_state,
@@ -292,6 +297,97 @@ def reachable_transition_targets(from_state: PromotionLifecycleState | str) -> t
     targets = set(ALLOWED_TRANSITIONS.get(previous_state.value, ()))
     targets.add(PromotionLifecycleState.REJECTED.value)
     return tuple(sorted(targets))
+
+
+def require_trial_ledger_present(ledger_path: str | Path | None) -> Path:
+    """Require a present, readable, parseable, non-destructively writable ledger."""
+
+    if ledger_path is None or not _is_substantive_text(str(ledger_path)):
+        _raise_ledger_issue(
+            ledger_path,
+            "missing_trial_ledger_path",
+            "trial ledger path is required before evidence-ready transition",
+            expected="path to an existing writable trial ledger JSON file",
+            actual="missing",
+        )
+
+    path = Path(ledger_path)
+    try:
+        metadata = path.stat()
+    except FileNotFoundError:
+        _raise_ledger_issue(
+            path,
+            "missing_trial_ledger",
+            "trial ledger file is missing",
+            expected="existing trial ledger JSON file",
+            actual=str(path),
+        )
+    except OSError as exc:
+        _raise_ledger_issue(
+            path,
+            "unreadable_trial_ledger",
+            "trial ledger file metadata could not be read",
+            expected="readable trial ledger JSON file",
+            actual=f"{path}: {exc}",
+        )
+
+    if not stat.S_ISREG(metadata.st_mode):
+        _raise_ledger_issue(
+            path,
+            "invalid_trial_ledger_path",
+            "trial ledger path must point to a regular file",
+            expected="regular JSON file",
+            actual=str(path),
+        )
+    if metadata.st_mode & (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH) == 0:
+        _raise_ledger_issue(
+            path,
+            "unreadable_trial_ledger",
+            "trial ledger file has no read permission bits set",
+            expected="readable trial ledger JSON file",
+            actual=str(path),
+        )
+    if metadata.st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH) == 0:
+        _raise_ledger_issue(
+            path,
+            "unwritable_trial_ledger",
+            "trial ledger file has no write permission bits set",
+            expected="non-destructively writable trial ledger JSON file",
+            actual=str(path),
+        )
+
+    try:
+        with path.open("r+", encoding="utf-8") as handle:
+            content = handle.read()
+    except PermissionError as exc:
+        _raise_ledger_issue(
+            path,
+            "unwritable_trial_ledger",
+            "trial ledger file could not be opened read/write without truncation",
+            expected="non-destructively writable trial ledger JSON file",
+            actual=f"{path}: {exc}",
+        )
+    except OSError as exc:
+        _raise_ledger_issue(
+            path,
+            "unreadable_trial_ledger",
+            "trial ledger file could not be opened for validation",
+            expected="readable and writable trial ledger JSON file",
+            actual=f"{path}: {exc}",
+        )
+
+    try:
+        json.loads(content)
+    except json.JSONDecodeError as exc:
+        _raise_ledger_issue(
+            path,
+            "unparseable_trial_ledger",
+            "trial ledger file is not parseable JSON",
+            expected="parseable JSON trial ledger",
+            actual=f"{path}: {exc.msg}",
+        )
+
+    return path
 
 
 def _validate_rejected_transition(
@@ -923,6 +1019,25 @@ def _expected_targets(previous_state: PromotionLifecycleState) -> str:
     return " | ".join(targets) if targets else "no declared transition"
 
 
+def _raise_ledger_issue(
+    ledger_path: str | Path | None,
+    code: str,
+    message: str,
+    *,
+    expected: str,
+    actual: str,
+) -> None:
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="trial_ledger_path",
+            code=code,
+            message=f"{message}: {ledger_path}",
+            expected=expected,
+            actual=actual,
+        )
+    )
+
+
 def _is_substantive_text(value: object) -> bool:
     return isinstance(value, str) and _normalize_text(value) not in _VAGUE_TEXT
 
@@ -941,6 +1056,7 @@ __all__ = [
     "REACHABLE_STATES",
     "GovernanceTransition",
     "PromotionGateContext",
+    "require_trial_ledger_present",
     "assert_promotion_gate",
     "prohibited_mvp_states",
     "reachable_states",

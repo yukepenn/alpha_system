@@ -219,7 +219,9 @@ _ADAPTERS: Mapping[str, _GovernanceObjectAdapter] = MappingProxyType(
             kind=GovernanceIdKind.PROMOTION_DECISION,
             id_attribute="promotion_id",
             validate=validate_promotion_decision,
-            allowed_lifecycle_states=frozenset({"REJECTED", "WATCH", "CANDIDATE", "VALIDATED"}),
+            allowed_lifecycle_states=frozenset(
+                {"REJECTED", "WATCH", "INCONCLUSIVE", "CANDIDATE", "VALIDATED"}
+            ),
         ),
         GovernanceIdKind.REVIEWER_VERDICT.value: _GovernanceObjectAdapter(
             kind=GovernanceIdKind.REVIEWER_VERDICT,

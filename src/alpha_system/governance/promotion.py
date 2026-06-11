@@ -29,6 +29,12 @@ from alpha_system.governance.validation import (
     validate_required_fields,
     validate_schema,
 )
+from alpha_system.governance.verdict_reason_code import (
+    VerdictReasonCode,
+    missing_inconclusive_reason_issue,
+    validate_optional_verdict_reason_code,
+    validate_verdict_reason_code,
+)
 
 PROMOTION_DECISION_REQUIRED_FIELDS = (
     "promotion_id",
@@ -43,8 +49,14 @@ PROMOTION_DECISION_REQUIRED_FIELDS = (
     "warnings",
     "timestamp",
 )
+PROMOTION_DECISION_OPTIONAL_FIELDS = ("reason_code",)
+PROMOTION_DECISION_ALLOWED_FIELDS = (
+    PROMOTION_DECISION_REQUIRED_FIELDS + PROMOTION_DECISION_OPTIONAL_FIELDS
+)
 PROMOTION_DECISION_ID_COMPONENT_FIELDS = tuple(
-    field for field in PROMOTION_DECISION_REQUIRED_FIELDS if field != "promotion_id"
+    field
+    for field in PROMOTION_DECISION_ALLOWED_FIELDS
+    if field != "promotion_id"
 )
 PROMOTION_DECISION_FIELD_TYPES: dict[str, ExpectedType] = {
     "promotion_id": str,
@@ -58,11 +70,13 @@ PROMOTION_DECISION_FIELD_TYPES: dict[str, ExpectedType] = {
     "reviewer_verdict_id": str,
     "warnings": list,
     "timestamp": str,
+    "reason_code": (str, VerdictReasonCode),
 }
 PROMOTION_REVIEW_SOURCE_STATE = "REVIEWED"
 PROMOTION_DECISION_TARGET_STATES = (
     "REJECTED",
     "WATCH",
+    "INCONCLUSIVE",
     "CANDIDATE",
     "VALIDATED",
 )
@@ -105,6 +119,7 @@ class PromotionLifecycleState(StrEnum):
     REVIEWED = "REVIEWED"
     REJECTED = "REJECTED"
     WATCH = "WATCH"
+    INCONCLUSIVE = "INCONCLUSIVE"
     CANDIDATE = "CANDIDATE"
     VALIDATED = "VALIDATED"
 
@@ -114,6 +129,7 @@ class PromotionDecisionOutcome(StrEnum):
 
     REJECTED = "REJECTED"
     WATCH = "WATCH"
+    INCONCLUSIVE = "INCONCLUSIVE"
     CANDIDATE = "CANDIDATE"
     VALIDATED = "VALIDATED"
 
@@ -136,6 +152,7 @@ class PromotionDecision:
     reviewer_verdict_id: str
     warnings: tuple[str, ...]
     timestamp: str
+    reason_code: VerdictReasonCode | None = None
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> PromotionDecision:
@@ -172,7 +189,7 @@ class PromotionDecision:
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a strict JSON-compatible representation."""
 
-        return {
+        payload: dict[str, JsonValue] = {
             "promotion_id": self.promotion_id,
             "alpha_spec_id": self.alpha_spec_id,
             "evidence_bundle_id": self.evidence_bundle_id,
@@ -185,6 +202,9 @@ class PromotionDecision:
             "warnings": list(self.warnings),
             "timestamp": self.timestamp,
         }
+        if self.reason_code is not None:
+            payload["reason_code"] = self.reason_code.value
+        return payload
 
     def to_canonical_json(self) -> str:
         """Serialize the validated decision through the canonical primitive."""
@@ -204,6 +224,7 @@ def create_promotion_decision(
     reviewer_verdict_id: str,
     warnings: list[str],
     timestamp: str,
+    reason_code: VerdictReasonCode | str | None = None,
 ) -> PromotionDecision:
     """Create a validated `PromotionDecision` without changing lifecycle state."""
 
@@ -219,6 +240,8 @@ def create_promotion_decision(
         "warnings": list(warnings),
         "timestamp": timestamp,
     }
+    if reason_code is not None:
+        payload["reason_code"] = validate_optional_verdict_reason_code(reason_code).value
     payload["promotion_id"] = generate_promotion_decision_id(payload)
     return validate_promotion_decision(payload)
 
@@ -228,12 +251,21 @@ def generate_promotion_decision_id(payload: Mapping[str, Any]) -> str:
 
     mapping = validate_required_fields(
         payload,
-        PROMOTION_DECISION_ID_COMPONENT_FIELDS,
+        tuple(
+            field
+            for field in PROMOTION_DECISION_ID_COMPONENT_FIELDS
+            if field in PROMOTION_DECISION_REQUIRED_FIELDS
+        ),
         object_name="PromotionDecision",
     )
+    if mapping["decision"] == PromotionDecisionOutcome.INCONCLUSIVE.value and "reason_code" not in mapping:
+        raise GovernanceValidationError(
+            missing_inconclusive_reason_issue(state_field="PromotionDecision.decision")
+        )
     components = {
         field: _normalize_id_component(field, mapping[field])
         for field in PROMOTION_DECISION_ID_COMPONENT_FIELDS
+        if field in mapping
     }
     return generate_governance_id(GovernanceIdKind.PROMOTION_DECISION, components)
 
@@ -245,7 +277,7 @@ def validate_promotion_decision(payload: Mapping[str, Any]) -> PromotionDecision
         payload,
         required_fields=PROMOTION_DECISION_REQUIRED_FIELDS,
         field_types=PROMOTION_DECISION_FIELD_TYPES,
-        allowed_fields=PROMOTION_DECISION_REQUIRED_FIELDS,
+        allowed_fields=PROMOTION_DECISION_ALLOWED_FIELDS,
         object_name="PromotionDecision",
     )
 
@@ -255,6 +287,7 @@ def validate_promotion_decision(payload: Mapping[str, Any]) -> PromotionDecision
     previous_state = _parse_lifecycle_state(mapping["previous_state"], "previous_state", issues)
     next_state = _parse_lifecycle_state(mapping["next_state"], "next_state", issues)
     decision = _parse_decision(mapping["decision"], issues)
+    reason_code = _parse_optional_reason_code(mapping, issues)
     issues.extend(_validate_text_field(mapping, "rationale"))
     issues.extend(_validate_warnings(mapping["warnings"]))
     issues.extend(_validate_timestamp(mapping["timestamp"]))
@@ -289,6 +322,10 @@ def validate_promotion_decision(payload: Mapping[str, Any]) -> PromotionDecision
                 expected=next_state.value,
                 actual=decision.value,
             )
+        )
+    if decision is PromotionDecisionOutcome.INCONCLUSIVE and reason_code is None:
+        issues.append(
+            missing_inconclusive_reason_issue(state_field="PromotionDecision.decision")
         )
 
     if not issues:
@@ -325,6 +362,7 @@ def validate_promotion_decision(payload: Mapping[str, Any]) -> PromotionDecision
         reviewer_verdict_id=mapping["reviewer_verdict_id"],
         warnings=tuple(mapping["warnings"]),
         timestamp=mapping["timestamp"],
+        reason_code=reason_code,
     )
 
 
@@ -565,10 +603,12 @@ def _validate_canonical_serializable(mapping: Mapping[str, Any]) -> list[Validat
         canonical_serialize(
             {
                 field: _normalize_serialization_component(field, mapping[field])
-                for field in PROMOTION_DECISION_REQUIRED_FIELDS
+                for field in PROMOTION_DECISION_ALLOWED_FIELDS
                 if field in mapping
             }
         )
+    except GovernanceValidationError as exc:
+        return list(exc.issues)
     except GovernanceSerializationError as exc:
         return [
             ValidationIssue(
@@ -587,6 +627,8 @@ def _normalize_id_component(field: str, value: Any) -> JsonValue:
         return _state_value(value)
     if field == "decision":
         return _decision_value(value)
+    if field == "reason_code":
+        return validate_verdict_reason_code(value).value
     if field in {"trial_ledger_refs", "warnings"}:
         return [cast(JsonValue, item) for item in value]
     return cast(JsonValue, value)
@@ -597,6 +639,8 @@ def _normalize_serialization_component(field: str, value: Any) -> JsonValue:
         return value.value
     if field == "decision" and isinstance(value, PromotionDecisionOutcome):
         return value.value
+    if field == "reason_code":
+        return validate_verdict_reason_code(value).value
     if field in {"trial_ledger_refs", "warnings"}:
         return [cast(JsonValue, item) for item in value]
     return cast(JsonValue, value)
@@ -632,6 +676,19 @@ def _decision_value(decision: PromotionDecisionOutcome | str | Any) -> str:
         ) from exc
 
 
+def _parse_optional_reason_code(
+    mapping: Mapping[str, Any],
+    issues: list[ValidationIssue],
+) -> VerdictReasonCode | None:
+    if "reason_code" not in mapping:
+        return None
+    try:
+        return validate_optional_verdict_reason_code(mapping["reason_code"])
+    except GovernanceValidationError as exc:
+        issues.extend(exc.issues)
+        return None
+
+
 def _normalize_text(value: object) -> str:
     if isinstance(value, str):
         return " ".join(value.strip().lower().split())
@@ -641,7 +698,9 @@ def _normalize_text(value: object) -> str:
 __all__ = [
     "GOVERNANCE_LIFECYCLE_STATES",
     "PROHIBITED_MVP_STATES",
+    "PROMOTION_DECISION_ALLOWED_FIELDS",
     "PROMOTION_DECISION_ID_COMPONENT_FIELDS",
+    "PROMOTION_DECISION_OPTIONAL_FIELDS",
     "PROMOTION_DECISION_REQUIRED_FIELDS",
     "PROMOTION_DECISION_TARGET_STATES",
     "PROMOTION_IMPLIES_CAPITAL_ALLOCATION",

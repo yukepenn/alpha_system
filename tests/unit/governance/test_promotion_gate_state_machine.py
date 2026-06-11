@@ -26,10 +26,12 @@ from alpha_system.governance.promotion_gate import (
     PromotionGateContext,
     prohibited_mvp_states,
     reachable_states,
+    require_trial_ledger_present,
     validate_governance_transition,
 )
 from alpha_system.governance.reviewer_verdict import (
     ReviewerVerdict,
+    ReviewerVerdictOutcome,
     create_reviewer_verdict,
 )
 from alpha_system.governance.rejected_idea import (
@@ -43,6 +45,7 @@ from alpha_system.governance.trial_ledger import (
     create_trial_ledger_record,
 )
 from alpha_system.governance.validation import GovernanceValidationError
+from alpha_system.governance.verdict_reason_code import VerdictReasonCode
 
 HYPOTHESIS_FIXTURE = Path("tests/fixtures/governance/hypothesis_card_valid.json")
 ALPHA_SPEC_FIXTURE = Path("tests/fixtures/governance/alpha_spec_valid.json")
@@ -81,14 +84,18 @@ def valid_study_spec_payload() -> dict[str, object]:
     return load_json(STUDY_SPEC_FIXTURE)
 
 
-def reviewer_verdict() -> ReviewerVerdict:
+def reviewer_verdict(
+    *,
+    verdict: str = "PASS",
+    reason_code: VerdictReasonCode | None = None,
+) -> ReviewerVerdict:
     return create_reviewer_verdict(
         reviewer_id=REVIEWER_ID,
         role=REVIEWER_ROLE,
         independence_statement=(
             "Reviewer identity and role are separate from the Codex implementer."
         ),
-        verdict="PASS",
+        verdict=verdict,
         blocking_issues=[],
         warnings=["Synthetic governance review only; no market claim is made."],
         checked_artifacts=[
@@ -97,6 +104,7 @@ def reviewer_verdict() -> ReviewerVerdict:
         ],
         checked_commands=["python -m pytest tests/unit/governance -q"],
         timestamp=TIMESTAMP,
+        reason_code=reason_code,
     )
 
 
@@ -166,12 +174,31 @@ def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> EvidenceBundle:
     )
 
 
+def trial_ledger_file(tmp_path: Path) -> Path:
+    path = tmp_path / "trial-ledger.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "synthetic-trial-ledger-v1",
+                "records": [],
+            },
+            sort_keys=True,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def promotion_decision(
     *,
     target: PromotionLifecycleState = PromotionLifecycleState.CANDIDATE,
     bundle: EvidenceBundle,
     trial_refs: list[str],
+    verdict: ReviewerVerdict | None = None,
+    reason_code: VerdictReasonCode | None = None,
 ) -> PromotionDecision:
+    active_verdict = reviewer_verdict() if verdict is None else verdict
     return create_promotion_decision(
         alpha_spec_id=ALPHA_SPEC_ID,
         evidence_bundle_id=bundle.evidence_bundle_id,
@@ -180,9 +207,10 @@ def promotion_decision(
         next_state=target,
         decision=PromotionDecisionOutcome(target.value),
         rationale="Synthetic governance metadata supports this controlled state transition.",
-        reviewer_verdict_id=reviewer_verdict().reviewer_verdict_id,
+        reviewer_verdict_id=active_verdict.reviewer_verdict_id,
         warnings=["This decision is not live, capital, or production approval."],
         timestamp=TIMESTAMP,
+        reason_code=reason_code,
     )
 
 
@@ -306,19 +334,87 @@ def test_diagnostics_allowed_to_diagnostics_run_requires_trial_ledger() -> None:
     assert transition.trial_ledger_refs == (record.trial_id,)
 
 
-def test_diagnostics_run_to_evidence_ready_requires_valid_evidence_bundle() -> None:
+def test_diagnostics_run_to_evidence_ready_requires_valid_evidence_bundle(
+    tmp_path: Path,
+) -> None:
     records = (trial_record(),)
     bundle = evidence_bundle(records)
 
     transition = validate_governance_transition(
         "DIAGNOSTICS_RUN",
         "EVIDENCE_READY",
-        PromotionGateContext(evidence_bundle=bundle),
+        PromotionGateContext(
+            evidence_bundle=bundle,
+            trial_ledger_path=trial_ledger_file(tmp_path),
+        ),
     )
 
     assert transition.next_state is PromotionLifecycleState.EVIDENCE_READY
     assert transition.evidence_bundle == bundle
     assert transition.trial_ledger_refs == (records[0].trial_id,)
+
+
+def test_evidence_ready_transition_blocks_missing_trial_ledger(
+    tmp_path: Path,
+) -> None:
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    missing_path = tmp_path / "missing-trial-ledger.json"
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(evidence_bundle=bundle, trial_ledger_path=missing_path),
+        )
+
+    issue = exc_info.value.issues[0]
+    assert issue.field == "trial_ledger_path"
+    assert issue.code == "missing_trial_ledger"
+    assert str(missing_path) in issue.message
+
+
+def test_evidence_ready_transition_blocks_unwritable_trial_ledger(
+    tmp_path: Path,
+) -> None:
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    ledger_path = trial_ledger_file(tmp_path)
+    ledger_path.chmod(0o444)
+
+    try:
+        with pytest.raises(GovernanceValidationError) as exc_info:
+            validate_governance_transition(
+                "DIAGNOSTICS_RUN",
+                "EVIDENCE_READY",
+                PromotionGateContext(evidence_bundle=bundle, trial_ledger_path=ledger_path),
+            )
+    finally:
+        ledger_path.chmod(0o644)
+
+    issue = exc_info.value.issues[0]
+    assert issue.field == "trial_ledger_path"
+    assert issue.code == "unwritable_trial_ledger"
+    assert str(ledger_path) in issue.message
+
+
+def test_trial_ledger_presence_probe_is_non_destructive(tmp_path: Path) -> None:
+    ledger_path = trial_ledger_file(tmp_path)
+    before = ledger_path.read_bytes()
+
+    assert require_trial_ledger_present(ledger_path) == ledger_path
+
+    assert ledger_path.read_bytes() == before
+
+
+def test_trial_ledger_presence_probe_blocks_unparseable_json(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "trial-ledger.json"
+    ledger_path.write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        require_trial_ledger_present(ledger_path)
+
+    assert exc_info.value.issues[0].code == "unparseable_trial_ledger"
 
 
 def test_evidence_ready_to_reviewed_requires_independent_reviewer_verdict() -> None:
@@ -406,6 +502,38 @@ def test_reviewed_to_watch_requires_promotion_decision() -> None:
 
     assert transition.next_state is PromotionLifecycleState.WATCH
     assert transition.promotion_decision == decision
+
+
+def test_reviewed_to_inconclusive_is_non_advancing_and_reason_coded() -> None:
+    verdict = reviewer_verdict(
+        verdict=ReviewerVerdictOutcome.INCONCLUSIVE.value,
+        reason_code=VerdictReasonCode.SUBSTRATE_GAP,
+    )
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    decision = promotion_decision(
+        target=PromotionLifecycleState.INCONCLUSIVE,
+        bundle=bundle,
+        trial_refs=[record.trial_id for record in records],
+        verdict=verdict,
+        reason_code=VerdictReasonCode.SUBSTRATE_GAP,
+    )
+
+    transition = validate_governance_transition(
+        "REVIEWED",
+        "INCONCLUSIVE",
+        PromotionGateContext(
+            promotion_decision=decision,
+            reviewer_verdict=verdict,
+            implementer_id=IMPLEMENTER_ID,
+            implementer_role=IMPLEMENTER_ROLE,
+        ),
+    )
+
+    assert transition.next_state is PromotionLifecycleState.INCONCLUSIVE
+    assert transition.promotion_decision == decision
+    assert transition.evidence_bundle is None
+    assert transition.trial_ledger_refs == decision.trial_ledger_refs
 
 
 def test_reviewed_promotion_blocks_without_promotion_decision() -> None:

@@ -10,18 +10,28 @@ The repository-level campaign pointer targets
 `DISCOVERY_RIGOR_FLOOR_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress after the `RIGOR-P00` merge: `RIGOR-P00` is the
-bootstrap and boundary-state record; the active / next phase is `RIGOR-P01`,
-Reason-Code Taxonomy + Ledger-Presence Gates + Annotations.
+Current campaign progress after the `RIGOR-P01` merge: `RIGOR-P01` completes
+the verdict reason-code taxonomy, fail-closed trial-ledger presence gate, and
+six additive Core Pilot verdict annotations. The active / next phase is
+`RIGOR-P02`, First-Class VariantLedger + Family Budgets.
 
-New durable surfaces through `RIGOR-P00`:
+New durable surfaces through `RIGOR-P01`:
 
 - `research/discovery_rigor_floor_v1/` defines the value-free evidence root for
   gate inventories, canary pass/fail tables, calibration statistics, and
   readiness records.
+- `src/alpha_system/governance/verdict_reason_code.py` defines the closed
+  `VerdictReasonCode` taxonomy used by reason-coded inconclusive verdicts.
+- `src/alpha_system/governance/promotion_gate.py` exposes
+  `require_trial_ledger_present()` and invokes it on the
+  `DIAGNOSTICS_RUN -> EVIDENCE_READY` path.
+- `research/futures_core_alpha_pilot_v1/verdict_annotations/` contains the six
+  additive annotations for historical Core Pilot inconclusive verdicts.
+- `research/discovery_rigor_floor_v1/RIGOR_P01_REASON_CODE_AND_LEDGER_GATES.md`
+  records the value-free gate/test/annotation evidence for this phase.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
   FUTSUB boundary state at the P27/P28 gate.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md` records the executor
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01.md` records the executor
   verification and handoff for this phase.
 
 The gated FUTSUB run
@@ -51,9 +61,11 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-RIGOR-P00 is docs-only: no governance code, tests, historical Core Pilot
-artifacts, FUTSUB research artifacts, run state, registries, values, or
-worktrees are changed by this phase.
+RIGOR-P01 changes governance code, tests, value-free evidence, and additive
+verdict annotations only. Historical Core Pilot evidence remains append-only:
+the original reviewer verdicts, study specs, evidence, and ledgers are not
+changed. FUTSUB research artifacts, run state, registries, values, and
+worktrees remain untouched.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,

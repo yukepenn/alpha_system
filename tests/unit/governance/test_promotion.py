@@ -18,6 +18,7 @@ from alpha_system.governance.promotion import (
 )
 from alpha_system.governance.serialization import canonical_serialize, deserialize
 from alpha_system.governance.validation import GovernanceValidationError
+from alpha_system.governance.verdict_reason_code import VerdictReasonCode
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 EVIDENCE_BUNDLE_ID = "evb_6a52db0eaf5d1335e0c78152"
@@ -33,6 +34,7 @@ def valid_promotion_payload(
     decision: PromotionDecisionOutcome | str = PromotionDecisionOutcome.CANDIDATE,
     trial_ledger_refs: list[str] | None = None,
     warnings: list[str] | None = None,
+    reason_code: VerdictReasonCode | str | None = None,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "alpha_spec_id": ALPHA_SPEC_ID,
@@ -52,6 +54,8 @@ def valid_promotion_payload(
         ),
         "timestamp": TIMESTAMP,
     }
+    if reason_code is not None:
+        payload["reason_code"] = VerdictReasonCode(reason_code).value
     payload["promotion_id"] = generate_promotion_decision_id(payload)
     return payload
 
@@ -205,3 +209,62 @@ def test_promotion_decision_does_not_imply_live_capital_or_production_status() -
     assert PROMOTION_IMPLIES_LIVE_APPROVAL is False
     assert PROMOTION_IMPLIES_CAPITAL_ALLOCATION is False
     assert PROMOTION_IMPLIES_PRODUCTION_READINESS is False
+
+
+def test_promotion_decision_inconclusive_requires_reason_code() -> None:
+    payload = valid_promotion_payload(
+        next_state=PromotionLifecycleState.WATCH,
+        decision=PromotionDecisionOutcome.WATCH,
+    )
+    payload["next_state"] = PromotionLifecycleState.INCONCLUSIVE.value
+    payload["decision"] = PromotionDecisionOutcome.INCONCLUSIVE.value
+    payload["promotion_id"] = "prom_aaaaaaaaaaaaaaaaaaaaaaaa"
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_promotion_decision(payload)
+
+    assert any(
+        issue.code == "missing_reason_code_for_inconclusive"
+        for issue in exc_info.value.issues
+    )
+
+
+def test_promotion_decision_rejects_free_text_reason_code() -> None:
+    payload = valid_promotion_payload()
+    payload["reason_code"] = "insufficient evidence"
+    payload["promotion_id"] = "prom_aaaaaaaaaaaaaaaaaaaaaaaa"
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_promotion_decision(payload)
+
+    assert any(issue.code == "invalid_verdict_reason_code" for issue in exc_info.value.issues)
+
+
+def test_promotion_decision_inconclusive_is_non_advancing_and_reason_coded() -> None:
+    payload = valid_promotion_payload(
+        next_state=PromotionLifecycleState.INCONCLUSIVE,
+        decision=PromotionDecisionOutcome.INCONCLUSIVE,
+        reason_code=VerdictReasonCode.UNDERPOWERED,
+    )
+
+    decision = validate_promotion_decision(payload)
+
+    assert decision.next_state is PromotionLifecycleState.INCONCLUSIVE
+    assert decision.decision is PromotionDecisionOutcome.INCONCLUSIVE
+    assert decision.reason_code is VerdictReasonCode.UNDERPOWERED
+    assert decision.next_state not in {
+        PromotionLifecycleState.CANDIDATE,
+        PromotionLifecycleState.VALIDATED,
+    }
+    assert decision.to_dict()["reason_code"] == "UNDERPOWERED"
+
+
+def test_promotion_decision_reason_code_participates_in_content_id_when_present() -> None:
+    without_reason = validate_promotion_decision(valid_promotion_payload())
+    with_reason = validate_promotion_decision(
+        valid_promotion_payload(reason_code=VerdictReasonCode.DATA_QUALITY)
+    )
+
+    assert "reason_code" not in without_reason.to_dict()
+    assert with_reason.reason_code is VerdictReasonCode.DATA_QUALITY
+    assert with_reason.promotion_id != without_reason.promotion_id

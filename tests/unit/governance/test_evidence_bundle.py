@@ -19,6 +19,7 @@ from alpha_system.governance.evidence_bundle import (
 )
 from alpha_system.governance.serialization import canonical_serialize, deserialize
 from alpha_system.governance.validation import GovernanceValidationError
+from alpha_system.governance.verdict_reason_code import VerdictReasonCode
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 STUDY_SPEC_ID = "sspec_438ceffd40855205de5497f0"
@@ -357,3 +358,61 @@ def test_payload_with_generated_id_helper_recomputes_when_content_changes() -> N
     updated = payload_with_generated_id(payload)
 
     assert validate_evidence_bundle(updated).data_version == "synthetic-data-v2"
+
+
+def test_evidence_bundle_diagnostics_inconclusive_requires_reason_code() -> None:
+    payload = valid_bundle_payload()
+    payload["diagnostics_summary"] = {
+        "diagnostics_run_ref": "diagnostics-run-001",
+        "diagnostics_status": "INCONCLUSIVE",
+        "metric_set": "synthetic governance smoke metrics",
+    }
+    payload["evidence_bundle_id"] = "evb_aaaaaaaaaaaaaaaaaaaaaaaa"
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_evidence_bundle(payload)
+
+    assert any(
+        issue.code == "missing_reason_code_for_inconclusive"
+        for issue in exc_info.value.issues
+    )
+
+
+def test_evidence_bundle_rejects_free_text_reason_code() -> None:
+    payload = valid_bundle_payload()
+    payload["reason_code"] = "substrate missing"
+    payload["evidence_bundle_id"] = "evb_aaaaaaaaaaaaaaaaaaaaaaaa"
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_evidence_bundle(payload)
+
+    assert any(issue.code == "invalid_verdict_reason_code" for issue in exc_info.value.issues)
+
+
+def test_evidence_bundle_accepts_reason_coded_inconclusive_diagnostics() -> None:
+    payload = valid_bundle_payload()
+    payload["diagnostics_summary"] = {
+        "diagnostics_run_ref": "diagnostics-run-001",
+        "diagnostics_status": "INCONCLUSIVE",
+        "metric_set": "synthetic governance smoke metrics",
+    }
+    payload["reason_code"] = VerdictReasonCode.SUBSTRATE_GAP.value
+    payload["evidence_bundle_id"] = generate_evidence_bundle_id(payload)
+
+    bundle = validate_evidence_bundle(payload)
+
+    assert bundle.reason_code is VerdictReasonCode.SUBSTRATE_GAP
+    assert bundle.to_dict()["reason_code"] == "SUBSTRATE_GAP"
+
+
+def test_evidence_bundle_present_reason_code_changes_id_without_affecting_absent_id() -> None:
+    without_reason = validate_evidence_bundle(valid_bundle_payload())
+    with_reason_payload = valid_bundle_payload()
+    with_reason_payload["reason_code"] = VerdictReasonCode.DATA_QUALITY.value
+    with_reason_payload["evidence_bundle_id"] = generate_evidence_bundle_id(with_reason_payload)
+
+    with_reason = validate_evidence_bundle(with_reason_payload)
+
+    assert "reason_code" not in without_reason.to_dict()
+    assert with_reason.reason_code is VerdictReasonCode.DATA_QUALITY
+    assert with_reason.evidence_bundle_id != without_reason.evidence_bundle_id

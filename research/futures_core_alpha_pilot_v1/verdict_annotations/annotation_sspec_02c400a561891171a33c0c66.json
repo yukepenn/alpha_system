@@ -1,0 +1,23 @@
+{
+  "basis_citation": {
+    "json_pointer": "/judgement/basis",
+    "quote": "Runtime diagnostics and consolidation evidence remain unresolved by reference: objective trigger counts are unresolved without a locked structure FeaturePack, thin-session subsegments remain unresolved in the matrix, and the no-lookahead audit carries timing and label flags."
+  },
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "classification_statement": "This annotation classifies the recorded basis only and does not alter, re-open, or re-judge the original outcome.",
+  "original_statistical_reviewer_judgement": "INCONCLUSIVE",
+  "original_verdict_path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_02c400a561891171a33c0c66.json",
+  "original_verdict_sha256": "b5089ce28bdeb48e3fac9f034910abb620331cf5bea1f4835ef88b0b1cc334bf",
+  "phase_id": "RIGOR-P01",
+  "provenance": {
+    "source_evidence_citation": "reviewer_verdict_sspec_02c400a561891171a33c0c66.json#/judgement/basis",
+    "source_field": "judgement.basis"
+  },
+  "reason_code": "SUBSTRATE_GAP",
+  "schema": "discovery_rigor_floor.verdict_annotation.v1",
+  "study_spec_id": "sspec_02c400a561891171a33c0c66",
+  "supporting_recorded_flags": [
+    "ETH_only_and_thin_subsegments_unresolved",
+    "15m_label_pack_unresolved"
+  ]
+}
