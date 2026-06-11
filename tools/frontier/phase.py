@@ -200,15 +200,15 @@ def review_gate(phase: str, campaign_id: str, root: Path = ROOT) -> int:
 
 
 def workflow1(phase: str, stage: str, root: Path = ROOT) -> int:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", phase):
+        print(f"Invalid phase id {phase!r}; expected only [A-Za-z0-9_-] (no path separators).")
+        return 2
     spec_path = find_spec(phase, root)
     if spec_path is None:
         print(f"No spec under specs/** declares phase_id {phase}. Author/approve the spec first.")
         return 2
     text = _read_text(spec_path)
     frontmatter = parse_frontmatter(text)
-    if stage == "review-gate":
-        campaign_id = frontmatter.get("campaign_id", "MANUAL")
-        return review_gate(phase, campaign_id, root)
     found = [marker for marker in PLACEHOLDER_MARKERS if marker in text]
     if found:
         print(
@@ -223,6 +223,9 @@ def workflow1(phase: str, stage: str, root: Path = ROOT) -> int:
             "Workflow 1 requires a coordinator-approved spec (status in_progress or later)."
         )
         return 2
+    if stage == "review-gate":
+        campaign_id = frontmatter.get("campaign_id", "MANUAL")
+        return review_gate(phase, campaign_id, root)
     return run_validation(phase, spec_path, text, root)
 
 

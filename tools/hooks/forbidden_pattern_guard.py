@@ -51,7 +51,9 @@ SELF_ALLOW_PREFIXES = ("tools/hooks/",)
 # pnl/equity-curve computations. Names like `equity_index` or
 # `accounting_weight` deliberately do not match (verified legitimate
 # definitions in data/foundation and governance).
-SECOND_TRUTH_DEF_RE = re.compile(r"^\s*def\s+\w*(?:pnl|equity_curve)\w*\s*\(", re.IGNORECASE | re.MULTILINE)
+SECOND_TRUTH_DEF_RE = re.compile(
+    r"^\s*(?:async\s+)?def\s+\w*(?:pnl|equity_curve)\w*\s*\(", re.IGNORECASE | re.MULTILINE
+)
 SECOND_TRUTH_SCOPE_PREFIX = "src/"
 SANCTIONED_VALUE_TRUTH_PREFIXES = ("src/alpha_system/backtest/",)
 
