@@ -145,7 +145,7 @@ def test_cost_adjusted_pack_matches_reference_and_preserves_bbo_gap_flags() -> N
     spread_records = reference_records[CostAdjustedLabelName.SPREAD_ADJUSTED_FWD_RET]
     normal = _record_by_event(spread_records, COST_NORMAL_SOURCE_TS)
     terminal_gap = _record_by_event(spread_records, COST_TERMINAL_GAP_SOURCE_TS)
-    entry_gap = _record_by_event(spread_records, COST_MISSING_SOURCE_TS)
+    missing_terminal = _record_by_event(spread_records, COST_MISSING_SOURCE_TS)
     assert normal.value is not None
     assert terminal_gap.value is None
     assert terminal_gap.quality_flags == (
@@ -154,12 +154,10 @@ def test_cost_adjusted_pack_matches_reference_and_preserves_bbo_gap_flags() -> N
         "bbo_gap",
         "missing_bbo",
     )
-    assert entry_gap.value is None
-    assert entry_gap.quality_flags == (
+    assert missing_terminal.value is None
+    assert missing_terminal.quality_flags == (
         "label_gap",
-        "entry_bbo_gap",
-        "bbo_gap",
-        "missing_bbo",
+        "missing_terminal_bbo",
     )
 
 
@@ -210,10 +208,11 @@ def test_cost_adjusted_maintenance_crossing_window_matches_reference_behavior() 
     )
     fast_records = _records_by_label_version(computation.records)
 
-    assert _record_by_event(
+    _assert_missing_event(
         reference_records[CostAdjustedLabelName.SPREAD_ADJUSTED_FWD_RET],
         source_ts,
-    ).value is not None
+    )
+    _assert_missing_event(fast_records[definition.label_version_id], source_ts)
     assert_label_records_match(
         reference_records[CostAdjustedLabelName.SPREAD_ADJUSTED_FWD_RET],
         fast_records[definition.label_version_id],
@@ -481,11 +480,9 @@ def test_scaleout_unit_bbo_input_dataset_selection() -> None:
 def test_cost_adjusted_matches_reference_on_misaligned_bbo_timestamps() -> None:
     """Regression for the LCFP-P08 cost-adjusted real-slice failure mechanism.
 
-    Real canonical BBO event timestamps are not minute-aligned, so the
-    OHLCV-anchored panel join attaches no BBO and the old kernel emitted zero
-    records. The fast kernel must iterate the BBO quote rows directly, like
-    the reference family, and emit one record per quote row at the quote's own
-    timestamp.
+    Real canonical BBO event timestamps are not minute-aligned. Post-P19 the
+    reference family still iterates the BBO quote rows directly, but anchors
+    records and terminal resolution to each row's minute ``bar_end_ts``.
     """
 
     pytest.importorskip("polars")
@@ -502,8 +499,6 @@ def test_cost_adjusted_matches_reference_on_misaligned_bbo_timestamps() -> None:
         {
             **dict(row),
             "event_ts": _shift(row["event_ts"]),
-            "bar_end_ts": _shift(row["bar_end_ts"]),
-            "available_ts": _shift(row["available_ts"]),
         }
         for row in cost_adjusted_bbo_rows()
     )
@@ -540,11 +535,14 @@ def test_cost_adjusted_matches_reference_on_misaligned_bbo_timestamps() -> None:
     for definition in definitions:
         reference = reference_records[definition.name]
         fast = fast_records.get(definition.label_version_id, ())
-        # One record per BBO quote row, at the quote's own (shifted) ts.
-        assert len(reference) == len(bbo_rows)
-        assert {record.event_ts for record in fast} == {
-            record.event_ts for record in reference
+        expected_anchor_ts = {
+            datetime.fromisoformat(str(row["bar_end_ts"]).replace("Z", "+00:00"))
+            for row in bbo_rows
         }
+        # One record per BBO quote row, anchored at the minute bar_end_ts.
+        assert len(reference) == len(bbo_rows)
+        assert {record.event_ts for record in reference} == expected_anchor_ts
+        assert {record.event_ts for record in fast} == expected_anchor_ts
         assert_label_records_match(
             reference,
             fast,

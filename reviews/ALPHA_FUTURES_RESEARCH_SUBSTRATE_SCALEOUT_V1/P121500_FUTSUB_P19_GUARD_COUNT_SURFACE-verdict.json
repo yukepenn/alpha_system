@@ -1,0 +1,15 @@
+{
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "P121500_FUTSUB_P19_GUARD_COUNT_SURFACE",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-adversarial-review",
+  "reviewed_at": "2026-06-11T13:30:00Z",
+  "evidence": {
+    "read_only": "proven to sqlite mode=ro; single .md write path",
+    "reconciliation": "drops 2,020,922 == source minus emitted, exact; gap arithmetic closes to zero residual",
+    "determinism": "reviewer re-run byte-identical (ES/2024: 95,582)",
+    "mutations": "both planted mutations killed (5/5, 4/5 failures)",
+    "scope": "3 added files, zero src/** edits"
+  },
+  "warnings": ["latent span short-circuit safe-default edge (W1)", "duplicate-BBO ordering nuance, empirically vacuous (W2)", "private-API coupling (W4)"]
+}

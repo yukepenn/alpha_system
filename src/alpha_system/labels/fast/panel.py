@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta, time
 from decimal import Decimal
 from enum import StrEnum
@@ -56,6 +56,7 @@ QUALITY_FLAG_INPUT_GAP = "input_gap"
 QUALITY_FLAG_SESSION_RESET = "session_reset"
 QUALITY_FLAG_MAINTENANCE_CROSSING = "maintenance_crossing"
 QUALITY_FLAG_BBO_GAP = "bbo_gap"
+_DUPLICATE_BBO_KEY_FLAG = "duplicate_bbo_key"
 
 
 class TerminalKind(StrEnum):
@@ -198,12 +199,11 @@ class SharedLabelPanelRow:
 
 @dataclass(frozen=True, slots=True)
 class SharedBBOQuoteRow:
-    """One normalized BBO quote row kept at its own (possibly sub-minute) ts.
+    """One normalized BBO quote row anchored to its bar-end timestamp.
 
-    Real canonical BBO timestamps are not minute-aligned, so quote rows cannot
-    be folded into the OHLCV-anchored panel join. The cost-adjusted reference
-    family iterates BBO rows directly; the fast kernel consumes these rows to
-    reproduce that record set exactly (LCFP-P08 repair).
+    Real canonical BBO event timestamps can be sub-minute samples. Post-P19
+    cost-adjusted labels resolve source and terminal quotes by
+    ``series_id + contract_id + bar_end_ts`` and emit records at ``bar_end_ts``.
     """
 
     instrument_id: str
@@ -227,12 +227,19 @@ class SharedBBOQuoteRow:
     def __post_init__(self) -> None:
         for field_name in ("instrument_id", "series_id", "contract_id"):
             object.__setattr__(self, field_name, _require_text(getattr(self, field_name)))
-        for field_name in ("event_ts", "bar_end_ts", "available_ts"):
-            object.__setattr__(
-                self,
-                field_name,
-                _coerce_datetime(getattr(self, field_name), field_name),
+        event_ts = _coerce_datetime(self.event_ts, "event_ts")
+        bar_end_ts = _coerce_datetime(self.bar_end_ts, "bar_end_ts")
+        if event_ts > bar_end_ts:
+            raise FastLabelPackError(
+                "SharedBBOQuoteRow.event_ts must be at or before bar_end_ts"
             )
+        object.__setattr__(self, "event_ts", bar_end_ts)
+        object.__setattr__(self, "bar_end_ts", bar_end_ts)
+        object.__setattr__(
+            self,
+            "available_ts",
+            _coerce_datetime(self.available_ts, "available_ts"),
+        )
         for field_name in (
             "bid",
             "ask",
@@ -293,10 +300,11 @@ class SharedLabelPanel:
         object.__setattr__(self, "rows", tuple(normalized_rows))
         object.__setattr__(self, "roll_calendar", _coerce_roll_calendar(self.roll_calendar))
         object.__setattr__(self, "maintenance_windows", tuple(self.maintenance_windows))
-        for quote_row in self.bbo_rows:
+        bbo_rows = _collapse_duplicate_bbo_quote_rows(tuple(self.bbo_rows))
+        for quote_row in bbo_rows:
             if not isinstance(quote_row, SharedBBOQuoteRow):
                 raise FastLabelPackError("SharedLabelPanel.bbo_rows must be SharedBBOQuoteRow")
-        object.__setattr__(self, "bbo_rows", tuple(self.bbo_rows))
+        object.__setattr__(self, "bbo_rows", bbo_rows)
         object.__setattr__(
             self,
             "metadata",
@@ -509,6 +517,32 @@ def _shared_bbo_quote_row(bbo: Mapping[str, Any]) -> SharedBBOQuoteRow:
         bbo_invariant_violation=not _bbo_invariants_hold(bbo),
         bbo_quality_flags=flags,
     )
+
+
+def _collapse_duplicate_bbo_quote_rows(
+    rows: Sequence[SharedBBOQuoteRow],
+) -> tuple[SharedBBOQuoteRow, ...]:
+    by_key: dict[tuple[str, str, datetime], SharedBBOQuoteRow] = {}
+    order: list[tuple[str, str, datetime]] = []
+    validated: list[SharedBBOQuoteRow] = []
+    for row in rows:
+        if not isinstance(row, SharedBBOQuoteRow):
+            raise FastLabelPackError("SharedLabelPanel.bbo_rows must be SharedBBOQuoteRow")
+        validated.append(row)
+    for row in sorted(validated, key=lambda item: item.available_ts):
+        key = (row.series_id, row.contract_id, row.bar_end_ts)
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = row
+            order.append(key)
+            continue
+        by_key[key] = replace(
+            existing,
+            bbo_quality_flags=_quality_flags(
+                (*existing.bbo_quality_flags, _DUPLICATE_BBO_KEY_FLAG)
+            ),
+        )
+    return tuple(by_key[key] for key in order)
 
 
 def resolve_terminal_indices(

@@ -273,9 +273,7 @@ def test_required_guard_and_missingness_cases_are_exercised_by_the_matrix() -> N
     )
     assert _record_by_event(spread_records, COST_MISSING_SOURCE_TS).quality_flags == (
         "label_gap",
-        "entry_bbo_gap",
-        "bbo_gap",
-        "missing_bbo",
+        "missing_terminal_bbo",
     )
     for definition in cost_definitions:
         assert_and_summarize_label_records_match(
