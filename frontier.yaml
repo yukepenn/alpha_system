@@ -85,7 +85,7 @@ providers:
     # fast/priority/flex/default/auto/scale. Env override:
     # FRONTIER_CODEX_SERVICE_TIER (set to "fast"/"priority" to expedite a run).
     # Wired into `codex exec -c service_tier=<v>`.
-    service_tier: "default"
+    service_tier: "fast"
     # Local data root the sandboxed executor needs read+write access to:
     # canonical OHLCV/BBO, feature/label registries, and materialized values.
     # It lives OUTSIDE the git worktree (data is never committed), so the
