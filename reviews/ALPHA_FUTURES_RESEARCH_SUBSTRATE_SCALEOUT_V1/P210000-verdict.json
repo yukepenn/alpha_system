@@ -1,0 +1,84 @@
+{
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "P210000_FUTSUB_SESSION_PROVENANCE_IDENTITY",
+  "lane": "yellow",
+  "reviewer": "claude-fresh-adversarial",
+  "reviewed_at": "2026-06-11",
+  "branch": "repair/futsub-session-identity",
+  "base": "6a4244da15bed79f5ea41c43b9c8d31cdca9e1e8",
+  "verdict": "PASS_WITH_WARNINGS",
+  "summary": "Session-truth provenance (template id + resolved RTH window/tz) is correctly part of the content-addressed identity for session-conditioned OHLCV contracts (reset_on_session=True extension in family.py; vwap pack names already covered at base via P194500). Mutation-verified rotation, reviewer-verified zero churn for unconditioned fvids across base vs diff, real temp-registry supersession proof, fast-pack guard parity-locks pack specs to the live session truth. CLI test edits are order-isolation only; labels src untouched; all validation counts reproduced exactly (135 / 262 / 2861+1skip+3 known env fails / smoke PASS / 21 canaries PASS).",
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "warning",
+      "title": "Fast-pack session guard has no direct negative test",
+      "detail": "Deleting the _validate_session_contract_parameters call in vwap_session_auction.py survives the entire selected suite (mutation M3: 446 + 187 tests green). Guard is defense-in-depth only today; add a negative test feeding the pack a provenance-stripped spec and asserting PackMaterializerError."
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "title": "Over-rotation invariant not pinned to a literal fvid",
+      "detail": "No-churn is asserted via monkeypatched template comparison within the new code; reviewer independently confirmed unconditioned fvids are bit-identical base vs diff (fver_643e91dc... and fver_720a55e3... unchanged). A pinned literal fvid for one unconditioned contract would make the invariant durable against future churn."
+    },
+    {
+      "id": "W3",
+      "severity": "warning",
+      "title": "Spec scope item 2 verification not recorded in handoff",
+      "detail": "The session pack (families/session, fast/session_calendar_roll) was correctly left alone, but the handoff does not record that the consistency check was performed."
+    },
+    {
+      "id": "W4",
+      "severity": "warning",
+      "title": "Supersession bookkeeping spans two merges",
+      "detail": "vwap-pack fvids rotated at the P194500 merge (base), not this diff; this diff rotates reset_on_session=True OHLCV fvids. Coordinator deprecation must cover both stale-id sets."
+    }
+  ],
+  "required_repairs": [],
+  "mutation_test_results": [
+    {
+      "id": "M1",
+      "mutation": "family.py: revert _requires_session_truth_parameters to name-in-_SESSION_TRUTH_FEATURES only (strip reset_on_session rotation)",
+      "expectation": "new identity rotation test fails",
+      "observed": "test_session_conditioned_ohlcv_identity_includes_template_truth[returns] FAILED (1 failed, 21 passed)",
+      "caught": true,
+      "restored": "exact (md5-verified)"
+    },
+    {
+      "id": "M2",
+      "mutation": "family.py: corrupt rth_open_time_local to '03:33' in _session_contract_parameters",
+      "expectation": "identity tests fail",
+      "observed": "6 FAILED: identity tests [returns]+[vwap] plus all 4 test_vwap_session_auction_pack.py tests (pack guard rejected mismatching provenance)",
+      "caught": true,
+      "restored": "exact (md5-verified)"
+    },
+    {
+      "id": "M3",
+      "mutation": "vwap_session_auction.py: delete _validate_session_contract_parameters call",
+      "expectation": "some test fails",
+      "observed": "all tests pass (tests/unit/features + feature_compute_fast_path 187 passed; -k identity/version/vwap/ohlcv/session/fast/pack 446 passed)",
+      "caught": false,
+      "restored": "exact (md5-verified)",
+      "disposition": "warning W1 (recommended follow-up test, not blocking)"
+    }
+  ],
+  "cross_version_fvid_check": {
+    "returns_reset_on_session_false": {"base": "fver_643e91dc9bc723d823bb826949f86031e14c293d068427b526a550802c7d5bc8", "diff": "fver_643e91dc9bc723d823bb826949f86031e14c293d068427b526a550802c7d5bc8", "rotated": false},
+    "rolling_volatility_reset_on_session_false": {"base": "fver_720a55e342a87be5e1f955e0d743c30ec5c6db9d90f7db1c52b732a03b368c29", "diff": "fver_720a55e342a87be5e1f955e0d743c30ec5c6db9d90f7db1c52b732a03b368c29", "rotated": false},
+    "returns_reset_on_session_true": {"base": "fver_f68f8b7070c53b20d4f41756f8c46b7c653936067083eca97450cb38d4d07dde", "diff": "fver_7253ba9ef90e25534535d08822857d51920d335d672e9890cf167469051a9f0f", "rotated": true},
+    "vwap_reset_on_session_true": {"base": "fver_f67a4b239bb4d5e8c11966df3bdf882c8a714bd37684e14411f9fcb7a91cfb66", "diff": "fver_f67a4b239bb4d5e8c11966df3bdf882c8a714bd37684e14411f9fcb7a91cfb66", "rotated": false, "note": "already rotated at base by P194500 (#369)"}
+  },
+  "validation_reproduced": {
+    "tests_unit_features": "135 passed",
+    "k_selection": "262 passed, 2363 deselected",
+    "full_suite": "3 failed (known env), 2861 passed, 1 skipped",
+    "verify_smoke": "PASS",
+    "canaries": "21 PASS"
+  },
+  "artifact_policy": {
+    "git_ls_files_runs": "empty",
+    "staged": "nothing staged",
+    "forbidden_paths_touched": false,
+    "worktree_left_as_found": true
+  }
+}

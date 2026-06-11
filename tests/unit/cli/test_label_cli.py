@@ -168,6 +168,9 @@ def test_label_plan_fails_closed_when_dataset_version_is_missing(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    for module_name in PROVIDER_CLIENT_MODULES:
+        sys.modules.pop(module_name, None)
+
     label_cli = _label_cli()
     parser = _main_cli().build_parser()
     args = parser.parse_args(_label_plan_args(tmp_path))

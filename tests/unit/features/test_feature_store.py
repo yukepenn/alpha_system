@@ -15,6 +15,7 @@ from alpha_system.data.foundation.datasets import (
     ReportStatus,
     compute_quality_report_hash,
 )
+from alpha_system.data.foundation.sessions import load_session_template_by_id
 from alpha_system.features import consumption
 from alpha_system.features.contracts import (
     FeatureFamily,
@@ -511,6 +512,83 @@ def test_deprecated_feature_rows_are_raw_audit_only_for_exposure_guard(
     )
 
 
+def test_session_truth_supersession_registers_new_id_after_deprecating_old_id(
+    tmp_path: Path,
+) -> None:
+    store = FeatureStore(FeatureRegistry(tmp_path / "features.sqlite"))
+    feature_id = "base_ohlcv_return_session_truth_supersession"
+    legacy_parameters = {
+        "operation": "pct_change",
+        "inputs": ["synthetic_close"],
+        "window": 1,
+        "reset_on_session": True,
+    }
+    session_truth_parameters = {**legacy_parameters, **_session_truth_parameters()}
+    request = _feature_request(
+        "synthetic_session_truth_supersession",
+        requested_inputs=[feature_id],
+        exposure_family=feature_id,
+        operation="pct_change",
+        inputs=["synthetic_close"],
+        window=1,
+    )
+
+    old_spec, old_checked_request = _implementation_spec(
+        feature_id=feature_id,
+        request=request,
+        registry_reader=EmptyRegistryReader(),
+        transform_parameters=legacy_parameters,
+    )
+    old_version = old_spec.derive_feature_version()
+    store.register_materialized_feature(
+        _materialization_result(tmp_path, old_spec),
+        feature_spec=old_spec,
+        feature_version=old_version,
+        feature_request=old_checked_request,
+    )
+
+    new_spec, new_checked_request = _implementation_spec(
+        feature_id=feature_id,
+        request=request,
+        registry_reader=EmptyRegistryReader(),
+        transform_parameters=session_truth_parameters,
+    )
+    new_version = new_spec.derive_feature_version()
+    assert new_version.feature_version_id != old_version.feature_version_id
+
+    deprecation = store.deprecate_feature(
+        old_version.feature_version_id,
+        reason="session truth identity supersession",
+        deprecated_by="P210000 unit test",
+        replacement_feature_version_id=new_version.feature_version_id,
+        deprecated_at=_dt("2024-01-03T00:00:00+00:00"),
+    )
+    new_record = store.register_materialized_feature(
+        _materialization_result(tmp_path, new_spec),
+        feature_spec=new_spec,
+        feature_version=new_version,
+        feature_request=new_checked_request,
+    )
+
+    assert deprecation.replacement_feature_version_id == new_version.feature_version_id
+    assert store.registry.count_feature_records() == 2
+    resolved_old = store.resolve_feature(old_version.feature_version_id)
+    resolved_new = store.resolve_feature(new_version.feature_version_id)
+    assert resolved_old is not None
+    assert resolved_new is not None
+    assert resolved_old.lifecycle_state is FeatureRegistryLifecycleState.DEPRECATED
+    assert resolved_new.lifecycle_state is FeatureRegistryLifecycleState.REGISTERED
+    assert store.resolve_active_feature(old_version.feature_version_id) is None
+    assert (
+        store.resolve_active_feature(new_version.feature_version_id).feature_version_id
+        == new_record.feature_version_id
+    )
+    assert (
+        store.resolve_deprecation(old_version.feature_version_id)
+        == deprecation
+    )
+
+
 def test_registered_feature_rows_still_block_duplicate_exposure(
     tmp_path: Path,
 ) -> None:
@@ -600,6 +678,7 @@ def _implementation_spec(
     request: FeatureRequest,
     registry_reader: object,
     dataset_version_id: str = "dsv_synthetic_feature_store_v1",
+    transform_parameters: dict[str, object] | None = None,
 ) -> tuple[FeatureSpec, FeatureRequest]:
     decision = _require_allowed_request(request, registry_reader)
     spec = _feature_spec(
@@ -608,6 +687,7 @@ def _implementation_spec(
         dataset_version_id=dataset_version_id,
         implementation_eligible=True,
         request_gate_decision=decision,
+        transform_parameters=transform_parameters,
     )
     assert decision.checked_feature_request is not None
     return spec, decision.checked_feature_request
@@ -628,6 +708,7 @@ def _feature_spec(
     dataset_version_id: str = "dsv_synthetic_feature_store_v1",
     implementation_eligible: bool,
     request_gate_decision: object | None = None,
+    transform_parameters: dict[str, object] | None = None,
 ) -> FeatureSpec:
     kwargs = {
         "feature_id": feature_id,
@@ -640,7 +721,8 @@ def _feature_spec(
         ),
         "transform": TransformSpec(
             transform_id="pct_change",
-            parameters={"operation": "pct_change", "inputs": ["synthetic_close"], "window": 1},
+            parameters=transform_parameters
+            or {"operation": "pct_change", "inputs": ["synthetic_close"], "window": 1},
         ),
         "window": WindowSpec(
             kind=WindowKind.ROLLING,
@@ -659,6 +741,17 @@ def _feature_spec(
     if implementation_eligible:
         return FeatureSpec(**kwargs, request_gate_decision=request_gate_decision)
     return FeatureSpec(**kwargs)
+
+
+def _session_truth_parameters() -> dict[str, str]:
+    template = load_session_template_by_id()
+    return {
+        "session_template_id": template.template_id,
+        "session_timezone": template.timezone,
+        "rth_open_time_local": template.rth_start.isoformat(timespec="minutes"),
+        "rth_close_time_local": template.rth_end.isoformat(timespec="minutes"),
+        "session_truth_source": "alpha_system.data.foundation.sessions",
+    }
 
 
 def _feature_request(
