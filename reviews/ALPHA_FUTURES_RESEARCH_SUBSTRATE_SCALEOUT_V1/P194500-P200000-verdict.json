@@ -1,0 +1,91 @@
+{
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_ids": [
+    "P194500_FUTSUB_OHLCV_RTH_TRUTH_REPOINT",
+    "P200000_FUTSUB_EXPOSURE_GUARD_LIFECYCLE"
+  ],
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewed_at": "2026-06-11",
+  "reviewer": "fresh adversarial Claude yellow-lane reviewer",
+  "branch": "repair/futsub-ohlcv-rth-repoint",
+  "base": "origin/main@f0986bd",
+  "diff_scope": "uncommitted working tree, 11 files, +477/-45",
+  "per_phase_findings": {
+    "P194500_FUTSUB_OHLCV_RTH_TRUTH_REPOINT": {
+      "verdict": "PASS_WITH_WARNINGS",
+      "scope_complete": true,
+      "session_label_keyed_decisions_remaining": 0,
+      "shared_truth_source": "alpha_system.data.foundation.sessions (same as P183000); no third window copy in changed source files",
+      "absolute_truth_tests": "DST CST+CDT edges, end-exclusive 15:00 close, RTH-conditioned opening_range non-null; all expectations independently recomputed and correct",
+      "fixture_changes": "regime_vol_compression + volume_activity start-timestamp shifts verified arithmetically to align label transitions with timestamp truth; provenance notes present; no assertion weakened",
+      "spec_item_5": "P183000 N1 recorded in handoff; W2 dt.offset_by('1d') implemented",
+      "warnings": ["W1 reset_on_session features changed semantics without contract/version-id change", "W2 non-vwap fast packs still session_label-keyed; divergence on real data contained only by parity gate"],
+      "notes": ["N1 no DST-specific test for the offset_by rollover fix", "N2 per-call session template reload in reference path"]
+    },
+    "P200000_FUTSUB_EXPOSURE_GUARD_LIFECYCLE": {
+      "verdict": "PASS",
+      "scope_complete": true,
+      "feature_guard_view": "read_factor_versions REGISTERED-only via SQL WHERE (features/registry.py:756-759); raw resolve_feature(include_deprecated=True) unchanged",
+      "label_guard_view": "read_label_versions + build_exposure_report -> _read_registered_label_records (labels/registry.py:758,783-788,805-819); read_label_records stays raw",
+      "authorized_surface_only": "labels/registry.py diff touches only exposure-view/report read source; no resolution/write/lifecycle/schema change; governance/duplicate_exposure.py untouched",
+      "consumer_audit": "governance guard (intended), features/reports.py registered_feature_records (name-aligned, zero callers repo-wide, not REWORK), benchmark_gate stub (unaffected), label register-path exposure accounting (authorized intent); no consumer requires deprecated rows via these views",
+      "warnings": ["W3 registered-feature report sweeps no longer see deprecated rows (handoff-disclosed, currently caller-free)"]
+    }
+  },
+  "mutation_test_results": [
+    {
+      "phase": "P194500",
+      "mutation": "re-key _session_state segment_label/is_rth/is_eth to row.session_label (full family re-key)",
+      "expected": "new absolute-truth + static-ETH parity tests fail",
+      "result": "KILLED: 3 failed (test_session_conditioned_features_ignore_static_session_label_for_rth_truth, test_vwap_session_auction_pack_matches_reference_on_synthetic_fixture, test_vwap_session_minute_binding_matches_reference_on_multi_session_fixture)",
+      "restored": "exact (md5 match)"
+    },
+    {
+      "phase": "P200000",
+      "mutation": "remove lifecycle WHERE filter from read_factor_versions",
+      "expected": "deprecated-does-not-block test fails",
+      "result": "KILLED: test_deprecated_feature_rows_are_raw_audit_only_for_exposure_guard failed",
+      "restored": "exact (md5 match)"
+    },
+    {
+      "phase": "P200000",
+      "mutation": "over-broaden feature filter to exclude ALL rows (lifecycle_state='NO_SUCH_LIFECYCLE_STATE')",
+      "expected": "REGISTERED-still-blocks multiplicity-control test fails (proves filter not over-broad)",
+      "result": "KILLED: test_registered_feature_rows_still_block_duplicate_exposure failed, plus pre-existing test_duplicate_or_equivalent_exposure_is_not_silently_admitted",
+      "restored": "exact (md5 match)"
+    },
+    {
+      "phase": "P200000",
+      "mutation": "remove lifecycle filter from _read_registered_label_records",
+      "expected": "label deprecated-ignored test fails",
+      "result": "KILLED: test_label_exposure_view_ignores_deprecated_rows_but_raw_reads_keep_them failed",
+      "restored": "exact (md5 match)"
+    },
+    {
+      "phase": "P200000",
+      "mutation": "over-broaden label filter to exclude ALL rows",
+      "expected": "REGISTERED label duplicate-still-recorded assertion fails",
+      "result": "KILLED: new test (line 347 assertion) plus pre-existing test_duplicate_exposure_is_recorded_and_deprecation_preserves_lineage failed",
+      "restored": "exact (md5 match)"
+    }
+  ],
+  "validation_rerun": {
+    "tests_unit_features": "131 passed",
+    "tests_unit_keyword": "227 passed, 2394 deselected",
+    "full_sweep": "3 failed, 2857 passed, 1 skipped; failures exactly the 3 known pre-existing env failures (databento_canonicalize, duckdb_query_fixture, polars_lazy_fixture)",
+    "verify_smoke": "PASS",
+    "canaries": "PASS (All Frontier canaries passed)"
+  },
+  "artifact_policy": {
+    "git_ls_files_runs": "empty",
+    "heavy_artifacts": "none in diff",
+    "research_only_language": true,
+    "worktree_left_as_found": true
+  },
+  "required_repairs": [],
+  "recommended_followups": [
+    "W1: audit local registry for REGISTERED OHLCV reset_on_session feature versions materialized under degenerate session labels; deprecate/re-materialize or extend session-truth provenance parameters beyond _SESSION_TRUTH_FEATURES",
+    "W2: repoint remaining session_label-keyed fast packs (regime, volume/activity, ...) to the shared session truth before re-materializing them on real data",
+    "W3: any future deprecated-history report must use resolve_feature(include_deprecated=True), not the guard views"
+  ]
+}

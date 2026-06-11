@@ -20,7 +20,10 @@ ZERO_RANGE_INDEX = 46
 def volume_activity_rows() -> tuple[dict[str, Any], ...]:
     """Return a tiny canonical OHLCV frame for the governed volume/activity pack."""
 
-    start = datetime(2024, 1, 2, 13, 30, tzinfo=UTC)
+    # P194500 repair provenance: the synthetic session transition at
+    # SESSION_RESET_INDEX is pinned to 15:00 America/Chicago, matching the
+    # shared timestamp-derived RTH/ETH truth.
+    start = datetime(2024, 1, 2, 20, 35, tzinfo=UTC)
     rows: list[dict[str, Any]] = []
     for index in range(ROW_COUNT):
         session = "RTH" if index < SESSION_RESET_INDEX else "ETH"

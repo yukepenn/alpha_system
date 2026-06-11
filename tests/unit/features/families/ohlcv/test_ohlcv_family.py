@@ -201,6 +201,142 @@ def test_session_context_features_declare_session_label_as_metadata(
 
     assert field_roles["session_label"] == "SESSION_METADATA"
     assert set(field_roles) == {"session_label"}
+    parameters = definition.spec.transform.parameters.to_dict()
+    assert parameters["session_template_id"] == "session_cme_index_futures_eth"
+    assert parameters["session_timezone"] == "America/Chicago"
+    assert parameters["rth_open_time_local"] == "08:30"
+    assert parameters["rth_close_time_local"] == "15:00"
+    assert parameters["session_truth_source"] == "alpha_system.data.foundation.sessions"
+    assert "rth_open_time_utc" not in parameters
+    assert "rth_close_time_utc" not in parameters
+
+
+def test_session_conditioned_features_ignore_static_session_label_for_rth_truth() -> None:
+    # P194500 repair provenance: canonical session_label is input metadata only;
+    # RTH/ETH truth comes from bar_start_ts converted through the shared template.
+    rows = (
+        _row(
+            _dt("2024-01-10T14:29:00+00:00"),
+            "ETH",
+            open_="100",
+            high="101",
+            low="99",
+            close="100",
+            volume="10",
+        ),
+        _row(
+            _dt("2024-01-10T14:30:00+00:00"),
+            "ETH",
+            open_="100",
+            high="102",
+            low="99",
+            close="101",
+            volume="100",
+        ),
+        _row(
+            _dt("2024-01-10T20:59:00+00:00"),
+            "ETH",
+            open_="101",
+            high="105",
+            low="98",
+            close="104",
+            volume="120",
+        ),
+        _row(
+            _dt("2024-01-10T21:00:00+00:00"),
+            "ETH",
+            open_="104",
+            high="105",
+            low="103",
+            close="104",
+            volume="10",
+        ),
+        _row(
+            _dt("2024-07-10T13:30:00+00:00"),
+            "ETH",
+            open_="110",
+            high="114",
+            low="109",
+            close="112",
+            volume="100",
+            contract_id="ESU4",
+        ),
+        _row(
+            _dt("2024-07-10T20:00:00+00:00"),
+            "ETH",
+            open_="112",
+            high="113",
+            low="111",
+            close="112",
+            volume="10",
+            contract_id="ESU4",
+        ),
+    )
+    view = OHLCVInputView(rows)
+    registry = EmptyRegistryReader()
+    definitions = {
+        feature: build_ohlcv_feature_definition(
+            feature,
+            _approved_request(feature),
+            registry,
+            dataset_version_ids=("dsv_synthetic_ohlcv",),
+            opening_range_minutes=2,
+            reset_on_session=True,
+        )
+        for feature in (
+            OHLCVFeatureName.SESSION_MINUTE,
+            OHLCVFeatureName.RTH_FLAG,
+            OHLCVFeatureName.ETH_FLAG,
+            OHLCVFeatureName.OPENING_RANGE,
+            OHLCVFeatureName.ANCHORED_VWAP,
+        )
+    }
+
+    records = {
+        feature: compute_ohlcv_feature(definition, view)
+        for feature, definition in definitions.items()
+    }
+
+    assert [record.value for record in records[OHLCVFeatureName.RTH_FLAG]] == [
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+    ]
+    assert [record.value for record in records[OHLCVFeatureName.ETH_FLAG]] == [
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+    ]
+    assert [record.value for record in records[OHLCVFeatureName.SESSION_MINUTE]] == [
+        0,
+        0,
+        389,
+        0,
+        0,
+        0,
+    ]
+    assert records[OHLCVFeatureName.OPENING_RANGE][0].value is None
+    assert "outside_rth" in records[OHLCVFeatureName.OPENING_RANGE][0].quality_flags
+    assert records[OHLCVFeatureName.OPENING_RANGE][1].value == pytest.approx(3.0)
+    assert records[OHLCVFeatureName.OPENING_RANGE][2].value == pytest.approx(3.0)
+    assert records[OHLCVFeatureName.OPENING_RANGE][3].value is None
+    assert "outside_rth" in records[OHLCVFeatureName.OPENING_RANGE][3].quality_flags
+    assert records[OHLCVFeatureName.OPENING_RANGE][4].value == pytest.approx(5.0)
+    assert records[OHLCVFeatureName.OPENING_RANGE][5].value is None
+    assert records[OHLCVFeatureName.ANCHORED_VWAP][0].value is None
+    assert "before_anchor" in records[OHLCVFeatureName.ANCHORED_VWAP][0].quality_flags
+    assert records[OHLCVFeatureName.ANCHORED_VWAP][1].value == pytest.approx(
+        (102 + 99 + 101) / 3
+    )
+    assert records[OHLCVFeatureName.ANCHORED_VWAP][4].value == pytest.approx(
+        (114 + 109 + 112) / 3
+    )
 
 
 def test_non_session_feature_metadata_has_no_field_roles() -> None:
@@ -316,10 +452,11 @@ def _row(
     close: str,
     volume: str,
     quality_flags: tuple[str, ...] = (),
+    contract_id: str = "ESM4",
 ) -> OHLCVInputRow:
     return OHLCVInputRow(
         instrument_id="ES",
-        contract_id="ESM4",
+        contract_id=contract_id,
         series_id="ES.c.0",
         bar_start_ts=bar_start_ts,
         bar_end_ts=bar_start_ts + timedelta(minutes=1),

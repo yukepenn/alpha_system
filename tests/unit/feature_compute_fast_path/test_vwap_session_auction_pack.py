@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ from alpha_system.features.families.ohlcv import (
     build_ohlcv_feature_definition,
     compute_ohlcv_feature,
 )
-from alpha_system.features.input_views import OHLCVInputView
+from alpha_system.features.input_views import OHLCVInputRow, OHLCVInputView
 from tests.fixtures.feature_compute_fast_path.vwap_session_auction import (
     DATASET_ID,
     FIRST_RTH_NO_TRADE_INDEX,
@@ -64,8 +65,10 @@ VWAP_TOLERANCE = FeatureParityTolerance(
 
 def test_vwap_session_auction_pack_matches_reference_on_synthetic_fixture() -> None:
     pytest.importorskip("polars")
-    reference_rows = vwap_session_auction_input_rows()
-    frame_rows = vwap_session_auction_frame_rows()
+    # P194500 repair provenance: canonical session_label can be static metadata;
+    # both engines must derive RTH/ETH membership from bar_start_ts.
+    reference_rows = _static_session_input_rows()
+    frame_rows = _static_session_frame_rows()
     definitions, feature_set = _vwap_pack_contracts()
     reference_view = OHLCVInputView(reference_rows)
     reference_records = {
@@ -108,8 +111,8 @@ def test_vwap_session_auction_pack_matches_reference_on_synthetic_fixture() -> N
 
 def test_vwap_session_minute_binding_matches_reference_on_multi_session_fixture() -> None:
     pytest.importorskip("polars")
-    reference_rows = vwap_session_auction_input_rows()
-    frame_rows = vwap_session_auction_frame_rows()
+    reference_rows = _static_session_input_rows()
+    frame_rows = _static_session_frame_rows()
     definition, feature_set = _vwap_session_minute_contracts()
     reference_records = compute_ohlcv_feature(definition, OHLCVInputView(reference_rows))
     materializer = PackMaterializer()
@@ -303,3 +306,11 @@ def _records_by_feature_version(
     for record in records:
         grouped[record.feature_version_id].append(record)
     return {feature_version_id: tuple(values) for feature_version_id, values in grouped.items()}
+
+
+def _static_session_input_rows() -> tuple[OHLCVInputRow, ...]:
+    return tuple(replace(row, session_label="ETH") for row in vwap_session_auction_input_rows())
+
+
+def _static_session_frame_rows() -> tuple[dict[str, object], ...]:
+    return tuple({**row, "session_label": "ETH"} for row in vwap_session_auction_frame_rows())

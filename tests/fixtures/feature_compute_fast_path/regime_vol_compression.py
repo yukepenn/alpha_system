@@ -19,7 +19,9 @@ SECOND_SESSION_ZERO_MOVEMENT_INDEX = 11
 def regime_vol_compression_rows() -> tuple[dict[str, Any], ...]:
     """Return a tiny canonical OHLCV frame for the governed regime pack."""
 
-    start = datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
+    # P194500 repair provenance: SESSION_RESET_INDEX is the real 15:00
+    # America/Chicago RTH close under the shared session truth.
+    start = datetime(2024, 1, 2, 20, 54, tzinfo=UTC)
     specs = (
         ("RTH", 100.0, 101.0, 99.0, 100.0, 110),
         ("RTH", 100.0, 101.0, 99.0, 100.0, 111),
