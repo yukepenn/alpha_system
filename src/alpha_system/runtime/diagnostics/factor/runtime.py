@@ -22,6 +22,13 @@ from alpha_system.runtime.diagnostics.report import (
     DiagnosticsQualityGateStatus,
     DiagnosticsReport,
 )
+from alpha_system.runtime.diagnostics.splits.walk_forward import (
+    WalkForwardSplitConfig,
+    WalkForwardSplitError,
+    WalkForwardSplitPlan,
+    build_walk_forward_split_plan,
+    coerce_walk_forward_split_config,
+)
 
 FACTOR_DIAGNOSTICS_REPORT_KIND = "factor_diagnostics_summary"
 FACTOR_DIAGNOSTICS_THRESHOLD_PROFILE = "factor_diagnostics_default_v1"
@@ -99,6 +106,7 @@ class FactorDiagnosticsReport:
     """Factor-family specialization of the shared RT-P06 diagnostics report."""
 
     report: DiagnosticsReport
+    walk_forward_plan: WalkForwardSplitPlan | None = None
 
     @property
     def status(self) -> StudyRunResultState:
@@ -140,6 +148,8 @@ class FactorDiagnosticsReport:
 
         payload = self.report.to_dict()
         payload["report_type"] = "FactorDiagnosticsReport"
+        if self.walk_forward_plan is not None:
+            payload["walk_forward_metadata"] = self.walk_forward_plan.to_dict()
         return payload
 
 
@@ -213,6 +223,16 @@ class _Evaluation:
     rejection_reasons: tuple[RunRejectionReason, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _WalkForwardEvaluation:
+    plan: WalkForwardSplitPlan | None
+    gates: tuple[DiagnosticsQualityGate, ...]
+    rejection_reasons: tuple[RunRejectionReason, ...]
+    coverage_summary: dict[str, JsonScalar]
+    quality_summary: dict[str, JsonScalar]
+    report_metadata: dict[str, JsonScalar]
+
+
 def build_factor_diagnostics_run(
     *,
     diagnostics_run_spec: DiagnosticsRunSpec | DiagnosticsRunSpecRef | Mapping[str, Any],
@@ -220,6 +240,7 @@ def build_factor_diagnostics_run(
     lineage_refs: Mapping[str, str],
     study_run_record_ref: StudyRunRecordRef | Mapping[str, Any] | None = None,
     thresholds: FactorDiagnosticsThresholds | Mapping[str, Any] | None = None,
+    walk_forward_config: WalkForwardSplitConfig | Mapping[str, Any] | None = None,
 ) -> FactorDiagnosticsRunResult:
     """Build a factor diagnostics report and visible diagnostics run record."""
 
@@ -228,6 +249,7 @@ def build_factor_diagnostics_run(
         observations=observations,
         lineage_refs=lineage_refs,
         thresholds=thresholds,
+        walk_forward_config=walk_forward_config,
     )
     record = DiagnosticsRunRecord(
         diagnostics_run_spec_ref=diagnostics_run_spec,
@@ -245,6 +267,7 @@ def build_factor_diagnostics_report(
     observations: Iterable[Mapping[str, Any]],
     lineage_refs: Mapping[str, str],
     thresholds: FactorDiagnosticsThresholds | Mapping[str, Any] | None = None,
+    walk_forward_config: WalkForwardSplitConfig | Mapping[str, Any] | None = None,
 ) -> FactorDiagnosticsReport:
     """Build a descriptive factor diagnostics report from in-memory inputs.
 
@@ -256,7 +279,20 @@ def build_factor_diagnostics_report(
     active_thresholds = _coerce_thresholds(thresholds)
     prepared = _prepare_observations(observations, active_thresholds)
     relationship = _relationship_summary(prepared, active_thresholds)
-    evaluation = _evaluate(prepared, relationship, active_thresholds)
+    walk_forward = _evaluate_walk_forward(prepared, walk_forward_config)
+    evaluation = _evaluate(prepared, relationship, active_thresholds, walk_forward)
+    coverage_summary = _coverage_summary(prepared)
+    coverage_summary.update(walk_forward.coverage_summary)
+    quality_summary = _quality_summary(relationship, evaluation)
+    quality_summary.update(walk_forward.quality_summary)
+    report_metadata = {
+        "threshold_profile": FACTOR_DIAGNOSTICS_THRESHOLD_PROFILE,
+        "orchestrated_research_primitives": (
+            "alpha_system.research.ic;alpha_system.research.buckets"
+        ),
+        "descriptive_tier": "tier_0_factor_diagnostics",
+    }
+    report_metadata.update(walk_forward.report_metadata)
 
     report = DiagnosticsReport(
         report_kind=FACTOR_DIAGNOSTICS_REPORT_KIND,
@@ -264,20 +300,14 @@ def build_factor_diagnostics_report(
         diagnostics_run_spec_ref=diagnostics_run_spec,
         status=evaluation.status,
         lineage_refs=_lineage_refs(lineage_refs, diagnostics_run_spec),
-        coverage_summary=_coverage_summary(prepared),
-        quality_summary=_quality_summary(relationship, evaluation),
+        coverage_summary=coverage_summary,
+        quality_summary=quality_summary,
         limitations=_limitations(relationship),
         quality_gates=evaluation.gates,
         rejection_reasons=evaluation.rejection_reasons,
-        report_metadata={
-            "threshold_profile": FACTOR_DIAGNOSTICS_THRESHOLD_PROFILE,
-            "orchestrated_research_primitives": (
-                "alpha_system.research.ic;alpha_system.research.buckets"
-            ),
-            "descriptive_tier": "tier_0_factor_diagnostics",
-        },
+        report_metadata=report_metadata,
     )
-    return FactorDiagnosticsReport(report=report)
+    return FactorDiagnosticsReport(report=report, walk_forward_plan=walk_forward.plan)
 
 
 def _prepare_observations(
@@ -393,6 +423,7 @@ def _evaluate(
     prepared: _PreparedObservations,
     relationship: _RelationshipSummary,
     thresholds: FactorDiagnosticsThresholds,
+    walk_forward: _WalkForwardEvaluation,
 ) -> _Evaluation:
     rejected: list[RunRejectionReason] = []
     failed: list[RunRejectionReason] = []
@@ -472,14 +503,102 @@ def _evaluate(
         status = StudyRunResultState.REJECTED
     elif failed:
         status = StudyRunResultState.DIAGNOSTICS_FAILED
-    elif inconclusive:
+    elif inconclusive or walk_forward.rejection_reasons:
         status = StudyRunResultState.INCONCLUSIVE
     else:
         status = StudyRunResultState.DIAGNOSTICS_COMPLETE
 
-    reasons = tuple(rejected + failed + inconclusive)
-    gates = _quality_gates(prepared, relationship, thresholds)
+    reasons = tuple(rejected + failed + inconclusive + list(walk_forward.rejection_reasons))
+    gates = (*_quality_gates(prepared, relationship, thresholds), *walk_forward.gates)
     return _Evaluation(status=status, gates=gates, rejection_reasons=reasons)
+
+
+def _evaluate_walk_forward(
+    prepared: _PreparedObservations,
+    walk_forward_config: WalkForwardSplitConfig | Mapping[str, Any] | None,
+) -> _WalkForwardEvaluation:
+    config = coerce_walk_forward_split_config(walk_forward_config)
+    if config is None:
+        return _WalkForwardEvaluation(
+            plan=None,
+            gates=(),
+            rejection_reasons=(),
+            coverage_summary={},
+            quality_summary={},
+            report_metadata={"walk_forward_wiring": "disabled"},
+        )
+
+    metric_refs = config.to_dict()
+    metric_refs["usable_pair_count"] = prepared.usable_pair_count
+    try:
+        plan = build_walk_forward_split_plan(prepared.usable_pair_count, config=config)
+    except WalkForwardSplitError as exc:
+        reason = RunRejectionReason(
+            code="walk_forward_split_unavailable",
+            message=f"Purged/embargoed walk-forward split failed closed: {exc}",
+        )
+        metric_refs["walk_forward_fold_count"] = 0
+        return _WalkForwardEvaluation(
+            plan=None,
+            gates=(
+                DiagnosticsQualityGate(
+                    gate_id="factor_walk_forward_gate",
+                    name="Walk-forward split gate",
+                    status=DiagnosticsQualityGateStatus.INCONCLUSIVE,
+                    summary="Requested purged/embargoed walk-forward split could not be built.",
+                    metric_refs=metric_refs,
+                    limitations=(
+                        "No unsplit fallback is used when walk-forward wiring is requested.",
+                    ),
+                ),
+            ),
+            rejection_reasons=(reason,),
+            coverage_summary={
+                "walk_forward_enabled": True,
+                "walk_forward_fold_count": 0,
+                "walk_forward_sample_count": prepared.usable_pair_count,
+            },
+            quality_summary={
+                "walk_forward_status": "inconclusive",
+                "walk_forward_min_fold_count": config.min_fold_count,
+            },
+            report_metadata={
+                "walk_forward_wiring": "enabled",
+                "walk_forward_orchestrated_primitives": (
+                    "experiments_splits_walk_forward_splits;experiments_splits_apply_purge_embargo"
+                ),
+            },
+        )
+
+    metric_refs.update(plan.scalar_summary())
+    return _WalkForwardEvaluation(
+        plan=plan,
+        gates=(
+            DiagnosticsQualityGate(
+                gate_id="factor_walk_forward_gate",
+                name="Walk-forward split gate",
+                status=DiagnosticsQualityGateStatus.PASS,
+                summary="Requested purged/embargoed walk-forward split metadata was built.",
+                metric_refs=metric_refs,
+                limitations=(
+                    "Walk-forward folds are diagnostics metadata, not a validation claim.",
+                ),
+            ),
+        ),
+        rejection_reasons=(),
+        coverage_summary=plan.scalar_summary(),
+        quality_summary={
+            "walk_forward_status": "reported",
+            "walk_forward_fold_count": plan.fold_count,
+            "walk_forward_min_fold_count": config.min_fold_count,
+        },
+        report_metadata={
+            "walk_forward_wiring": "enabled",
+            "walk_forward_orchestrated_primitives": (
+                "experiments_splits_walk_forward_splits;experiments_splits_apply_purge_embargo"
+            ),
+        },
+    )
 
 
 def _quality_gates(

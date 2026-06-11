@@ -17,30 +17,28 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. This `FUTSUB-P23` executor snapshot completes the
-`label_integration` gate (`FUTSUB-P21`...`FUTSUB-P23`): label guards are
-audited, current LabelPack locks are integrated and resolver-smoke covered, and
-the label substrate is now coverage-mapped cell by cell.
+campaign. This `FUTSUB-P24` executor snapshot opens the `wiring_and_matrices`
+gate (`FUTSUB-P24`...`FUTSUB-P26`) by wiring purged / embargoed
+walk-forward metadata into runtime diagnostics through an opt-in callable path.
 
 Active / next phase is Ralph-owned. The nominal next phase is `FUTSUB-P24` -
-Purged / Embargo Walk-Forward Runtime Wiring, opening the
-`wiring_and_matrices` gate (`FUTSUB-P24`...`FUTSUB-P26`) after Ralph validation
-and Yellow-lane review complete.
+Purged / Embargo Walk-Forward Runtime Wiring until Ralph validation and
+Yellow-lane review complete; after that, the nominal next phase is `FUTSUB-P25`
+- N_eff / Overlap-Aware Sample Reporting.
 
-New durable surfaces through this `FUTSUB-P23` executor snapshot:
+New durable surfaces through this `FUTSUB-P24` executor snapshot:
 
-- `docs/futures_substrate_scaleout/LABEL_COVERAGE.md` summarizes the
-  value-free label coverage and horizon-quality context.
-- `research/futures_substrate_scaleout_v1/matrices/label_family_coverage.md`
-  records the family x symbol x horizon x year matrix with explicit
-  present/warned/expected-excluded/gap status.
-- `research/futures_substrate_scaleout_v1/matrices/symbol_horizon_coverage.md`
-  records the symbol x horizon rollup across label families.
-- `research/futures_substrate_scaleout_v1/matrices/session_horizon_coverage.md`
-  records the session/guard x horizon coverage view.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P23.md`
-  records validation, matrix counts, overlap provenance, gap classification,
-  and artifact policy for coordinator use.
+- `src/alpha_system/runtime/diagnostics/splits/walk_forward.py` provides the
+  value-free split-plan callable path over the existing experiment primitives.
+- `src/alpha_system/runtime/diagnostics/factor/runtime.py` accepts opt-in
+  `walk_forward_config` and emits fold metadata or a visible inconclusive
+  reason when requested.
+- `docs/futures_substrate_scaleout/WALK_FORWARD_WIRING.md` summarizes the P24
+  runtime wiring, protocol hooks, and deferred statistical scope.
+- `research/futures_substrate_scaleout_v1/wiring/walk_forward_wiring_smoke.md`
+  records the value-free wiring smoke case.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P24.md`
+  records validation, changed paths, and artifact policy for coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -75,8 +73,8 @@ daily maintenance / trade-date break. The roll calendar is analytic and
 approximate, not provider-exact splice truth. Resolver semantics remain exact-id
 with no fuzzy fallback; P22 also verifies deprecated exact-id refs fail closed.
 P23 records coverage gaps explicitly rather than accepting the substrate by
-subset, and rows are not treated as independent samples for overlapping
-horizons.
+subset. P24 exposes walk-forward fold metadata but does not treat rows as
+independent samples for overlapping horizons; P25 owns N_eff reporting.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,

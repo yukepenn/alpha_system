@@ -65,6 +65,18 @@ class DiagnosticsFamily(StrEnum):
     COST = "cost"
 
 
+class DiagnosticsHalfLifeProtocol(StrEnum):
+    """Bounded walk-forward configuration profiles for diagnostics wiring.
+
+    The protocol names are routing metadata only. They do not certify factor
+    persistence, label independence, or statistical validity.
+    """
+
+    STRUCTURAL = "STRUCTURAL"
+    MEDIUM = "MEDIUM"
+    FAST = "FAST"
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimePlanRef:
     """Reference to an RT-P04 RuntimePlan without copying the plan payload."""

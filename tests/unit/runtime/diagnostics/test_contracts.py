@@ -9,6 +9,7 @@ from alpha_system.runtime.contracts.run_record import RunRejectionReason, StudyR
 from alpha_system.runtime.diagnostics.contracts import (
     DiagnosticsContractError,
     DiagnosticsFamily,
+    DiagnosticsHalfLifeProtocol,
     DiagnosticsReportRef,
     DiagnosticsRunRecord,
     DiagnosticsRunSpec,
@@ -20,6 +21,7 @@ def test_diagnostics_package_surface_exposes_shared_contracts() -> None:
     assert diagnostics.DiagnosticsRunSpec is DiagnosticsRunSpec
     assert diagnostics.DiagnosticsRunRecord is DiagnosticsRunRecord
     assert diagnostics.DiagnosticsFamily is DiagnosticsFamily
+    assert diagnostics.DiagnosticsHalfLifeProtocol is DiagnosticsHalfLifeProtocol
 
 
 def test_diagnostics_run_spec_is_immutable_hashable_and_reference_only() -> None:
