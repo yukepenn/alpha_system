@@ -27,6 +27,12 @@ from alpha_system.governance.validation import (
     validate_required_fields,
     validate_schema,
 )
+from alpha_system.governance.verdict_reason_code import (
+    VerdictReasonCode,
+    missing_inconclusive_reason_issue,
+    validate_optional_verdict_reason_code,
+    validate_verdict_reason_code,
+)
 
 EVIDENCE_BUNDLE_REQUIRED_FIELDS = (
     "evidence_bundle_id",
@@ -44,8 +50,10 @@ EVIDENCE_BUNDLE_REQUIRED_FIELDS = (
     "artifact_manifest",
     "reviewer_verdict_reference",
 )
+EVIDENCE_BUNDLE_OPTIONAL_FIELDS = ("reason_code",)
+EVIDENCE_BUNDLE_ALLOWED_FIELDS = EVIDENCE_BUNDLE_REQUIRED_FIELDS + EVIDENCE_BUNDLE_OPTIONAL_FIELDS
 EVIDENCE_BUNDLE_ID_COMPONENT_FIELDS = tuple(
-    field for field in EVIDENCE_BUNDLE_REQUIRED_FIELDS if field != "evidence_bundle_id"
+    field for field in EVIDENCE_BUNDLE_ALLOWED_FIELDS if field != "evidence_bundle_id"
 )
 ARTIFACT_MANIFEST_ENTRY_REQUIRED_FIELDS = (
     "logical_name",
@@ -68,6 +76,7 @@ EVIDENCE_BUNDLE_FIELD_TYPES: dict[str, ExpectedType] = {
     "limitations": list,
     "artifact_manifest": list,
     "reviewer_verdict_reference": str,
+    "reason_code": (str, VerdictReasonCode),
 }
 ARTIFACT_MANIFEST_ENTRY_FIELD_TYPES: dict[str, ExpectedType] = {
     "logical_name": str,
@@ -77,6 +86,7 @@ ARTIFACT_MANIFEST_ENTRY_FIELD_TYPES: dict[str, ExpectedType] = {
 }
 DIAGNOSTICS_RUN_STATE = "DIAGNOSTICS_RUN"
 EVIDENCE_READY_STATE = "EVIDENCE_READY"
+INCONCLUSIVE_DIAGNOSTICS_STATUS = "INCONCLUSIVE"
 
 _SHA256_HEX_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 _WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(r"^[A-Za-z]:[\\/]")
@@ -143,6 +153,7 @@ class EvidenceBundle:
     limitations: list[str]
     artifact_manifest: list[EvidenceArtifactManifestEntry]
     reviewer_verdict_reference: str
+    reason_code: VerdictReasonCode | None = None
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> EvidenceBundle:
@@ -161,7 +172,7 @@ class EvidenceBundle:
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a strict JSON-compatible representation."""
 
-        return {
+        payload: dict[str, JsonValue] = {
             "evidence_bundle_id": self.evidence_bundle_id,
             "alpha_spec_id": self.alpha_spec_id,
             "study_spec_id": self.study_spec_id,
@@ -177,6 +188,9 @@ class EvidenceBundle:
             "artifact_manifest": [entry.to_dict() for entry in self.artifact_manifest],
             "reviewer_verdict_reference": self.reviewer_verdict_reference,
         }
+        if self.reason_code is not None:
+            payload["reason_code"] = self.reason_code.value
+        return payload
 
     def to_canonical_json(self) -> str:
         """Serialize the validated bundle through the canonical primitive."""
@@ -199,6 +213,7 @@ def create_evidence_bundle(
     limitations: list[str],
     artifact_manifest: list[EvidenceArtifactManifestEntry | Mapping[str, JsonValue]],
     reviewer_verdict_reference: str,
+    reason_code: VerdictReasonCode | str | None = None,
 ) -> EvidenceBundle:
     """Create a validated `EvidenceBundle` without materializing artifacts."""
 
@@ -217,6 +232,8 @@ def create_evidence_bundle(
         "artifact_manifest": [_manifest_entry_to_dict(entry) for entry in artifact_manifest],
         "reviewer_verdict_reference": reviewer_verdict_reference,
     }
+    if reason_code is not None:
+        payload["reason_code"] = validate_optional_verdict_reason_code(reason_code).value
     payload["evidence_bundle_id"] = generate_evidence_bundle_id(payload)
     return validate_evidence_bundle(payload)
 
@@ -226,12 +243,28 @@ def generate_evidence_bundle_id(payload: Mapping[str, Any]) -> str:
 
     mapping = validate_required_fields(
         payload,
-        EVIDENCE_BUNDLE_ID_COMPONENT_FIELDS,
+        tuple(
+            field
+            for field in EVIDENCE_BUNDLE_ID_COMPONENT_FIELDS
+            if field in EVIDENCE_BUNDLE_REQUIRED_FIELDS
+        ),
         object_name="EvidenceBundle",
     )
+    diagnostics_summary = mapping["diagnostics_summary"]
+    if (
+        isinstance(diagnostics_summary, Mapping)
+        and _diagnostics_status_is_inconclusive(diagnostics_summary)
+        and "reason_code" not in mapping
+    ):
+        raise GovernanceValidationError(
+            missing_inconclusive_reason_issue(
+                state_field="EvidenceBundle.diagnostics_summary.diagnostics_status"
+            )
+        )
     components = {
         field: _normalize_id_component(field, mapping[field])
         for field in EVIDENCE_BUNDLE_ID_COMPONENT_FIELDS
+        if field in mapping
     }
     return generate_governance_id(GovernanceIdKind.EVIDENCE_BUNDLE, components)
 
@@ -254,7 +287,7 @@ def validate_evidence_bundle(payload: Mapping[str, Any]) -> EvidenceBundle:
         payload,
         required_fields=EVIDENCE_BUNDLE_REQUIRED_FIELDS,
         field_types=EVIDENCE_BUNDLE_FIELD_TYPES,
-        allowed_fields=EVIDENCE_BUNDLE_REQUIRED_FIELDS,
+        allowed_fields=EVIDENCE_BUNDLE_ALLOWED_FIELDS,
         object_name="EvidenceBundle",
     )
 
@@ -275,6 +308,13 @@ def validate_evidence_bundle(payload: Mapping[str, Any]) -> EvidenceBundle:
     issues.extend(_validate_limitations(mapping["limitations"]))
     manifest_entries, manifest_issues = _validate_artifact_manifest(mapping["artifact_manifest"])
     issues.extend(manifest_issues)
+    reason_code = _parse_optional_reason_code(mapping, issues)
+    if _diagnostics_status_is_inconclusive(mapping["diagnostics_summary"]) and reason_code is None:
+        issues.append(
+            missing_inconclusive_reason_issue(
+                state_field="EvidenceBundle.diagnostics_summary.diagnostics_status"
+            )
+        )
     issues.extend(_validate_canonical_serializable(mapping))
 
     if not issues:
@@ -311,6 +351,7 @@ def validate_evidence_bundle(payload: Mapping[str, Any]) -> EvidenceBundle:
         limitations=list(mapping["limitations"]),
         artifact_manifest=manifest_entries,
         reviewer_verdict_reference=mapping["reviewer_verdict_reference"],
+        reason_code=reason_code,
     )
 
 
@@ -810,10 +851,12 @@ def _validate_canonical_serializable(mapping: Mapping[str, Any]) -> list[Validat
         canonical_serialize(
             {
                 field: _normalize_id_component(field, mapping[field])
-                for field in EVIDENCE_BUNDLE_REQUIRED_FIELDS
+                for field in EVIDENCE_BUNDLE_ALLOWED_FIELDS
                 if field in mapping
             }
         )
+    except GovernanceValidationError as exc:
+        return list(exc.issues)
     except GovernanceSerializationError as exc:
         return [
             ValidationIssue(
@@ -830,6 +873,8 @@ def _validate_canonical_serializable(mapping: Mapping[str, Any]) -> list[Validat
 def _normalize_id_component(field: str, value: Any) -> JsonValue:
     if field == "artifact_manifest":
         return [_manifest_entry_to_dict(entry) for entry in value]
+    if field == "reason_code":
+        return validate_verdict_reason_code(value).value
     return cast(JsonValue, value)
 
 
@@ -872,6 +917,23 @@ def _unprefix_manifest_issue(issue: ValidationIssue) -> ValidationIssue:
     )
 
 
+def _parse_optional_reason_code(
+    mapping: Mapping[str, Any],
+    issues: list[ValidationIssue],
+) -> VerdictReasonCode | None:
+    if "reason_code" not in mapping:
+        return None
+    try:
+        return validate_optional_verdict_reason_code(mapping["reason_code"])
+    except GovernanceValidationError as exc:
+        issues.extend(exc.issues)
+        return None
+
+
+def _diagnostics_status_is_inconclusive(diagnostics_summary: Mapping[str, Any]) -> bool:
+    return diagnostics_summary.get("diagnostics_status") == INCONCLUSIVE_DIAGNOSTICS_STATUS
+
+
 def _normalize_text(value: object) -> str:
     if isinstance(value, str):
         return " ".join(value.strip().lower().split())
@@ -881,11 +943,14 @@ def _normalize_text(value: object) -> str:
 __all__ = [
     "ARTIFACT_MANIFEST_ENTRY_REQUIRED_FIELDS",
     "DIAGNOSTICS_RUN_STATE",
+    "EVIDENCE_BUNDLE_ALLOWED_FIELDS",
     "EVIDENCE_BUNDLE_ID_COMPONENT_FIELDS",
+    "EVIDENCE_BUNDLE_OPTIONAL_FIELDS",
     "EVIDENCE_BUNDLE_REQUIRED_FIELDS",
     "EVIDENCE_READY_STATE",
     "EvidenceArtifactManifestEntry",
     "EvidenceBundle",
+    "INCONCLUSIVE_DIAGNOSTICS_STATUS",
     "assert_evidence_ready",
     "create_evidence_bundle",
     "generate_evidence_bundle_id",

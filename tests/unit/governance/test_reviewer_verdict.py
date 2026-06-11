@@ -14,6 +14,7 @@ from alpha_system.governance.reviewer_verdict import (
     validate_reviewer_verdict,
 )
 from alpha_system.governance.validation import GovernanceValidationError
+from alpha_system.governance.verdict_reason_code import VerdictReasonCode
 
 TIMESTAMP = "2026-06-03T13:52:09Z"
 
@@ -185,3 +186,54 @@ def test_create_reviewer_verdict_uses_closed_vocabulary() -> None:
         ReviewerVerdictOutcome.PASS,
         ReviewerVerdictOutcome.PASS_WITH_WARNINGS,
     }
+
+
+def test_reviewer_verdict_inconclusive_requires_reason_code() -> None:
+    payload = valid_payload()
+    payload["verdict"] = ReviewerVerdictOutcome.INCONCLUSIVE.value
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_reviewer_verdict(payload)
+
+    assert any(
+        issue.code == "missing_reason_code_for_inconclusive"
+        for issue in exc_info.value.issues
+    )
+
+
+def test_reviewer_verdict_rejects_free_text_reason_code() -> None:
+    payload = valid_payload()
+    payload["verdict"] = ReviewerVerdictOutcome.INCONCLUSIVE.value
+    payload["reason_code"] = "not enough evidence"
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_reviewer_verdict(payload)
+
+    assert any(issue.code == "invalid_verdict_reason_code" for issue in exc_info.value.issues)
+
+
+def test_reviewer_verdict_inconclusive_reason_code_is_not_merge_eligible() -> None:
+    payload = valid_payload()
+    payload["verdict"] = ReviewerVerdictOutcome.INCONCLUSIVE.value
+    payload["reason_code"] = VerdictReasonCode.SUBSTRATE_GAP.value
+
+    verdict = validate_reviewer_verdict(payload)
+
+    assert verdict.verdict is ReviewerVerdictOutcome.INCONCLUSIVE
+    assert verdict.reason_code is VerdictReasonCode.SUBSTRATE_GAP
+    assert verdict.is_merge_eligible is False
+    assert ReviewerVerdictOutcome.INCONCLUSIVE not in MERGE_ELIGIBLE_REVIEWER_VERDICTS
+    assert verdict.to_dict()["reason_code"] == "SUBSTRATE_GAP"
+
+
+def test_reviewer_verdict_present_reason_code_changes_id_without_affecting_absent_id() -> None:
+    payload = valid_payload()
+    without_reason = validate_reviewer_verdict(payload)
+    with_reason_payload = copy.deepcopy(payload)
+    with_reason_payload["reason_code"] = VerdictReasonCode.DATA_QUALITY.value
+
+    with_reason = validate_reviewer_verdict(with_reason_payload)
+
+    assert without_reason.to_dict() == payload
+    assert "reason_code" not in without_reason.to_dict()
+    assert with_reason.reviewer_verdict_id != without_reason.reviewer_verdict_id

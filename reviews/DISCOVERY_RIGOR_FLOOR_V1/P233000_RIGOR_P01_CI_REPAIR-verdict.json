@@ -1,0 +1,69 @@
+{
+  "phase_id": "P233000_RIGOR_P01_CI_REPAIR",
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "verdict": "PASS",
+  "reviewer": "claude-fresh-adversarial",
+  "reviewed_at": "2026-06-11",
+  "worktree": "/home/yuke_zhang/projects/alpha_system-discovery_rigor_floor_v1-rigor-p01",
+  "worktree_head": "0632faf",
+  "diff_state": "uncommitted",
+  "baseline_diff_sha256": "0b08e0de3e290cd0bb31605f2ad284abeaf8cf756b6e60ee8853c2b181b89c39",
+  "post_review_diff_sha256": "0b08e0de3e290cd0bb31605f2ad284abeaf8cf756b6e60ee8853c2b181b89c39",
+  "findings": [
+    {
+      "severity": "info",
+      "code": "exit_code_pinned",
+      "detail": "Negative test asserts exit code == 2 (exact _run_json_command rejection code) rather than merely non-zero; stronger than spec minimum."
+    },
+    {
+      "severity": "info",
+      "code": "executor_partial_validation_documented",
+      "detail": "Executor ran only the first two spec validation commands (user-directed, truthfully documented). Reviewer re-ran the contracted suite (613 passed) and verified zero diff under src/alpha_system/governance/ and evals/canaries/."
+    }
+  ],
+  "scope_check": {
+    "files_modified": [
+      "src/alpha_system/cli/governance.py",
+      "tests/integration/governance/test_cli_smoke.py",
+      "tests/integration/governance/test_end_to_end_dry_run.py",
+      "tests/unit/governance/test_cli.py"
+    ],
+    "out_of_scope_changes": 0,
+    "promotion_gate_diff_lines": 0,
+    "canaries_diff_lines": 0
+  },
+  "mutation_tests": [
+    {
+      "name": "A_revert_cli_plumbing_context_without_trial_ledger_path",
+      "expected": "both integration tests FAIL with missing_trial_ledger_path rejection",
+      "observed": "2 failed in 2.89s (test_governance_cli_end_to_end_smoke, test_synthetic_end_to_end_governance_dry_run)",
+      "result": "PASS"
+    },
+    {
+      "name": "B_fabricated_existing_default_when_flag_omitted",
+      "expected": "negative test FAILS, catching the silent-default gate weakening",
+      "observed": "1 failed in 0.53s (test_build_evidence_without_trial_ledger_path_rejects_at_gate, AssertionError at code == 2)",
+      "result": "PASS"
+    },
+    {
+      "name": "restoration_byte_identical",
+      "expected": "post-mutation git diff sha256 equals baseline; all 4 file sha256s match",
+      "observed": "diff sha256 0b08e0de...b89c39 identical; sha256sum -c OK on all 4 files; post-restore sanity 3 passed in 5.49s",
+      "result": "PASS"
+    }
+  ],
+  "validation_counts": {
+    "command": "~/.venvs/alpha_system_research/bin/python -m pytest tests/integration/governance tests/unit/governance tests/unit/cli -q",
+    "passed": 613,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_seconds": 10.28
+  },
+  "artifact_policy": {
+    "runs_paths_in_diff": 0,
+    "registry_or_value_paths_in_diff": 0,
+    "new_untracked_files": 0,
+    "staged_files": 0
+  }
+}

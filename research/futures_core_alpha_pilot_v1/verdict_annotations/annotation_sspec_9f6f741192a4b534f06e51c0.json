@@ -1,0 +1,24 @@
+{
+  "basis_citation": {
+    "json_pointer": "/judgement/basis",
+    "quote": "Runtime diagnostics and consolidation evidence remain unresolved by reference: no locked BBO FeaturePack resolves, detailed RTH session cost cells are zero-fill or inconclusive, and the no-lookahead audit carries timing and label flags."
+  },
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "classification_statement": "This annotation classifies the recorded basis only and does not alter, re-open, or re-judge the original outcome.",
+  "original_statistical_reviewer_judgement": "INCONCLUSIVE",
+  "original_verdict_path": "research/futures_core_alpha_pilot_v1/reviewer_verdicts/reviewer_verdict_sspec_9f6f741192a4b534f06e51c0.json",
+  "original_verdict_sha256": "011501dbfd9685bfd2c802026636aa5fad9882c68f2897ab6fb9a97c16ac9523",
+  "phase_id": "RIGOR-P01",
+  "provenance": {
+    "source_evidence_citation": "reviewer_verdict_sspec_9f6f741192a4b534f06e51c0.json#/judgement/basis",
+    "source_field": "judgement.basis"
+  },
+  "reason_code": "BBO_PROXY_LIMITATION",
+  "schema": "discovery_rigor_floor.verdict_annotation.v1",
+  "study_spec_id": "sspec_9f6f741192a4b534f06e51c0",
+  "supporting_recorded_flags": [
+    "BBO_PROXY_FALLBACK",
+    "RTH_comparator_gap",
+    "proxy_only_cost_and_capacity_support"
+  ]
+}

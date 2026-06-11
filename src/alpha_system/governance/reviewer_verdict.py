@@ -28,6 +28,12 @@ from alpha_system.governance.validation import (
     require_mapping,
     validate_schema,
 )
+from alpha_system.governance.verdict_reason_code import (
+    VerdictReasonCode,
+    missing_inconclusive_reason_issue,
+    validate_optional_verdict_reason_code,
+    validate_verdict_reason_code,
+)
 
 REVIEWER_VERDICT_REQUIRED_FIELDS = (
     "reviewer_id",
@@ -40,7 +46,9 @@ REVIEWER_VERDICT_REQUIRED_FIELDS = (
     "checked_commands",
     "timestamp",
 )
-REVIEWER_VERDICT_ID_COMPONENT_FIELDS = REVIEWER_VERDICT_REQUIRED_FIELDS
+REVIEWER_VERDICT_OPTIONAL_FIELDS = ("reason_code",)
+REVIEWER_VERDICT_ALLOWED_FIELDS = REVIEWER_VERDICT_REQUIRED_FIELDS + REVIEWER_VERDICT_OPTIONAL_FIELDS
+REVIEWER_VERDICT_ID_COMPONENT_FIELDS = REVIEWER_VERDICT_ALLOWED_FIELDS
 REVIEWER_VERDICT_FIELD_TYPES: dict[str, ExpectedType] = {
     "reviewer_id": str,
     "role": str,
@@ -51,6 +59,7 @@ REVIEWER_VERDICT_FIELD_TYPES: dict[str, ExpectedType] = {
     "checked_artifacts": list,
     "checked_commands": list,
     "timestamp": str,
+    "reason_code": (str, VerdictReasonCode),
 }
 REVIEWER_VERDICT_IMPLIES_MARKET_TRUTH = False
 REVIEWER_VERDICT_IMPLIES_PROFITABILITY = False
@@ -81,6 +90,7 @@ class ReviewerVerdictOutcome(StrEnum):
     PASS_WITH_WARNINGS = "PASS_WITH_WARNINGS"
     REWORK = "REWORK"
     BLOCKED = "BLOCKED"
+    INCONCLUSIVE = "INCONCLUSIVE"
 
 
 MERGE_ELIGIBLE_REVIEWER_VERDICTS = (
@@ -102,6 +112,7 @@ class ReviewerVerdict:
     checked_artifacts: tuple[str, ...]
     checked_commands: tuple[str, ...]
     timestamp: str
+    reason_code: VerdictReasonCode | None = None
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> ReviewerVerdict:
@@ -156,7 +167,7 @@ class ReviewerVerdict:
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a strict JSON-compatible representation."""
 
-        return {
+        payload: dict[str, JsonValue] = {
             "reviewer_id": self.reviewer_id,
             "role": self.role,
             "independence_statement": self.independence_statement,
@@ -167,6 +178,9 @@ class ReviewerVerdict:
             "checked_commands": list(self.checked_commands),
             "timestamp": self.timestamp,
         }
+        if self.reason_code is not None:
+            payload["reason_code"] = self.reason_code.value
+        return payload
 
     def to_canonical_json(self) -> str:
         """Serialize the validated verdict through the canonical primitive."""
@@ -185,6 +199,7 @@ def create_reviewer_verdict(
     checked_artifacts: list[str],
     checked_commands: list[str],
     timestamp: str,
+    reason_code: VerdictReasonCode | str | None = None,
 ) -> ReviewerVerdict:
     """Create a validated `ReviewerVerdict` without implying market truth."""
 
@@ -199,6 +214,8 @@ def create_reviewer_verdict(
         "checked_commands": list(checked_commands),
         "timestamp": timestamp,
     }
+    if reason_code is not None:
+        payload["reason_code"] = validate_optional_verdict_reason_code(reason_code).value
     return validate_reviewer_verdict(payload)
 
 
@@ -209,6 +226,7 @@ def generate_reviewer_verdict_id(payload: Mapping[str, Any]) -> str:
     components = {
         field: _normalize_id_component(field, mapping[field])
         for field in REVIEWER_VERDICT_ID_COMPONENT_FIELDS
+        if field in mapping
     }
     try:
         return generate_governance_id(GovernanceIdKind.REVIEWER_VERDICT, components)
@@ -231,7 +249,7 @@ def validate_reviewer_verdict(payload: Mapping[str, Any]) -> ReviewerVerdict:
         payload,
         required_fields=REVIEWER_VERDICT_REQUIRED_FIELDS,
         field_types=REVIEWER_VERDICT_FIELD_TYPES,
-        allowed_fields=REVIEWER_VERDICT_REQUIRED_FIELDS,
+        allowed_fields=REVIEWER_VERDICT_ALLOWED_FIELDS,
         object_name="ReviewerVerdict",
     )
 
@@ -240,6 +258,7 @@ def validate_reviewer_verdict(payload: Mapping[str, Any]) -> ReviewerVerdict:
     issues.extend(_validate_text_field(mapping, "role"))
     issues.extend(_validate_text_field(mapping, "independence_statement"))
     verdict = _parse_verdict(mapping["verdict"], issues)
+    reason_code = _parse_optional_reason_code(mapping, issues)
     issues.extend(_validate_string_list(mapping["blocking_issues"], field="blocking_issues"))
     issues.extend(_validate_string_list(mapping["warnings"], field="warnings"))
     issues.extend(
@@ -257,6 +276,10 @@ def validate_reviewer_verdict(payload: Mapping[str, Any]) -> ReviewerVerdict:
         )
     )
     issues.extend(_validate_timestamp(mapping["timestamp"]))
+    if verdict is ReviewerVerdictOutcome.INCONCLUSIVE and reason_code is None:
+        issues.append(
+            missing_inconclusive_reason_issue(state_field="ReviewerVerdict.verdict")
+        )
     issues.extend(_validate_canonical_serializable(mapping))
 
     if issues:
@@ -273,6 +296,7 @@ def validate_reviewer_verdict(payload: Mapping[str, Any]) -> ReviewerVerdict:
         checked_artifacts=tuple(mapping["checked_artifacts"]),
         checked_commands=tuple(mapping["checked_commands"]),
         timestamp=mapping["timestamp"],
+        reason_code=reason_code,
     )
 
 
@@ -425,10 +449,12 @@ def _validate_canonical_serializable(mapping: Mapping[str, Any]) -> list[Validat
         canonical_serialize(
             {
                 field: _normalize_serialization_component(field, mapping[field])
-                for field in REVIEWER_VERDICT_REQUIRED_FIELDS
+                for field in REVIEWER_VERDICT_ID_COMPONENT_FIELDS
                 if field in mapping
             }
         )
+    except GovernanceValidationError as exc:
+        return list(exc.issues)
     except GovernanceSerializationError as exc:
         return [
             ValidationIssue(
@@ -445,6 +471,8 @@ def _validate_canonical_serializable(mapping: Mapping[str, Any]) -> list[Validat
 def _normalize_id_component(field: str, value: Any) -> JsonValue:
     if field == "verdict":
         return _verdict_value(value)
+    if field == "reason_code":
+        return validate_verdict_reason_code(value).value
     if field in {
         "blocking_issues",
         "warnings",
@@ -458,6 +486,8 @@ def _normalize_id_component(field: str, value: Any) -> JsonValue:
 def _normalize_serialization_component(field: str, value: Any) -> JsonValue:
     if field == "verdict" and isinstance(value, ReviewerVerdictOutcome):
         return value.value
+    if field == "reason_code":
+        return validate_verdict_reason_code(value).value
     if field in {
         "blocking_issues",
         "warnings",
@@ -483,6 +513,19 @@ def _verdict_value(verdict: ReviewerVerdictOutcome | str | Any) -> str:
         ) from exc
 
 
+def _parse_optional_reason_code(
+    mapping: Mapping[str, Any],
+    issues: list[ValidationIssue],
+) -> VerdictReasonCode | None:
+    if "reason_code" not in mapping:
+        return None
+    try:
+        return validate_optional_verdict_reason_code(mapping["reason_code"])
+    except GovernanceValidationError as exc:
+        issues.extend(exc.issues)
+        return None
+
+
 def _normalize_text(value: object) -> str:
     if isinstance(value, str):
         return " ".join(value.strip().lower().split())
@@ -492,11 +535,13 @@ def _normalize_text(value: object) -> str:
 __all__ = [
     "MERGE_ELIGIBLE_REVIEWER_VERDICTS",
     "REVIEWER_VERDICT_FIELD_TYPES",
+    "REVIEWER_VERDICT_ALLOWED_FIELDS",
     "REVIEWER_VERDICT_ID_COMPONENT_FIELDS",
     "REVIEWER_VERDICT_IMPLIES_MARKET_TRUTH",
     "REVIEWER_VERDICT_IMPLIES_PRODUCTION_READINESS",
     "REVIEWER_VERDICT_IMPLIES_PROFITABILITY",
     "REVIEWER_VERDICT_IMPLIES_TRADABILITY",
+    "REVIEWER_VERDICT_OPTIONAL_FIELDS",
     "REVIEWER_VERDICT_REQUIRED_FIELDS",
     "ReviewerVerdict",
     "ReviewerVerdictOutcome",
