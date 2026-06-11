@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from datetime import time
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    SessionTemplate,
+    load_session_template_by_id,
+)
 from alpha_system.data.storage import require_dependency
 from alpha_system.features.contracts import (
     FeatureFamily,
@@ -46,8 +51,11 @@ class _PackExpression:
 
 @dataclass(frozen=True, slots=True)
 class _RthClock:
+    timezone: str
     open_seconds: int
     close_seconds: int
+    eth_start_seconds: int
+    eth_crosses_midnight: bool
 
 
 def build_session_calendar_roll_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
@@ -132,10 +140,17 @@ def _validate_session_calendar_roll_feature(feature: FeatureSpec) -> None:
         "flag_absent_never_fabricate",
         feature.feature_id,
     )
-    rth_open = _clock_parameter(parameters, "rth_open_time_utc", feature.feature_id)
-    rth_close = _clock_parameter(parameters, "rth_close_time_utc", feature.feature_id)
-    if rth_close <= rth_open:
-        raise PackMaterializerError(f"{feature.feature_id} requires rth_close_time_utc after open")
+    template = _session_template_from_parameters(parameters, feature.feature_id)
+    rth_open = _clock_parameter(parameters, "rth_open_time_local", feature.feature_id)
+    rth_close = _clock_parameter(parameters, "rth_close_time_local", feature.feature_id)
+    if rth_open != template.rth_start:
+        raise PackMaterializerError(
+            f"{feature.feature_id} requires rth_open_time_local from the session template"
+        )
+    if rth_close != template.rth_end:
+        raise PackMaterializerError(
+            f"{feature.feature_id} requires rth_close_time_local from the session template"
+        )
     if feature_name in _OFFLINE_ROLL_COUNTDOWN_FEATURES:
         if (
             feature.window.kind is not WindowKind.FUTURE
@@ -206,11 +221,12 @@ def _feature_expression(
     pl = polars
     empty = _flags(pl, ())
     if feature_name is SessionFeatureName.SESSION_ID:
+        session_label = _template_session_label(pl, rth_clock)
         session_id = pl.concat_str(
             [
                 pl.col("series_id").cast(pl.Utf8),
-                _bar_start_ts(pl).dt.strftime("%Y-%m-%d"),
-                _session_label(pl),
+                _template_trade_date(pl, rth_clock),
+                session_label,
             ],
             separator=":",
         )
@@ -222,10 +238,10 @@ def _feature_expression(
         value, extra_flags = _rth_minutes(pl, rth_clock, from_open=False)
         return _PackExpression(value, _quality_flags(pl, extra_flags))
     if feature_name is SessionFeatureName.RTH_SEGMENT_FLAG:
-        value = (_session_label(pl) == "RTH").cast(pl.Int64)
+        value = _is_rth(pl, rth_clock).cast(pl.Int64)
         return _PackExpression(value, _quality_flags(pl, empty))
     if feature_name is SessionFeatureName.ETH_SEGMENT_FLAG:
-        value = (_session_label(pl) == "ETH").cast(pl.Int64)
+        value = _is_rth(pl, rth_clock).not_().cast(pl.Int64)
         return _PackExpression(value, _quality_flags(pl, empty))
     if feature_name is SessionFeatureName.DAY_OF_WEEK:
         value = (_bar_start_ts(pl).dt.weekday() - 1).cast(pl.Int64)
@@ -249,18 +265,73 @@ def _feature_expression(
 
 def _rth_clock(feature: FeatureSpec) -> _RthClock:
     parameters = feature.transform.parameters.to_dict()
+    template = _session_template_from_parameters(parameters, feature.feature_id)
     return _RthClock(
-        open_seconds=_seconds_since_midnight(
-            _clock_parameter(parameters, "rth_open_time_utc", feature.feature_id)
-        ),
-        close_seconds=_seconds_since_midnight(
-            _clock_parameter(parameters, "rth_close_time_utc", feature.feature_id)
-        ),
+        timezone=template.timezone,
+        open_seconds=_seconds_since_midnight(template.rth_start),
+        close_seconds=_seconds_since_midnight(template.rth_end),
+        eth_start_seconds=_seconds_since_midnight(template.eth_start),
+        eth_crosses_midnight=_seconds_since_midnight(template.eth_end)
+        <= _seconds_since_midnight(template.eth_start),
     )
+
+
+def _session_template_from_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> SessionTemplate:
+    template_id = parameters.get("session_template_id")
+    if not isinstance(template_id, str) or not template_id.strip():
+        raise PackMaterializerError(f"{feature_id} requires session_template_id")
+    try:
+        template = load_session_template_by_id(template_id=template_id)
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    timezone = parameters.get("session_timezone")
+    if timezone != template.timezone:
+        raise PackMaterializerError(
+            f"{feature_id} requires session_timezone={template.timezone!r}"
+        )
+    return template
 
 
 def _seconds_since_midnight(value: time) -> int:
     return value.hour * 3600 + value.minute * 60 + value.second
+
+
+def _local_bar_start(polars: Any, rth_clock: _RthClock) -> Any:
+    return _bar_start_ts(polars).dt.convert_time_zone(rth_clock.timezone)
+
+
+def _local_seconds(polars: Any, rth_clock: _RthClock) -> Any:
+    local = _local_bar_start(polars, rth_clock)
+    return (
+        local.dt.hour().cast(polars.Int64) * 3600
+        + local.dt.minute().cast(polars.Int64) * 60
+        + local.dt.second().cast(polars.Int64)
+    )
+
+
+def _is_rth(polars: Any, rth_clock: _RthClock) -> Any:
+    seconds = _local_seconds(polars, rth_clock)
+    return (seconds >= rth_clock.open_seconds) & (seconds < rth_clock.close_seconds)
+
+
+def _template_session_label(polars: Any, rth_clock: _RthClock) -> Any:
+    return polars.when(_is_rth(polars, rth_clock)).then(
+        polars.lit("RTH")
+    ).otherwise(polars.lit("ETH"))
+
+
+def _template_trade_date(polars: Any, rth_clock: _RthClock) -> Any:
+    local = _local_bar_start(polars, rth_clock)
+    if not rth_clock.eth_crosses_midnight:
+        return local.dt.strftime("%Y-%m-%d")
+    seconds = _local_seconds(polars, rth_clock)
+    trade_dt = polars.when(seconds >= rth_clock.eth_start_seconds).then(
+        local + polars.duration(days=1)
+    ).otherwise(local)
+    return trade_dt.dt.strftime("%Y-%m-%d")
 
 
 def _rth_minutes(
@@ -270,24 +341,19 @@ def _rth_minutes(
     from_open: bool,
 ) -> tuple[Any, Any]:
     pl = polars
-    label = _session_label(pl)
-    seconds = (
-        _bar_start_ts(pl).dt.hour().cast(pl.Int64) * 3600
-        + _bar_start_ts(pl).dt.minute().cast(pl.Int64) * 60
-        + _bar_start_ts(pl).dt.second().cast(pl.Int64)
-    )
+    seconds = _local_seconds(pl, rth_clock)
     if from_open:
         raw_minutes = ((seconds - rth_clock.open_seconds) / 60.0).floor().cast(pl.Int64)
-        negative_flag = "before_rth_open"
     else:
         raw_minutes = ((rth_clock.close_seconds - seconds) / 60.0).floor().cast(pl.Int64)
-        negative_flag = "after_rth_close"
-    outside_rth = label != "RTH"
-    negative = raw_minutes < 0
-    value = pl.when(outside_rth | negative).then(None).otherwise(raw_minutes)
+    outside_rth = _is_rth(pl, rth_clock).not_()
+    before_open = seconds < rth_clock.open_seconds
+    after_close = seconds >= rth_clock.close_seconds
+    value = pl.when(outside_rth).then(None).otherwise(raw_minutes)
     extra_flags = pl.concat_list(
         _conditional_flags(pl, outside_rth, "outside_rth"),
-        _conditional_flags(pl, (label == "RTH") & negative, negative_flag),
+        _conditional_flags(pl, outside_rth & before_open, "before_rth_open"),
+        _conditional_flags(pl, outside_rth & after_close, "after_rth_close"),
     )
     return value, extra_flags
 
@@ -385,10 +451,6 @@ def _bar_start_ts(polars: Any) -> Any:
 
 def _available_ts(polars: Any) -> Any:
     return polars.col("available_ts").cast(polars.Datetime("us", "UTC"), strict=False)
-
-
-def _session_label(polars: Any) -> Any:
-    return polars.col("session_label").cast(polars.Utf8).str.to_uppercase()
 
 
 def _flags(polars: Any, values: Sequence[str]) -> Any:

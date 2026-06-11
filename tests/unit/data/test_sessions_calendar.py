@@ -2,24 +2,29 @@ from __future__ import annotations
 
 import json
 from dataclasses import FrozenInstanceError
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from alpha_system.data.foundation.instruments import load_futures_instrument_master_records
 from alpha_system.data.foundation.sessions import (
+    CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
     DEFAULT_SESSION_CALENDAR_CONFIG,
     REQUIRED_SESSION_TEMPLATE_FIELDS,
     REQUIRED_TRADING_CALENDAR_FIELDS,
     SESSION_TYPE_EARLY_CLOSE,
     SESSION_TYPE_ETH,
     SESSION_TYPE_HOLIDAY,
+    SESSION_TYPE_RTH,
     SessionTemplate,
     TradingCalendarRecord,
+    classify_session_timestamp,
+    load_session_template_by_id,
     load_session_templates,
     load_trading_calendar_records,
     resolve_session_templates_for_instrument_master,
+    session_segment_id,
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 
@@ -84,6 +89,65 @@ def test_session_template_resolves_instrument_master_session_template_ids() -> N
         template = resolved_by_root[record.root_symbol]
         assert template.template_id == record.session_template_id
         assert template.timezone == record.timezone
+
+
+def test_session_timestamp_classification_is_dst_aware() -> None:
+    template = load_session_template_by_id(CME_INDEX_FUTURES_SESSION_TEMPLATE_ID)
+
+    est_open = classify_session_timestamp(
+        datetime(2024, 1, 10, 14, 30, tzinfo=UTC),
+        template=template,
+    )
+    edt_open = classify_session_timestamp(
+        datetime(2024, 7, 10, 13, 30, tzinfo=UTC),
+        template=template,
+    )
+
+    assert est_open.is_rth is True
+    assert est_open.local_ts.strftime("%Y-%m-%d %H:%M %Z") == "2024-01-10 08:30 CST"
+    assert est_open.rth_open_ts.astimezone(UTC) == datetime(2024, 1, 10, 14, 30, tzinfo=UTC)
+    assert est_open.rth_close_ts.astimezone(UTC) == datetime(2024, 1, 10, 21, 0, tzinfo=UTC)
+    assert est_open.minutes_from_rth_open == 0
+    assert est_open.minutes_to_rth_close == 390
+
+    assert edt_open.is_rth is True
+    assert edt_open.local_ts.strftime("%Y-%m-%d %H:%M %Z") == "2024-07-10 08:30 CDT"
+    assert edt_open.rth_open_ts.astimezone(UTC) == datetime(2024, 7, 10, 13, 30, tzinfo=UTC)
+    assert edt_open.rth_close_ts.astimezone(UTC) == datetime(2024, 7, 10, 20, 0, tzinfo=UTC)
+    assert edt_open.minutes_from_rth_open == 0
+    assert edt_open.minutes_to_rth_close == 390
+
+
+def test_session_timestamp_classification_handles_rth_bar_start_edges() -> None:
+    template = load_session_template_by_id(CME_INDEX_FUTURES_SESSION_TEMPLATE_ID)
+    zone = template.zone
+
+    rth_open = classify_session_timestamp(
+        datetime(2024, 1, 10, 8, 30, tzinfo=zone),
+        template=template,
+    )
+    rth_last_bar = classify_session_timestamp(
+        datetime(2024, 1, 10, 14, 59, tzinfo=zone),
+        template=template,
+    )
+    eth_at_close = classify_session_timestamp(
+        datetime(2024, 1, 10, 15, 0, tzinfo=zone),
+        template=template,
+    )
+
+    assert rth_open.segment_label == SESSION_TYPE_RTH
+    assert rth_open.minutes_from_rth_open == 0
+    assert rth_open.minutes_to_rth_close == 390
+    assert rth_last_bar.segment_label == SESSION_TYPE_RTH
+    assert rth_last_bar.minutes_from_rth_open == 389
+    assert rth_last_bar.minutes_to_rth_close == 1
+    assert eth_at_close.segment_label == SESSION_TYPE_ETH
+    assert eth_at_close.minutes_from_rth_open is None
+    assert eth_at_close.minutes_to_rth_close is None
+    assert (
+        session_segment_id("ES_c_0", datetime(2024, 1, 10, 17, 0, tzinfo=zone))
+        == "ES_c_0:2024-01-11:ETH"
+    )
 
 
 @pytest.mark.parametrize("bad_timezone", ["", "local", "CST", "America/Not_A_Zone"])

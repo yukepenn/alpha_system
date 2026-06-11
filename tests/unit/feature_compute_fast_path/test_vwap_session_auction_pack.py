@@ -127,6 +127,31 @@ def test_vwap_session_minute_binding_matches_reference_on_multi_session_fixture(
     )
 
 
+def test_vwap_opening_range_uses_timestamp_rth_when_session_label_is_static_eth() -> None:
+    pytest.importorskip("polars")
+    frame_rows = tuple(
+        {**row, "session_label": "ETH"} for row in vwap_session_auction_frame_rows()
+    )
+    definitions, feature_set = _vwap_pack_contracts()
+    opening_definition = next(
+        definition
+        for definition in definitions
+        if definition.name is OHLCVFeatureName.OPENING_RANGE
+    )
+    materializer = PackMaterializer()
+    pack = build_fast_feature_pack(feature_set)
+
+    fast_records = _records_by_feature_version(
+        materializer.compute_values(materializer.frame_from_rows(frame_rows), pack)
+    )
+    opening_records = fast_records[opening_definition.feature_version_id]
+
+    assert opening_records[FIRST_RTH_NO_TRADE_INDEX].value is None
+    assert opening_records[5].value is not None
+    assert opening_records[RTH_ZERO_VOLUME_INDEX].value is not None
+    assert "outside_rth" in opening_records[0].quality_flags
+
+
 def test_vwap_session_auction_pack_materialization_records_fast_provenance(
     tmp_path: Path,
 ) -> None:
@@ -254,7 +279,7 @@ def _assert_fixture_coverage(
         RTH_ZERO_VOLUME_INDEX
     ].value is not None
     assert reference_records[OHLCVFeatureName.OVERNIGHT_RANGE][0].quality_flags == (
-        "no_overnight_range",
+        "no_overnight_trade",
         "no_trade",
         "ohlcv_gap",
     )

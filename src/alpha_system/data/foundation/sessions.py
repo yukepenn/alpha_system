@@ -52,6 +52,7 @@ SESSION_TYPE_RTH = "RTH"
 SESSION_TYPE_ETH = "ETH"
 SESSION_TYPE_HOLIDAY = "HOLIDAY"
 SESSION_TYPE_EARLY_CLOSE = "EARLY_CLOSE"
+CME_INDEX_FUTURES_SESSION_TEMPLATE_ID = "session_cme_index_futures_eth"
 SUPPORTED_SESSION_TYPES: frozenset[str] = frozenset(
     {
         SESSION_TYPE_RTH,
@@ -461,6 +462,23 @@ class SessionTemplate:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionWindowState:
+    """Timestamp-derived exchange-time session state for one bar."""
+
+    template_id: str
+    timezone: str
+    local_ts: datetime
+    trade_date: Date
+    segment_label: str
+    is_rth: bool
+    is_eth: bool
+    rth_open_ts: datetime
+    rth_close_ts: datetime
+    minutes_from_rth_open: int | None
+    minutes_to_rth_close: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class TradingCalendarRecord:
     """Concrete dated session record with explicit timezone-aware timestamps."""
 
@@ -656,6 +674,103 @@ def load_session_templates_by_id(
     return MappingProxyType({template.template_id: template for template in templates})
 
 
+def load_session_template_by_id(
+    template_id: str = CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+    path: str | Path | None = None,
+) -> SessionTemplate:
+    """Load one session template by id from the declarative config."""
+
+    normalized = _normalize_id(template_id, "template_id")
+    templates = load_session_templates_by_id(path)
+    template = templates.get(normalized)
+    if template is None:
+        msg = f"session template does not resolve: {normalized}"
+        raise DataFoundationValidationError(msg)
+    return template
+
+
+def classify_session_timestamp(
+    timestamp: datetime,
+    *,
+    template: SessionTemplate | None = None,
+    template_id: str = CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+    path: str | Path | None = None,
+) -> SessionWindowState:
+    """Classify a bar timestamp against the template's local session windows.
+
+    The RTH interval is start-inclusive/end-exclusive for bar-start timestamps.
+    For the CME index futures template this means a bar at 08:30 America/Chicago
+    is RTH, a bar at 14:59 is RTH, and a bar at 15:00 belongs to ETH.
+    """
+
+    aware_ts = _require_aware_datetime(timestamp, "timestamp")
+    session_template = (
+        load_session_template_by_id(template_id=template_id, path=path)
+        if template is None
+        else template
+    )
+    local_ts = aware_ts.astimezone(session_template.zone)
+    rth_open = datetime.combine(local_ts.date(), session_template.rth_start, session_template.zone)
+    rth_close = datetime.combine(local_ts.date(), session_template.rth_end, session_template.zone)
+    if rth_close <= rth_open:
+        msg = "RTH close must be after RTH open for timestamp classification"
+        raise DataFoundationValidationError(msg)
+    is_rth = rth_open <= local_ts < rth_close
+    minutes_from_open = None
+    minutes_to_close = None
+    if is_rth:
+        minutes_from_open = _floor_minutes_between(rth_open, local_ts)
+        minutes_to_close = _floor_minutes_between(local_ts, rth_close)
+    segment_label = SESSION_TYPE_RTH if is_rth else SESSION_TYPE_ETH
+    return SessionWindowState(
+        template_id=session_template.template_id,
+        timezone=session_template.timezone,
+        local_ts=local_ts,
+        trade_date=_template_trade_date(local_ts, session_template),
+        segment_label=segment_label,
+        is_rth=is_rth,
+        is_eth=not is_rth,
+        rth_open_ts=rth_open,
+        rth_close_ts=rth_close,
+        minutes_from_rth_open=minutes_from_open,
+        minutes_to_rth_close=minutes_to_close,
+    )
+
+
+def session_segment_id(
+    series_id: str,
+    timestamp: datetime,
+    *,
+    template: SessionTemplate | None = None,
+    template_id: str = CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
+    path: str | Path | None = None,
+) -> str:
+    """Return the session feature id segment for a timestamp-derived session."""
+
+    state = classify_session_timestamp(
+        timestamp,
+        template=template,
+        template_id=template_id,
+        path=path,
+    )
+    return (
+        f"{_require_text(series_id, 'series_id')}:"
+        f"{state.trade_date.isoformat()}:"
+        f"{state.segment_label}"
+    )
+
+
+def _floor_minutes_between(start: datetime, end: datetime) -> int:
+    return int((end - start).total_seconds() // 60)
+
+
+def _template_trade_date(local_ts: datetime, template: SessionTemplate) -> Date:
+    if _clock_seconds(template.eth_end) <= _clock_seconds(template.eth_start):
+        if _clock_seconds(local_ts.time()) >= _clock_seconds(template.eth_start):
+            return local_ts.date() + timedelta(days=1)
+    return local_ts.date()
+
+
 def load_trading_calendar_records(
     path: str | Path | None = None,
 ) -> tuple[TradingCalendarRecord, ...]:
@@ -746,13 +861,18 @@ __all__ = [
     "SESSION_TYPE_HOLIDAY",
     "SESSION_TYPE_RTH",
     "SUPPORTED_SESSION_TYPES",
+    "CME_INDEX_FUTURES_SESSION_TEMPLATE_ID",
     "SessionTemplate",
     "SessionTimeWindow",
+    "SessionWindowState",
     "TradingCalendarBreak",
     "TradingCalendarRecord",
+    "classify_session_timestamp",
+    "load_session_template_by_id",
     "load_session_templates",
     "load_session_templates_by_id",
     "load_trading_calendar_records",
     "resolve_session_template_for_instrument",
     "resolve_session_templates_for_instrument_master",
+    "session_segment_id",
 ]

@@ -97,6 +97,39 @@ def _session_pack_contracts() -> tuple[tuple[SessionFeatureDefinition, ...], Fea
 def _assert_fixture_coverage(
     reference_records: dict[SessionFeatureName, tuple[FeatureValueRecord, ...]],
 ) -> None:
+    # P183000 repair provenance: these assertions pin absolute timestamp truth,
+    # not canonical session_label, so parity cannot bless the old degenerate path.
+    assert [record.value for record in reference_records[SessionFeatureName.RTH_SEGMENT_FLAG]] == [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+    ]
+    assert [record.value for record in reference_records[SessionFeatureName.ETH_SEGMENT_FLAG]] == [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+    ]
+    assert [
+        record.value
+        for record in reference_records[SessionFeatureName.MINUTES_FROM_RTH_OPEN]
+    ] == [None, None, 0, 1, 2, 389, None, None]
+    assert [
+        record.value
+        for record in reference_records[SessionFeatureName.MINUTES_TO_RTH_CLOSE]
+    ] == [None, None, 390, 389, 388, 1, None, None]
+    assert reference_records[SessionFeatureName.SESSION_ID][1].value == "ES_c_0:2024-01-02:ETH"
+    assert reference_records[SessionFeatureName.SESSION_ID][2].value == "ES_c_0:2024-01-02:RTH"
+    assert reference_records[SessionFeatureName.SESSION_ID][7].value == "ES_c_0:2024-01-02:ETH"
     assert any(
         "outside_rth" in record.quality_flags
         for record in reference_records[SessionFeatureName.MINUTES_FROM_RTH_OPEN]
