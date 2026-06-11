@@ -215,3 +215,20 @@ Add concise entries only after they are validated by real work.
   fixture. Resolve via a coordinator closeout PR that documents the triage,
   accepts the failures as out-of-scope environmental exceptions, and records
   COMPLETE_WITH_WARNINGS — do not edit source/tests to force local green.
+
+## Workflow 2 — reference-label parallel closeout
+
+- **NOT_RELEASED still needs a durable resume handoff.** RLPC-P03 delivered the
+  opt-in reference-worker path but measured only 2.14x at workers=8 on the
+  bounded real `cost_adjusted` ES/2024 grid, below the 3.0x release gate, so
+  RLPC-P04 left FUTSUB policy unchanged and documented a resume on default
+  workers=1. Close the backlog as delivered-engineering / NOT_RELEASED-policy,
+  and point the coordinator to a resume handoff rather than quietly flipping
+  worker counts.
+
+- **Registration can become the parallel ceiling.** In the RLPC-P03 sweep,
+  worker compute fell from 526.587762 s to 157.706309 s between workers=1 and
+  workers=8, but parent-side serial registration rose from 3.515340 s to
+  90.097791 s. Future cost-label throughput work should account for registry /
+  registration overhead before assuming more compute parallelism will clear a
+  release gate.
