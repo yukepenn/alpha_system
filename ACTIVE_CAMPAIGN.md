@@ -2,98 +2,57 @@
 
 Project: `alpha_system`
 
-Campaign: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
+Campaign: `campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1`
 Workflow: `workflow2`
-Run: `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` - the
-original stopped live run, resumed (not restarted) after
-`LABEL_COMPUTE_FAST_PATH_V1` closed.
-Status: `executing-after-resume` - FUTSUB resumes under the LCFP-P08 accepted
-**per-family label engine policy** (see below). The coordinator applied the
-reintegration amendments from
-`handoffs/LABEL_COMPUTE_FAST_PATH_V1/FUTSUB_REINTEGRATION_ON_FAST_LABELS.md`
-to the campaign contract; Ralph owns staging, commit, review routing, PR/CI/
-merge gates, and run summaries.
+Status: `authored-pending-run` — small blocker-removal campaign (5 phases,
+RLPC-P00…P04) inserted while `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
+is deliberately STOPPED at `FUTSUB-P19` (2026-06-11T01:45Z, mid full-window
+cost_adjusted pass, ~134/216 cells durably checkpointed, all values/registry
+rows/worktree preserved).
 
-Current phase: `FUTSUB-P19` - Cost-Adjusted LabelPack Scaleout, resuming on the
-**reference engine** from its ~60% durable checkpoint (181 completed units
-preserved; checkpoint + registry truth skip completed valid units) per the
-accepted per-family policy.
-Next phase: `FUTSUB-P20` - Path LabelPack Scaleout on the **V1 fast label
-path** (`--engine v1 --workers 8`, LCFP-P08 measured 10.2x).
-Completed phases: `19/34` passing (P00-P18 merged; PASS=1,
-PASS_WITH_WARNINGS=18).
+## Why
 
-## Post-LCFP Label Engine Policy (accepted)
-
-`LABEL_COMPUTE_FAST_PATH_V1` closed `COMPLETE` (10/10, run
-`2026-06-10T102615Z`, closeout at
-`research/label_compute_fast_path_v1/closeout/CLOSEOUT.md`). Its P08 benchmark
-selected the engine **per family**, not fast everywhere:
-
-| FUTSUB phase | Family | Engine | Workers | Speedup |
-| --- | --- | --- | ---: | ---: |
-| P16 | `fixed_base` | V1 fast (future appends/recomputes only) | 8 | 1.03x |
-| P17 | `fixed_extended` | reference | n/a | 0.55x |
-| P18 | `close_out` | reference | n/a | 0.40x |
-| P19 | `cost_adjusted` | reference | n/a | 0.72x |
-| P20 | `path` | V1 fast | 8 | 10.23x |
-
-Thread controls for fast runs: `POLARS_MAX_THREADS=2`, `OMP_NUM_THREADS=2`,
-`RAYON_NUM_THREADS=2`, `NUMBA_NUM_THREADS=2`. The per-row reference label
-engine remains the correctness oracle forever; existing valid
-reference-produced labels are preserved (preserve-don't-delete), and
-parity-gated engines emit identical governed `label_version_id` identities.
-
-**Coordinator deviation from the reintegration handoff (2026-06-10):**
-P16/P17/P18 are NOT reset - they remain merged PASS with valid, full-window,
-parity-equivalent reference-produced values. Under the accepted policy
-P17/P18 stay on reference anyway, and P16's v1 selection (1.03x) applies to
-future appends/recomputes only. Only P19 (resume reference from checkpoint)
-and P20 (fresh on V1 fast) are reset/resumed. Rationale recorded in the
-handoff's "Coordinator deviation note (2026-06-10)" subsection
-(Compass v3 minimum-substrate + preserve-valid-work).
+FUTSUB-P19-class workloads run the reference label engine single-threaded
+(~3h full-window). LCFP-P08 proved the V1 fast pack loses for
+`cost_adjusted`/`fixed_extended`/`close_out` (best 0.72x/0.55x/0.40x) — the
+per-unit engine, not the worker pool, was the slow part. This campaign reuses
+the existing LCFP-P06 spawn worker pool with the UNCHANGED reference engine
+inside it: N workers compute disjoint units; ALL keystone registry writes stay
+serial in the parent. Implements `docs/STRUCTURAL_BACKLOG.md` §6 option 1
+(trigger met). Gates: exact serial==parallel equivalence (BLOCKER, no
+tolerances), interruption-resume, single-writer audit, bounded real benchmark
+workers 1/2/4/8 with release at >=3.0x @ 8 workers or honest NOT_RELEASED.
 
 ## Campaign Identity
 
-- Campaign ID: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
-- Campaign path: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
-- Repo: `alpha_system` / `~/projects/alpha_system`
-- Workflow: `workflow2` (Ralph strict autonomous loop; `dag_wave`;
-  materialization phases serialized by the shared `materialization_registry`
-  resource_class; serial merge queue)
-- Project profile: `trading_research` / `research` / `research_substrate_scaleout`
-- Phase count: 34 phases (`FUTSUB-P00` ... `FUTSUB-P33`)
-- Lane policy: Green/Yellow only; **no Red scope expected**
+- Campaign ID: `REFERENCE_LABEL_PARALLEL_COMPUTE_V1`
+- Phase count: 5 (`RLPC-P00` … `RLPC-P04`), serial chain, serial merge queue
+- Lane policy: P00 GREEN; P01–P04 YELLOW (fresh Claude review); no Red scope
+- Contract bundle: `campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/{GOAL,PHASE_PLAN,campaign.yaml,ACCEPTANCE,RISK_REGISTER,RUNBOOK}.md`
 
-## Contract Bundle
+## Paused campaign (resumes after this one)
 
-- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/GOAL.md`
-- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/PHASE_PLAN.md`
-- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/campaign.yaml`
-- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/ACCEPTANCE.md`
-- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/RISK_REGISTER.md`
-- `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/RUNBOOK.md`
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`, run
+`2026-06-07T235209Z_...`, 19/34 merged, STOP present. After RLPC-P04 merges,
+the coordinator repoints this file back to FUTSUB and resumes P19 under the
+amended ENGINE POLICY per
+`handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_RESUME_ON_PARALLEL_REFERENCE.md`.
+Then: P20 (path labels, V1 fast `--engine v1 --workers 8`, 10.2x) → P21–P26
+minimum substrate → Discovery Rigor Floor → CORE_PILOT_RERUN_V1 kill-shot.
 
 ## Boundaries
 
-In scope: full accepted-window substrate materialization (features done on V1;
-labels P16-P20 per the accepted per-family engine policy), roll-splice +
-maintenance-crossing guards, registry integration + resolver smoke, coverage/
-quality matrices, N_eff / walk-forward wiring, and the Core Pilot INCONCLUSIVE
-StudySpec re-run on real materialized inputs. Out of scope: new alpha ideation,
-platform rewrite, FactorLibrary/AlphaBook/Strategy Reference, paper/live/
-broker, deleting or weakening the reference label engine, mixing producers in
-one value series, committing values/SQLite/runs, and any alpha/profitability/
-tradability claim.
+In scope: scaleout-driver/CLI worker orchestration for `--engine reference`
+label packs, determinism/resume/single-writer gates, bounded real benchmark,
+FUTSUB contract amendment + resume handoff, backlog §6 closeout. Out of
+scope: ANY edit to `labels/engine.py`, `labels/families/**`, `roll_guard.py`,
+`version.py`; cost-kernel vectorization (backlog §6 option 2); v1 fast-path
+changes; full-window runs; new alpha ideation; paper/live/broker; committing
+values/SQLite/runs; alpha/profitability/tradability claims.
 
 ## Stop / Resume
 
 A `runs/<run_id>/STOP` file is an active stop request; Ralph checks it before
-phase selection, execution, checks, review, PR, CI, merge gate, merge,
-done-check, and next-phase. Resume continues from recorded run state - the
-coordinator performs the run-state surgery (state.json backup + P19/P20 reset,
-registry backup, STOP removal) per the reintegration handoff before
-`just frontier-resume-run 2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`.
-For live phase status, trust `runs/<run_id>/state.json` /
-`python tools/frontier/status_doctor.py`, never this file. Phase branches never
-write this pointer; the coordinator owns it.
+every stage transition. For live phase status, trust
+`python tools/frontier/status_doctor.py` / `runs/<run_id>/state.json`, never
+this file. Phase branches never write this pointer; the coordinator owns it.
