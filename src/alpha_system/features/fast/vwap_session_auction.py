@@ -165,6 +165,7 @@ def _validate_vwap_session_auction_feature(feature: FeatureSpec) -> None:
     parameters = feature.transform.parameters.to_dict()
     _require_parameter(parameters, "feature_name", feature_name.value, feature.feature_id)
     _require_parameter(parameters, "reset_on_session", True, feature.feature_id)
+    _validate_session_contract_parameters(parameters, feature.feature_id)
     if feature_name is OHLCVFeatureName.OPENING_RANGE:
         opening_minutes = parameters.get("opening_range_minutes")
         if not isinstance(opening_minutes, int) or isinstance(opening_minutes, bool):
@@ -204,6 +205,25 @@ def _require_parameter(
 ) -> None:
     if parameters.get(name) != expected:
         raise PackMaterializerError(f"{feature_id} requires {name}={expected!r}")
+
+
+def _validate_session_contract_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> None:
+    try:
+        template = load_session_template_by_id()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    expected = {
+        "session_template_id": template.template_id,
+        "session_timezone": template.timezone,
+        "rth_open_time_local": template.rth_start.isoformat(timespec="minutes"),
+        "rth_close_time_local": template.rth_end.isoformat(timespec="minutes"),
+        "session_truth_source": "alpha_system.data.foundation.sessions",
+    }
+    for name, value in expected.items():
+        _require_parameter(parameters, name, value, feature_id)
 
 
 def _anchor_labels(features: Sequence[FeatureSpec]) -> tuple[str, ...]:

@@ -7,10 +7,15 @@ independent of registry state / request provenance (feature_request_id).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 
 import pytest
 
+import alpha_system.features.families.ohlcv.family as ohlcv_family
+from alpha_system.data.foundation.sessions import (
+    SessionTemplate,
+    load_session_template_by_id,
+)
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -24,6 +29,7 @@ from alpha_system.features.contracts import (
     WindowSpec,
 )
 from alpha_system.features.families.ohlcv import (
+    OHLCVFeatureDefinition,
     OHLCVFeatureName,
     build_ohlcv_feature_definition,
 )
@@ -39,6 +45,15 @@ from alpha_system.governance.feature_request import (
 )
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
+SESSION_TRUTH_KEYS = frozenset(
+    {
+        "session_template_id",
+        "session_timezone",
+        "rth_open_time_local",
+        "rth_close_time_local",
+        "session_truth_source",
+    }
+)
 
 
 class _EmptyRegistryReader:
@@ -257,6 +272,129 @@ def test_ohlcv_family_identity_is_registry_state_independent() -> None:
     assert (
         empty_definition.version.feature_version_id
         == checked_definition.version.feature_version_id
+    )
+
+
+@pytest.mark.parametrize(
+    "feature_name",
+    (
+        OHLCVFeatureName.RETURNS,
+        OHLCVFeatureName.VWAP,
+    ),
+)
+def test_session_conditioned_ohlcv_identity_includes_template_truth(
+    feature_name: OHLCVFeatureName,
+) -> None:
+    request = _feature_request(exposure_family=f"session_truth_{feature_name.value}")
+    definition = build_ohlcv_feature_definition(
+        feature_name,
+        request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=True,
+    )
+
+    parameters = definition.spec.to_identity_dict()["transform"]["parameters"]
+    expected = _session_truth_parameters()
+
+    for key, value in expected.items():
+        assert parameters[key] == value
+
+    legacy_parameters = {
+        key: value
+        for key, value in parameters.items()
+        if key not in SESSION_TRUTH_KEYS
+    }
+    legacy_spec = _copy_spec_with_transform_parameters(definition, legacy_parameters)
+
+    assert (
+        definition.spec.derive_feature_version().feature_version_id
+        != legacy_spec.derive_feature_version().feature_version_id
+    )
+
+
+def test_non_session_conditioned_ohlcv_identity_ignores_session_template_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_request = _feature_request(exposure_family="non_session_conditioned_return")
+    base = build_ohlcv_feature_definition(
+        OHLCVFeatureName.RETURNS,
+        base_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=False,
+    )
+
+    def _alternate_template(
+        template_id: str = "session_cme_index_futures_eth",
+        path: object | None = None,
+    ) -> SessionTemplate:
+        del template_id, path
+        return SessionTemplate(
+            template_id="session_cme_index_futures_eth",
+            timezone="America/Chicago",
+            rth_start=time(9, 0),
+            rth_end=time(15, 0),
+            eth_start=time(17, 0),
+            eth_end=time(16, 0),
+            maintenance_breaks=(),
+            source="synthetic unit test",
+        )
+
+    monkeypatch.setattr(ohlcv_family, "load_session_template_by_id", _alternate_template)
+    variant = build_ohlcv_feature_definition(
+        OHLCVFeatureName.RETURNS,
+        base_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=False,
+    )
+
+    assert (
+        base.version.feature_version_id
+        == variant.version.feature_version_id
+    )
+    assert SESSION_TRUTH_KEYS.isdisjoint(
+        variant.spec.to_identity_dict()["transform"]["parameters"]
+    )
+
+
+def _session_truth_parameters() -> dict[str, str]:
+    template = load_session_template_by_id()
+    return {
+        "session_template_id": template.template_id,
+        "session_timezone": template.timezone,
+        "rth_open_time_local": template.rth_start.isoformat(timespec="minutes"),
+        "rth_close_time_local": template.rth_end.isoformat(timespec="minutes"),
+        "session_truth_source": "alpha_system.data.foundation.sessions",
+    }
+
+
+def _copy_spec_with_transform_parameters(
+    definition: OHLCVFeatureDefinition,
+    parameters: dict[str, object],
+) -> FeatureSpec:
+    spec = definition.spec
+    return FeatureSpec(
+        feature_id=spec.feature_id,
+        family=spec.family,
+        feature_request_id=spec.feature_request_id,
+        inputs=spec.inputs,
+        transform=TransformSpec(
+            transform_id=spec.transform.transform_id,
+            parameters=parameters,
+        ),
+        window=spec.window,
+        normalization=spec.normalization,
+        availability_assumptions=spec.availability_assumptions,
+        available_ts_derivation_rule=spec.available_ts_derivation_rule,
+        live=spec.live,
+        implementation_eligible=spec.implementation_eligible,
+        contract_metadata=spec.contract_metadata,
+        request_gate_decision=definition.request_gate_decision,
     )
 
 

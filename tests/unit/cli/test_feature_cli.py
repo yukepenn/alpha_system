@@ -198,6 +198,9 @@ def test_feature_plan_fails_closed_when_dataset_version_is_missing(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    for module_name in PROVIDER_CLIENT_MODULES:
+        sys.modules.pop(module_name, None)
+
     feature_cli = _feature_cli()
     parser = _main_cli().build_parser()
     args = parser.parse_args(_feature_plan_args(tmp_path))

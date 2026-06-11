@@ -510,9 +510,17 @@ def _transform_parameters(
         parameters["opening_range_minutes"] = opening_range_minutes
     if name is OHLCVFeatureName.ANCHORED_VWAP and anchor_session_label is not None:
         parameters["anchor_session_label"] = anchor_session_label.upper()
-    if name in _SESSION_TRUTH_FEATURES:
+    if _requires_session_truth_parameters(name, reset_on_session=reset_on_session):
         parameters.update(_session_contract_parameters())
     return parameters
+
+
+def _requires_session_truth_parameters(
+    name: OHLCVFeatureName,
+    *,
+    reset_on_session: bool,
+) -> bool:
+    return reset_on_session or name in _SESSION_TRUTH_FEATURES
 
 
 def _input_fields(name: OHLCVFeatureName) -> tuple[str, ...]:
