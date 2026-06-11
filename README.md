@@ -17,43 +17,36 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. This `FUTSUB-P20` executor snapshot materialized and registered the
-path LabelPacks for ES/NQ/RTY across the accepted 2019-2026 window, alongside
-the fixed-horizon (P16), extended-horizon (P17), session-close /
-maintenance-flat (P18), and cost-adjusted (P19) packs. The
-`label_materialization` gate (P16-P20) is now closed from the executor side,
-pending Ralph-owned validation, review, staging, PR, CI, merge, and done-check
-state transitions.
+campaign. This `FUTSUB-P21` executor snapshot produced value-free
+roll-splice and maintenance-crossing guard audit artifacts for all five
+materialized LabelPack families. The audit demonstrates the guards on a 2024
+June approximate roll boundary and a January 2024 daily maintenance break, and
+records zero silently measured boundary crossings in the matrices. The
+`label_integration` gate `FUTSUB-P21`...`FUTSUB-P23` is open and remains
+Ralph/reviewer-gated.
 
-Active / next phase after this branch: `FUTSUB-P21` - Roll-Splice and
-Maintenance-Crossing Label Guard Audit, opening the `label_integration` gate
-for P21-P23.
+Active / next phase after Ralph review and merge: `FUTSUB-P22` - LabelPack
+Registry Integration, Coverage Audit, and Resolver Smoke.
 
-New durable surfaces through this `FUTSUB-P20` executor snapshot:
+New durable surfaces through this `FUTSUB-P21` executor snapshot:
 
-- `configs/labels/scaleout/path.json` is the governed path-label scaleout
-  config for ES/NQ/RTY accepted windows, including V1 fast-engine selection,
-  worker/thread caps, path variants, horizon set, guard policy, and R-021
-  feasibility bounds.
-- `src/alpha_system/labels/families/path/family.py` and
-  `src/alpha_system/labels/fast/path.py` apply the shared roll-splice and
-  maintenance-crossing guard to the full path window before MFE/MAE excursion
-  or barrier-touch measurement.
-- `src/alpha_system/features/scaleout/driver.py` carries the path
-  materialization scope into label identity and registry metadata so dry-run
-  identity preview, execution, registry records, and resolver locks use the
-  same partition-scoped label-version ids.
-- `research/futures_substrate_scaleout_v1/label_packs/path/coverage_summary.md`
-  and `coverage_matrix.json` are value-free coverage evidence for the accepted
-  window, including feasibility accounting, guard drop/flag counts,
-  `label_available_ts`, registry metadata, and overlap-aware N_eff summaries.
-- `tests/unit/futures_substrate_scaleout/labels/test_path_scaleout.py` covers
-  synthetic MFE/MAE values, first-touch barrier `label_available_ts`,
-  roll-crossing drops, maintenance-crossing drops, and partition-scoped path
-  label identity.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20.md`
-  records materialization evidence, validation, and residual review focus for
-  reviewer and coordinator use.
+- `docs/futures_substrate_scaleout/ROLL_GUARD_AUDIT.md` records the audit
+  method, approximate-calendar caveat, per-family policy provenance,
+  demonstrations, findings, and non-claims.
+- `research/futures_substrate_scaleout_v1/matrices/roll_window_coverage.md`
+  and `maintenance_crossing_invalidation.md` are value-free guard matrices
+  with per-family x symbol x year counts, policy/version ids, and the
+  approximate-calendar qualification.
+- `research/futures_substrate_scaleout_v1/roll_guard/roll_guard_audit.md`
+  records current local registry accounting, 2024 roll-week and
+  maintenance-break demonstrations, and bounded value-store sample-read
+  results.
+- `tests/unit/futures_substrate_scaleout/labels/test_roll_maintenance_guard_audit.py`
+  proves the audit detection logic fails closed on a planted silently measured
+  crossing window and accepts guarded non-crossing windows.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P21.md`
+  records validation, evidence, findings, and artifact policy for reviewer and
+  coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -82,11 +75,11 @@ trading behavior.
 
 The per-row reference label engine remains the correctness oracle. Registry
 writes remain parent-only and serial. Label values, registries, manifests,
-checkpoints, and SQLite files stay local-only under `ALPHA_DATA_ROOT`; path
-labels must never silently cross a quarterly roll or the daily maintenance /
-trade-date break. Infeasible path units must be flagged with recorded bounds,
-not silently skipped. Resolver semantics remain exact-id and fail-closed, with
-no fuzzy fallback.
+checkpoints, roll-calendar data, and SQLite files stay local-only under
+`ALPHA_DATA_ROOT`; labels must never silently cross a quarterly roll or the
+daily maintenance / trade-date break. The roll calendar is analytic and
+approximate, not provider-exact splice truth. Resolver semantics remain
+exact-id and fail-closed, with no fuzzy fallback.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
