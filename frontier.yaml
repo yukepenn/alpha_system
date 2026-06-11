@@ -264,12 +264,13 @@ workflow2:
   max_repair_attempts_default: 2
   max_run_minutes: 14400
   max_phase_minutes: 1440
-  # Forward-looking dollar ceiling. NOTE: currently INERT - the driver only trips
-  # this when state.estimated_cost_usd > max_estimated_usd > 0, and real provider
-  # cost is not yet populated (estimated_cost_usd stays 0.0). Until cost tracking
-  # is wired, the effective AFK ceiling is max_run_minutes / max_phase_minutes plus
-  # human supervision. This value arms automatically once cost tracking lands.
-  max_estimated_usd: 50.0
+  # inert until real provider USD accounting exists; token/duration ledger
+  # (PR #322) is the honest measure. The driver only trips this gate when
+  # state.estimated_cost_usd > max_estimated_usd > 0, and estimated_cost_usd
+  # stays honestly 0.0 today, so a dollar value here would be theater. The
+  # effective AFK ceiling is max_run_minutes / max_phase_minutes plus human
+  # supervision. Set a number only when real per-call USD lands in the ledger.
+  max_estimated_usd: null
   worktree_mode: false
   default_worktree_mode: false
   scheduler:

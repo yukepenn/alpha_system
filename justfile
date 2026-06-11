@@ -66,9 +66,15 @@ frontier-check-config:
 frontier-new-phase:
     python tools/frontier/phase.py new --name "${FRONTIER_PHASE_NAME:-manual-phase}" --lane "${FRONTIER_LANE:-yellow}" --campaign "${FRONTIER_CAMPAIGN:-MANUAL}"
 
+# Run Workflow 1 for a phase: resolves the approved spec, refuses template/draft
+# specs, executes the spec's `## Validation` commands, and records results under
+# runs/wf1/<PHASE>/ (local-only). Set FRONTIER_WF1_STAGE=review-gate to require a
+# committed reviews/<campaign>/<phase>-verdict.json instead.
 frontier-run-workflow1:
-    python tools/frontier/phase.py workflow1 --phase "${FRONTIER_PHASE:?set FRONTIER_PHASE}"
+    python tools/frontier/phase.py workflow1 --phase "${FRONTIER_PHASE:?set FRONTIER_PHASE}" --stage "${FRONTIER_WF1_STAGE:-validate}"
 
+# Prints the review contract and exits nonzero: reviews are produced by the
+# frontier-review skill / reviewer agent, not by this CLI.
 frontier-review:
     python tools/frontier/phase.py review --phase "${FRONTIER_PHASE:?set FRONTIER_PHASE}"
 
