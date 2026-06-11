@@ -17,36 +17,30 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. This `FUTSUB-P22` executor snapshot audits the `FUTSUB-P16`...
-`FUTSUB-P20` LabelPack materialization gate inside the `label_integration`
-gate: all current dry-run label locks resolve by exact id, deprecated close-out
-stale rows are excluded from the active surface, and the resolver-smoke
-fail-closed probes cover absent, mutated, fuzzy-name, and deprecated exact-id
-lock cases.
+campaign. This `FUTSUB-P23` executor snapshot completes the
+`label_integration` gate (`FUTSUB-P21`...`FUTSUB-P23`): label guards are
+audited, current LabelPack locks are integrated and resolver-smoke covered, and
+the label substrate is now coverage-mapped cell by cell.
 
-Active / next phase is Ralph-owned. The nominal next phase remains `FUTSUB-P23`
-- Label Coverage Matrix and Horizon Quality Report, completing the
-`label_integration` gate before the `wiring_and_matrices` gate
-(`FUTSUB-P24`...`FUTSUB-P26`) begins after Ralph validation and Yellow-lane
-review complete.
+Active / next phase is Ralph-owned. The nominal next phase is `FUTSUB-P24` -
+Purged / Embargo Walk-Forward Runtime Wiring, opening the
+`wiring_and_matrices` gate (`FUTSUB-P24`...`FUTSUB-P26`) after Ralph validation
+and Yellow-lane review complete.
 
-New durable surfaces through this `FUTSUB-P22` executor snapshot:
+New durable surfaces through this `FUTSUB-P23` executor snapshot:
 
-- `docs/futures_substrate_scaleout/LABEL_INTEGRATION.md` summarizes the
-  integrated label substrate, resolver contract, overlap/N_eff provenance, and
-  safety boundaries.
-- `research/futures_substrate_scaleout_v1/label_packs/registry_integration_audit.md`
-  records required registry field presence, identity and metadata checks,
-  DatasetVersion acceptance state confirmation, guard provenance, deprecated-row
-  disposition, and explicit gap classification.
-- `research/futures_substrate_scaleout_v1/label_packs/label_resolver_smoke.md`
-  records the value-free resolver-smoke matrix and fail-closed probes.
-- `tests/unit/futures_substrate_scaleout/labels/test_label_resolver_smoke.py`
-  proves exact label locks resolve against a tiny synthetic fixture, absent /
-  mutated / fuzzy refs fail closed, and deprecated exact-id refs fail closed.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P22.md`
-  records validation, audit outcome, gaps, and artifact
-  policy for coordinator use.
+- `docs/futures_substrate_scaleout/LABEL_COVERAGE.md` summarizes the
+  value-free label coverage and horizon-quality context.
+- `research/futures_substrate_scaleout_v1/matrices/label_family_coverage.md`
+  records the family x symbol x horizon x year matrix with explicit
+  present/warned/expected-excluded/gap status.
+- `research/futures_substrate_scaleout_v1/matrices/symbol_horizon_coverage.md`
+  records the symbol x horizon rollup across label families.
+- `research/futures_substrate_scaleout_v1/matrices/session_horizon_coverage.md`
+  records the session/guard x horizon coverage view.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P23.md`
+  records validation, matrix counts, overlap provenance, gap classification,
+  and artifact policy for coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -80,6 +74,9 @@ checkpoints, roll-calendar data, and SQLite files stay local-only under
 daily maintenance / trade-date break. The roll calendar is analytic and
 approximate, not provider-exact splice truth. Resolver semantics remain exact-id
 with no fuzzy fallback; P22 also verifies deprecated exact-id refs fail closed.
+P23 records coverage gaps explicitly rather than accepting the substrate by
+subset, and rows are not treated as independent samples for overlapping
+horizons.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
