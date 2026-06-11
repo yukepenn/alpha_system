@@ -11,25 +11,27 @@ The repository-level campaign pointer selects
 reference-label throughput blocker by adding and validating unit-level worker
 parallelism around the unchanged reference label engine.
 
-RLPC-P01 adds the reference-engine unit-parallel worker path for label scaleout.
-`alpha scaleout label-pack --engine reference --workers N` now opts into spawn
-workers for disjoint label units while the parent process keeps serial registry
-writes and checkpoint-after-registration ordering. Default workers remain 1;
-after RLPC-P01 merges, the active next phase is RLPC-P02.
+RLPC-P02 adds the synthetic correctness gate for the reference-engine
+unit-parallel worker path. The committed tests prove exact workers=1 vs
+workers=4 equivalence on a fixed-horizon plus cost-adjusted-shaped grid,
+interruption/resume safety, completed-checkpoint to registry 1:1 coverage, and
+single-writer worker isolation. Default workers remain 1; after RLPC-P02
+merges, the active next phase is RLPC-P03, the bounded real benchmark and
+release gate.
 
 Durable artifacts in this campaign snapshot:
 
 - `campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/` - campaign contract bundle.
 - `research/reference_label_parallel_compute_v1/` - value-free evidence
-  skeleton for later determinism and benchmark reports.
+  root, including the RLPC-P02 synthetic determinism evidence note.
 - `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md` -
   committed record of the stopped FUTSUB-P19 pause state and preservation
   boundary.
-- `tests/unit/reference_label_parallel_compute/` - synthetic structural tests
-  for reference worker ordering, retryability, worker caps, parent-only
-  registration, ledger ordering, and thread caps.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P01.md` - executor handoff
-  for the reference worker path phase.
+- `tests/unit/reference_label_parallel_compute/` - synthetic structural,
+  determinism, resume, single-writer audit, and canary tests for the reference
+  worker path.
+- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P02.md` - executor handoff
+  for the determinism/resume/single-writer gate.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -51,9 +53,11 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-The per-row reference label engine remains the correctness oracle. RLPC-P01 does
-not edit the reference engine, label families, roll guard, label versioning,
-registry semantics, or any data artifact. Later phases must preserve exact
+The per-row reference label engine remains the correctness oracle. RLPC-P02 does
+not edit the reference engine, label families, roll guard, label versioning, or
+any data artifact. Registry writes remain parent-only and serial; RLPC-P02 only
+preserves ledger unit horizon metadata during resume so cost-adjusted checkpoint
+truth rehydrates to the same unit identity. Later phases must preserve exact
 identity, serial registry writes, roll/maintenance guards, and
 `label_available_ts` no-lookahead behavior.
 

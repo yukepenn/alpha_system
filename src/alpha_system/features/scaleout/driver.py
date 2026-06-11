@@ -4563,7 +4563,7 @@ def _compute_reference_label_stage_outputs_in_workers(
     ) as pool:
         futures = {
             pool.submit(
-                _reference_label_worker_compute_entrypoint,
+                REFERENCE_LABEL_WORKER_ENTRYPOINT,
                 config,
                 unit,
                 alpha_data_root,
@@ -5134,6 +5134,9 @@ def _reference_label_worker_compute_entrypoint(
         write_manifest=True,
         include_records=False,
     )
+
+
+REFERENCE_LABEL_WORKER_ENTRYPOINT = _reference_label_worker_compute_entrypoint
 
 
 def _pin_reference_label_worker_threads() -> None:
@@ -7158,6 +7161,7 @@ def _record_from_payload(payload: Mapping[str, object]) -> ScaleoutUnitRecord:
                 "feature_set.features",
             )
         ),
+        horizon=_optional_text(payload.get("horizon")) or "",
         input_datasets=_input_datasets_from_payload(payload),
     )
     return ScaleoutUnitRecord(
