@@ -1,0 +1,30 @@
+{
+  "campaign_id": "HARNESS_AGENT_LAYER_HARDENING_V1",
+  "phase_id": "PR332",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-adversarial-review",
+  "reviewed_at": "2026-06-11T01:05:00Z",
+  "reviewed_head": "e552c70",
+  "fixes_commit": "f69e45b",
+  "blockers": [],
+  "findings_fixed": [
+    "phase-id charset guard (runs/wf1 path traversal)",
+    "review-gate ordered after spec-approval checks",
+    "SECOND_TRUTH_DEF_RE matches async def"
+  ],
+  "findings_noted": [
+    "docstring-level second-truth false positive possible (text-level regex, zero hits today)",
+    "WF1 Validation commands have no allowlist (human-gated, shlex no-shell)",
+    "find_spec silent first-match on duplicate phase_id",
+    "TBD substring refuses WF1 specs",
+    "second_truth_violation prefix-matches relative paths only"
+  ],
+  "evidence": {
+    "ci": "gh pr checks 332 green on reviewed head",
+    "tests": "42 passed; only test additions in diff",
+    "canaries": "14/14 PASS incl. forbidden_second_pnl_truth fail-closed proof",
+    "artifact_policy": "no runs/ paths in diff; git ls-files runs empty",
+    "second_truth_scan": "zero matches across real src/**",
+    "force_push_guard": "all legitimate-push scenarios probed, no false blocks"
+  }
+}
