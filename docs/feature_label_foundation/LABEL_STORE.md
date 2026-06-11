@@ -79,8 +79,10 @@ reproducibility. The registry lifecycle is deliberately narrow:
 such as `ALPHA_VALIDATED`, `STRATEGY_READY`, `LIVE_READY`, `PROFITABLE`,
 `TRADABLE`, and `PRODUCTION_READY` are not valid registry states.
 
-`READY_FOR_STUDY` means a governed future `StudySpec` consumer may reference the
-registered label version. It is not a result claim.
+As of 2026-06-11, `READY_FOR_STUDY` is reserved. No production writer promotes
+labels into that state, and runtime pack resolution admits `REGISTERED` only.
+`READY_FOR_STUDY` is not runtime-admissible until a reviewed promotion API
+explicitly extends admissibility. It remains not a result claim.
 
 ## Boundary
 

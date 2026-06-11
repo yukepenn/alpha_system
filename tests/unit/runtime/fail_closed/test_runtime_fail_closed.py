@@ -544,7 +544,7 @@ def _label_record(
         last_event_ts=BASE_TS + timedelta(minutes=2),
         first_label_available_ts=BASE_TS + timedelta(minutes=5),
         last_label_available_ts=BASE_TS + timedelta(minutes=7),
-        lifecycle_state="READY_FOR_STUDY",
+        lifecycle_state="REGISTERED",
     )
 
 
@@ -617,7 +617,7 @@ def _input_pack(
                 last_event_ts="2026-01-02T14:35:00+00:00",
                 first_label_available_ts="2026-01-02T14:35:00+00:00",
                 last_label_available_ts="2026-01-02T14:40:00+00:00",
-                lifecycle_state="READY_FOR_STUDY",
+                lifecycle_state="REGISTERED",
             ),
         ),
         dataset_scope=fixture["dataset_scope"],

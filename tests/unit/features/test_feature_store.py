@@ -490,6 +490,8 @@ def test_deprecation_preserves_lineage_and_excludes_prohibited_states(
     assert resolved is not None
     assert resolved.lifecycle_state is FeatureRegistryLifecycleState.DEPRECATED
     assert resolved.lineage == record.lineage
+    assert store.resolve_active_feature(version.feature_version_id) is None
+    assert store.registry.resolve_registered_feature(version.feature_version_id) is None
     assert store.registry.resolve_deprecation(version.feature_version_id) == deprecation
 
     assert PROHIBITED_FEATURE_REGISTRY_STATES.isdisjoint(

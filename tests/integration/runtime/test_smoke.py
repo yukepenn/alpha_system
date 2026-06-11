@@ -164,7 +164,7 @@ class _LabelRecord:
     last_event_ts: datetime = BASE_TS + timedelta(minutes=4)
     first_label_available_ts: datetime = BASE_TS + timedelta(minutes=5)
     last_label_available_ts: datetime = BASE_TS + timedelta(minutes=10)
-    lifecycle_state: str = "READY_FOR_STUDY"
+    lifecycle_state: str = "REGISTERED"
 
 
 class _FeatureStore:

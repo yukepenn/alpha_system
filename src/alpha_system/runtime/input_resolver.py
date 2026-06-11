@@ -71,6 +71,7 @@ LABEL_AS_FEATURE_FIELDS: frozenset[str] = frozenset(
         "target",
     }
 )
+RUNTIME_PACK_LIFECYCLE_STATE = "REGISTERED"
 
 
 class FieldRole(StrEnum):
@@ -466,6 +467,13 @@ class FeatureLabelPackResolver:
                         actual=ref_value,
                     )
                 )
+            _require_registered_pack_lifecycle(
+                record,
+                pack_kind="feature_pack",
+                field=f"feature_pack_refs[{index}].lifecycle_state",
+                replacement_field="replacement_feature_version_id",
+                replacement_id=self._feature_replacement_id(ref_value, record),
+            )
             handle = _feature_handle_from_record(record)
             _require_pack_dataset_match(
                 handle.dataset_version_id,
@@ -533,6 +541,13 @@ class FeatureLabelPackResolver:
                         actual=ref_value,
                     )
                 )
+            _require_registered_pack_lifecycle(
+                record,
+                pack_kind="label_pack",
+                field=f"label_pack_refs[{index}].lifecycle_state",
+                replacement_field="replacement_label_version_id",
+                replacement_id=self._label_replacement_id(ref_value, record),
+            )
             handle = _label_handle_from_record(record)
             _require_pack_dataset_match(
                 handle.dataset_version_id,
@@ -565,6 +580,13 @@ class FeatureLabelPackResolver:
     def _resolve_feature_record(self, feature_version_id: str) -> object | None:
         try:
             store = self.feature_store
+            active_resolver = getattr(store, "resolve_active_feature", None)
+            if active_resolver is None:
+                active_resolver = getattr(store, "resolve_registered_feature", None)
+            if active_resolver is not None:
+                active_record = active_resolver(feature_version_id)
+                if active_record is not None:
+                    return active_record
             resolver = getattr(store, "resolve_feature_by_version", None)
             if resolver is None:
                 resolver = getattr(store, "resolve_feature", None)
@@ -592,9 +614,42 @@ class FeatureLabelPackResolver:
                 )
             ) from exc
 
+    def _feature_replacement_id(self, feature_version_id: str, record: object) -> str:
+        replacement = _replacement_id_from_record(record, "replacement_feature_version_id")
+        if replacement:
+            return replacement
+        try:
+            store = self.feature_store
+            resolver = getattr(store, "resolve_deprecation", None)
+            if resolver is None:
+                registry = getattr(store, "registry", None)
+                resolver = getattr(registry, "resolve_deprecation", None)
+            if resolver is None:
+                return ""
+            deprecation = resolver(feature_version_id)
+        except (FeatureRegistryError, FeatureStoreError) as exc:
+            raise RuntimeInputResolverError(
+                _reason(
+                    code="feature_store_resolution_failed",
+                    message="FeatureStore failed closed while resolving feature deprecation metadata",
+                    field="feature_pack_refs",
+                    state=RuntimeEntryStatus.INPUTS_BLOCKED,
+                    expected="feature deprecation metadata",
+                    actual=str(exc),
+                )
+            ) from exc
+        return _replacement_id_from_record(deprecation, "replacement_feature_version_id")
+
     def _resolve_label_record(self, label_version_id: str) -> object | None:
         try:
             registry = self.label_registry
+            active_resolver = getattr(registry, "resolve_active_label", None)
+            if active_resolver is None:
+                active_resolver = getattr(registry, "resolve_registered_label", None)
+            if active_resolver is not None:
+                active_record = active_resolver(label_version_id)
+                if active_record is not None:
+                    return active_record
             resolver = getattr(registry, "resolve_label_by_version", None)
             if resolver is None:
                 resolver = getattr(registry, "resolve_label", None)
@@ -621,6 +676,29 @@ class FeatureLabelPackResolver:
                     actual=str(exc),
                 )
             ) from exc
+
+    def _label_replacement_id(self, label_version_id: str, record: object) -> str:
+        replacement = _replacement_id_from_record(record, "replacement_label_version_id")
+        if replacement:
+            return replacement
+        try:
+            registry = self.label_registry
+            resolver = getattr(registry, "resolve_deprecation", None)
+            if resolver is None:
+                return ""
+            deprecation = resolver(label_version_id)
+        except LabelRegistryError as exc:
+            raise RuntimeInputResolverError(
+                _reason(
+                    code="label_registry_resolution_failed",
+                    message="LabelRegistry failed closed while resolving label deprecation metadata",
+                    field="label_pack_refs",
+                    state=RuntimeEntryStatus.INPUTS_BLOCKED,
+                    expected="label deprecation metadata",
+                    actual=str(exc),
+                )
+            ) from exc
+        return _replacement_id_from_record(deprecation, "replacement_label_version_id")
 
 
 def resolve_runtime_input_pack(
@@ -1052,7 +1130,11 @@ def _feature_handle_from_record(record: object) -> FeaturePackHandle:
             "last_available_ts",
             missing_code="feature_available_ts_missing",
         ),
-        lifecycle_state=_enum_value(getattr(record, "lifecycle_state", "REGISTERED")),
+        lifecycle_state=_pack_lifecycle_state(
+            record,
+            field="feature_pack.lifecycle_state",
+            missing_code="feature_pack_lifecycle_state_missing",
+        ),
     )
     _require_availability_not_before_event(
         first_available_ts=handle.first_available_ts,
@@ -1111,7 +1193,11 @@ def _label_handle_from_record(record: object) -> LabelPackHandle:
             "last_label_available_ts",
             missing_code="label_available_ts_missing",
         ),
-        lifecycle_state=_enum_value(getattr(record, "lifecycle_state", "REGISTERED")),
+        lifecycle_state=_pack_lifecycle_state(
+            record,
+            field="label_pack.lifecycle_state",
+            missing_code="label_pack_lifecycle_state_missing",
+        ),
     )
     _require_availability_not_before_event(
         first_available_ts=handle.first_label_available_ts,
@@ -1243,6 +1329,62 @@ def _require_partition_match(
                 actual=actual_partition_id,
             )
         )
+
+
+def _require_registered_pack_lifecycle(
+    record: object,
+    *,
+    pack_kind: str,
+    field: str,
+    replacement_field: str,
+    replacement_id: str,
+) -> None:
+    state = _pack_lifecycle_state(
+        record,
+        field=field,
+        missing_code=f"{pack_kind}_lifecycle_state_missing",
+    )
+    if state == RUNTIME_PACK_LIFECYCLE_STATE:
+        return
+    is_deprecated = state == "DEPRECATED"
+    actual = state
+    if replacement_id:
+        actual = f"{state}; {replacement_field}={replacement_id}"
+    raise RuntimeInputResolverError(
+        _reason(
+            code=f"{pack_kind}_deprecated" if is_deprecated else f"{pack_kind}_not_registered",
+            message=f"{pack_kind} lifecycle_state must be REGISTERED for runtime resolution",
+            field=field,
+            state=RuntimeEntryStatus.INPUTS_BLOCKED,
+            expected=RUNTIME_PACK_LIFECYCLE_STATE,
+            actual=actual,
+        )
+    )
+
+
+def _pack_lifecycle_state(record: object, *, field: str, missing_code: str) -> str:
+    raw_state = getattr(record, "lifecycle_state", None)
+    if raw_state is None:
+        raise RuntimeInputResolverError(
+            _reason(
+                code=missing_code,
+                message="runtime pack resolution requires an explicit lifecycle_state",
+                field=field,
+                state=RuntimeEntryStatus.INPUTS_BLOCKED,
+                expected=RUNTIME_PACK_LIFECYCLE_STATE,
+                actual="missing",
+            )
+        )
+    return _enum_value(raw_state).strip().upper()
+
+
+def _replacement_id_from_record(record: object | None, field: str) -> str:
+    if record is None:
+        return ""
+    raw = getattr(record, field, "")
+    if raw is None:
+        return ""
+    return str(raw).strip()
 
 
 def _require_availability_not_before_event(

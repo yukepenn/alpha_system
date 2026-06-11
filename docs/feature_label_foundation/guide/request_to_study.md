@@ -82,9 +82,10 @@ Feature and label registries store metadata, lineage, summary timestamps,
 quality/audit status, and deprecation metadata. They do not store raw data,
 canonical rows, materialized value payloads, provider files, or broker state.
 
-The terminal study-consumable state is `READY_FOR_STUDY`. That state means the
-substrate object can be referenced by a governed study input. It is not a
-research result.
+As of 2026-06-11, `READY_FOR_STUDY` is reserved, not runtime-admissible. No
+production writer promotes substrate objects into that state, and runtime pack
+resolution admits `REGISTERED` only until a reviewed promotion API explicitly
+extends admissibility. It remains not a research result.
 
 ## Step 5: StudySpec Input
 

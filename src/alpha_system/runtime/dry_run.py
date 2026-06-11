@@ -950,7 +950,7 @@ class _LabelRecord:
     last_event_ts: datetime = BASE_TS + timedelta(minutes=5)
     first_label_available_ts: datetime = BASE_TS + timedelta(minutes=5)
     last_label_available_ts: datetime = BASE_TS + timedelta(minutes=10)
-    lifecycle_state: str = "READY_FOR_STUDY"
+    lifecycle_state: str = "REGISTERED"
 
 
 class _FeatureStore:
@@ -1081,7 +1081,7 @@ def _label_audit_report(input_pack: RuntimeInputPack) -> dict[str, object]:
         "label_spec_id": LABEL_SPEC_ID,
         "dataset_version_id": input_pack.dataset_version_id,
         "partition_id": "development",
-        "lifecycle_state": "READY_FOR_STUDY",
+        "lifecycle_state": "REGISTERED",
         "availability_time": (BASE_TS + timedelta(minutes=5)).isoformat(),
         "status": "CLEAN",
         "blocked": False,
