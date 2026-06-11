@@ -1,0 +1,14 @@
+{
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "P111500_FUTSUB_P19_COST_TEST_RECONCILE",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-adversarial-review",
+  "reviewed_at": "2026-06-11T12:25:00Z",
+  "evidence": {
+    "tests": "91 passed fast-path+scaleout; assert counts preserved 22/22 + 64/64",
+    "mutations": "guard-bypass and raw-event_ts mutations both caught by parity tests",
+    "forbidden_paths": "families/engine/roll_guard/version untouched",
+    "canaries": "14/14 PASS; verify --smoke exit 0"
+  },
+  "warnings": ["fast entry_bbo_gap fixture gap (W1)", "duplicate-BBO fast branches inspection-only (W2)", "pre-existing synthetic_no_trade parity hole — blocks any future cost_adjusted fast promotion (W3)", "dead panel.py branch (W4)"]
+}
