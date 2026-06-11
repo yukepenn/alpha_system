@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
@@ -30,6 +30,20 @@ from alpha_system.features.input_views import (
 )
 from alpha_system.features.semantics import bbo_quote_semantics, is_synthetic_no_trade_bar
 from alpha_system.governance.label_spec import LabelSpec as GovernanceLabelSpec
+from alpha_system.labels.families.fixed_horizon import (
+    MAINTENANCE_GUARD_VERSION,
+    MAINTENANCE_POLICY_ID,
+)
+from alpha_system.labels.families.fixed_horizon.family import (
+    _guarded_forward_terminal,
+)
+from alpha_system.labels.roll_guard import (
+    DEFAULT_CROSS_ROLL_POLICY,
+    DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+    DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+    ROLL_GUARD_VERSION,
+    ROLL_POLICY_ID,
+)
 from alpha_system.labels.version import (
     CostAdjustmentSpec,
     LabelContractSpec,
@@ -203,6 +217,7 @@ _SPREAD_ADJUSTMENTS: Mapping[str, tuple[Decimal, Decimal]] = {
     "half_spread_round_trip": (Decimal("0.5"), Decimal("0.5")),
     "full_spread_round_trip": (Decimal("1.0"), Decimal("1.0")),
 }
+_DUPLICATE_BBO_KEY_FLAG = "duplicate_bbo_key"
 _INPUT_FIELDS: tuple[str, ...] = (
     "bid",
     "ask",
@@ -210,7 +225,10 @@ _INPUT_FIELDS: tuple[str, ...] = (
     "spread",
     "available_ts",
     "event_ts",
+    "bar_start_ts",
+    "bar_end_ts",
     "series_id",
+    "contract_id",
     "quality_flags",
     "has_trade",
     "synthetic",
@@ -231,6 +249,7 @@ def build_cost_adjusted_label_definition(
     *,
     dataset_version_ids: Sequence[str] = (),
     contract_metadata: Mapping[str, Any] | None = None,
+    materialization_scope: Mapping[str, Any] | None = None,
 ) -> CostAdjustedLabelDefinition:
     """Build one governed cost/spread-adjusted label definition.
 
@@ -240,6 +259,34 @@ def build_cost_adjusted_label_definition(
     """
 
     label_name = _coerce_label_name(name)
+    metadata = {
+        "campaign": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+        "phase": "FLF-P18",
+        "scaleout_campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+        "scaleout_phase": "FUTSUB-P19",
+        "label_family": LabelFamily.COST_ADJUSTED.value,
+        "label_name": label_name.value,
+        "materialization": "in_memory_records_only",
+        "claims": "descriptive_label_substrate_only",
+        "label_anchor": "source_bar_end_ts",
+        "terminal_key": "series_id+contract_id+bar_end_ts",
+        "terminal_resolution": "bar_end_aligned_bbo_proxy",
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+        "roll_window": {
+            "days_before": DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+            "days_after": DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+        },
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+        "bbo_proxy_semantics": "time_sampled_forward_filled_tradability_proxy",
+        **dict(contract_metadata or {}),
+    }
+    scope = _materialization_scope_metadata(materialization_scope)
+    if scope:
+        metadata["materialization_scope"] = scope
     label_contract = LabelContractSpec.from_label_spec(
         label_id=label_name.value,
         family=LabelFamily.COST_ADJUSTED,
@@ -258,20 +305,12 @@ def build_cost_adjusted_label_definition(
                     "synthetic no-trade rows are flagged and are not trade anchors"
                 ),
                 "quote_policy": (
-                    "cost and spread adjustments use exact-horizon valid BBO rows only; "
-                    "missing_bbo and bbo_quarantined rows are not filled"
+                    "cost and spread adjustments use bar-end-aligned BBO proxy "
+                    "terminals; missing_bbo and bbo_quarantined rows are not filled"
                 ),
             },
         ),
-        contract_metadata={
-            "campaign": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
-            "phase": "FLF-P18",
-            "label_family": LabelFamily.COST_ADJUSTED.value,
-            "label_name": label_name.value,
-            "materialization": "in_memory_records_only",
-            "claims": "descriptive_label_substrate_only",
-            **dict(contract_metadata or {}),
-        },
+        contract_metadata=metadata,
     )
     spec = _wrap_label_spec(label_name, label_contract)
     return CostAdjustedLabelDefinition(
@@ -314,20 +353,21 @@ def compute_cost_adjusted_label(
         definition.spec.cost_adjustment,
         definition.name,
     )
-    return tuple(
-        _label_value_record(
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[Any, ...]] = {}
+    records: list[LabelValueRecord] = []
+    for row in rows:
+        point = _label_point(
             definition,
-            _label_point(
-                definition,
-                row,
-                row_index=row_index,
-                trade_index=trade_index,
-                horizon=horizon,
-                cost_model=cost_model,
-            ),
+            row,
+            row_index=row_index,
+            trade_index=trade_index,
+            horizon=horizon,
+            cost_model=cost_model,
+            roll_calendar_cache=roll_calendar_cache,
         )
-        for row in rows
-    )
+        if point is not None:
+            records.append(_label_value_record(definition, point))
+    return tuple(records)
 
 
 def compute_cost_adjusted_labels(
@@ -352,16 +392,66 @@ def _label_point(
     definition: CostAdjustedLabelDefinition,
     row: BBOInputRow,
     *,
-    row_index: Mapping[tuple[str, datetime], BBOInputRow],
+    row_index: Mapping[tuple[str, str, datetime], BBOInputRow],
     trade_index: Mapping[tuple[str, datetime], _TradeRow],
     horizon: timedelta,
     cost_model: _CostModel,
-) -> _LabelPoint:
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[Any, ...]],
+) -> _LabelPoint | None:
     horizon_end_ts = row.event_ts + horizon
-    terminal = row_index.get((row.series_id, horizon_end_ts))
+    terminal = row_index.get((row.series_id, row.contract_id, horizon_end_ts))
+    if terminal is None:
+        return _gap_label_point(
+            row,
+            horizon_end_ts=horizon_end_ts,
+            label_available_ts=_label_available_ts(
+                definition,
+                horizon_end_ts=horizon_end_ts,
+                source=row,
+                terminal=None,
+            ),
+            reason="missing_terminal_bbo",
+        )
+
+    if _DUPLICATE_BBO_KEY_FLAG in row.quality_flags:
+        return _gap_label_point(
+            row,
+            horizon_end_ts=terminal.event_ts,
+            label_available_ts=_label_available_ts(
+                definition,
+                horizon_end_ts=terminal.event_ts,
+                source=row,
+                terminal=terminal,
+            ),
+            reason=_DUPLICATE_BBO_KEY_FLAG,
+        )
+    if _DUPLICATE_BBO_KEY_FLAG in terminal.quality_flags:
+        return _gap_label_point(
+            row,
+            horizon_end_ts=terminal.event_ts,
+            label_available_ts=_label_available_ts(
+                definition,
+                horizon_end_ts=terminal.event_ts,
+                source=row,
+                terminal=terminal,
+            ),
+            reason="terminal_duplicate_bbo_key",
+            extra_flags=(_DUPLICATE_BBO_KEY_FLAG,),
+        )
+
+    guarded = _guarded_cost_terminal(
+        row,
+        terminal,
+        terminal_by_key=row_index,
+        roll_calendar_cache=roll_calendar_cache,
+    )
+    if guarded is None:
+        return None
+    terminal, guard_flags = guarded
     label_available_ts = _label_available_ts(
         definition,
-        horizon_end_ts=horizon_end_ts,
+        horizon_end_ts=terminal.event_ts,
+        source=row,
         terminal=terminal,
     )
 
@@ -369,51 +459,45 @@ def _label_point(
     if trade_row is not None and _is_synthetic_no_trade(trade_row):
         return _gap_label_point(
             row,
-            horizon_end_ts=horizon_end_ts,
+            horizon_end_ts=terminal.event_ts,
             label_available_ts=label_available_ts,
             reason="synthetic_no_trade",
-            extra_flags=("no_trade",),
+            extra_flags=("no_trade", *guard_flags),
         )
 
     if not _is_valid_quote(row):
         return _gap_label_point(
             row,
-            horizon_end_ts=horizon_end_ts,
+            horizon_end_ts=terminal.event_ts,
             label_available_ts=label_available_ts,
             reason="entry_bbo_gap",
-            extra_flags=_bbo_gap_flags(row),
-        )
-    if terminal is None:
-        return _gap_label_point(
-            row,
-            horizon_end_ts=horizon_end_ts,
-            label_available_ts=label_available_ts,
-            reason="missing_terminal_bbo",
+            extra_flags=(*_bbo_gap_flags(row), *guard_flags),
         )
     if not _is_valid_quote(terminal):
         return _gap_label_point(
             row,
-            horizon_end_ts=horizon_end_ts,
+            horizon_end_ts=terminal.event_ts,
             label_available_ts=label_available_ts,
             reason="terminal_bbo_gap",
-            extra_flags=_bbo_gap_flags(terminal),
+            extra_flags=(*_bbo_gap_flags(terminal), *guard_flags),
         )
     if row.mid <= 0 or terminal.mid <= 0:
         return _gap_label_point(
             row,
-            horizon_end_ts=horizon_end_ts,
+            horizon_end_ts=terminal.event_ts,
             label_available_ts=label_available_ts,
             reason="zero_or_negative_mid",
+            extra_flags=guard_flags,
         )
 
     raw_return = (terminal.mid / row.mid) - Decimal("1")
     adjusted_return = raw_return - cost_model.adjustment_return(row, terminal)
     return _LabelPoint(
         row=row,
-        horizon_end_ts=horizon_end_ts,
+        horizon_end_ts=terminal.event_ts,
         label_available_ts=label_available_ts,
         value=float(adjusted_return),
-        quality_flags=(),
+        quality_flags=guard_flags,
     )
 
 
@@ -438,11 +522,14 @@ def _label_available_ts(
     *,
     horizon_end_ts: datetime,
     terminal: BBOInputRow | None,
+    source: BBOInputRow | None = None,
 ) -> datetime:
     candidates = [
         horizon_end_ts,
         definition.spec.label_contract.availability_policy.availability_time,
     ]
+    if source is not None:
+        candidates.append(source.available_ts)
     if terminal is not None:
         candidates.append(terminal.available_ts)
     return max(candidates)
@@ -501,17 +588,67 @@ def _validated_rows(rows: Sequence[BBOInputRow]) -> tuple[BBOInputRow, ...]:
         _require_aware_datetime(row.bar_end_ts, "BBOInputRow.bar_end_ts")
         for field in ("bid", "ask", "bid_size", "ask_size", "mid", "spread"):
             _require_decimal(getattr(row, field), f"BBOInputRow.{field}")
-    return tuple(sorted(ordered, key=lambda row: row.available_ts))
+    aligned = tuple(_align_bbo_row_to_bar_end(row) for row in ordered)
+    return _collapse_duplicate_bbo_keys(tuple(sorted(aligned, key=lambda row: row.available_ts)))
 
 
-def _bbo_rows_by_key(rows: Sequence[BBOInputRow]) -> dict[tuple[str, datetime], BBOInputRow]:
-    by_key: dict[tuple[str, datetime], BBOInputRow] = {}
+def _align_bbo_row_to_bar_end(row: BBOInputRow) -> BBOInputRow:
+    if row.event_ts > row.bar_end_ts:
+        raise CostAdjustedLabelError(
+            "BBOInputRow.event_ts must be at or before BBOInputRow.bar_end_ts"
+        )
+    if row.event_ts == row.bar_end_ts:
+        return row
+    return replace(row, event_ts=row.bar_end_ts)
+
+
+def _collapse_duplicate_bbo_keys(rows: Sequence[BBOInputRow]) -> tuple[BBOInputRow, ...]:
+    by_key: dict[tuple[str, str, datetime], BBOInputRow] = {}
+    order: list[tuple[str, str, datetime]] = []
     for row in rows:
-        key = (row.series_id, row.event_ts)
+        key = (row.series_id, row.contract_id, row.bar_end_ts)
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = row
+            order.append(key)
+            continue
+        # Duplicate BBO keys make the quote ambiguous. Keep one deterministic
+        # timestamp row for gap reporting, but mark it unusable for cost math.
+        by_key[key] = replace(
+            existing,
+            quality_flags=_quality_flags((*existing.quality_flags, _DUPLICATE_BBO_KEY_FLAG)),
+        )
+    return tuple(by_key[key] for key in order)
+
+
+def _bbo_rows_by_key(rows: Sequence[BBOInputRow]) -> dict[tuple[str, str, datetime], BBOInputRow]:
+    by_key: dict[tuple[str, str, datetime], BBOInputRow] = {}
+    for row in rows:
+        key = (row.series_id, row.contract_id, row.bar_end_ts)
         if key in by_key:
-            raise CostAdjustedLabelError("BBO rows must not duplicate series_id/event_ts")
+            raise CostAdjustedLabelError(
+                "BBO rows must not duplicate series_id/contract_id/bar_end_ts"
+            )
         by_key[key] = row
     return by_key
+
+
+def _guarded_cost_terminal(
+    source: BBOInputRow,
+    terminal: BBOInputRow,
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], BBOInputRow],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[Any, ...]],
+) -> tuple[BBOInputRow, tuple[str, ...]] | None:
+    try:
+        return _guarded_forward_terminal(
+            source,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+    except Exception as exc:  # noqa: BLE001 - normalize shared guard errors for this family.
+        raise CostAdjustedLabelError(str(exc)) from exc
 
 
 def _trade_rows_by_key(rows: Iterable[_TradeRow]) -> dict[tuple[str, datetime], _TradeRow]:
@@ -666,6 +803,30 @@ def _quality_flags(flags: Sequence[str]) -> tuple[str, ...]:
         if token not in normalized:
             normalized.append(token)
     return tuple(normalized)
+
+
+def _materialization_scope_metadata(
+    value: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise CostAdjustedLabelError("materialization_scope must be a mapping")
+    scope: dict[str, str] = {}
+    for key, item in value.items():
+        key_text = _metadata_text(key, "materialization_scope key")
+        item_text = _metadata_text(item, f"materialization_scope.{key_text}")
+        scope[key_text] = item_text
+    return dict(sorted(scope.items()))
+
+
+def _metadata_text(value: object, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise CostAdjustedLabelError(f"{field_name} must be a string")
+    text = value.strip()
+    if not text:
+        raise CostAdjustedLabelError(f"{field_name} must be a non-empty string")
+    return text
 
 
 __all__ = [
