@@ -1,57 +1,35 @@
-# session_close_maintenance_flat LabelPack Scaleout Summary
+# session_close_maintenance_flat Scaleout Summary
 
-Value-free session-close / maintenance-flat LabelPack summary. It contains no raw rows,
-canonical values, label values, provider responses, SQLite content, Parquet payloads,
-value content hashes, or roll-calendar data.
+Value-free scaleout summary. It contains no raw rows, canonical values,
+feature values, label values, provider responses, SQLite content, or Parquet payloads.
 
 - Campaign: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
 - Phase: `FUTSUB-P18`
-- Label pack: `session_close_maintenance_flat`
-- Family / engine: `fixed_horizon` close-out labels on the reference label engine
-- Label entrypoint: `alpha scaleout label-pack` -> `run_seed_label_pack`
-- Value store: `parquet`
-- Accepted states: `ACCEPTED`, `ACCEPTED_WITH_WARNINGS`
-- Excluded state: blocked `2018` DatasetVersions remain excluded
-- Symbols: `ES`, `NQ`, `RTY`
-- Years selected by accepted inventory: `2019` through `2026`
-- Label ids: `session_close`, `maintenance_flat`
-- Accepted full-window units: `48`
+- Engine: `reference`
+- Rollout: `full-window`
+- Dry run: `no`
+- Targeting active: `no`
+- Accepted unit count: `48`
 - Bounded-real year: `2024`
-- Bounded-real executor result: `3` completed, `3` skipped from prior registry/checkpoint evidence, `0` failed after repair
-- Full-window executor result: `42` completed, `6` skipped from bounded-real registry/checkpoint evidence, `0` failed
-- Registry records checked for required fields: `48` / `48`
-- Registry records with `label_available_ts` ranges: `48` / `48`
+- Bounded-real unit count: `6`
+- Planned: `0`
+- Completed: `48`
+- Skipped: `0`
+- Failed: `0`
+- Requested workers: `1`
+- Effective workers: `1`
+- Threads per worker: `16`
 
-## Close-Out Semantics
+## Target
 
-- `session_close`: terminal is the same-contract RTH close-out bar for the CME trade date,
-  selected by the explicit 08:30-15:00 America/Chicago RTH clock boundary. A source row
-  at or after that terminal has no remaining same-session close-out horizon and is dropped.
-- `maintenance_flat`: terminal is the same-contract last bar at or before the 16:00
-  America/Chicago daily maintenance / trade-date break. A source row at or after that
-  terminal has no remaining same-break horizon and is dropped.
-- Both labels use `series_id+contract_id+event_ts` terminal lookup and
-  `series_id+contract_id+close_out_boundary` terminal scope. No terminal is selected from
-  a different contract or a different maintenance/trade-date scope.
-
-## Guard Policy
-
-- `label_available_ts` is required on every materialized label and is derived from the
-  close-out terminal row availability.
-- Roll-crossing windows use `roll_policy_id` `roll_cme_index_futures_quarterly`,
-  `roll_guard_version` `roll_guard_v1`, and `roll_cross_policy` `drop`.
-- Maintenance-crossing windows use `maintenance_policy_id`
-  `cme_index_futures_daily_maintenance_break_v1`, `maintenance_guard_version`
-  `maintenance_crossing_guard_v1`, and `maintenance_crossing_policy` `drop`.
-- Guard counts below were computed with the shared fixed-horizon close-out terminal
-  and guard helpers after exact contract-scoped terminal matching.
-
-## Horizon Totals
-
-| Horizon | Units | Input rows | Candidate terminals | Rows materialized | Boundary dropped | Maintenance dropped | Roll dropped | Roll flagged | Roll truncated | Effective samples |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `session_close` | 24 | 7683710 | 7369395 | 7248193 | 314315 | 0 | 121202 | 0 | 0 | 5598 |
-| `maintenance_flat` | 24 | 7683710 | 7678019 | 7552054 | 5691 | 0 | 125965 | 0 | 0 | 5604 |
+- Family: `session_close_maintenance_flat`
+- Feature ids: `config default`
+- Feature groups: `none`
+- Label ids: `none`
+- Label groups: `none`
+- Symbols: `config default`
+- Years: `config default`
+- DatasetVersion ids: `accepted grid default`
 
 ## Acceptance States
 
@@ -60,84 +38,75 @@ value content hashes, or roll-calendar data.
 | `ACCEPTED` | 36 |
 | `ACCEPTED_WITH_WARNINGS` | 12 |
 
-## Per-Unit Coverage
+## Window Policy
 
-Rows are materialized `LabelValueRecord` rows after close-out terminal availability,
-roll-splice, maintenance-crossing, and gap semantics are applied. Effective samples
-count distinct close-out terminal events per unit; rows are not represented as
-independent samples.
+- Eligible DatasetVersion states are `ACCEPTED` and `ACCEPTED_WITH_WARNINGS`.
+- Dataset-level fallback is used for 2018: the blocked 2018 `ohlcv_1m`
+  DatasetVersion is excluded rather than fabricating per-symbol acceptance.
+- 2019 warning metadata and 2026 partial-year warning metadata are preserved
+  through the accepted/warned DatasetVersion state.
+- Multi-input units require every configured input schema/year to carry an
+  accepted or accepted-with-warnings DatasetVersion before execution.
 
-| Year | Symbol | Horizon | DatasetVersion | State | Rows | Effective samples | Boundary dropped | Maintenance dropped | Roll dropped |
-| ---: | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 2019 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ACCEPTED_WITH_WARNINGS` | 343475 | 254 | 258 | 0 | 5799 |
-| 2019 | `ES` | `session_close` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ACCEPTED_WITH_WARNINGS` | 332447 | 254 | 11466 | 0 | 5619 |
-| 2019 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ACCEPTED_WITH_WARNINGS` | 343778 | 254 | 258 | 0 | 5809 |
-| 2019 | `NQ` | `session_close` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ACCEPTED_WITH_WARNINGS` | 332753 | 254 | 11463 | 0 | 5629 |
-| 2019 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ACCEPTED_WITH_WARNINGS` | 323130 | 254 | 258 | 0 | 5453 |
-| 2019 | `RTY` | `session_close` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ACCEPTED_WITH_WARNINGS` | 312279 | 254 | 11286 | 0 | 5276 |
-| 2020 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ACCEPTED` | 343501 | 255 | 259 | 0 | 5848 |
-| 2020 | `ES` | `session_close` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ACCEPTED` | 332472 | 255 | 11468 | 0 | 5668 |
-| 2020 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ACCEPTED` | 342848 | 255 | 259 | 0 | 5822 |
-| 2020 | `NQ` | `session_close` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ACCEPTED` | 331823 | 255 | 11464 | 0 | 5642 |
-| 2020 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ACCEPTED` | 332157 | 255 | 259 | 0 | 5669 |
-| 2020 | `RTY` | `session_close` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ACCEPTED` | 321169 | 255 | 11427 | 0 | 5489 |
-| 2021 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ACCEPTED` | 347266 | 255 | 259 | 0 | 5838 |
-| 2021 | `ES` | `session_close` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ACCEPTED` | 333349 | 254 | 14386 | 0 | 5628 |
-| 2021 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ACCEPTED` | 347293 | 255 | 259 | 0 | 5841 |
-| 2021 | `NQ` | `session_close` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ACCEPTED` | 333351 | 254 | 14411 | 0 | 5631 |
-| 2021 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ACCEPTED` | 334055 | 255 | 259 | 0 | 5581 |
-| 2021 | `RTY` | `session_close` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ACCEPTED` | 320533 | 254 | 13989 | 0 | 5373 |
-| 2022 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ACCEPTED` | 347989 | 254 | 258 | 0 | 5872 |
-| 2022 | `ES` | `session_close` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ACCEPTED` | 333230 | 254 | 15257 | 0 | 5632 |
-| 2022 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ACCEPTED` | 347982 | 254 | 258 | 0 | 5872 |
-| 2022 | `NQ` | `session_close` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ACCEPTED` | 333222 | 254 | 15258 | 0 | 5632 |
-| 2022 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ACCEPTED` | 339233 | 254 | 258 | 0 | 5671 |
-| 2022 | `RTY` | `session_close` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ACCEPTED` | 324485 | 254 | 15246 | 0 | 5431 |
-| 2023 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ACCEPTED` | 347026 | 254 | 258 | 0 | 5869 |
-| 2023 | `ES` | `session_close` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ACCEPTED` | 331491 | 253 | 16033 | 0 | 5629 |
-| 2023 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ACCEPTED` | 347228 | 254 | 258 | 0 | 5872 |
-| 2023 | `NQ` | `session_close` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ACCEPTED` | 331676 | 253 | 16050 | 0 | 5632 |
-| 2023 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ACCEPTED` | 336491 | 254 | 258 | 0 | 5687 |
-| 2023 | `RTY` | `session_close` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ACCEPTED` | 321237 | 253 | 15751 | 0 | 5448 |
-| 2024 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_05404069799decb0` | `ACCEPTED` | 340740 | 248 | 252 | 0 | 5866 |
-| 2024 | `ES` | `session_close` | `dsv_databento_ohlcv_05404069799decb0` | `ACCEPTED` | 326040 | 248 | 15192 | 0 | 5626 |
-| 2024 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_05404069799decb0` | `ACCEPTED` | 340869 | 248 | 252 | 0 | 5871 |
-| 2024 | `NQ` | `session_close` | `dsv_databento_ohlcv_05404069799decb0` | `ACCEPTED` | 326169 | 248 | 15192 | 0 | 5631 |
-| 2024 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_05404069799decb0` | `ACCEPTED` | 327671 | 248 | 252 | 0 | 5617 |
-| 2024 | `RTY` | `session_close` | `dsv_databento_ohlcv_05404069799decb0` | `ACCEPTED` | 313015 | 248 | 15147 | 0 | 5378 |
-| 2025 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_35ffead770498acd` | `ACCEPTED` | 338379 | 247 | 251 | 0 | 5931 |
-| 2025 | `ES` | `session_close` | `dsv_databento_ohlcv_35ffead770498acd` | `ACCEPTED` | 323800 | 247 | 15070 | 0 | 5691 |
-| 2025 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_35ffead770498acd` | `ACCEPTED` | 338347 | 247 | 251 | 0 | 5931 |
-| 2025 | `NQ` | `session_close` | `dsv_databento_ohlcv_35ffead770498acd` | `ACCEPTED` | 323769 | 247 | 15069 | 0 | 5691 |
-| 2025 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_35ffead770498acd` | `ACCEPTED` | 327551 | 247 | 251 | 0 | 5755 |
-| 2025 | `RTY` | `session_close` | `dsv_databento_ohlcv_35ffead770498acd` | `ACCEPTED` | 313012 | 247 | 15030 | 0 | 5515 |
-| 2026 | `ES` | `maintenance_flat` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ACCEPTED_WITH_WARNINGS` | 139039 | 101 | 102 | 0 | 1498 |
-| 2026 | `ES` | `session_close` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ACCEPTED_WITH_WARNINGS` | 132979 | 101 | 6222 | 0 | 1438 |
-| 2026 | `NQ` | `maintenance_flat` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ACCEPTED_WITH_WARNINGS` | 139010 | 101 | 102 | 0 | 1498 |
-| 2026 | `NQ` | `session_close` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ACCEPTED_WITH_WARNINGS` | 132950 | 101 | 6222 | 0 | 1438 |
-| 2026 | `RTY` | `maintenance_flat` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ACCEPTED_WITH_WARNINGS` | 136996 | 101 | 102 | 0 | 1495 |
-| 2026 | `RTY` | `session_close` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ACCEPTED_WITH_WARNINGS` | 130942 | 101 | 6216 | 0 | 1435 |
+## Point-In-Time Guard
 
-## Expected Gaps
+- Feature values are emitted at the current source row `available_ts`;
+  label values carry `label_available_ts` at or after the forward terminal.
+- Rolling, expanding, prior-boundary, and derived-state inputs may use only
+  source rows whose `available_ts` is less than or equal to the output
+  `available_ts`.
+- Accepted DatasetVersion gates fail closed before canonical rows are
+  loaded or values are written.
 
-- `2018` remains `BLOCKED` in the accepted inventory and is excluded rather than forced
-  into materialization.
-- `2019` and `2026` are included as `ACCEPTED_WITH_WARNINGS`; `2026` uses the
-  partial-year window ending `2026-06-01T00:00:00+00:00`.
-- The committed inventory is year-level for `ohlcv_1m`; no 2018 symbol was selected.
+## Unit Outcomes
 
-## Overlap-Aware N_eff Metadata
-
-- Metadata version: `horizon_overlap_metadata_v1`.
-- Raw row count and effective sample count are distinct fields.
-- Effective samples count distinct close-out terminal events, not per-row labels.
-- Rows are not represented as independent samples; `N_eff` never exceeds raw rows.
-- Runtime N_eff reporting remains owned by FUTSUB-P25; this phase records the
-  per-pack metadata that feeds that reporting.
-
-## Safety
-
-This phase adds substrate label materialization only. It makes no profitability,
-tradability, production, live, paper, broker, order-routing, or capital-allocation
-claim. Local Parquet values, checkpoint ledgers, and the SQLite label registry remain
-under `ALPHA_DATA_ROOT` and are not commit-eligible.
+| Stage | Year | Symbol | Primary DatasetVersion | Input DatasetVersions | Status | Rows |
+| --- | ---: | --- | --- | --- | --- | ---: |
+| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `completed` | 332447 |
+| `full_window` | 2019 | `ES` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `completed` | 343475 |
+| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `completed` | 332753 |
+| `full_window` | 2019 | `NQ` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `completed` | 343778 |
+| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `completed` | 312279 |
+| `full_window` | 2019 | `RTY` | `dsv_databento_ohlcv_a483cc0cc282474b` | `ohlcv_1m:dsv_databento_ohlcv_a483cc0cc282474b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2019_v1` | `completed` | 323130 |
+| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `completed` | 332472 |
+| `full_window` | 2020 | `ES` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `completed` | 343501 |
+| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `completed` | 331823 |
+| `full_window` | 2020 | `NQ` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `completed` | 342848 |
+| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `completed` | 321169 |
+| `full_window` | 2020 | `RTY` | `dsv_databento_ohlcv_bac95e92f1bb1850` | `ohlcv_1m:dsv_databento_ohlcv_bac95e92f1bb1850, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2020_v1` | `completed` | 332157 |
+| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `completed` | 333349 |
+| `full_window` | 2021 | `ES` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `completed` | 347266 |
+| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `completed` | 333351 |
+| `full_window` | 2021 | `NQ` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `completed` | 347293 |
+| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `completed` | 320533 |
+| `full_window` | 2021 | `RTY` | `dsv_databento_ohlcv_8aeb50fb409fc691` | `ohlcv_1m:dsv_databento_ohlcv_8aeb50fb409fc691, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2021_v1` | `completed` | 334055 |
+| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `completed` | 333230 |
+| `full_window` | 2022 | `ES` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `completed` | 347989 |
+| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `completed` | 333222 |
+| `full_window` | 2022 | `NQ` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `completed` | 347982 |
+| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `completed` | 324485 |
+| `full_window` | 2022 | `RTY` | `dsv_databento_ohlcv_dc7c86c813fe0dfe` | `ohlcv_1m:dsv_databento_ohlcv_dc7c86c813fe0dfe, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2022_v1` | `completed` | 339233 |
+| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `completed` | 331491 |
+| `full_window` | 2023 | `ES` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `completed` | 347026 |
+| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `completed` | 331676 |
+| `full_window` | 2023 | `NQ` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `completed` | 347228 |
+| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `completed` | 321237 |
+| `full_window` | 2023 | `RTY` | `dsv_databento_ohlcv_ec144f9a02a64774` | `ohlcv_1m:dsv_databento_ohlcv_ec144f9a02a64774, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2023_v1` | `completed` | 336491 |
+| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `completed` | 326040 |
+| `full_window` | 2024 | `ES` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `completed` | 340740 |
+| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `completed` | 326169 |
+| `full_window` | 2024 | `NQ` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `completed` | 340869 |
+| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `completed` | 313015 |
+| `full_window` | 2024 | `RTY` | `dsv_databento_ohlcv_05404069799decb0` | `ohlcv_1m:dsv_databento_ohlcv_05404069799decb0, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2024_v1` | `completed` | 327671 |
+| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `completed` | 323800 |
+| `full_window` | 2025 | `ES` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `completed` | 338379 |
+| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `completed` | 323769 |
+| `full_window` | 2025 | `NQ` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `completed` | 338347 |
+| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `completed` | 313012 |
+| `full_window` | 2025 | `RTY` | `dsv_databento_ohlcv_35ffead770498acd` | `ohlcv_1m:dsv_databento_ohlcv_35ffead770498acd, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2025_v1` | `completed` | 327551 |
+| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `completed` | 132979 |
+| `full_window` | 2026 | `ES` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `completed` | 139039 |
+| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `completed` | 132950 |
+| `full_window` | 2026 | `NQ` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `completed` | 139010 |
+| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `completed` | 130942 |
+| `full_window` | 2026 | `RTY` | `dsv_databento_ohlcv_a0342ee6a412622b` | `ohlcv_1m:dsv_databento_ohlcv_a0342ee6a412622b, ohlcv_dense_research_grid:dsv_databento_ohlcv_dense_2026_v1` | `completed` | 136996 |
