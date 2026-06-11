@@ -273,6 +273,36 @@ def test_build_evidence_requires_existing_study_and_trial_refs(
     assert payload["issues"][0]["code"] == "governance_record_not_found"
 
 
+def test_build_evidence_without_trial_ledger_path_rejects_at_gate(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    registry_path = tmp_path / "governance.sqlite3"
+    registry = GovernanceRegistry(registry_path)
+    trial = _trial_record()
+    registry.save(StudySpec.from_mapping(_load_json(STUDY_FIXTURE)), "DIAGNOSTICS_ALLOWED")
+    registry.save(trial, "DIAGNOSTICS_RUN")
+    bundle_path = _write_json(
+        tmp_path / "evidence-bundle.json",
+        _evidence_bundle((trial,), _reviewer_verdict()).to_dict(),
+    )
+
+    code, payload = _run_cli(
+        [
+            "governance",
+            "build-evidence",
+            "--registry-path",
+            str(registry_path),
+            str(bundle_path),
+        ],
+        capsys,
+    )
+
+    assert code == 2
+    assert payload["status"] == "rejected"
+    assert payload["issues"][0]["code"] == "missing_trial_ledger_path"
+
+
 def test_review_rejects_self_approval(capsys, tmp_path: Path) -> None:
     registry_path = tmp_path / "governance.sqlite3"
     verdict_path = _write_json(

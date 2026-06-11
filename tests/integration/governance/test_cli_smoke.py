@@ -60,6 +60,16 @@ def _write_json(path: Path, payload: dict[str, object]) -> Path:
     return path
 
 
+def _trial_ledger_file(tmp_path: Path, records: tuple[TrialLedgerRecord, ...]) -> Path:
+    return _write_json(
+        tmp_path / "trial-ledger.json",
+        {
+            "schema": "synthetic-trial-ledger-v1",
+            "records": [record.to_dict() for record in records],
+        },
+    )
+
+
 def _linked_alpha_spec(tmp_path: Path) -> Path:
     hypothesis = _load_json(HYPOTHESIS_FIXTURE)
     alpha = _load_json(ALPHA_FIXTURE)
@@ -172,6 +182,7 @@ def test_governance_cli_end_to_end_smoke(tmp_path: Path) -> None:
     completed_path = _write_json(tmp_path / "completed-trial.json", completed.to_dict())
     failed_path = _write_json(tmp_path / "failed-trial.json", failed.to_dict())
     bundle_path = _write_json(tmp_path / "evidence-bundle.json", bundle.to_dict())
+    trial_ledger_path = _trial_ledger_file(tmp_path, (completed, failed))
     verdict_path = _write_json(tmp_path / "reviewer-verdict.json", verdict.to_dict())
     decision_path = _write_json(tmp_path / "promotion-decision.json", decision.to_dict())
 
@@ -207,6 +218,8 @@ def test_governance_cli_end_to_end_smoke(tmp_path: Path) -> None:
             "build-evidence",
             "--registry-path",
             str(registry_path),
+            "--trial-ledger-path",
+            str(trial_ledger_path),
             str(bundle_path),
         ]
     )

@@ -174,12 +174,15 @@ def test_synthetic_end_to_end_governance_dry_run(tmp_path: Path) -> None:
         assert trial_result.returncode == 0, trial_result.stderr
 
     bundle_path = _write_json(tmp_path / "evidence-bundle.json", objects.bundle.to_dict())
+    trial_ledger_path = _trial_ledger_file(tmp_path, objects.trials)
     evidence_result = _run_alpha(
         [
             "governance",
             "build-evidence",
             "--registry-path",
             str(registry_path),
+            "--trial-ledger-path",
+            str(trial_ledger_path),
             str(bundle_path),
         ]
     )
@@ -735,3 +738,13 @@ def _load_fixture() -> dict[str, Any]:
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.write_text(json.dumps(payload, sort_keys=True, indent=2), encoding="utf-8")
     return path
+
+
+def _trial_ledger_file(tmp_path: Path, records: tuple[TrialLedgerRecord, ...]) -> Path:
+    return _write_json(
+        tmp_path / "trial-ledger.json",
+        {
+            "schema": "synthetic-trial-ledger-v1",
+            "records": [record.to_dict() for record in records],
+        },
+    )

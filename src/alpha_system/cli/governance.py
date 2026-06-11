@@ -301,7 +301,10 @@ def run_build_evidence(args: argparse.Namespace) -> int:
         validate_governance_transition(
             "DIAGNOSTICS_RUN",
             "EVIDENCE_READY",
-            PromotionGateContext(evidence_bundle=bundle),
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                trial_ledger_path=args.trial_ledger_path,
+            ),
         )
         entry = registry.save(
             bundle,
@@ -311,6 +314,7 @@ def run_build_evidence(args: argparse.Namespace) -> int:
         payload = _registry_success_payload("build-evidence", entry, args.registry_path)
         payload["resolved_trial_ids"] = list(bundle.trial_ids)
         payload["resolved_study_spec_id"] = bundle.study_spec_id
+        payload["resolved_trial_ledger_path"] = str(Path(args.trial_ledger_path))
         payload["validated_transition"] = "DIAGNOSTICS_RUN->EVIDENCE_READY"
         return payload
 
@@ -474,6 +478,14 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Validate and persist an EvidenceBundle from existing registry refs.",
     )
     _add_registry_path_argument(evidence_parser)
+    evidence_parser.add_argument(
+        "--trial-ledger-path",
+        default=None,
+        help=(
+            "Path to an existing writable trial ledger JSON file required by the "
+            "fail-closed evidence-ready promotion gate."
+        ),
+    )
     evidence_parser.add_argument(
         "evidence_bundle",
         help="Path to an EvidenceBundle JSON file.",
