@@ -9,6 +9,7 @@ _EXPORTS = {
     "DIAGNOSTICS_LIFECYCLE_STATES": "alpha_system.runtime.diagnostics.contracts",
     "DiagnosticsContractError": "alpha_system.runtime.diagnostics.contracts",
     "DiagnosticsFamily": "alpha_system.runtime.diagnostics.contracts",
+    "DiagnosticsHalfLifeProtocol": "alpha_system.runtime.diagnostics.contracts",
     "DiagnosticsQualityGate": "alpha_system.runtime.diagnostics.report",
     "DiagnosticsQualityGateStatus": "alpha_system.runtime.diagnostics.report",
     "DiagnosticsReport": "alpha_system.runtime.diagnostics.report",

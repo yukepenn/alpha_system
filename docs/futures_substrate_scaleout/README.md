@@ -19,14 +19,16 @@ for phase order, scope, lane policy, artifact policy, and acceptance criteria:
 - `README.md` - this index for the substrate scaleout docs tree.
 - `OVERVIEW.md` - compact overview of mission, phase-map source, boundaries,
   and source-of-truth pointers.
+- `WALK_FORWARD_WIRING.md` - P24 runtime wiring for purged / embargoed
+  walk-forward diagnostics metadata and protocol hooks.
 
 ## Expected Additions
 
 Later phases are expected to add focused docs for the reality lock, dataset
 acceptance, roll guards, keystone identity, materialization planning, feature
-and label integration, coverage matrices, walk-forward wiring, N_eff reporting,
-BBO and cross-market matrices, Core Pilot rerun evidence, downstream handoffs,
-artifact audit, and closeout.
+and label integration, coverage matrices, N_eff reporting, BBO and cross-market
+matrices, Core Pilot rerun evidence, downstream handoffs, artifact audit, and
+closeout.
 
 Each document in this tree should stay value-free, cite campaign or research
 evidence artifacts by path when needed, and avoid broker, live, paper, order,
