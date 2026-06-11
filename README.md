@@ -17,44 +17,29 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. This `FUTSUB-P25` executor snapshot continues the
-`wiring_and_matrices` gate (`FUTSUB-P24`...`FUTSUB-P26`) by adding
-overlap-aware N_eff reporting with an explicit rows-vs-effective-samples
-distinction to the runtime diagnostics surface.
+campaign. This `FUTSUB-P26` executor snapshot produces the BBO quality matrix
+and cross-market alignment matrix, completing the `wiring_and_matrices` gate
+(`FUTSUB-P24`...`FUTSUB-P26`) with value-free substrate quality and alignment
+evidence.
 
 Active / next phase is Ralph-owned. Until Ralph validates, reviews, and merges
-this executor snapshot, `FUTSUB-P25` remains the nominal active phase. After
-merge, the nominal next phase is `FUTSUB-P26` - BBO Quality and Cross-Market
-Alignment Matrices; `FUTSUB-P27` also depends on this phase's N_eff metadata for
-the Core Pilot re-lock path.
+this executor snapshot, `FUTSUB-P26` remains the nominal active phase. After
+merge, the nominal next phase is `FUTSUB-P27` - Re-lock Core Pilot StudySpecs
+Against Full Substrate.
 
-New durable surfaces through this `FUTSUB-P25` executor snapshot:
+New durable surfaces through this `FUTSUB-P26` executor snapshot:
 
-- `src/alpha_system/runtime/diagnostics/splits/walk_forward.py` provides the
-  value-free split-plan callable path over the existing experiment primitives.
-- `src/alpha_system/runtime/diagnostics/factor/runtime.py` accepts opt-in
-  `walk_forward_config` and emits fold metadata or a visible inconclusive
-  reason when requested.
-- `src/alpha_system/runtime/diagnostics/splits/n_eff.py` provides the
-  deterministic overlap-aware N_eff estimator, session/day aggregation hooks,
-  and P24 fold-metadata attachment helpers.
-- `src/alpha_system/runtime/diagnostics/label/runtime.py` accepts opt-in
-  N_eff metadata and emits `label_n_eff_report` without changing default label
-  diagnostics calls.
-- `docs/futures_substrate_scaleout/WALK_FORWARD_WIRING.md` summarizes the P24
-  runtime wiring, protocol hooks, and deferred statistical scope.
-- `docs/futures_substrate_scaleout/N_EFF.md` documents the estimator,
-  rows-vs-effective-samples report contract, session/day hooks, and
-  Validation Governance handoff shape.
-- `research/futures_substrate_scaleout_v1/wiring/walk_forward_wiring_smoke.md`
-  records the value-free wiring smoke case.
-- `research/futures_substrate_scaleout_v1/wiring/n_eff_sample_report.md`
-  records the value-free synthetic N_eff sample evidence.
-- `tests/unit/futures_substrate_scaleout/test_n_eff_reporting.py` covers the
-  estimator, fail-closed behavior, aggregation hooks, fold attachment, label
-  report integration, backward compatibility, and determinism.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P25.md`
-  records validation, changed paths, and artifact policy for coordinator use.
+- `research/futures_substrate_scaleout_v1/matrices/bbo_quality.md` records the
+  value-free BBO quality matrix over registered P12 BBO FeaturePack values.
+- `research/futures_substrate_scaleout_v1/matrices/cross_market_alignment.md`
+  records the value-free cross-market state coverage, strict-intersection
+  survival, and availability-discipline matrix over registered P13 values.
+- `docs/futures_substrate_scaleout/BBO_AND_CROSS_MARKET_MATRICES.md`
+  documents how P27...P29, Validation Governance, and future mining campaigns
+  should consume the matrices.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P26.md`
+  records validation, inputs, quality context, and artifact policy for
+  coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -92,7 +77,10 @@ P23 records coverage gaps explicitly rather than accepting the substrate by
 subset. P24 exposes walk-forward fold metadata but does not treat rows as
 independent samples for overlapping horizons. P25 adds N_eff as a reporting
 input only; full multiple-testing / DSR / PBO / PSR governance remains deferred
-to `ALPHA_VALIDATION_GOVERNANCE_V1`.
+to `ALPHA_VALIDATION_GOVERNANCE_V1`. P26 keeps BBO as a time-sampled and
+forward-filled tradability proxy, never execution truth, and records
+cross-market `strict_intersection` alignment with per-instrument `available_ts`
+discipline and no cross-instrument forward-fill.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
