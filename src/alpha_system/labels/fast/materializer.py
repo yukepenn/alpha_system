@@ -55,6 +55,7 @@ from alpha_system.labels.families.fixed_horizon import (
     FixedHorizonLabelError,
     compute_horizon_overlap_metadata,
 )
+from alpha_system.labels.families.fixed_horizon.family import _guarded_forward_terminal
 from alpha_system.labels.families.path import PathLabelDefinition
 from alpha_system.labels.registry import LabelRegistry
 from alpha_system.labels.version import (
@@ -69,6 +70,7 @@ from alpha_system.labels.version import (
 FAST_LABEL_PRODUCER_ENGINE_ID = "alpha_system.labels.fast.pack_materializer.v1"
 FAST_LABEL_VALUE_SCHEMA_VERSION = "alpha_system.labels.fast.values.v1"
 _REGISTRY_WRITE_LOCK = Lock()
+_DUPLICATE_BBO_KEY_FLAG = "duplicate_bbo_key"
 
 type CanonicalRowLoader = Callable[..., Sequence[Mapping[str, Any]]]
 type FastSupportedLabelDefinition = (
@@ -770,46 +772,83 @@ def _compute_cost_adjusted_records_from_panel(
     panel: Any,
     definition: CostAdjustedLabelDefinition,
 ) -> tuple[LabelValueRecord, ...]:
-    """Compute cost/spread-adjusted records with reference iteration semantics.
+    """Compute cost/spread-adjusted records with post-P19 reference semantics.
 
     The reference family iterates the BBO view directly (one record per BBO
-    quote row, gap records included) and resolves the terminal as the exact
-    ``(series_id, event_ts + horizon)`` BBO row. Real canonical BBO timestamps
-    are not minute-aligned, so the OHLCV-anchored panel join must not anchor
-    this family (LCFP-P08 repair: the joined path emitted zero records on real
-    slices). The shared panel carries the un-joined quote rows for this use.
+    bar-end quote row, gap records included), anchors quote event timestamps to
+    ``bar_end_ts``, resolves terminals by ``series_id + contract_id +
+    bar_end_ts``, and applies the shared roll/maintenance terminal guard before
+    quote validity checks.
     """
-
-    from alpha_system.labels.fast.panel import (
-        LabelAvailabilityFamily,
-        derive_label_available_ts,
-    )
 
     horizon = _cost_horizon_delta(definition)
     quote_rows = sorted(panel.bbo_rows, key=lambda row: row.available_ts)
-    bbo_rows_by_key: dict[tuple[str, datetime], Any] = {}
+    bbo_rows_by_key: dict[tuple[str, str, datetime], Any] = {}
     for row in quote_rows:
-        key = (row.series_id, row.event_ts)
+        key = (row.series_id, row.contract_id, row.bar_end_ts)
         if key in bbo_rows_by_key:
             raise FastLabelPackError(
-                "cost-adjusted BBO rows must not duplicate series_id/event_ts"
+                "cost-adjusted BBO rows must not duplicate "
+                "series_id/contract_id/bar_end_ts"
             )
         bbo_rows_by_key[key] = row
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[Any, ...]] = {}
     records: list[LabelValueRecord] = []
     for source in quote_rows:
         horizon_end_ts = source.event_ts + horizon
-        terminal = bbo_rows_by_key.get((source.series_id, horizon_end_ts))
-        label_available_ts = derive_label_available_ts(
-            LabelAvailabilityFamily.COST_ADJUSTED,
-            definition.spec.label_contract.availability_policy,
-            horizon_end_ts=horizon_end_ts,
-            terminal_available_ts=terminal.available_ts if terminal is not None else None,
-        )
-        value, flags = _cost_adjusted_value_and_flags(
-            source,
-            terminal,
-            definition,
-        )
+        terminal = bbo_rows_by_key.get((source.series_id, source.contract_id, horizon_end_ts))
+        if terminal is None:
+            label_available_ts = _cost_label_available_ts(
+                definition,
+                source,
+                horizon_end_ts=horizon_end_ts,
+                terminal=None,
+            )
+            value, flags = None, _cost_gap_flags("missing_terminal_bbo")
+        elif _DUPLICATE_BBO_KEY_FLAG in source.bbo_quality_flags:
+            label_available_ts = _cost_label_available_ts(
+                definition,
+                source,
+                horizon_end_ts=terminal.event_ts,
+                terminal=terminal,
+            )
+            value, flags = None, _cost_gap_flags(_DUPLICATE_BBO_KEY_FLAG)
+            horizon_end_ts = terminal.event_ts
+        elif _DUPLICATE_BBO_KEY_FLAG in terminal.bbo_quality_flags:
+            label_available_ts = _cost_label_available_ts(
+                definition,
+                source,
+                horizon_end_ts=terminal.event_ts,
+                terminal=terminal,
+            )
+            value, flags = None, _cost_gap_flags(
+                "terminal_duplicate_bbo_key",
+                extra_flags=(_DUPLICATE_BBO_KEY_FLAG,),
+            )
+            horizon_end_ts = terminal.event_ts
+        else:
+            guarded = _guarded_cost_bbo_terminal(
+                source,
+                terminal,
+                terminal_by_key=bbo_rows_by_key,
+                roll_calendar_cache=roll_calendar_cache,
+            )
+            if guarded is None:
+                continue
+            terminal, guard_flags = guarded
+            horizon_end_ts = terminal.event_ts
+            label_available_ts = _cost_label_available_ts(
+                definition,
+                source,
+                horizon_end_ts=horizon_end_ts,
+                terminal=terminal,
+            )
+            value, flags = _cost_adjusted_value_and_flags(
+                source,
+                terminal,
+                definition,
+                guard_flags=guard_flags,
+            )
         records.append(
             LabelValueRecord(
                 label_version_id=definition.label_version_id,
@@ -847,32 +886,67 @@ def _label_value_and_flags_from_panel(
 
 def _cost_adjusted_value_and_flags(
     source: Any,
-    terminal: Any | None,
+    terminal: Any,
     definition: CostAdjustedLabelDefinition,
+    *,
+    guard_flags: Sequence[str] = (),
 ) -> tuple[float | None, tuple[str, ...]]:
     if not _is_valid_panel_bbo_quote(source):
         return None, _cost_gap_flags(
             "entry_bbo_gap",
-            extra_flags=_cost_bbo_gap_flags(source),
+            extra_flags=(*_cost_bbo_gap_flags(source), *guard_flags),
         )
-    if terminal is None:
-        return None, _cost_gap_flags("missing_terminal_bbo")
     if not _is_valid_panel_bbo_quote(terminal):
         return None, _cost_gap_flags(
             "terminal_bbo_gap",
-            extra_flags=_cost_bbo_gap_flags(terminal),
+            extra_flags=(*_cost_bbo_gap_flags(terminal), *guard_flags),
         )
 
     source_mid = _decimal_from_panel(source.mid, "source mid")
     terminal_mid = _decimal_from_panel(terminal.mid, "terminal mid")
     if source_mid <= 0 or terminal_mid <= 0:
-        return None, _cost_gap_flags("zero_or_negative_mid")
+        return None, _cost_gap_flags("zero_or_negative_mid", extra_flags=guard_flags)
 
     raw_return = (terminal_mid / source_mid) - Decimal("1")
     adjusted_return = raw_return - _cost_adjustment_return(definition, source, terminal)
     if not adjusted_return.is_finite():
-        return None, _cost_gap_flags("non_finite_return")
-    return float(adjusted_return), ()
+        return None, _cost_gap_flags("non_finite_return", extra_flags=guard_flags)
+    return float(adjusted_return), _ordered_quality_flags(guard_flags)
+
+
+def _guarded_cost_bbo_terminal(
+    source: Any,
+    terminal: Any,
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], Any],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[Any, ...]],
+) -> tuple[Any, tuple[str, ...]] | None:
+    try:
+        return _guarded_forward_terminal(
+            source,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+    except Exception as exc:  # noqa: BLE001 - normalize shared guard errors for fast callers.
+        raise FastLabelPackError(str(exc)) from exc
+
+
+def _cost_label_available_ts(
+    definition: CostAdjustedLabelDefinition,
+    source: Any,
+    *,
+    horizon_end_ts: datetime,
+    terminal: Any | None,
+) -> datetime:
+    candidates = [
+        _coerce_datetime(horizon_end_ts, "horizon_end_ts"),
+        definition.spec.label_contract.availability_policy.availability_time,
+        _coerce_datetime(source.available_ts, "source.available_ts"),
+    ]
+    if terminal is not None:
+        candidates.append(_coerce_datetime(terminal.available_ts, "terminal.available_ts"))
+    return max(candidates)
 
 
 # Per-definition cost-model constants, hoisted out of the per-row loop like
