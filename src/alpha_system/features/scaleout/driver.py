@@ -1874,6 +1874,10 @@ def _label_scaleout_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict
 
 
 def _fast_label_registry_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) -> dict[str, Any]:
+    from alpha_system.labels.families.fixed_horizon import (
+        MAINTENANCE_GUARD_VERSION,
+        MAINTENANCE_POLICY_ID,
+    )
     from alpha_system.labels.fast import (
         FAST_LABEL_PRODUCER_ENGINE_ID,
         FAST_LABEL_VALUE_SCHEMA_VERSION,
@@ -1894,7 +1898,16 @@ def _fast_label_registry_metadata(config: ScaleoutConfig, unit: ScaleoutUnit) ->
         "engine_selection": SCALEOUT_ENGINE_V1,
         "roll_policy_id": ROLL_POLICY_ID,
         "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": "drop",
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
         "terminal_key": "series_id+contract_id+event_ts",
+        "terminal_resolution": (
+            "full_path_window_guarded_before_scan"
+            if config.family == "path"
+            else "exact_event_ts"
+        ),
     }
 
 
@@ -1962,6 +1975,7 @@ def _fast_label_definitions_for_unit(config: ScaleoutConfig, unit: ScaleoutUnit)
                 name,
                 _path_label_spec(name, unit),
                 dataset_version_ids=dataset_version_ids,
+                materialization_scope=_label_unit_materialization_scope(unit),
             )
             for name in unit.feature_names
         )

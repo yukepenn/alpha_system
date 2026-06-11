@@ -17,40 +17,41 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. `FUTSUB-P19` materialized and registered the cost-adjusted
-LabelPacks for ES/NQ/RTY across the accepted 2019-2026 window, alongside the
-fixed-horizon (P16), extended-horizon (P17), and session-close /
-maintenance-flat (P18) packs already in the `label_materialization` gate.
+campaign. This `FUTSUB-P20` executor snapshot materialized and registered the
+path LabelPacks for ES/NQ/RTY across the accepted 2019-2026 window, alongside
+the fixed-horizon (P16), extended-horizon (P17), session-close /
+maintenance-flat (P18), and cost-adjusted (P19) packs. The
+`label_materialization` gate (P16-P20) is now closed from the executor side,
+pending Ralph-owned validation, review, staging, PR, CI, merge, and done-check
+state transitions.
 
-Active / next phase after this branch: Ralph owns validation, review, staging,
-PR creation, CI, merge, and live run state transitions for `FUTSUB-P19`. The
-next serial label-materialization phase is `FUTSUB-P20` for path labels before
-P21/P22/P23 perform guard audit, resolver integration, and coverage matrices.
+Active / next phase after this branch: `FUTSUB-P21` - Roll-Splice and
+Maintenance-Crossing Label Guard Audit, opening the `label_integration` gate
+for P21-P23.
 
-New durable surfaces through this `FUTSUB-P19` executor snapshot:
+New durable surfaces through this `FUTSUB-P20` executor snapshot:
 
-- `configs/labels/scaleout/cost_adjusted.json` is the governed cost-adjusted
-  label scaleout config for ES/NQ/RTY accepted windows, including documented
-  cost/fee/slippage assumptions, BBO-proxy semantics, reference-engine
-  selection, and the one-off P19 worker opt-in record.
-- `src/alpha_system/labels/families/cost_adjusted/family.py` applies the shared
-  roll-splice and maintenance-crossing terminal guard and records cost,
-  BBO-proxy, bar-end terminal resolution, and guard metadata in the label
-  contract. Ambiguous duplicate BBO source or terminal keys become gap metadata
-  rather than a silent quote choice.
-- `src/alpha_system/features/scaleout/driver.py` owns the P19 reference-engine
-  cost-adjusted materialization path, registry-truth skip checks, and
-  supersession metadata for bar-end-aligned BBO terminals.
-- `research/futures_substrate_scaleout_v1/label_packs/cost_adjusted/coverage_summary.md`
-  is the value-free coverage summary for the completed accepted-window
-  materialization, including documented cost/fee/slippage versions, BBO-proxy
-  gap counts, `label_available_ts`, registry metadata, and overlap-aware
-  N_eff summaries.
-- `tests/unit/futures_substrate_scaleout/labels/test_cost_adjusted_scaleout.py`
-  covers synthetic variant emission, intra-bar BBO terminal resolution,
-  `label_available_ts`, guard drops, duplicate BBO-key gaps, cost-version
-  metadata, and checkpoint skip behavior.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P19.md`
+- `configs/labels/scaleout/path.json` is the governed path-label scaleout
+  config for ES/NQ/RTY accepted windows, including V1 fast-engine selection,
+  worker/thread caps, path variants, horizon set, guard policy, and R-021
+  feasibility bounds.
+- `src/alpha_system/labels/families/path/family.py` and
+  `src/alpha_system/labels/fast/path.py` apply the shared roll-splice and
+  maintenance-crossing guard to the full path window before MFE/MAE excursion
+  or barrier-touch measurement.
+- `src/alpha_system/features/scaleout/driver.py` carries the path
+  materialization scope into label identity and registry metadata so dry-run
+  identity preview, execution, registry records, and resolver locks use the
+  same partition-scoped label-version ids.
+- `research/futures_substrate_scaleout_v1/label_packs/path/coverage_summary.md`
+  and `coverage_matrix.json` are value-free coverage evidence for the accepted
+  window, including feasibility accounting, guard drop/flag counts,
+  `label_available_ts`, registry metadata, and overlap-aware N_eff summaries.
+- `tests/unit/futures_substrate_scaleout/labels/test_path_scaleout.py` covers
+  synthetic MFE/MAE values, first-touch barrier `label_available_ts`,
+  roll-crossing drops, maintenance-crossing drops, and partition-scoped path
+  label identity.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P20.md`
   records materialization evidence, validation, and residual review focus for
   reviewer and coordinator use.
 
@@ -79,13 +80,13 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-The per-row reference label engine remains the correctness oracle. RLPC-P03 does
-not edit the reference engine, label families, roll guard, label versioning, or
-any data artifact. Registry writes remain parent-only and serial; the benchmark
-uses isolated local namespaces under the data root and leaves production
-registry row counts unchanged. Later phases must preserve exact identity, serial
-registry writes, roll/maintenance guards, default workers=1, and
-`label_available_ts` no-lookahead behavior.
+The per-row reference label engine remains the correctness oracle. Registry
+writes remain parent-only and serial. Label values, registries, manifests,
+checkpoints, and SQLite files stay local-only under `ALPHA_DATA_ROOT`; path
+labels must never silently cross a quarterly roll or the daily maintenance /
+trade-date break. Infeasible path units must be flagged with recorded bounds,
+not silently skipped. Resolver semantics remain exact-id and fail-closed, with
+no fuzzy fallback.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,

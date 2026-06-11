@@ -15,9 +15,22 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
+from alpha_system.data.foundation.rolls import RollCalendarRecord
 from alpha_system.features.input_views import OHLCVInputView
 from alpha_system.features.semantics import TradeBarRow, is_real_trade_bar
 from alpha_system.governance.label_spec import LabelSpec as GovernanceLabelSpec
+from alpha_system.labels.families.fixed_horizon import (
+    MAINTENANCE_GUARD_VERSION,
+    MAINTENANCE_POLICY_ID,
+)
+from alpha_system.labels.families.fixed_horizon.family import _guarded_forward_terminal
+from alpha_system.labels.roll_guard import (
+    DEFAULT_CROSS_ROLL_POLICY,
+    DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+    DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+    ROLL_GUARD_VERSION,
+    ROLL_POLICY_ID,
+)
 from alpha_system.labels.version import (
     LabelContractSpec,
     LabelFamily,
@@ -122,6 +135,8 @@ def build_path_label_definition(
     *,
     dataset_version_ids: Sequence[str] = (),
     price_field: str | None = None,
+    contract_metadata: Mapping[str, Any] | None = None,
+    materialization_scope: Mapping[str, Any] | None = None,
 ) -> PathLabelDefinition:
     """Build one strategy-agnostic path label from a governed `LabelSpec`.
 
@@ -145,6 +160,34 @@ def build_path_label_definition(
         target_return = _required_target(target_return)
         stop_return = _required_stop(stop_return)
 
+    metadata = {
+        "campaign": "ALPHA_FEATURE_LABEL_FOUNDATION_V1",
+        "phase": "FLF-P19",
+        "scaleout_campaign": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+        "scaleout_phase": "FUTSUB-P20",
+        "label_family": LabelFamily.PATH.value,
+        "label_name": label_name.value,
+        "materialization": "in_memory_records_only",
+        "claims": "descriptive_label_substrate_only",
+        "path_scan": "positional_real_trade_bar_window",
+        "terminal_key": "series_id+contract_id+event_ts",
+        "terminal_resolution": "full_path_window_guarded_before_scan",
+        "roll_policy_id": ROLL_POLICY_ID,
+        "roll_guard_version": ROLL_GUARD_VERSION,
+        "roll_cross_policy": DEFAULT_CROSS_ROLL_POLICY.value,
+        "roll_window": {
+            "days_before": DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+            "days_after": DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+        },
+        "maintenance_policy_id": MAINTENANCE_POLICY_ID,
+        "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
+        "maintenance_crossing_policy": "drop",
+        **dict(contract_metadata or {}),
+    }
+    scope = _materialization_scope_metadata(materialization_scope)
+    if scope:
+        metadata["materialization_scope"] = scope
+
     contract = LabelContractSpec.from_label_spec(
         label_id=f"path_{label_name.value}",
         family=LabelFamily.PATH,
@@ -159,8 +202,7 @@ def build_path_label_definition(
             },
         ),
         contract_metadata={
-            "phase": "FLF-P19",
-            "label_name": label_name.value,
+            **metadata,
             "horizon_steps": horizon_steps,
             "price_field": resolved_price_field,
             "direction": direction.value,
@@ -213,9 +255,17 @@ def compute_path_label(
 
     definition = _require_definition(definition)
     rows = _real_trade_rows(input_view)
+    terminal_by_key = _terminal_by_key(rows)
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]] = {}
     records: list[LabelValueRecord] = []
     for entry_index, entry_row in enumerate(rows):
-        outcome = _resolve_path_outcome(definition, rows, entry_index)
+        outcome = _resolve_path_outcome(
+            definition,
+            rows,
+            entry_index,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
         if outcome is None:
             continue
         records.append(_value_record(definition, entry_row, outcome))
@@ -238,23 +288,43 @@ def _resolve_path_outcome(
     definition: PathLabelDefinition,
     rows: tuple[TradeBarRow, ...],
     entry_index: int,
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], TradeBarRow],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]],
 ) -> _PathOutcome | None:
     entry_row = rows[entry_index]
     future_rows = rows[entry_index + 1 : entry_index + 1 + definition.horizon_steps]
     if not future_rows:
         return None
+    guarded = _guarded_path_window(
+        entry_row,
+        future_rows,
+        terminal_by_key=terminal_by_key,
+        roll_calendar_cache=roll_calendar_cache,
+    )
+    if guarded is None:
+        return None
+    future_rows, guard_flags = guarded
 
     if definition.name is PathLabelName.MFE:
         if len(future_rows) < definition.horizon_steps:
             return None
         value = max(_bar_returns(definition, entry_row, row).favorable for row in future_rows)
-        return _PathOutcome(value=value, resolution_row=future_rows[-1])
+        return _PathOutcome(
+            value=value,
+            resolution_row=future_rows[-1],
+            quality_flags=guard_flags,
+        )
 
     if definition.name is PathLabelName.MAE:
         if len(future_rows) < definition.horizon_steps:
             return None
         value = min(_bar_returns(definition, entry_row, row).adverse for row in future_rows)
-        return _PathOutcome(value=value, resolution_row=future_rows[-1])
+        return _PathOutcome(
+            value=value,
+            resolution_row=future_rows[-1],
+            quality_flags=guard_flags,
+        )
 
     barrier, resolution_row = _first_barrier(definition, entry_row, future_rows)
     if barrier is None:
@@ -270,15 +340,85 @@ def _resolve_path_outcome(
         return _PathOutcome(
             value=target_before_stop_value,
             resolution_row=resolution_row,
-            quality_flags=_barrier_quality_flags(barrier),
+            quality_flags=_merge_quality_flags(_barrier_quality_flags(barrier), guard_flags),
         )
     if definition.name is PathLabelName.TRIPLE_BARRIER:
         return _PathOutcome(
             value=_triple_barrier_value(barrier),
             resolution_row=resolution_row,
-            quality_flags=_barrier_quality_flags(barrier),
+            quality_flags=_merge_quality_flags(_barrier_quality_flags(barrier), guard_flags),
         )
     raise PathLabelError(f"unsupported path label: {definition.name}")
+
+
+def _guarded_path_window(
+    entry_row: TradeBarRow,
+    future_rows: tuple[TradeBarRow, ...],
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], TradeBarRow],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[RollCalendarRecord, ...]],
+) -> tuple[tuple[TradeBarRow, ...], tuple[str, ...]] | None:
+    terminal = future_rows[-1]
+    if not _path_segment_is_contract_scoped(entry_row, future_rows):
+        return None
+    try:
+        guarded = _guarded_forward_terminal(
+            entry_row,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+    except Exception as exc:  # noqa: BLE001 - normalize shared guard errors for this family.
+        raise PathLabelError("path label guard evaluation failed") from exc
+    if guarded is None:
+        return None
+    effective_terminal, guard_flags = guarded
+    if _row_key(effective_terminal) == _row_key(terminal):
+        return future_rows, guard_flags
+    truncated: list[TradeBarRow] = []
+    for row in future_rows:
+        truncated.append(row)
+        if _row_key(row) == _row_key(effective_terminal):
+            return tuple(truncated), guard_flags
+    return None
+
+
+def _path_segment_is_contract_scoped(
+    entry_row: TradeBarRow,
+    future_rows: tuple[TradeBarRow, ...],
+) -> bool:
+    entry_key = (_series_id(entry_row), _contract_id(entry_row))
+    return all((_series_id(row), _contract_id(row)) == entry_key for row in future_rows)
+
+
+def _terminal_by_key(rows: tuple[TradeBarRow, ...]) -> dict[tuple[str, str, datetime], TradeBarRow]:
+    result: dict[tuple[str, str, datetime], TradeBarRow] = {}
+    for row in rows:
+        key = _row_key(row)
+        if key in result:
+            raise PathLabelError(
+                "path labels require unique rows per series_id, contract_id, and event_ts"
+            )
+        result[key] = row
+    return result
+
+
+def _row_key(row: TradeBarRow) -> tuple[str, str, datetime]:
+    return (_series_id(row), _contract_id(row), _aware_datetime(row.event_ts, "event_ts"))
+
+
+def _series_id(row: TradeBarRow) -> str:
+    value = getattr(row, "series_id", None)
+    if not isinstance(value, str) or not value.strip():
+        raise PathLabelError("trade row series_id must be a non-empty string")
+    return value.strip()
+
+
+def _contract_id(row: TradeBarRow) -> str:
+    value = getattr(row, "contract_id", None)
+    if not isinstance(value, str) or not value.strip():
+        raise PathLabelError("trade row contract_id must be a non-empty string")
+    return value.strip()
 
 
 def _first_barrier(
@@ -483,6 +623,42 @@ def _barrier_quality_flags(barrier: PathBarrier) -> tuple[str, ...]:
     if barrier is PathBarrier.AMBIGUOUS:
         return ("ambiguous_same_bar_barrier",)
     return ()
+
+
+def _merge_quality_flags(*groups: Sequence[str]) -> tuple[str, ...]:
+    flags: list[str] = []
+    for group in groups:
+        for flag in group:
+            if not isinstance(flag, str) or not flag.strip():
+                raise PathLabelError("quality_flags must contain non-empty strings")
+            token = flag.strip().lower()
+            if token not in flags:
+                flags.append(token)
+    return tuple(flags)
+
+
+def _materialization_scope_metadata(
+    value: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise PathLabelError("materialization_scope must be a mapping")
+    scope: dict[str, str] = {}
+    for key, item in value.items():
+        key_text = _metadata_text(key, "materialization_scope key")
+        item_text = _metadata_text(item, f"materialization_scope.{key_text}")
+        scope[key_text] = item_text
+    return dict(sorted(scope.items()))
+
+
+def _metadata_text(value: object, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise PathLabelError(f"{field_name} must be a string")
+    text = value.strip()
+    if not text:
+        raise PathLabelError(f"{field_name} must be a non-empty string")
+    return text
 
 
 def _triple_barrier_value(barrier: PathBarrier) -> int | None:
