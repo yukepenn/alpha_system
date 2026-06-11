@@ -74,11 +74,70 @@
   },
   "guards": {
     "label_available_ts_required": true,
+    "label_available_ts_rules": {
+      "mfe": "window_end_available_ts",
+      "mae": "window_end_available_ts",
+      "target_before_stop": "first_barrier_touch_available_ts_or_window_end_available_ts",
+      "triple_barrier": "first_barrier_touch_available_ts_or_window_end_available_ts"
+    },
     "roll_splice_guard_required": true,
     "maintenance_crossing_guard_required": true,
     "overlap_aware_n_eff_metadata_required": true,
+    "terminal_key": "series_id+contract_id+event_ts",
+    "terminal_resolution": "full_path_window_guarded_before_scan",
     "roll_policy_ref": "docs/futures_substrate_scaleout/ROLL_GUARD.md",
     "expensive_or_unstable_cases_must_be_flagged": true
+  },
+  "engine": {
+    "selected": "v1",
+    "selection_basis": "LCFP-P08 accepted path labels on the V1 fast label producer path.",
+    "cli": "--engine v1 --workers 8",
+    "env": {
+      "ALPHA_LABEL_CPU_WORKERS": "8",
+      "POLARS_MAX_THREADS": "2",
+      "OMP_NUM_THREADS": "2",
+      "RAYON_NUM_THREADS": "2",
+      "NUMBA_NUM_THREADS": "2"
+    },
+    "registry_writes": "parent_only_serial",
+    "reference_oracle": "alpha_system.labels.families.path"
+  },
+  "path_label_definitions": {
+    "parameter_source": "existing governed path-family definitions plus FUTSUB-P05 batch plan; no parameter sweep or tuning",
+    "price_field": "close",
+    "direction": "long",
+    "target_return": 0.02,
+    "stop_return": -0.02,
+    "same_bar_policy": "ambiguous",
+    "variants": {
+      "mfe": {
+        "definition": "maximum favorable excursion over the guarded forward real-trade-bar window",
+        "label_available_ts": "window end / effective guarded terminal availability"
+      },
+      "mae": {
+        "definition": "maximum adverse excursion over the guarded forward real-trade-bar window",
+        "label_available_ts": "window end / effective guarded terminal availability"
+      },
+      "target_before_stop": {
+        "definition": "boolean target-before-stop path outcome using governed target_return and stop_return",
+        "label_available_ts": "first target/stop touch availability; if no touch, guarded window end availability"
+      },
+      "triple_barrier": {
+        "definition": "upper/lower/time barrier outcome encoded as target=1, stop=-1, horizon=0, ambiguous=null",
+        "label_available_ts": "first target/stop touch availability; if no touch, guarded window end availability"
+      }
+    }
+  },
+  "feasibility_policy": {
+    "risk_id": "R-021",
+    "where_feasible": true,
+    "per_unit_budget": {
+      "row_budget": 550000,
+      "path_metric_evaluation_budget": 2200000,
+      "measured_bound_required_for_infeasible_units": true
+    },
+    "silent_skip_allowed": false,
+    "unbounded_compute_allowed": false
   },
   "value_store": {
     "format": "parquet",

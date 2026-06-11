@@ -271,26 +271,27 @@ def _definition(
 
 
 @pytest.mark.parametrize(
-    ("rows_factory", "expected_full_window_entries"),
+    ("rows_factory", "expected_guarded_entries"),
     (
         # 7 rows around the maintenance break + timestamp gap, horizon 3:
-        # the reference emits the 4 entries with full positional windows.
-        ("maintenance_gap_recovery", 4),
+        # the guarded path reference emits only the non-crossing full window.
+        ("maintenance_gap_recovery", 1),
         # 8 contiguous rows inside the ES analytic roll window, horizon 3:
-        # the reference applies no roll guard and emits 5 entries.
-        ("roll_window_recovery", 5),
+        # the shared roll guard drops all entries under the DROP policy.
+        ("roll_window_recovery", 0),
     ),
 )
-def test_mfe_record_set_matches_reference_across_gaps_and_roll_windows(
+def test_mfe_record_set_matches_guarded_reference_across_gaps_and_roll_windows(
     rows_factory: str,
-    expected_full_window_entries: int,
+    expected_guarded_entries: int,
 ) -> None:
     """Regression for LCFP-P08 finding 3 (1628 missing fast mfe records).
 
     The reference path family resolves horizons positionally over real trade
-    bars with no roll or maintenance terminal guard; the fast kernel must emit
-    exactly the same record set on panels containing maintenance breaks,
-    timestamp gaps, and roll windows.
+    bars, then applies the shared full-window roll and maintenance guard before
+    path measurement; the fast kernel must emit exactly the same guarded record
+    set on panels containing maintenance breaks, timestamp gaps, and roll
+    windows.
     """
 
     pytest.importorskip("polars")
@@ -307,9 +308,8 @@ def test_mfe_record_set_matches_reference_across_gaps_and_roll_windows(
     accepted = accepted_version(DATASET_ID)
     definitions = _definitions(horizon_steps=3)
 
-    # Prove the fixture actually triggers the pre-repair drop mechanism: the
-    # fixed-minute guarded terminal model (which the old kernel consumed)
-    # drops at least one entry that the reference emits positionally.
+    # Prove the fixture actually exercises the guarded-drop mechanism that used
+    # to diverge from the path reference.
     panel = build_shared_label_panel(
         symbol="ES",
         year=2024,
@@ -346,8 +346,7 @@ def test_mfe_record_set_matches_reference_across_gaps_and_roll_windows(
     mfe_reference = reference_records[PathLabelName.MFE]
     mfe_fast = fast_records.get(mfe_definition.label_version_id, ())
 
-    # The mechanism requires the reference to emit records here at all.
-    assert len(mfe_reference) == expected_full_window_entries
+    assert len(mfe_reference) == expected_guarded_entries
     reference_keys = {(record.entity_id, record.event_ts) for record in mfe_reference}
     fast_keys = {(record.entity_id, record.event_ts) for record in mfe_fast}
     assert fast_keys == reference_keys, (
@@ -359,6 +358,12 @@ def test_mfe_record_set_matches_reference_across_gaps_and_roll_windows(
         rel=1e-12,
         reason="Decimal reference path arithmetic is compared to float panel arithmetic",
     )
+    if expected_guarded_entries == 0:
+        for definition in definitions:
+            assert reference_records[definition.name] == ()
+            assert fast_records.get(definition.label_version_id, ()) == ()
+        return
+
     for definition in definitions:
         assert_label_records_match(
             reference_records[definition.name],

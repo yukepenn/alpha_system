@@ -1,19 +1,18 @@
 """Path-label fast pack declarations and vectorized positional scan kernels.
 
-The reference path family remains the oracle. Its horizon is positional —
-``horizon_steps`` forward REAL TRADE BARS, not fixed minutes — and it applies
-no roll or maintenance terminal guard. The fast kernel reproduces exactly that
-record set (LCFP-P08 repair: the earlier fixed-minute guarded terminal model
-dropped records the reference emits near gaps, maintenance breaks, and roll
-windows). Values are emitted under reference-derived identities only.
+The reference path family remains the oracle. Its horizon is positional:
+``horizon_steps`` forward REAL TRADE BARS, not fixed minutes. The fast kernel
+keeps that positional record set while applying the shared roll-splice and
+maintenance-crossing guard to the full path window before measuring excursions
+or barrier touches. Values are emitted under reference-derived identities only.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from alpha_system.features.input_views import OHLCVInputRow, OHLCVInputView
@@ -26,6 +25,7 @@ from alpha_system.labels.families.path import (
     compute_path_label,
     supported_path_labels,
 )
+from alpha_system.labels.families.fixed_horizon.family import _guarded_forward_terminal
 from alpha_system.labels.version import LabelValueRecord, LabelVersion
 
 from alpha_system.labels.fast.materializer import (
@@ -43,6 +43,8 @@ from alpha_system.labels.fast.panel import (
 
 PATH_LABEL_IDS: tuple[str, ...] = tuple(label_name.value for label_name in supported_path_labels())
 _PATH_LABELS: tuple[PathLabelName, ...] = supported_path_labels()
+_PATH_WINDOW_GUARD_CACHE_MAX = 16
+_PATH_WINDOW_GUARD_CACHE: dict[tuple[object, ...], tuple[tuple[str, ...] | None, ...]] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,10 +133,10 @@ def path_label_pack_coverage() -> PathLabelPackCoverage:
         fallback_label_ids=PATH_LABEL_IDS,
         routes=routes,
         terminal_model=(
-            "reference positional horizon: horizon_steps forward real trade "
-            "bars per entry row, exactly as the reference path family resolves "
-            "them; no fixed-minute terminal lookup and no roll/maintenance "
-            "terminal guard is applied because the reference oracle applies none"
+            "guarded positional horizon: horizon_steps forward real trade "
+            "bars per entry row, contract-scoped on series_id+contract_id and "
+            "checked against the shared roll-splice and maintenance-crossing "
+            "guard before excursion or barrier values are measured"
         ),
         same_bar_policy_note=(
             "Same-bar target/stop touches follow SameBarBarrierPolicy exactly: "
@@ -173,9 +175,10 @@ def compute_path_records_from_panel(
     if not trade_rows:
         return ()
 
+    panel_cache_key = id(panel)
     if definition.name in (PathLabelName.MFE, PathLabelName.MAE):
-        return _excursion_records(definition, trade_rows)
-    return _barrier_records(definition, trade_rows)
+        return _excursion_records(definition, trade_rows, panel_cache_key=panel_cache_key)
+    return _barrier_records(definition, trade_rows, panel_cache_key=panel_cache_key)
 
 
 def _sorted_real_trade_rows(panel: SharedLabelPanel) -> tuple[SharedLabelPanelRow, ...]:
@@ -192,6 +195,8 @@ def _sorted_real_trade_rows(panel: SharedLabelPanel) -> tuple[SharedLabelPanelRo
 def _excursion_records(
     definition: PathLabelDefinition,
     trade_rows: tuple[SharedLabelPanelRow, ...],
+    *,
+    panel_cache_key: int,
 ) -> tuple[LabelValueRecord, ...]:
     """Vectorized MFE/MAE over the positional forward trade-bar window.
 
@@ -206,11 +211,20 @@ def _excursion_records(
     if count <= horizon:
         return ()
     window_max_high, window_min_low = _forward_window_extremes(trade_rows, horizon)
+    guard_results = _path_window_guard_results(
+        trade_rows,
+        horizon,
+        panel_cache_key=panel_cache_key,
+    )
     is_mfe = definition.name is PathLabelName.MFE
     is_long = definition.direction is PathDirection.LONG
     records: list[LabelValueRecord] = []
     for index in range(count - horizon):
         source = trade_rows[index]
+        terminal_index = index + horizon
+        guard_flags = guard_results[index]
+        if guard_flags is None:
+            continue
         entry = _entry_price(source, definition.price_field)
         if is_long:
             value = (
@@ -232,9 +246,9 @@ def _excursion_records(
             _value_record(
                 definition,
                 source=source,
-                resolution_row=trade_rows[index + horizon],
+                resolution_row=trade_rows[terminal_index],
                 value=value,
-                quality_flags=(),
+                quality_flags=guard_flags,
             )
         )
     return tuple(records)
@@ -265,6 +279,8 @@ def _forward_window_extremes(
 def _barrier_records(
     definition: PathLabelDefinition,
     trade_rows: tuple[SharedLabelPanelRow, ...],
+    *,
+    panel_cache_key: int,
 ) -> tuple[LabelValueRecord, ...]:
     """Target-before-stop / triple-barrier with reference positional semantics.
 
@@ -280,6 +296,11 @@ def _barrier_records(
     count = len(trade_rows)
     if count < 2:
         return ()
+    guard_results = _path_window_guard_results(
+        trade_rows,
+        horizon,
+        panel_cache_key=panel_cache_key,
+    )
     full_window_count = max(count - horizon, 0)
     no_touch = [False] * (count - 1)
     if full_window_count > 0:
@@ -300,11 +321,16 @@ def _barrier_records(
     records: list[LabelValueRecord] = []
     for index in range(count - 1):
         source = trade_rows[index]
+        future_rows = trade_rows[index + 1 : index + 1 + horizon]
+        if not future_rows:
+            continue
+        guard_flags = guard_results[index]
+        if guard_flags is None:
+            continue
         if no_touch[index]:
             barrier: PathBarrier | None = PathBarrier.HORIZON
             resolution_row = trade_rows[index + horizon]
         else:
-            future_rows = trade_rows[index + 1 : index + 1 + horizon]
             barrier, resolution_row = _first_barrier(definition, source, future_rows)
             if barrier is None:
                 if len(future_rows) < horizon:
@@ -325,10 +351,102 @@ def _barrier_records(
                 source=source,
                 resolution_row=resolution_row,
                 value=value,
-                quality_flags=_barrier_quality_flags(barrier),
+                quality_flags=_merge_quality_flags(
+                    _barrier_quality_flags(barrier),
+                    guard_flags,
+                ),
             )
         )
     return tuple(records)
+
+
+def _path_window_guard_results(
+    trade_rows: tuple[SharedLabelPanelRow, ...],
+    horizon: int,
+    *,
+    panel_cache_key: int,
+) -> tuple[tuple[str, ...] | None, ...]:
+    count = len(trade_rows)
+    if count < 2:
+        return ()
+    cache_key = (
+        panel_cache_key,
+        horizon,
+        count,
+        trade_rows[0].terminal_key,
+        trade_rows[-1].terminal_key,
+    )
+    cached = _PATH_WINDOW_GUARD_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    terminal_by_key = _terminal_by_key(trade_rows)
+    contract_segment_ends = _contract_segment_ends(trade_rows)
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[object, ...]] = {}
+    results: list[tuple[str, ...] | None] = []
+    for index, source in enumerate(trade_rows[:-1]):
+        terminal_index = min(index + horizon, count - 1)
+        if terminal_index >= contract_segment_ends[index]:
+            results.append(None)
+            continue
+        results.append(
+            _path_window_guard_flags(
+                source,
+                trade_rows[terminal_index],
+                terminal_by_key=terminal_by_key,
+                roll_calendar_cache=roll_calendar_cache,
+            )
+        )
+    value = tuple(results)
+    while len(_PATH_WINDOW_GUARD_CACHE) >= _PATH_WINDOW_GUARD_CACHE_MAX:
+        _PATH_WINDOW_GUARD_CACHE.pop(next(iter(_PATH_WINDOW_GUARD_CACHE)), None)
+    _PATH_WINDOW_GUARD_CACHE[cache_key] = value
+    return value
+
+
+def _path_window_guard_flags(
+    source: SharedLabelPanelRow,
+    terminal: SharedLabelPanelRow,
+    *,
+    terminal_by_key: Mapping[tuple[str, str, datetime], SharedLabelPanelRow],
+    roll_calendar_cache: dict[tuple[str, int, int], tuple[object, ...]],
+) -> tuple[str, ...] | None:
+    try:
+        guarded = _guarded_forward_terminal(
+            source,
+            terminal,
+            terminal_by_key=terminal_by_key,
+            roll_calendar_cache=roll_calendar_cache,
+        )
+    except Exception as exc:  # noqa: BLE001 - normalize shared guard errors for this family.
+        raise FastLabelPackError("path label guard evaluation failed") from exc
+    if guarded is None:
+        return None
+    effective_terminal, guard_flags = guarded
+    if effective_terminal.terminal_key != terminal.terminal_key:
+        return None
+    return tuple(guard_flags)
+
+
+def _terminal_by_key(
+    trade_rows: tuple[SharedLabelPanelRow, ...],
+) -> dict[tuple[str, str, datetime], SharedLabelPanelRow]:
+    return {row.terminal_key: row for row in trade_rows}
+
+
+def _contract_segment_ends(trade_rows: tuple[SharedLabelPanelRow, ...]) -> list[int]:
+    count = len(trade_rows)
+    ends = [count] * count
+    current_end = count
+    for index in range(count - 1, -1, -1):
+        if index == count - 1:
+            current_end = count
+        else:
+            current_key = (trade_rows[index].series_id, trade_rows[index].contract_id)
+            next_key = (trade_rows[index + 1].series_id, trade_rows[index + 1].contract_id)
+            if current_key != next_key:
+                current_end = index + 1
+        ends[index] = current_end
+    return ends
 
 
 def _ordered_path_definitions(
@@ -465,6 +583,18 @@ def _barrier_quality_flags(barrier: PathBarrier) -> tuple[str, ...]:
     if barrier is PathBarrier.AMBIGUOUS:
         return ("ambiguous_same_bar_barrier",)
     return ()
+
+
+def _merge_quality_flags(*groups: Sequence[str]) -> tuple[str, ...]:
+    flags: list[str] = []
+    for group in groups:
+        for flag in group:
+            if not isinstance(flag, str) or not flag.strip():
+                raise FastLabelPackError("quality_flags must contain non-empty strings")
+            token = flag.strip().lower()
+            if token not in flags:
+                flags.append(token)
+    return tuple(flags)
 
 
 def _triple_barrier_value(barrier: PathBarrier) -> int | None:
