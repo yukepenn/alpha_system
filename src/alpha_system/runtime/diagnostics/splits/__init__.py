@@ -13,6 +13,19 @@ from alpha_system.runtime.diagnostics.splits.core import (  # noqa: F401
     default_regime_split_definitions,
     default_session_split_definitions,
 )
+from alpha_system.runtime.diagnostics.splits.n_eff import (  # noqa: F401
+    ESTIMATOR_FORMULA,
+    ROWS_NOT_INDEPENDENT_MARKER,
+    HorizonOverlapMetadata,
+    NEffEstimate,
+    NEffSampleReportingError,
+    SessionDayAggregation,
+    attach_n_eff_to_walk_forward_metadata,
+    build_n_eff_sample_report,
+    build_session_day_aggregation,
+    coerce_horizon_overlap_metadata,
+    estimate_n_eff,
+)
 from alpha_system.runtime.diagnostics.splits.walk_forward import (  # noqa: F401
     WalkForwardSplitConfig,
     WalkForwardSplitError,
