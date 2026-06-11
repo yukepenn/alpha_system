@@ -34,6 +34,10 @@ from alpha_system.runtime.diagnostics.report import (
     DiagnosticsQualityGateStatus,
     DiagnosticsReport,
 )
+from alpha_system.runtime.diagnostics.splits.n_eff import (
+    NEffSampleReportingError,
+    build_n_eff_sample_report,
+)
 from alpha_system.runtime.entry_contract import ACCEPTED_DATASET_VERSION_LIFECYCLE_STATES
 from alpha_system.runtime.input_resolver import RuntimeInputPack
 
@@ -103,6 +107,7 @@ class LabelDiagnosticsReport:
     label_available_ts_validity_items: ScalarSummary
     cost_adjustment_sanity_items: ScalarSummary
     coverage_missingness_items: ScalarSummary
+    n_eff_report: Mapping[str, object] | None = None
 
     @property
     def distribution_summary(self) -> dict[str, JsonScalar]:
@@ -161,6 +166,8 @@ class LabelDiagnosticsReport:
                 "diagnostics_run_record": self.diagnostics_run_record.to_dict(),
             }
         )
+        if self.n_eff_report is not None:
+            payload["label_n_eff_report"] = dict(self.n_eff_report)
         return payload
 
 
@@ -174,6 +181,8 @@ def build_label_diagnostics_report(
     label_observations: Iterable[Mapping[str, Any]] = (),
     label_profiles: Iterable[Mapping[str, Any]] | Mapping[str, Any] = (),
     live_feature_references: Iterable[Any] | Mapping[str, Any] = (),
+    n_eff_overlap_metadata: Any = None,
+    walk_forward_metadata: Any = None,
     config: LabelDiagnosticsConfig | Mapping[str, Any] | None = None,
 ) -> LabelDiagnosticsReport:
     """Build a descriptive label diagnostics report from resolved runtime inputs."""
@@ -217,6 +226,12 @@ def build_label_diagnostics_report(
     mfe_mae = _mfe_mae_summary(observations)
     path_ambiguity = _path_ambiguity_summary(observations)
     cost_sanity = _cost_adjustment_sanity(observations=observations, profiles=profiles)
+    n_eff_report, n_eff_reasons = _n_eff_report(
+        observations=observations,
+        n_eff_overlap_metadata=n_eff_overlap_metadata,
+        walk_forward_metadata=walk_forward_metadata,
+    )
+    _extend_unique(reasons, n_eff_reasons)
     availability = _availability_summary(
         runtime_input_pack=runtime_input_pack,
         observations=observations,
@@ -295,6 +310,16 @@ def build_label_diagnostics_report(
         }
     )
 
+    report_metadata: dict[str, JsonScalar] = {
+        "uses_research_feature_label_diagnostics": True,
+        "uses_research_events_post_event_mfe_mae": True,
+        "uses_research_events_target_before_stop_probability": True,
+        "label_materialization_performed": False,
+        "external_provider_call_performed": False,
+    }
+    if n_eff_overlap_metadata is not None or walk_forward_metadata is not None:
+        report_metadata["n_eff_reporting"] = "reported" if n_eff_report is not None else "failed"
+
     report = DiagnosticsReport(
         report_kind=LABEL_DIAGNOSTICS_REPORT_KIND,
         diagnostics_family=DiagnosticsFamily.LABEL,
@@ -306,13 +331,7 @@ def build_label_diagnostics_report(
         limitations=active_config.limitations,
         quality_gates=gates,
         rejection_reasons=tuple(reasons),
-        report_metadata={
-            "uses_research_feature_label_diagnostics": True,
-            "uses_research_events_post_event_mfe_mae": True,
-            "uses_research_events_target_before_stop_probability": True,
-            "label_materialization_performed": False,
-            "external_provider_call_performed": False,
-        },
+        report_metadata=report_metadata,
     )
     record = DiagnosticsRunRecord(
         diagnostics_run_spec_ref=spec_ref,
@@ -331,6 +350,7 @@ def build_label_diagnostics_report(
         label_available_ts_validity_items=_summary_items(availability),
         cost_adjustment_sanity_items=_summary_items(cost_sanity),
         coverage_missingness_items=_summary_items(coverage_missingness),
+        n_eff_report=n_eff_report,
     )
 
 
@@ -590,22 +610,21 @@ def _label_as_feature_reference_reasons(
     references = tuple(_flatten_reference_strings(live_feature_references))
     if not references:
         return ()
-    label_refs = {
-        _normalize_ref(label_pack.label_id)
-        for label_pack in runtime_input_pack.label_packs
-    } | {
-        _normalize_ref(label_pack.label_version_id)
-        for label_pack in runtime_input_pack.label_packs
-    } | {
-        _normalize_ref(label_pack.label_spec_id)
-        for label_pack in runtime_input_pack.label_packs
-    }
+    label_refs = (
+        {_normalize_ref(label_pack.label_id) for label_pack in runtime_input_pack.label_packs}
+        | {
+            _normalize_ref(label_pack.label_version_id)
+            for label_pack in runtime_input_pack.label_packs
+        }
+        | {
+            _normalize_ref(label_pack.label_spec_id)
+            for label_pack in runtime_input_pack.label_packs
+        }
+    )
     for reference in references:
         normalized = _normalize_ref(reference)
         tokens = {
-            token
-            for token in normalized.replace(".", " ").replace("/", " ").split()
-            if token
+            token for token in normalized.replace(".", " ").replace("/", " ").split() if token
         }
         if tokens.intersection(LABEL_AS_FEATURE_REFERENCE_TOKENS):
             return (
@@ -688,11 +707,7 @@ def _class_balance_summary(distribution_summary: Mapping[str, JsonScalar]) -> di
 def _horizon_coverage_summary(
     observations: tuple[Mapping[str, Any], ...],
 ) -> dict[str, JsonScalar]:
-    horizons = [
-        horizon
-        for row in observations
-        if (horizon := _horizon_seconds(row)) is not None
-    ]
+    horizons = [horizon for row in observations if (horizon := _horizon_seconds(row)) is not None]
     counts = Counter(horizons)
     min_count = min(counts.values(), default=0)
     max_count = max(counts.values(), default=0)
@@ -758,6 +773,36 @@ def _cost_adjustment_sanity(
         "cost_warning_count": warning_count,
         "cost_adjustment_sanity": "declared" if declared_count else "missing",
     }
+
+
+def _n_eff_report(
+    *,
+    observations: tuple[Mapping[str, Any], ...],
+    n_eff_overlap_metadata: Any,
+    walk_forward_metadata: Any,
+) -> tuple[dict[str, object] | None, tuple[RunRejectionReason, ...]]:
+    if n_eff_overlap_metadata is None and walk_forward_metadata is None:
+        return None, ()
+    try:
+        return (
+            build_n_eff_sample_report(
+                rows=len(observations),
+                horizon_overlap_metadata=n_eff_overlap_metadata,
+                observations=observations,
+                walk_forward_metadata=walk_forward_metadata,
+            ),
+            (),
+        )
+    except NEffSampleReportingError as exc:
+        return (
+            None,
+            (
+                _reason(
+                    "n_eff_overlap_metadata_unavailable",
+                    f"N_eff reporting failed closed: {exc}",
+                ),
+            ),
+        )
 
 
 def _availability_summary(
@@ -1045,7 +1090,9 @@ def _status_from_reasons(reasons: Sequence[RunRejectionReason]) -> StudyRunResul
     codes = {reason.code for reason in reasons}
     if "leakage_risk" in codes:
         return StudyRunResultState.REJECTED
-    if codes.intersection({"data_unavailable", "weak_diagnostics"}):
+    if codes.intersection(
+        {"data_unavailable", "weak_diagnostics", "n_eff_overlap_metadata_unavailable"}
+    ):
         return StudyRunResultState.DIAGNOSTICS_FAILED
     if codes.intersection({"low_sample", "inconclusive"}):
         return StudyRunResultState.INCONCLUSIVE
@@ -1153,8 +1200,7 @@ def _cost_warning(item: Mapping[str, Any]) -> bool:
         if isinstance(value, str) and "zero" in value.lower():
             return True
         if isinstance(value, Mapping) and any(
-            str(nested).strip().lower() in {"0", "0.0", "zero"}
-            for nested in value.values()
+            str(nested).strip().lower() in {"0", "0.0", "zero"} for nested in value.values()
         ):
             return True
     return False
@@ -1185,9 +1231,7 @@ def _flatten_reference_strings(value: object) -> tuple[str, ...]:
 
 
 def _summary_items(values: Mapping[str, object]) -> ScalarSummary:
-    return tuple(
-        sorted((str(key), _scalar(value, str(key))) for key, value in values.items())
-    )
+    return tuple(sorted((str(key), _scalar(value, str(key))) for key, value in values.items()))
 
 
 def _items_to_dict(items: ScalarSummary) -> dict[str, JsonScalar]:
