@@ -17,36 +17,36 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. This `FUTSUB-P21` executor snapshot produced value-free
-roll-splice and maintenance-crossing guard audit artifacts for all five
-materialized LabelPack families. The audit demonstrates the guards on a 2024
-June approximate roll boundary and a January 2024 daily maintenance break, and
-records zero silently measured boundary crossings in the matrices. The
-`label_integration` gate `FUTSUB-P21`...`FUTSUB-P23` is open and remains
-Ralph/reviewer-gated.
+campaign. This `FUTSUB-P22` executor snapshot audits the `FUTSUB-P16`...
+`FUTSUB-P20` LabelPack materialization gate inside the `label_integration`
+gate: all current dry-run label locks resolve by exact id, deprecated close-out
+stale rows are excluded from the active surface, and the resolver-smoke
+fail-closed probes cover absent, mutated, fuzzy-name, and deprecated exact-id
+lock cases.
 
-Active / next phase after Ralph review and merge: `FUTSUB-P22` - LabelPack
-Registry Integration, Coverage Audit, and Resolver Smoke.
+Active / next phase is Ralph-owned. The nominal next phase remains `FUTSUB-P23`
+- Label Coverage Matrix and Horizon Quality Report, completing the
+`label_integration` gate before the `wiring_and_matrices` gate
+(`FUTSUB-P24`...`FUTSUB-P26`) begins after Ralph validation and Yellow-lane
+review complete.
 
-New durable surfaces through this `FUTSUB-P21` executor snapshot:
+New durable surfaces through this `FUTSUB-P22` executor snapshot:
 
-- `docs/futures_substrate_scaleout/ROLL_GUARD_AUDIT.md` records the audit
-  method, approximate-calendar caveat, per-family policy provenance,
-  demonstrations, findings, and non-claims.
-- `research/futures_substrate_scaleout_v1/matrices/roll_window_coverage.md`
-  and `maintenance_crossing_invalidation.md` are value-free guard matrices
-  with per-family x symbol x year counts, policy/version ids, and the
-  approximate-calendar qualification.
-- `research/futures_substrate_scaleout_v1/roll_guard/roll_guard_audit.md`
-  records current local registry accounting, 2024 roll-week and
-  maintenance-break demonstrations, and bounded value-store sample-read
-  results.
-- `tests/unit/futures_substrate_scaleout/labels/test_roll_maintenance_guard_audit.py`
-  proves the audit detection logic fails closed on a planted silently measured
-  crossing window and accepts guarded non-crossing windows.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P21.md`
-  records validation, evidence, findings, and artifact policy for reviewer and
-  coordinator use.
+- `docs/futures_substrate_scaleout/LABEL_INTEGRATION.md` summarizes the
+  integrated label substrate, resolver contract, overlap/N_eff provenance, and
+  safety boundaries.
+- `research/futures_substrate_scaleout_v1/label_packs/registry_integration_audit.md`
+  records required registry field presence, identity and metadata checks,
+  DatasetVersion acceptance state confirmation, guard provenance, deprecated-row
+  disposition, and explicit gap classification.
+- `research/futures_substrate_scaleout_v1/label_packs/label_resolver_smoke.md`
+  records the value-free resolver-smoke matrix and fail-closed probes.
+- `tests/unit/futures_substrate_scaleout/labels/test_label_resolver_smoke.py`
+  proves exact label locks resolve against a tiny synthetic fixture, absent /
+  mutated / fuzzy refs fail closed, and deprecated exact-id refs fail closed.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P22.md`
+  records validation, audit outcome, gaps, and artifact
+  policy for coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -78,8 +78,8 @@ writes remain parent-only and serial. Label values, registries, manifests,
 checkpoints, roll-calendar data, and SQLite files stay local-only under
 `ALPHA_DATA_ROOT`; labels must never silently cross a quarterly roll or the
 daily maintenance / trade-date break. The roll calendar is analytic and
-approximate, not provider-exact splice truth. Resolver semantics remain
-exact-id and fail-closed, with no fuzzy fallback.
+approximate, not provider-exact splice truth. Resolver semantics remain exact-id
+with no fuzzy fallback; P22 also verifies deprecated exact-id refs fail closed.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
