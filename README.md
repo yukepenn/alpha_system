@@ -17,43 +17,30 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
-campaign. This `FUTSUB-P25` executor snapshot continues the
-`wiring_and_matrices` gate (`FUTSUB-P24`...`FUTSUB-P26`) by adding
-overlap-aware N_eff reporting with an explicit rows-vs-effective-samples
-distinction to the runtime diagnostics surface.
+campaign. This `FUTSUB-P27` executor snapshot opens the `rerun` gate
+(`FUTSUB-P27`...`FUTSUB-P29`) by re-locking the Core Pilot StudySpecs against
+the full futures substrate where the current registry and strict resolver make
+them newly resolvable. The StudySpec resolver-smoke recorded in the re-lock
+report resolved 8 re-issued StudySpecs and preserved 2 named fail-closed gaps.
 
 Active / next phase is Ralph-owned. Until Ralph validates, reviews, and merges
-this executor snapshot, `FUTSUB-P25` remains the nominal active phase. After
-merge, the nominal next phase is `FUTSUB-P26` - BBO Quality and Cross-Market
-Alignment Matrices; `FUTSUB-P27` also depends on this phase's N_eff metadata for
-the Core Pilot re-lock path.
+this executor snapshot, `FUTSUB-P27` remains the nominal active phase. After
+merge, the nominal next phase is `FUTSUB-P28` - Re-run Previously INCONCLUSIVE
+Core Pilot Studies.
 
-New durable surfaces through this `FUTSUB-P25` executor snapshot:
+New durable surfaces through this `FUTSUB-P27` executor snapshot:
 
-- `src/alpha_system/runtime/diagnostics/splits/walk_forward.py` provides the
-  value-free split-plan callable path over the existing experiment primitives.
-- `src/alpha_system/runtime/diagnostics/factor/runtime.py` accepts opt-in
-  `walk_forward_config` and emits fold metadata or a visible inconclusive
-  reason when requested.
-- `src/alpha_system/runtime/diagnostics/splits/n_eff.py` provides the
-  deterministic overlap-aware N_eff estimator, session/day aggregation hooks,
-  and P24 fold-metadata attachment helpers.
-- `src/alpha_system/runtime/diagnostics/label/runtime.py` accepts opt-in
-  N_eff metadata and emits `label_n_eff_report` without changing default label
-  diagnostics calls.
-- `docs/futures_substrate_scaleout/WALK_FORWARD_WIRING.md` summarizes the P24
-  runtime wiring, protocol hooks, and deferred statistical scope.
-- `docs/futures_substrate_scaleout/N_EFF.md` documents the estimator,
-  rows-vs-effective-samples report contract, session/day hooks, and
-  Validation Governance handoff shape.
-- `research/futures_substrate_scaleout_v1/wiring/walk_forward_wiring_smoke.md`
-  records the value-free wiring smoke case.
-- `research/futures_substrate_scaleout_v1/wiring/n_eff_sample_report.md`
-  records the value-free synthetic N_eff sample evidence.
-- `tests/unit/futures_substrate_scaleout/test_n_eff_reporting.py` covers the
-  estimator, fail-closed behavior, aggregation hooks, fold attachment, label
-  report integration, backward compatibility, and determinism.
-- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P25.md`
+- `research/futures_substrate_scaleout_v1/rerun/studyspec_relock.md` records
+  the value-free re-lock evidence, old-to-new StudySpec mapping, resolver-smoke
+  counts, P28 rerun list, and named remaining gaps.
+- `research/futures_substrate_scaleout_v1/rerun/study_specs/` contains the
+  re-issued value-free StudySpec lock documents.
+- `docs/futures_substrate_scaleout/CORE_PILOT_RELOCK.md` documents the bounded
+  re-lock contract, fixed fields, re-issued fields, and fail-closed gap policy.
+- `tests/unit/futures_substrate_scaleout/test_studyspec_relock_smoke.py`
+  hermetically validates the committed re-lock artifacts without
+  `ALPHA_DATA_ROOT` or local registries.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P27.md`
   records validation, changed paths, and artifact policy for coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
@@ -92,7 +79,10 @@ P23 records coverage gaps explicitly rather than accepting the substrate by
 subset. P24 exposes walk-forward fold metadata but does not treat rows as
 independent samples for overlapping horizons. P25 adds N_eff as a reporting
 input only; full multiple-testing / DSR / PBO / PSR governance remains deferred
-to `ALPHA_VALIDATION_GOVERNANCE_V1`.
+to `ALPHA_VALIDATION_GOVERNANCE_V1`. P27 re-locks existing Core Pilot
+StudySpecs only; it does not create new alpha ideas, tune parameters, run
+diagnostics, materialize values, mutate registries, or weaken the strict
+resolver.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
