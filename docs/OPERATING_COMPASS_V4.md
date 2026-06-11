@@ -1,4 +1,4 @@
-# Alpha System Operating Compass v4.2 — Consolidated Roadmap
+# Alpha System Operating Compass v4.3 — Consolidated Roadmap
 
 Status: canonical. Supersedes Compass v2 / v2.1 / v3 / v3.5 (chat-only). Where
 older routes conflict with this document, this document wins. Live phase status
@@ -503,14 +503,28 @@ kill-shot:
    OHLCV+BBO tier is the most-mined tier; differentiated edge may need the
    next tier. (External cost = human ask, unchanged.)
 
-USER-GATED options (explicitly NOT adopted without human sign-off, as they
-change risk/methodology posture):
+USER-ADOPTED 2026-06-10 (both gated options approved by the user):
 
-- **Overnight edge class**: relaxing the hard intraday-flat boundary for a
-  governed overnight-hold family (session-close → next-open labels, explicit
-  gap-risk budget). Documented premium; real gap risk. Awaiting user decision.
-- **Early bounded ML**: one pre-declared ML pipeline (e.g. purged-CV gradient
-  boosting over honest features) as a Track-B pooled hypothesis inside Mining
-  V2, instead of waiting for the late ML stage. Sample-efficient; largest
-  p-hacking surface. Requires surrogate-FDR-calibrated floor first. Awaiting
-  user decision.
+7. **Overnight edge class — ADOPTED as a separate governed family** (Mining V2
+   scope). Doctrine refinement, not invariant weakening: the truth-chain rule
+   was never "no overnight" — it was "never SILENTLY cross the maintenance /
+   trade-date break." Intraday families keep the hard flat-before-maintenance
+   boundary unchanged. The overnight family models the crossing EXPLICITLY:
+   session-close → next-open (and close→close) labels, gap-risk measured and
+   budgeted as a first-class diagnostic, roll-crossing still guarded, ETH
+   liquidity/spread gates applied, and a separate (stricter) drawdown budget.
+   Live overnight holding remains a human RED-lane sign-off at paper/live
+   stages regardless of research verdicts.
+8. **Early bounded ML — ADOPTED for Mining V2** as exactly ONE pre-declared
+   ML pipeline (e.g. purged-CV gradient boosting over honest registry-resolved
+   features) run as a Track-B pooled hypothesis: fixed feature set, fixed CV
+   protocol, fixed hyperparameter budget declared up front, one VariantLedger
+   entry. HARD PRECONDITION: the surrogate-FDR calibration (item 2) must pass
+   first — if the pipeline finds "alpha" on shuffled labels, ML stays late.
+   Feature importances are research output; the model is never promotion
+   evidence by itself; Strategy Reference still validates any survivor.
+
+L2/MBO doctrine (user, 2026-06-10): explicitly LONG-DEFERRED for cost — not
+before sustained live profitability funds it. TBBO/MBP-1 SAMPLE MONTHS remain
+the only microstructure purchase on the route (Stage I / diagnosis branch),
+each an explicit human ask.
