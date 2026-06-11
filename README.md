@@ -9,14 +9,15 @@ and validating offline research substrate under Frontier Harness Generic
 The repository-level campaign pointer selects
 `REFERENCE_LABEL_PARALLEL_COMPUTE_V1`. This Workflow 2 campaign removes a
 reference-label throughput blocker by adding and validating unit-level worker
-parallelism around the unchanged reference label engine in later phases.
+parallelism around the unchanged reference label engine.
 
-RLPC-P00 is the bootstrap phase. It confirms the six-file campaign bundle,
-creates the value-free evidence root, and records the paused FUTSUB-P19 state
-without changing run state, registry state, label values, source code, tools, or
-tests. After RLPC-P00 merges, the active next phase is RLPC-P01.
+RLPC-P01 adds the reference-engine unit-parallel worker path for label scaleout.
+`alpha scaleout label-pack --engine reference --workers N` now opts into spawn
+workers for disjoint label units while the parent process keeps serial registry
+writes and checkpoint-after-registration ordering. Default workers remain 1;
+after RLPC-P01 merges, the active next phase is RLPC-P02.
 
-Durable artifacts introduced by this phase:
+Durable artifacts in this campaign snapshot:
 
 - `campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/` - campaign contract bundle.
 - `research/reference_label_parallel_compute_v1/` - value-free evidence
@@ -24,8 +25,11 @@ Durable artifacts introduced by this phase:
 - `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md` -
   committed record of the stopped FUTSUB-P19 pause state and preservation
   boundary.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P00.md` - executor handoff
-  for this bootstrap phase.
+- `tests/unit/reference_label_parallel_compute/` - synthetic structural tests
+  for reference worker ordering, retryability, worker caps, parent-only
+  registration, ledger ordering, and thread caps.
+- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P01.md` - executor handoff
+  for the reference worker path phase.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -47,11 +51,11 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-The per-row reference label engine remains the correctness oracle. RLPC-P00 does
-not edit the reference engine, label families, registry code, scaleout driver,
-CLI, tests, or any data artifact. Later phases must preserve exact identity,
-serial registry writes, roll/maintenance guards, and `label_available_ts`
-no-lookahead behavior.
+The per-row reference label engine remains the correctness oracle. RLPC-P01 does
+not edit the reference engine, label families, roll guard, label versioning,
+registry semantics, or any data artifact. Later phases must preserve exact
+identity, serial registry writes, roll/maintenance guards, and
+`label_available_ts` no-lookahead behavior.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
