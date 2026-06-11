@@ -1,0 +1,728 @@
+campaign_id: DISCOVERY_RIGOR_FLOOR_V1
+campaign_name: 'Discovery Rigor Floor V1: upgrade the EXISTING Core Pilot governance machinery to a fail-closed, platform-cumulative rigor floor — verdict reason_code taxonomy, first-class VariantLedger with family budgets, sealed-holdout + contamination gating, executable RANDOM_TARGET + end-to-end planted-fake-alpha canaries, surrogate-FDR calibration runs, and the evidence-accrual requeue loop — so every future promotion verdict (starting with the CORE_PILOT_RERUN kill-shot, FUTSUB-P28) is deterministically trustworthy. Compass v4.3 Stage B; REUSE-MAP-grounded: enhance existing objects, build only the six genuinely-absent ones.'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: discovery_rigor_floor
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Governance/evidence engineering only. Per the 2026-06-11 REUSE MAP
+    inspection: TrialLedger and RejectedIdeaLedger exist platform-cumulative
+    (governance/trial_ledger.py, governance/rejected_idea.py), the canary
+    catalog/harness exists (governance/canaries/), promotion lifecycle states
+    exist (governance/promotion.py), variant counting exists embedded in
+    TrialLedgerAccounting, and contamination FLAGS exist on trial records.
+    This campaign upgrades those to ENFORCEMENT (fail-closed gates) and builds
+    only what is genuinely absent: VerdictReasonCode, first-class
+    VariantLedger, SealedHoldoutWindow + HoldoutAccessLog, executable
+    RANDOM_TARGET + end-to-end PlantedFakeAlphaStudyCanary, SurrogateStudyRun
+    (label-shuffled full-pipeline FDR calibration), and RequeuedVerdictRecord
+    (evidence accrual). Out of scope by REUSE-MAP ruling: computed
+    duplicate-exposure registry (Mining V2), FactorLibrary, fast lanes,
+    AlphaBook, any new PnL/value truth, any alpha ideation or study rerun
+    (the rerun is FUTSUB-P28, AFTER this campaign). Historical Core Pilot
+    evidence is never rewritten - annotations are additive with provenance.
+    No alpha, profitability, or tradability claim.
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available but not the default for this campaign.
+  workflow2:
+    description: Ralph strict autonomous campaign loop with DAG-wave scheduling and a serial merge queue.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 2
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  notes:
+  - P01/P02/P03 all touch governance/promotion_gate.py and are serialized via
+    conflicts_with; P04/P05/P06 are module-disjoint and may build in parallel
+    waves after their dependencies merge. Serial merge queue always.
+  - Phase branches must never write ACTIVE_CAMPAIGN.md; the coordinator owns it.
+  - The paused FUTSUB run (2026-06-07T235209Z..., boundary-gated STOP before
+    FUTSUB-P28) is DATA - do not touch its run dir, registries, values, or
+    worktrees. FUTSUB resumes only after this campaign closes (coordinator).
+  - Historical Core Pilot artifacts under research/futures_core_alpha_pilot_v1/
+    (study_specs, reviewer_verdicts, evidence/survivors.json, ledgers) are
+    READ-ONLY evidence for every phase except the explicitly additive
+    annotation deliverable in RIGOR-P01; nothing historical is ever mutated.
+runtime:
+  python: '3.12'
+  package_root: src/alpha_system
+  test_root: tests
+  smoke_command: python tools/verify.py --smoke
+  full_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+  research_venv: ~/.venvs/alpha_system_research
+  data_root_env: ALPHA_DATA_ROOT
+  optional_dependency_pattern: 'standard library + existing governance deps only; no new dependencies without spec authorization.'
+  consumed_primitives:
+  - src/alpha_system/governance/trial_ledger.py (TrialLedgerRecord 13-field schema, TrialLedgerAccounting incl. variant_budget/observed_variant_count/oos+contamination counts) — EXTEND, never fork
+  - src/alpha_system/governance/rejected_idea.py (ResearchGraveyardLedger, reason categories) — consumed as-is
+  - src/alpha_system/governance/study_spec.py (StudyBudgetCheck, variant_budget field, evaluate_variant_budget)
+  - src/alpha_system/governance/promotion.py (PromotionLifecycleState, PromotionDecisionOutcome) + governance/promotion_gate.py (PromotionGateContext) — the gate-wiring surface
+  - src/alpha_system/governance/evidence_bundle.py (EvidenceBundle, negative_control_results, validate_evidence_ready_gate)
+  - src/alpha_system/governance/canaries/{catalog.py,harness.py} (4 catalogued NegativeControlTypes; FUTURE_SHIFT/PERMUTED_LABELS/OPTIMISTIC_FILL executable; RANDOM_TARGET catalogued but NOT executable) + negative_control_result.py
+  - src/alpha_system/governance/label_leakage_guard.py (lookahead/leakage access guard)
+  - src/alpha_system/governance/duplicate_exposure.py — READ-ONLY reference (computed registry is Mining V2, NOT this campaign)
+  - research/futures_core_alpha_pilot_v1/ledgers/** + reviewer_verdicts/** + evidence/survivors.json — historical evidence, READ-ONLY (additive annotation only, RIGOR-P01)
+  - tools/hooks/canary_runner.py (canary execution floor; new canaries register here)
+  editable_in_campaign:
+  - src/alpha_system/governance/** (reason codes, VariantLedger, holdout schemas, canary harness, surrogate runs, requeue records, gate wiring)
+  - src/alpha_system/cli/governance.py (new read/scan subcommands only)
+  - evals/canaries/** (new canary fixtures: random_target executable fixture, planted fake-alpha)
+  - tools/hooks/canary_runner.py (register new canaries)
+  - tests/unit/governance/** + tests/unit/discovery_rigor_floor/** (+ tiny synthetic fixtures)
+  - research/discovery_rigor_floor_v1/** (value-free evidence) and research/futures_core_alpha_pilot_v1/verdict_annotations/** (RIGOR-P01 additive annotations ONLY)
+  - docs/discovery_rigor_floor/** + docs/OPERATING_COMPASS_V4.md (Stage B status note in closeout only)
+  engineering_invariants:
+  - Fail-closed everywhere - a missing ledger, unwritable ledger, missing holdout declaration, or failed canary BLOCKS the gated transition; absence is never treated as pass.
+  - Historical evidence is append-only - original Core Pilot verdict JSONs, survivors.json, and ledger files are never edited; annotations live in new files citing originals by id + content reference.
+  - No second truth - no new PnL/value/return computation anywhere; surrogate runs and canaries invoke the EXISTING study/label pipeline and reference engine.
+  - Enforcement gates land with canary-style tests proving they fail when bypassed (the gate-off path must be a visible test failure, mirroring evals/canaries discipline).
+  - Surrogate/canary study runs write only to isolated local namespaces (runs/** or $ALPHA_DATA_ROOT scratch namespaces); production ledgers/registries are never their target.
+  - reason_code is REQUIRED when primary verdict state is INCONCLUSIVE and must be one of the 8 compass codes; validation rejects free-text.
+models:
+  build_time_roles:
+    strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
+    specs_semantic_review_done_check: Claude Opus 4.8 xhigh
+    source_map_verifier_mechanical_audit: Claude Sonnet 4.6
+    execution_tests_repair_handoffs: Codex GPT-5.5 xhigh
+    orchestration_state_machine_dag_merge_queue: Ralph
+  notes:
+  - Build-time model roles write/review/merge the campaign. No in-product autonomous agents.
+lane_policy:
+  green: Low-risk automatic work (campaign control docs, indexes, value-free scaffolding).
+  yellow: Material engineering work requiring fresh Claude Opus review.
+  red: External, destructive, live, production, costly, or broker-adjacent work; requires scoped authorization.
+  red_authorization_required:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  red_expected_in_campaign: false
+  default_lane: yellow
+state_machine:
+  driver: ralph
+  strict: true
+  stop_checks_before:
+  - provider calls
+  - phase selection
+  - codex execution
+  - validation
+  - review
+  - PR creation
+  - CI waiting
+  - merge gate
+  - merge
+  - done-check
+  - next-phase selection
+  resume: from recorded run state, never regenerating completed work
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - local SQLite registries (datasets/features/labels) and journals/WAL
+  - surrogate/canary study output values
+  - heavy artifacts (parquet/arrow/feather)
+  - research run logs and caches
+  never_commit_globs: &never_commit_globs
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - runs/**
+  - artifacts/**
+  - '**/*credential*'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - campaign control files
+  - docs
+  - governance schema/gate/canary/surrogate/requeue code + tests + tiny synthetic fixtures
+  - value-free evidence summaries (counts, pass/fail, hash-match booleans, calibration statistics)
+  - additive Core Pilot verdict annotations (RIGOR-P01 only)
+  - handoffs
+  - reviews
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/discovery_rigor_floor/fixtures/**
+    - evals/canaries/**
+    requirements:
+    - synthetic
+    - tiny
+    - value-free of real market data
+  research_evidence_artifacts:
+    note: >-
+      Evidence under research/discovery_rigor_floor_v1/** is commit-eligible
+      ONLY when value-free - gate inventories, canary pass/fail tables,
+      surrogate-FDR calibration statistics (counts, rates, thresholds),
+      requeue eligibility tables. Surrogate study VALUES, label values, and
+      SQLite stay local-only.
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_local_db_commits: true
+    no_heavy_artifact_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  yellow_requires_fresh_review: true
+  green_review_optional: true
+  red_requires_scoped_authorization: true
+  review_artifacts:
+    commit_eligible: reviews/DISCOVERY_RIGOR_FLOOR_V1/<phase_id>/**
+    run_local: runs/<run_id>/phases/<phase_id>/review.md and verdict.json
+  semantic_done_check_required: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+merge_policy:
+  merge_queue: serial
+  auto_merge_for_green: true
+  auto_merge_for_yellow_after_review: true
+  auto_merge_for_red: false
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  protected_branch: main
+  no_force_push: true
+  one_pr_at_a_time: true
+rigor_policy:
+  fail_closed_gates_required: true
+  gate_bypass_must_fail_a_canary: true
+  historical_evidence_append_only: true
+  reason_code_taxonomy:
+  - UNDERPOWERED
+  - SUBSTRATE_GAP
+  - COST_FRAGILE
+  - DATA_QUALITY
+  - LEAKAGE_BLOCKED
+  - DUPLICATE_EXPOSURE
+  - REGIME_UNSTABLE
+  - BBO_PROXY_LIMITATION
+  surrogate_fdr:
+    definition: full study pipeline on label-shuffled (and random-target) inputs; the measured pass-rate of shuffled runs through the promotion gate IS the measured false-discovery floor
+    kill_shot_precondition: surrogate calibration run AND planted-fake-alpha canary must PASS (canary rejected, surrogate pass-rate below the declared threshold) before FUTSUB-P28 may resume
+    ml_precondition: same calibration is the HARD precondition for the future bounded-ML pooled pipeline (compass §7)
+  evidence_accrual:
+    trigger: INCONCLUSIVE + UNDERPOWERED verdicts re-enter the retest queue when accrued accepted data materially changes estimated power
+    implementation: deterministic scan command (CLI), not a daemon
+phases:
+- id: RIGOR-P00
+  name: Campaign Bootstrap + Boundary State Record
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the bundle + evidence scaffolding and truthfully record the FUTSUB boundary state (gated STOP before P28, substrate phases merged through the boundary). NO governance code, NO historical mutation.
+  scope:
+  - Confirm the 6-file bundle is present and internally consistent; confirm root ACTIVE_CAMPAIGN.md selects this campaign (coordinator-owned).
+  - Create research/discovery_rigor_floor_v1/ skeleton (README + .gitkeep).
+  - Record handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md - FUTSUB run 2026-06-07T235209Z gated-STOP before FUTSUB-P28 (boundary gate text in the STOP file), merged-phase count at gate time, and the rule that FUTSUB resumes only after this campaign closes.
+  non_goals:
+  - Any governance/gate/canary code; any edit to historical Core Pilot artifacts; resuming FUTSUB.
+  checks:
+  - git status --short
+  - grep -q "DISCOVERY_RIGOR_FLOOR_V1" ACTIVE_CAMPAIGN.md
+  - test -f campaigns/DISCOVERY_RIGOR_FLOOR_V1/GOAL.md
+  - test -f campaigns/DISCOVERY_RIGOR_FLOOR_V1/campaign.yaml
+  - test -f campaigns/DISCOVERY_RIGOR_FLOOR_V1/PHASE_PLAN.md
+  - test -f campaigns/DISCOVERY_RIGOR_FLOOR_V1/ACCEPTANCE.md
+  - test -f campaigns/DISCOVERY_RIGOR_FLOOR_V1/RISK_REGISTER.md
+  - test -f campaigns/DISCOVERY_RIGOR_FLOOR_V1/RUNBOOK.md
+  - test -f handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md
+  - python -c "import yaml; yaml.safe_load(open('campaigns/DISCOVERY_RIGOR_FLOOR_V1/campaign.yaml'))"
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/DISCOVERY_RIGOR_FLOOR_V1/**
+  - research/discovery_rigor_floor_v1/README.md
+  - research/discovery_rigor_floor_v1/.gitkeep
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/agent_factory/**
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/families/**
+  - src/alpha_system/labels/roll_guard.py
+  - src/alpha_system/labels/version.py
+  - src/alpha_system/features/**
+  - research/futures_core_alpha_pilot_v1/study_specs/**
+  - research/futures_core_alpha_pilot_v1/reviewer_verdicts/**
+  - research/futures_core_alpha_pilot_v1/evidence/**
+  - research/futures_core_alpha_pilot_v1/ledgers/**
+  - research/futures_substrate_scaleout_v1/**
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  artifact_policy: &ap
+    commit_only:
+    - campaign control + docs
+    - governance code + tests + tiny synthetic fixtures
+    - value-free evidence summaries
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle merged, pointer set, boundary state recorded truthfully, no runs/ or value/DB path staged.
+- id: RIGOR-P01
+  name: Verdict Reason-Code Taxonomy + Ledger-Presence Gates + Core Pilot Annotations
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P00
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Make every future verdict carry a machine-readable reason, and make ledger absence fail-closed at the promotion gate.
+  scope:
+  - Add VerdictReasonCode StrEnum (the 8 compass codes) in governance; add optional-but-validated reason_code to ReviewerVerdict, EvidenceBundle, and PromotionDecision - REQUIRED (validation error otherwise) when the verdict/primary state is INCONCLUSIVE; free-text rejected.
+  - Promotion gate - add fail-closed require_trial_ledger_present() (and writability probe) before the EVIDENCE_READY transition; absence or unwritable ledger blocks with a clear message.
+  - ADDITIVE annotations for the 6 Core Pilot INCONCLUSIVE verdicts under research/futures_core_alpha_pilot_v1/verdict_annotations/ - new files citing original verdict ids/content, assigning reason_code per the recorded basis (SUBSTRATE_GAP / BBO_PROXY_LIMITATION / UNDERPOWERED as evidenced); originals untouched (forbidden paths enforce this).
+  - Gate-bypass canary tests - neutering the ledger-presence check or submitting INCONCLUSIVE without reason_code must FAIL tests.
+  non_goals:
+  - VariantLedger, holdout, canaries, surrogate runs; any historical file edit; any verdict-content change (annotations classify, never alter outcomes).
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/unit/discovery_rigor_floor -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with:
+  - RIGOR-P02
+  - RIGOR-P03
+  resource_class: []
+  merge_group: gates
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/cli/governance.py
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/futures_core_alpha_pilot_v1/verdict_annotations/**
+  - research/discovery_rigor_floor_v1/**
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - reason_code enforced for INCONCLUSIVE everywhere a verdict is recorded; ledger-presence gate fail-closed with bypass-canary; 6 additive annotations merged citing originals; originals byte-identical.
+- id: RIGOR-P02
+  name: First-Class VariantLedger + Family Budgets + Fail-Closed Entry Hook
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Promote variant accounting from embedded per-study counters to the platform keystone for multiple-testing honesty.
+  scope:
+  - VariantLedgerRecord (variant_id, alpha_spec_id, study_spec_id, family_id, attempt_count, trial_ids, status, created_at) + platform-cumulative persistence beside the existing trial ledger; EXTEND TrialLedgerAccounting wiring, do not fork it.
+  - Family-level aggregation - family_budget on StudySpec (optional, validated) + FamilyBudgetCheck roll-up across studies in a family.
+  - Fail-closed entry hook - validate_variant_and_family_budget() invoked at study execution entry; ledger unwritable or budget overrun blocks (overrun requires explicit pre-declared budget amendment, never silent).
+  - Promotion gate - budget status must be RESPECTED (or amended-with-provenance) before EVIDENCE_READY.
+  - Bypass-canary tests for hook removal and budget tampering.
+  non_goals:
+  - Rewriting historical trial records; duplicate-exposure machinery; surrogate runs.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/unit/discovery_rigor_floor -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with:
+  - RIGOR-P01
+  - RIGOR-P03
+  resource_class: []
+  merge_group: gates
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/cli/governance.py
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/discovery_rigor_floor_v1/**
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P02.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P02/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - VariantLedger first-class and platform-cumulative; family budgets enforced fail-closed at entry AND at promotion; bypass canaries in place; existing TrialLedger behavior unchanged for current callers.
+- id: RIGOR-P03
+  name: Sealed Holdout Window + Access Log + Contamination Gating
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P02
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Turn the existing binary contamination flags into a declared, logged, and gated sealed-holdout regime before any kill-shot metric exists.
+  scope:
+  - SealedHoldoutWindow schema (window_id, data partition spec, date range, status DECLARED|SEALED|BREACHED, declared_at, sealed_by) - platform-level declaration; exactly one ACTIVE window enforced.
+  - HoldoutAccessLog (access_id, study_spec_id, actor, timestamp, access_type TRAINING|VALIDATION|LOCKED_TEST, rationale) - append-only; wire label_leakage_guard and study execution to emit entries.
+  - Promotion gate - any_locked_test_contamination == true OR a BREACHED active window blocks EVIDENCE_READY; no waiver path in this campaign (waivers would need a future spec).
+  - Declare the initial sealed window for the kill-shot (value-free declaration file; the window choice itself cites the compass holdout doctrine).
+  - Bypass-canary tests - silencing the access log or flipping a BREACHED status must fail tests.
+  non_goals:
+  - Changing what data exists; editing historical flags; any study rerun.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/unit/discovery_rigor_floor -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with:
+  - RIGOR-P01
+  - RIGOR-P02
+  resource_class: []
+  merge_group: gates
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/cli/governance.py
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/discovery_rigor_floor_v1/**
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P03.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P03/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Sealed window declared and enforced; access log append-only and wired; contamination blocks promotion fail-closed; bypass canaries in place.
+- id: RIGOR-P04
+  name: Executable RANDOM_TARGET + End-to-End Planted-Fake-Alpha Canary
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P03
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Close the canary floor - all four catalogued negative controls executable, plus one end-to-end pipeline canary that a contaminated study CANNOT survive.
+  scope:
+  - Implement RANDOM_TARGET execution in governance/canaries/harness.py (fixture exists at evals/canaries/random_target/); all 4 REQUIRED_NEGATIVE_CONTROL_TYPES now executable via canary_runner.
+  - PlantedFakeAlphaStudyCanary - run a minimal synthetic study through the FULL evidence pipeline with deliberately lookahead-contaminated labels (e.g. label shifted to use future information); assert the promotion gate REJECTS it; record a NegativeControlResult; runs on synthetic fixtures so it is CI-runnable.
+  - Stage-B gate - validate_evidence_ready_gate requires ALL required negative-control results PASS (fail-closed when any is missing or stale).
+  - Register new canaries in tools/hooks/canary_runner.py with expect_block semantics; neutering the gate must fail the canary run.
+  non_goals:
+  - Real-data study runs; surrogate-FDR sweeps (next phase); touching the reference engine or label families.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/unit/discovery_rigor_floor -q
+  - python tools/hooks/canary_runner.py
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with:
+  - RIGOR-P05
+  resource_class: []
+  merge_group: calibration
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - evals/canaries/**
+  - tools/hooks/canary_runner.py
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/discovery_rigor_floor_v1/**
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P04.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P04/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - 4/4 negative controls executable; planted-fake-alpha canary proves the full pipeline rejects contamination; evidence gate requires all controls PASS fail-closed; canary_runner registers and enforces the new canaries.
+- id: RIGOR-P05
+  name: Surrogate-FDR Calibration (Label-Shuffled Full-Pipeline Runs)
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P03
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Measure the discovery pipeline's false-positive floor empirically - the kill-shot precondition and the future-ML hard precondition.
+  scope:
+  - SurrogateStudyRun schema (surrogate_id, original_study_spec_id, perturbation_type label_shuffle|random_target, seed, trial_ids, gate_outcome, created_at) + surrogate_flag threading on trial records (extend, don't fork).
+  - Surrogate runner - execute a declared study spec end-to-end on label-shuffled inputs in an isolated local namespace; deterministic seeds; production ledgers/registries never the target; values local-only.
+  - Calibration harness + CLI (alpha governance surrogate-calibrate or equivalent) - N seeded shuffled runs of the declared spec(s); committed value-free calibration report (run counts, gate pass-rate, threshold verdict).
+  - Declare the calibration threshold in the report (shuffled-run gate pass-rate must be 0 within the run budget; any pass = measured leakage = LEAKAGE_BLOCKED finding requiring diagnosis before the kill-shot).
+  - CI-runnable synthetic calibration test (tiny fixture study); real-data calibration is documented as a coordinator/runbook step if local data is absent in CI.
+  non_goals:
+  - Interpreting alpha; running the actual kill-shot studies; ML pipelines.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/unit/discovery_rigor_floor -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with:
+  - RIGOR-P04
+  resource_class:
+  - materialization_registry
+  merge_group: calibration
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/cli/governance.py
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/discovery_rigor_floor_v1/**
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P05.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P05/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Surrogate runner + schema + CLI landed; synthetic calibration green in CI; value-free calibration report committed with the declared zero-pass threshold; real-data calibration runbook step recorded for the coordinator.
+- id: RIGOR-P06
+  name: Evidence-Accrual Requeue (UNDERPOWERED Retest Scan)
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Make time an asset - INCONCLUSIVE+UNDERPOWERED verdicts deterministically re-enter the queue as accepted data grows.
+  scope:
+  - RequeuedVerdictRecord schema (original_verdict_ref, requeue_reason, prior_power_estimate, new_power_estimate, data_accrued_months, eligible, created_at).
+  - Power estimator (stdlib math) - planning-prior based (t ~ SR*sqrt(years), N_eff-aware where metadata exists); documented as PLANNING heuristic, never a promotion gate.
+  - Deterministic scan CLI (alpha governance requeue-scan or equivalent) - reads verdicts+annotations with reason_code UNDERPOWERED, compares accrued accepted data (dataset acceptance evidence) against the declared materiality rule, emits value-free eligibility table + RequeuedVerdictRecords; NO daemon/scheduler.
+  - Wire `just` recipe for the scan; document cadence in the runbook (coordinator/post-campaign step).
+  non_goals:
+  - Auto-running retests; modifying verdicts; schedulers/daemons.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance -q
+  - python -m pytest tests/unit/discovery_rigor_floor -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: accrual
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - src/alpha_system/cli/governance.py
+  - justfile
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/discovery_rigor_floor_v1/**
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P06.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P06/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Requeue scan deterministic and tested; power estimator documented as planning-only; just recipe present; no daemon.
+- id: RIGOR-P07
+  name: Integration Audit + Kill-Shot Readiness Gate + FUTSUB Resume Handoff
+  lane: YELLOW
+  dependencies:
+  - RIGOR-P04
+  - RIGOR-P05
+  - RIGOR-P06
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Prove the floor is closed end-to-end and hand the coordinator an executable kill-shot resume path.
+  scope:
+  - Integration audit - one synthetic study driven through the FULL gated path (variant/family budget entry hook -> trial ledger -> holdout access log -> negative controls incl. planted-fake-alpha -> reason_coded verdict -> promotion gate) proving every gate engages fail-closed; committed value-free audit table (gate -> engaged -> bypass-canary ref).
+  - Kill-shot readiness checklist (research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md, value-free) - sealed window ACTIVE, 4/4 canaries PASS, surrogate calibration verdict, ledgers writable, reason_code live; each item cites its deterministic evidence.
+  - Track-B pre-registration TEMPLATE (docs/discovery_rigor_floor/TRACK_B_PREREGISTRATION_TEMPLATE.md) - pooled-hypothesis declaration fields per compass §2 (hypotheses, pooling rule, evaluation metric, declared BEFORE any Track A metric inspection); the actual registration happens at kill-shot time, not here.
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md - exact coordinator steps - repoint ACTIVE_CAMPAIGN to FUTSUB, complete Track-B registration from the template, run real-data surrogate calibration if not yet done, clear the boundary STOP, resume run (P28 selection follows).
+  - Compass Stage B status note (docs/OPERATING_COMPASS_V4.md) - Rigor Floor delivered; cite evidence; one-line per-item status, no claims beyond gates.
+  - Durable lessons to project-skill if earned.
+  non_goals:
+  - Running the kill-shot; touching FUTSUB run state (coordinator does that); new mechanisms beyond the audit.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/governance tests/unit/discovery_rigor_floor -q
+  - python tools/hooks/canary_runner.py
+  - test -f research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md
+  - test -f handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md
+  - test -f docs/discovery_rigor_floor/TRACK_B_PREREGISTRATION_TEMPLATE.md
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/unit/governance/**
+  - tests/unit/discovery_rigor_floor/**
+  - research/discovery_rigor_floor_v1/**
+  - docs/discovery_rigor_floor/**
+  - docs/OPERATING_COMPASS_V4.md
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P07.md
+  - handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md
+  - reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P07/**
+  - .claude/skills/project-skill/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - End-to-end gated path proven with committed audit; readiness checklist + Track-B template + executable resume handoff merged; compass status updated honestly.
+acceptance:
+  campaign_done_when:
+  - All eight phases merged with required reviews and green checks.
+  - Every new gate is fail-closed AND has a bypass canary that fails when the gate is neutered.
+  - 4/4 negative controls executable; planted-fake-alpha end-to-end canary rejects contamination.
+  - Surrogate-FDR calibration machinery landed with a committed value-free calibration report and declared zero-pass threshold.
+  - reason_code taxonomy live and enforced for INCONCLUSIVE; the 6 Core Pilot verdicts carry additive annotations; originals byte-identical.
+  - VariantLedger platform-cumulative with family budgets enforced at entry and promotion.
+  - Sealed holdout declared/logged/gated.
+  - Kill-shot readiness checklist + Track-B template + executable FUTSUB resume handoff exist.
+  - No runs/, value, or DB artifact committed anywhere in the campaign.
+stop_conditions:
+- Contradictory scope, repeated execution failures, missing authorization, or impossible validation - stop and mark BLOCKED rather than weakening a gate.
+- Any mutation of historical Core Pilot evidence - BLOCKED immediately.
+- Any gate landed open-by-default - BLOCKED, never a follow-up TODO.
