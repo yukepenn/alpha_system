@@ -331,6 +331,7 @@ phases:
   - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P00.md
   - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md
   - reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P00/**
+  - README.md
   - ACTIVE_CAMPAIGN.md
   forbidden_paths: &forbidden_paths
   - src/alpha_system/execution/**
