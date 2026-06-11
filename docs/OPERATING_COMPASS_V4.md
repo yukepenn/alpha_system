@@ -235,6 +235,13 @@ estimates and never override `status_doctor` / live run-state.
      canary (DONE, PR #332).
   6. Verdict taxonomy upgrade (§2.2) incl. pre-declared pooled-evaluation
      support in StudySpec.
+  7. Pipeline FDR calibration (§7.2): the full study machinery run on
+     label-shuffled/surrogate data; any survivor = measured pipeline leakage;
+     must pass before the kill-shot and is a HARD precondition for the early
+     bounded-ML pipeline (§7.8).
+  8. Evidence-accrual loop (§7.1): INCONCLUSIVE+UNDERPOWERED verdicts
+     auto-requeue for retest when newly accepted data materially changes
+     their power.
 - REVIEW CONTRACT (permanent from here on): reviewer verdicts must cite
   deterministic evidence — ledger completeness, variant count, holdout access
   report, canary results, no-lookahead audit, cost report, duplicate-exposure
@@ -271,13 +278,16 @@ estimates and never override `status_doctor` / live run-state.
 0 survivors (all clean REJECT):
   → POST_KILLSHOT_DIAGNOSIS, not factory building. Ranked hypotheses to test:
     (a) idea quality: the six families are crowded priors → next narrow
-        kill-shot from differentiated mechanisms (event-time bars, overnight/
-        session-structure effects, cross-asset spillover) before any data buy;
+        kill-shot from differentiated mechanisms already in scope (§7):
+        event-calendar conditioning, calendar/flow seasonality, the governed
+        overnight family, event-time bars, cross-asset spillover — before any
+        data buy;
     (b) horizon structure: pooled multi-horizon retest of UNDERPOWERED verdicts;
     (c) universe homogeneity: equity-index trio shares one beta → evaluate
         cross-asset expansion (Stage N trigger);
-    (d) cost reality: if many die only at cost gates → Stage I sample-month
-        calibration may rescue or confirm;
+    (d) data tier: if many die only at cost gates → Stage I sample-month
+        calibration may rescue or confirm; TBBO/MBP-1 samples also serve
+        microstructure FEATURES (§7.6), not just cost validation;
     (e) stop: if (a)-(d) are exhausted across 2-3 narrow kill-shots, that
         conclusion is itself valuable — revisit thesis with the human.
 1 survivor:
@@ -311,6 +321,11 @@ estimates and never override `status_doctor` / live run-state.
   DatasetVersions, locked-test policy) — never open-ended.
 - Scope chosen by evidence from C/D, not by menu. Ensemble-aware: pooled
   hypotheses are first-class studies.
+- Family candidates beyond the original six (all §7-adopted, each still
+  budget-bounded): calendar/flow seasonality (§7.4), event-calendar-conditioned
+  variants (§7.3), the governed overnight family (§7.7 — explicit-crossing
+  labels, gap-risk budget), and exactly ONE pre-declared ML pooled pipeline
+  (§7.8 — only if the surrogate-FDR calibration passed).
 - Computed anti-crowding lands here (structural/correlation duplicate gates)
   if Stage B's inspection found only hint/manual duplicate machinery.
 - Outputs only REJECT / INCONCLUSIVE_* / WATCH / CANDIDATE_RESEARCH.
@@ -376,6 +391,9 @@ estimates and never override `status_doctor` / live run-state.
 
 - take/skip, size buckets, regime routing, exit quality. Never first-stage
   black-box 1-minute direction prediction.
+- Exception already adopted (§7.8): one pre-declared, surrogate-FDR-gated ML
+  pooled pipeline may run earlier inside Mining V2; this stage is the full ML
+  layer, which still waits for stable base signals.
 
 ### Stage N — Universe expansion  [evidence-triggered, any time after D]
 
@@ -405,7 +423,9 @@ estimates and never override `status_doctor` / live run-state.
 - **Horizon/session:** 1m = sampling not alpha horizon; 1–3m execution-fragile
   (stricter gates); 5–30m primary; 30m–4h extended (stronger overlap/regime
   tests); session-close / maintenance-flat valid; hard boundary = exchange
-  maintenance/trade-date break, never midnight; ETH research-in-scope, not
+  maintenance/trade-date break, never midnight — FOR INTRADAY FAMILIES; the
+  governed overnight family (§7.7) is the sole exception and must model the
+  crossing explicitly (never silently); ETH research-in-scope, not
   auto-trading-approved; point-in-time running_* features only.
 - **Cost stack:** fees (versioned) + BBO spread crossing + bucketed slippage
   proxy; profiles zero_cost (diagnostic only) / base / stress_1 / stress_2 /
