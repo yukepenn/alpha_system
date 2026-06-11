@@ -17,6 +17,29 @@ FUTSUB-P19 resume deviation.
 
 Current campaign progress:
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` is the active Workflow 2
+campaign. This `FUTSUB-P26` executor snapshot produces the BBO quality matrix
+and cross-market alignment matrix, completing the `wiring_and_matrices` gate
+(`FUTSUB-P24`...`FUTSUB-P26`) with value-free substrate quality and alignment
+evidence.
+
+Active / next phase is Ralph-owned. Until Ralph validates, reviews, and merges
+this executor snapshot, `FUTSUB-P26` remains the nominal active phase. After
+merge, the nominal next phase is `FUTSUB-P27` - Re-lock Core Pilot StudySpecs
+Against Full Substrate.
+
+New durable surfaces through this `FUTSUB-P26` executor snapshot:
+
+- `research/futures_substrate_scaleout_v1/matrices/bbo_quality.md` records the
+  value-free BBO quality matrix over registered P12 BBO FeaturePack values.
+- `research/futures_substrate_scaleout_v1/matrices/cross_market_alignment.md`
+  records the value-free cross-market state coverage, strict-intersection
+  survival, and availability-discipline matrix over registered P13 values.
+- `docs/futures_substrate_scaleout/BBO_AND_CROSS_MARKET_MATRICES.md`
+  documents how P27...P29, Validation Governance, and future mining campaigns
+  should consume the matrices.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P26.md`
+  records validation, inputs, quality context, and artifact policy for
+  coordinator use.
 campaign. This `FUTSUB-P27` executor snapshot opens the `rerun` gate
 (`FUTSUB-P27`...`FUTSUB-P29`) by re-locking the Core Pilot StudySpecs against
 the full futures substrate where the current registry and strict resolver make
@@ -79,6 +102,10 @@ P23 records coverage gaps explicitly rather than accepting the substrate by
 subset. P24 exposes walk-forward fold metadata but does not treat rows as
 independent samples for overlapping horizons. P25 adds N_eff as a reporting
 input only; full multiple-testing / DSR / PBO / PSR governance remains deferred
+to `ALPHA_VALIDATION_GOVERNANCE_V1`. P26 keeps BBO as a time-sampled and
+forward-filled tradability proxy, never execution truth, and records
+cross-market `strict_intersection` alignment with per-instrument `available_ts`
+discipline and no cross-instrument forward-fill.
 to `ALPHA_VALIDATION_GOVERNANCE_V1`. P27 re-locks existing Core Pilot
 StudySpecs only; it does not create new alpha ideas, tune parameters, run
 diagnostics, materialize values, mutate registries, or weaken the strict
