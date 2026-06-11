@@ -11,27 +11,32 @@ The repository-level campaign pointer selects
 reference-label throughput blocker by adding and validating unit-level worker
 parallelism around the unchanged reference label engine.
 
-RLPC-P02 adds the synthetic correctness gate for the reference-engine
-unit-parallel worker path. The committed tests prove exact workers=1 vs
-workers=4 equivalence on a fixed-horizon plus cost-adjusted-shaped grid,
-interruption/resume safety, completed-checkpoint to registry 1:1 coverage, and
-single-writer worker isolation. Default workers remain 1; after RLPC-P02
-merges, the active next phase is RLPC-P03, the bounded real benchmark and
-release gate.
+RLPC-P03 adds the bounded real benchmark and release gate for the
+reference-engine unit-parallel worker path. The committed summary measures the
+real `cost_adjusted` driver path over a self-validating ES/2024 grid at workers
+1/2/4/8, confirms deterministic label-version/content-hash equality, and records
+`NOT_RELEASED` because workers=8 measured 2.14x versus the 3.0x release gate.
+Default workers remain 1; after RLPC-P03 merges, the active next phase is
+RLPC-P04, the FUTSUB amendment/resume handoff and backlog closeout.
 
 Durable artifacts in this campaign snapshot:
 
 - `campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/` - campaign contract bundle.
 - `research/reference_label_parallel_compute_v1/` - value-free evidence
-  root, including the RLPC-P02 synthetic determinism evidence note.
+  root, including the RLPC-P02 synthetic determinism evidence note and the
+  RLPC-P03 benchmark summary.
+- `tools/reference_label_parallel_compute/` - RLPC-P03 bounded real benchmark
+  harness.
 - `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md` -
   committed record of the stopped FUTSUB-P19 pause state and preservation
   boundary.
 - `tests/unit/reference_label_parallel_compute/` - synthetic structural,
   determinism, resume, single-writer audit, and canary tests for the reference
   worker path.
-- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P02.md` - executor handoff
-  for the determinism/resume/single-writer gate.
+- `research/reference_label_parallel_compute_v1/benchmark/benchmark_summary.md`
+  - value-free RLPC-P03 worker sweep and release decision.
+- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P03.md` - executor handoff
+  for the bounded real benchmark and release gate.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -53,12 +58,12 @@ authorize live trading, paper trading, broker operations, order routing,
 production deployment, account operations, capital allocation, or autonomous
 trading behavior.
 
-The per-row reference label engine remains the correctness oracle. RLPC-P02 does
+The per-row reference label engine remains the correctness oracle. RLPC-P03 does
 not edit the reference engine, label families, roll guard, label versioning, or
-any data artifact. Registry writes remain parent-only and serial; RLPC-P02 only
-preserves ledger unit horizon metadata during resume so cost-adjusted checkpoint
-truth rehydrates to the same unit identity. Later phases must preserve exact
-identity, serial registry writes, roll/maintenance guards, and
+any data artifact. Registry writes remain parent-only and serial; the benchmark
+uses isolated local namespaces under the data root and leaves production
+registry row counts unchanged. Later phases must preserve exact identity, serial
+registry writes, roll/maintenance guards, default workers=1, and
 `label_available_ts` no-lookahead behavior.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
