@@ -328,8 +328,9 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         type=int,
         default=None,
         help=(
-            "CPU worker count for V1 label compute; overrides "
-            "ALPHA_LABEL_CPU_WORKERS, then ALPHA_CPU_WORKERS, and defaults to 1."
+            "CPU worker count for label compute with --engine reference or v1; "
+            "overrides ALPHA_LABEL_CPU_WORKERS, then ALPHA_CPU_WORKERS, and "
+            "defaults to 1."
         ),
     )
     label_parser.add_argument(

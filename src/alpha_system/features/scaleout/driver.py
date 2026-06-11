@@ -45,6 +45,9 @@ SCALEOUT_ENGINES = frozenset({SCALEOUT_ENGINE_V1, SCALEOUT_ENGINE_REFERENCE})
 DEFAULT_CPU_WORKERS = 1
 LABEL_CPU_WORKERS_ENV = "ALPHA_LABEL_CPU_WORKERS"
 FORCE_RECOMPUTE_ENV = "ALPHA_SCALEOUT_FORCE_RECOMPUTE"
+REFERENCE_LABEL_PRODUCER_ENGINE_ID = "alpha_system.labels.reference_engine.v1"
+REFERENCE_LABEL_WORKER_MANIFEST_SCHEMA = "alpha_system.labels.reference.worker_manifest.v1"
+REFERENCE_LABEL_THREADS_PER_WORKER = 2
 SESSION_METADATA_ROLE_MARKER = "SESSION_METADATA_POINT_IN_TIME"
 SESSION_METADATA_ROLE_FAMILIES = frozenset(
     {
@@ -418,6 +421,45 @@ class _V1PreparedWorkerJob:
     feature_set: Any
     feature_request_payloads: Mapping[str, Mapping[str, Any]]
     registry_metadata: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class _ReferenceLabelWorkerManifest:
+    """Deterministic, value-free manifest for one reference-label worker unit."""
+
+    unit_key: Mapping[str, Any]
+    parquet_path: str
+    content_hash: str
+    row_count: int
+    label_version_ids: tuple[str, ...]
+    producer_engine_id: str
+    value_schema_version: str
+    manifest_path: str
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "schema": REFERENCE_LABEL_WORKER_MANIFEST_SCHEMA,
+            "unit_key": dict(self.unit_key),
+            "parquet_path": self.parquet_path,
+            "content_hash": self.content_hash,
+            "row_count": self.row_count,
+            "label_version_ids": list(self.label_version_ids),
+            "producer_engine_id": self.producer_engine_id,
+            "value_schema_version": self.value_schema_version,
+            "manifest_path": self.manifest_path,
+        }
+        payload["manifest_hash"] = "sha256:" + hash_config(payload)
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class _ReferenceLabelWorkerUnitOutput:
+    """Reference-label worker output queued for the single serial registry writer."""
+
+    materialization_result: Any
+    label_definitions: tuple[Any, ...]
+    registry_metadata: Mapping[str, Any]
+    manifest: _ReferenceLabelWorkerManifest | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -812,6 +854,20 @@ def _resolve_engine_token(engine: str | None, config: ScaleoutConfig) -> str:
     return _normalize_engine(engine)
 
 
+def _parallel_worker_compute_allowed(
+    config: ScaleoutConfig,
+    engine: str,
+    *,
+    use_default_executor: bool,
+) -> bool:
+    if not use_default_executor:
+        return False
+    engine_token = _normalize_engine(engine)
+    if engine_token == SCALEOUT_ENGINE_V1:
+        return True
+    return engine_token == SCALEOUT_ENGINE_REFERENCE and _is_label_scaleout_config(config)
+
+
 def run_scaleout(
     config: ScaleoutConfig,
     *,
@@ -892,9 +948,10 @@ def run_scaleout(
     worker_plan = _resolve_worker_plan(
         requested_workers,
         unit_count=len(planned),
-        parallel_allowed=(
-            use_default_executor
-            and engine_token == SCALEOUT_ENGINE_V1
+        parallel_allowed=_parallel_worker_compute_allowed(
+            config,
+            engine_token,
+            use_default_executor=use_default_executor,
         ),
     )
 
@@ -910,9 +967,10 @@ def run_scaleout(
             executor=executor,
             engine=engine_token,
             requested_workers=requested_workers,
-            parallel_v1_compute=(
-                use_default_executor
-                and engine_token == SCALEOUT_ENGINE_V1
+            parallel_worker_compute=_parallel_worker_compute_allowed(
+                config,
+                engine_token,
+                use_default_executor=use_default_executor,
             ),
             force_recompute=force_recompute_token,
             log=log,
@@ -1257,6 +1315,353 @@ def materialize_fast_label_unit(
         unit,
         alpha_data_root=alpha_data_root,
         output=output,
+    )
+
+
+def materialize_reference_label_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one label unit through the reference engine, then register serially."""
+
+    output = _compute_reference_label_unit_output(
+        config,
+        unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=False,
+        include_records=True,
+    )
+    return _register_reference_label_worker_output(
+        config,
+        unit,
+        alpha_data_root=alpha_data_root,
+        output=output,
+    )
+
+
+def _compute_reference_label_unit_output(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    *,
+    write_manifest: bool,
+    include_records: bool,
+) -> _ReferenceLabelWorkerUnitOutput:
+    """Compute and persist one reference-label unit without mutating the registry."""
+
+    from alpha_system.features.input_views import build_ohlcv_input_view
+    from alpha_system.labels.engine import (
+        LABEL_MATERIALIZATION_PURPOSE,
+        LABEL_MATERIALIZATION_SCHEMA,
+        LabelMaterializationResult,
+        _LabelInputViews,
+        _compute_records,
+        _definitions_by_version_id,
+        _materialization_output_path_for_format,
+        _validate_materialized_records,
+        _write_records_idempotently,
+        build_label_materialization_plan,
+    )
+
+    if not _is_label_scaleout_config(config) or unit.family != config.family:
+        raise ScaleoutError("reference label executor requires a label scaleout unit")
+    definitions = _reference_label_definitions_for_unit(config, unit)
+    registry_metadata = _label_scaleout_metadata(config, unit)
+    context = _label_accepted_context(
+        config,
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    plan = build_label_materialization_plan(
+        definitions,
+        context.accepted,
+        partition_id=unit.partition_id,
+        instrument_ids=(),
+        alpha_data_root=alpha_data_root,
+        governance_metadata=registry_metadata,
+        output_namespace=config.value_namespace,
+    )
+    ohlcv_view = build_ohlcv_input_view(
+        context.accepted,
+        context.bar_rows,
+        partition_id=unit.partition_id,
+        purpose=LABEL_MATERIALIZATION_PURPOSE,
+        governance_metadata=registry_metadata,
+    )
+    bbo_view = _reference_label_bbo_view(
+        definitions,
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+        partition_id=unit.partition_id,
+        purpose=LABEL_MATERIALIZATION_PURPOSE,
+        governance_metadata=registry_metadata,
+    )
+    started = perf_counter()
+    records = _compute_records(
+        plan,
+        _definitions_by_version_id(definitions, plan),
+        _LabelInputViews(ohlcv=ohlcv_view, bbo=bbo_view),
+    )
+    _validate_materialized_records(plan, records)
+    write_result = _write_records_idempotently(
+        plan,
+        records,
+        value_store_format=config.value_store_format,
+    )
+    result = LabelMaterializationResult(
+        plan=plan,
+        records=records,
+        dry_run=False,
+        wrote_output=write_result.wrote_output,
+        output_path=_materialization_output_path_for_format(plan, config.value_store_format),
+        value_store_handle=write_result.handle,
+        planned_input_rows=len(context.bar_rows) + len(getattr(bbo_view, "rows", ())),
+        planned_label_count=len(definitions),
+        runtime_seconds=perf_counter() - started,
+    )
+    if result.record_count == 0:
+        raise ScaleoutError(f"unit {unit.unit_id} produced no reference label values")
+    manifest = _reference_label_worker_manifest_from_result(
+        alpha_data_root=alpha_data_root,
+        config=config,
+        unit=unit,
+        result=result,
+        label_version_ids=_reference_label_version_ids(definitions),
+        value_schema_version=LABEL_MATERIALIZATION_SCHEMA,
+    )
+    if write_manifest:
+        _write_reference_label_worker_manifest(manifest)
+    if not include_records:
+        result = LabelMaterializationResult(
+            plan=result.plan,
+            records=(),
+            dry_run=result.dry_run,
+            wrote_output=result.wrote_output,
+            output_path=result.output_path,
+            value_store_handle=result.value_store_handle,
+            planned_input_rows=result.planned_input_rows,
+            planned_label_count=result.planned_label_count,
+            runtime_seconds=result.runtime_seconds,
+        )
+    return _ReferenceLabelWorkerUnitOutput(
+        materialization_result=result,
+        label_definitions=definitions,
+        registry_metadata=registry_metadata,
+        manifest=manifest,
+    )
+
+
+def _register_reference_label_worker_output(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    output: Any,
+) -> MaterializedUnitEvidence:
+    """Serially register one worker-computed reference-label unit."""
+
+    from alpha_system.labels.engine import (
+        LABEL_MATERIALIZATION_SCHEMA,
+        _definition_contract,
+        _definition_version,
+    )
+    from alpha_system.labels.registry import LabelRegistry
+
+    result = _reference_label_result_with_records(output.materialization_result)
+    handle = result.value_store_handle
+    if handle is None:
+        raise ScaleoutError(f"unit {unit.unit_id} did not return a value-store handle")
+    parquet_path = _require_text(handle.parquet_path, "value_store_handle.parquet_path")
+    content_hash = _require_text(handle.content_hash, "value_store_handle.content_hash")
+    registry = LabelRegistry.from_alpha_data_root(alpha_data_root)
+    records = []
+    registry_metadata = dict(output.registry_metadata)
+    if output.manifest is not None:
+        registry_metadata["worker_manifest_path"] = output.manifest.manifest_path
+    for definition in output.label_definitions:
+        records.append(
+            registry.register_materialized_label(
+                result,
+                label_contract=_definition_contract(definition),
+                label_version=_definition_version(definition),
+                registry_metadata=registry_metadata,
+            )
+        )
+    label_version_ids = tuple(record.label_version_id for record in records)
+    expected_label_version_ids = _reference_label_version_ids(output.label_definitions)
+    if label_version_ids != expected_label_version_ids:
+        raise ScaleoutError("registered reference label_version_id order changed")
+    _verify_label_registry_roundtrip(
+        unit,
+        alpha_data_root=alpha_data_root,
+        label_version_ids=label_version_ids,
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        value_schema_version=LABEL_MATERIALIZATION_SCHEMA,
+    )
+    for label_version_id in label_version_ids:
+        record = registry.resolve_label(label_version_id)
+        if record is None or record.producer_engine_id != REFERENCE_LABEL_PRODUCER_ENGINE_ID:
+            raise ScaleoutError("registered label is missing reference producer provenance")
+    return MaterializedUnitEvidence(
+        parquet_path=parquet_path,
+        content_hash=content_hash,
+        row_count=handle.value_count,
+        label_version_ids=label_version_ids,
+    )
+
+
+def _reference_label_bbo_view(
+    definitions: tuple[Any, ...],
+    unit: ScaleoutUnit,
+    *,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    partition_id: str,
+    purpose: str,
+    governance_metadata: Mapping[str, Any],
+) -> Any:
+    from alpha_system.features.input_views import BBOInputView, build_bbo_input_view
+
+    if not _reference_label_definitions_require_bbo(definitions):
+        return BBOInputView(())
+    bbo_dataset = _label_bbo_input_dataset(unit)
+    if bbo_dataset is None:
+        raise ScaleoutError(
+            f"unit {unit.unit_id} requires a BBO input DatasetVersion but none "
+            "is wired in unit.input_datasets"
+        )
+    bbo_unit = replace(
+        unit,
+        schema_id=bbo_dataset.schema_id,
+        dataset_version_id=bbo_dataset.dataset_version_id,
+        acceptance_state=bbo_dataset.acceptance_state,
+        acceptance_state_source=bbo_dataset.acceptance_state_source,
+    )
+    context = _build_bbo_accepted_context(
+        bbo_unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    return build_bbo_input_view(
+        context.accepted,
+        context.bbo_rows,
+        partition_id=partition_id,
+        purpose=purpose,
+        governance_metadata=governance_metadata,
+    )
+
+
+def _reference_label_definitions_require_bbo(definitions: tuple[Any, ...]) -> bool:
+    from alpha_system.labels.families.cost_adjusted import CostAdjustedLabelDefinition
+    from alpha_system.labels.families.fixed_horizon import FixedHorizonLabelDefinition
+
+    for definition in definitions:
+        if isinstance(definition, CostAdjustedLabelDefinition):
+            return True
+        if isinstance(definition, FixedHorizonLabelDefinition) and getattr(
+            definition,
+            "is_midprice",
+            False,
+        ):
+            return True
+    return False
+
+
+def _reference_label_definitions_for_unit(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+) -> tuple[Any, ...]:
+    return _fast_label_definitions_for_unit(config, unit)
+
+
+def _reference_label_version_ids(definitions: Sequence[Any]) -> tuple[str, ...]:
+    from alpha_system.labels.engine import _definition_version
+
+    return tuple(_definition_version(definition).label_version_id for definition in definitions)
+
+
+def _reference_label_result_with_records(result: Any) -> Any:
+    if not hasattr(result, "records") or getattr(result, "records", ()):
+        return result
+    from alpha_system.labels.engine import LabelMaterializationResult
+
+    handle = result.value_store_handle
+    if handle is None or not handle.parquet_path:
+        raise ScaleoutError("reference label worker output is missing a Parquet handle")
+    return LabelMaterializationResult(
+        plan=result.plan,
+        records=_label_value_records_from_parquet(handle.parquet_path, result.plan),
+        dry_run=result.dry_run,
+        wrote_output=result.wrote_output,
+        output_path=result.output_path,
+        value_store_handle=handle,
+        planned_input_rows=result.planned_input_rows,
+        planned_label_count=result.planned_label_count,
+        runtime_seconds=result.runtime_seconds,
+    )
+
+
+def _reference_label_worker_manifest_path(
+    alpha_data_root: str | Path,
+    *,
+    checkpoint_root: str | Path,
+    unit_id: str,
+) -> Path:
+    return (
+        Path(alpha_data_root)
+        / Path(checkpoint_root)
+        / "reference_worker_manifests"
+        / f"{unit_id}.json"
+    )
+
+
+def _reference_label_worker_manifest_from_result(
+    *,
+    alpha_data_root: Path,
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    result: Any,
+    label_version_ids: Sequence[str],
+    value_schema_version: str,
+) -> _ReferenceLabelWorkerManifest:
+    handle = result.value_store_handle
+    if handle is None or not handle.parquet_path or not handle.content_hash:
+        raise ScaleoutError("reference label worker result requires a Parquet handle")
+    manifest_path = _reference_label_worker_manifest_path(
+        alpha_data_root,
+        checkpoint_root=config.checkpoint_root,
+        unit_id=unit.unit_id,
+    )
+    return _ReferenceLabelWorkerManifest(
+        unit_key=_worker_unit_key(unit),
+        parquet_path=str(handle.parquet_path),
+        content_hash=str(handle.content_hash),
+        row_count=int(handle.value_count),
+        label_version_ids=tuple(str(value) for value in label_version_ids),
+        producer_engine_id=REFERENCE_LABEL_PRODUCER_ENGINE_ID,
+        value_schema_version=value_schema_version,
+        manifest_path=manifest_path.as_posix(),
+    )
+
+
+def _write_reference_label_worker_manifest(
+    manifest: _ReferenceLabelWorkerManifest,
+) -> None:
+    manifest_path = Path(manifest.manifest_path)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        canonical_serialize(manifest.to_dict()) + "\n",
+        encoding="utf-8",
     )
 
 
@@ -3137,11 +3542,11 @@ def _unit_executor_for_family(
     if family in {"fixed_horizon", "session_close_maintenance_flat"}:
         if engine_token == SCALEOUT_ENGINE_V1:
             return materialize_fast_label_unit
-        return materialize_fixed_horizon_label_unit
+        return materialize_reference_label_unit
     if family in {"cost_adjusted", "path"}:
         if engine_token == SCALEOUT_ENGINE_V1:
             return materialize_fast_label_unit
-        raise ScaleoutError(f"reference label executor is unsupported for {family}")
+        return materialize_reference_label_unit
     if engine_token == SCALEOUT_ENGINE_V1:
         return materialize_v1_feature_unit
     if family == "base_ohlcv":
@@ -3845,7 +4250,7 @@ def _execute_stage(
     executor: UnitExecutor,
     engine: str,
     requested_workers: int,
-    parallel_v1_compute: bool,
+    parallel_worker_compute: bool,
     force_recompute: bool,
     log: Callable[[str], None] | None,
 ) -> tuple[ScaleoutUnitRecord, ...]:
@@ -3920,19 +4325,30 @@ def _execute_stage(
         worker_plan = _resolve_worker_plan(
             requested_workers,
             unit_count=len(runnable_units),
-            parallel_allowed=parallel_v1_compute,
+            parallel_allowed=parallel_worker_compute,
         )
         _log_worker_reductions(worker_plan, log)
         if worker_plan.parallel_enabled:
-            computed = _compute_v1_stage_outputs_in_workers(
-                config,
-                tuple(runnable_units),
-                alpha_data_root=alpha_data_root,
-                dataset_registry_path=dataset_registry_path,
-                canonical_root=canonical_root,
-                worker_plan=worker_plan,
-                force_recompute=force_recompute,
-            )
+            if _is_label_scaleout_config(config) and engine == SCALEOUT_ENGINE_REFERENCE:
+                computed = _compute_reference_label_stage_outputs_in_workers(
+                    config,
+                    tuple(runnable_units),
+                    alpha_data_root=alpha_data_root,
+                    dataset_registry_path=dataset_registry_path,
+                    canonical_root=canonical_root,
+                    worker_plan=worker_plan,
+                    force_recompute=force_recompute,
+                )
+            else:
+                computed = _compute_v1_stage_outputs_in_workers(
+                    config,
+                    tuple(runnable_units),
+                    alpha_data_root=alpha_data_root,
+                    dataset_registry_path=dataset_registry_path,
+                    canonical_root=canonical_root,
+                    worker_plan=worker_plan,
+                    force_recompute=force_recompute,
+                )
             for unit in runnable_units:
                 outcome = computed[unit.unit_id]
                 if isinstance(outcome, BaseException):
@@ -3947,8 +4363,15 @@ def _execute_stage(
                     continue
                 start_wait = perf_counter()
                 try:
-                    if _is_label_scaleout_config(config):
+                    if _is_label_scaleout_config(config) and engine == SCALEOUT_ENGINE_V1:
                         evidence = _register_fast_label_worker_output(
+                            config,
+                            unit,
+                            alpha_data_root=alpha_data_root,
+                            output=outcome,
+                        )
+                    elif _is_label_scaleout_config(config):
+                        evidence = _register_reference_label_worker_output(
                             config,
                             unit,
                             alpha_data_root=alpha_data_root,
@@ -4105,6 +4528,59 @@ def _compute_v1_stage_outputs_in_workers(
     return outputs
 
 
+def _compute_reference_label_stage_outputs_in_workers(
+    config: ScaleoutConfig,
+    units: tuple[ScaleoutUnit, ...],
+    *,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+    worker_plan: ScaleoutWorkerPlan,
+    force_recompute: bool,
+) -> dict[str, Any | BaseException]:
+    outputs: dict[str, Any | BaseException] = {}
+    jobs: list[ScaleoutUnit] = []
+    for unit in units:
+        try:
+            if not force_recompute:
+                resumed = _reference_label_worker_output_from_manifest(
+                    config,
+                    unit,
+                    alpha_data_root=alpha_data_root,
+                )
+                if resumed is not None:
+                    outputs[unit.unit_id] = resumed
+                    continue
+            jobs.append(unit)
+        except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
+            outputs[unit.unit_id] = exc
+    if not jobs:
+        return outputs
+    spawn_context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=worker_plan.effective_workers,
+        mp_context=spawn_context,
+    ) as pool:
+        futures = {
+            pool.submit(
+                _reference_label_worker_compute_entrypoint,
+                config,
+                unit,
+                alpha_data_root,
+                dataset_registry_path,
+                canonical_root,
+            ): unit
+            for unit in jobs
+        }
+        for future in as_completed(futures):
+            unit = futures[future]
+            try:
+                outputs[unit.unit_id] = future.result()
+            except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
+                outputs[unit.unit_id] = exc
+    return outputs
+
+
 def _compute_fast_label_stage_outputs_in_workers(
     config: ScaleoutConfig,
     units: tuple[ScaleoutUnit, ...],
@@ -4157,6 +4633,151 @@ def _compute_fast_label_stage_outputs_in_workers(
             except BaseException as exc:  # noqa: BLE001 - recorded per unit for retry
                 outputs[unit.unit_id] = exc
     return outputs
+
+
+def _reference_label_worker_output_from_manifest(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+) -> _ReferenceLabelWorkerUnitOutput | None:
+    """Rebuild a reference-label worker output from a completed local manifest."""
+
+    from alpha_system.core.value_store import ValueStoreHandle, parquet_is_current
+    from alpha_system.labels.engine import (
+        LABEL_MATERIALIZATION_SCHEMA,
+        LabelMaterializationResult,
+        _materialization_output_path_for_format,
+    )
+
+    manifest_path = _reference_label_worker_manifest_path(
+        alpha_data_root,
+        checkpoint_root=config.checkpoint_root,
+        unit_id=unit.unit_id,
+    )
+    if not manifest_path.exists():
+        return None
+    payload = _load_json_mapping(manifest_path, "reference label worker manifest")
+    if payload.get("schema") != REFERENCE_LABEL_WORKER_MANIFEST_SCHEMA:
+        raise ScaleoutError(f"reference label worker manifest schema is invalid: {manifest_path}")
+    if payload.get("producer_engine_id") != REFERENCE_LABEL_PRODUCER_ENGINE_ID:
+        raise ScaleoutError(f"reference label worker manifest producer is invalid: {manifest_path}")
+    if payload.get("value_schema_version") != LABEL_MATERIALIZATION_SCHEMA:
+        raise ScaleoutError(
+            f"reference label worker manifest value schema is invalid: {manifest_path}"
+        )
+    _require_worker_manifest_unit_key(payload.get("unit_key"), unit, manifest_path)
+    parquet_path = Path(_require_text(payload.get("parquet_path"), "parquet_path"))
+    if not parquet_path.exists():
+        raise ScaleoutError(
+            f"reference label worker manifest Parquet is missing: {parquet_path}"
+        )
+    content_hash = _require_text(payload.get("content_hash"), "content_hash")
+    if not parquet_is_current(parquet_path, content_hash):
+        raise ScaleoutError(
+            f"reference label worker manifest Parquet hash is stale: {parquet_path}"
+        )
+    label_version_ids = tuple(
+        _require_text(value, "label_version_id")
+        for value in _sequence(payload.get("label_version_ids"), "label_version_ids")
+    )
+    definitions = _reference_label_definitions_for_unit(config, unit)
+    if label_version_ids != _reference_label_version_ids(definitions):
+        raise ScaleoutError("reference label worker manifest label_version_id order changed")
+    plan = _reference_label_plan_from_manifest(
+        config,
+        unit,
+        alpha_data_root=alpha_data_root,
+        definitions=definitions,
+    )
+    records = _label_value_records_from_parquet(parquet_path, plan)
+    handle = ValueStoreHandle(
+        format=ValueStoreFormat.PARQUET,
+        jsonl_path=None,
+        parquet_path=parquet_path.as_posix(),
+        value_count=len(records),
+        content_hash=content_hash,
+        schema_version=LABEL_MATERIALIZATION_SCHEMA,
+        dataset_version_id=unit.dataset_version_id,
+        set_id=unit.feature_set_id,
+        partition_id=unit.partition_id,
+        min_event_ts=min(record.event_ts.isoformat() for record in records),
+        max_event_ts=max(record.event_ts.isoformat() for record in records),
+        min_available_ts=min(record.label_available_ts.isoformat() for record in records),
+        max_available_ts=max(record.label_available_ts.isoformat() for record in records),
+    )
+    manifest = _ReferenceLabelWorkerManifest(
+        unit_key=_worker_unit_key(unit),
+        parquet_path=parquet_path.as_posix(),
+        content_hash=content_hash,
+        row_count=int(payload.get("row_count") or len(records)),
+        label_version_ids=label_version_ids,
+        producer_engine_id=REFERENCE_LABEL_PRODUCER_ENGINE_ID,
+        value_schema_version=LABEL_MATERIALIZATION_SCHEMA,
+        manifest_path=manifest_path.as_posix(),
+    )
+    registry_metadata = {
+        **_label_scaleout_metadata(config, unit),
+        "worker_manifest_path": manifest_path.as_posix(),
+    }
+    return _ReferenceLabelWorkerUnitOutput(
+        materialization_result=LabelMaterializationResult(
+            plan=plan,
+            records=records,
+            dry_run=False,
+            wrote_output=False,
+            output_path=_materialization_output_path_for_format(plan, config.value_store_format),
+            value_store_handle=handle,
+        ),
+        label_definitions=definitions,
+        registry_metadata=registry_metadata,
+        manifest=manifest,
+    )
+
+
+def _reference_label_plan_from_manifest(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    *,
+    alpha_data_root: Path,
+    definitions: tuple[Any, ...],
+) -> Any:
+    from alpha_system.data.foundation.datasets import DatasetVersion
+    from alpha_system.features.consumption import AcceptedDatasetVersion
+    from alpha_system.labels.engine import build_label_materialization_plan
+
+    dataset_version = DatasetVersion(
+        dataset_version_id=unit.dataset_version_id,
+        source="dsrc_manifest_resume",
+        symbol_universe=(unit.symbol,),
+        bar_size="1 min",
+        what_to_show="TRADES",
+        start_ts=_datetime_from_iso(unit.window_start_ts),
+        end_ts=_datetime_from_iso(unit.window_end_ts),
+        contract_universe=(unit.symbol,),
+        roll_policy_id="roll_cme_index_futures_quarterly",
+        manifest_hash="0" * 64,
+        code_hash="0" * 64,
+        config_hash="0" * 64,
+        quality_report_hash="0" * 64,
+        created_at=_datetime_from_iso(unit.window_end_ts),
+    )
+    accepted = AcceptedDatasetVersion(
+        registry_path="manifest_resume",
+        dataset_version=dataset_version,
+        lifecycle_state="VERSIONED",
+        quality_report=None,
+        coverage_report=None,
+    )
+    return build_label_materialization_plan(
+        definitions,
+        accepted,
+        partition_id=unit.partition_id,
+        instrument_ids=(),
+        alpha_data_root=alpha_data_root,
+        governance_metadata=_label_scaleout_metadata(config, unit),
+        output_namespace=config.value_namespace,
+    )
 
 
 def _fast_label_worker_output_from_manifest(
@@ -4496,10 +5117,35 @@ def _fast_label_worker_compute_entrypoint(
     )
 
 
+def _reference_label_worker_compute_entrypoint(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> Any:
+    _pin_reference_label_worker_threads()
+    return _compute_reference_label_unit_output(
+        config,
+        unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=True,
+        include_records=False,
+    )
+
+
+def _pin_reference_label_worker_threads() -> None:
+    _pin_native_threads(REFERENCE_LABEL_THREADS_PER_WORKER)
+
+
 def _pin_native_threads(threads_per_worker: int) -> None:
     token = str(max(1, threads_per_worker))
     os.environ["POLARS_MAX_THREADS"] = token
     os.environ["OMP_NUM_THREADS"] = token
+    os.environ["OPENBLAS_NUM_THREADS"] = token
+    os.environ["NUMEXPR_MAX_THREADS"] = token
     os.environ["RAYON_NUM_THREADS"] = token
     os.environ["NUMBA_NUM_THREADS"] = token
 
@@ -6912,7 +7558,7 @@ def _resolve_worker_plan(
     reductions: list[str] = []
     if not parallel_allowed and requested > 1:
         effective = 1
-        reductions.append("parallel V1 compute is not active for this run")
+        reductions.append("parallel worker compute is not active for this run")
     if effective > cores:
         reductions.append(
             f"requested workers {effective} reduced to available cores {cores}"
