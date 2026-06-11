@@ -1,0 +1,555 @@
+campaign_id: REFERENCE_LABEL_PARALLEL_COMPUTE_V1
+campaign_name: 'Reference Label Parallel Compute V1: unit-level worker parallelism (default 8) for the per-row reference label engine in the scaleout driver — same engine, same math, same identities, workers compute disjoint units while ALL keystone registry writes stay serial in the parent — so reference-policy label families (cost_adjusted, fixed_extended, close_out) stop being single-threaded for full-window backfills (FUTSUB-P19 class workloads) and every future cost/index label grid inherits the throughput.'
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: reference_label_parallel_compute
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Substrate/infra engineering only. Implements STRUCTURAL_BACKLOG §6 option 1
+    (recorded 2026-06-10, PR #337; trigger met: FUTSUB-P19 full-window
+    cost_adjusted pass measured ~3h serial). The LCFP-P08 benchmark proved the
+    V1 fast pack LOSES to the reference engine for cost_adjusted /
+    fixed_extended / close_out (best 0.72x / 0.55x / 0.40x) because those
+    families are per-row cost-kernel arithmetic, not vectorizable panel math.
+    This campaign therefore does NOT touch label math: it reuses the existing
+    LCFP-P06 spawn-context ProcessPoolExecutor worker pattern (already
+    production for engine v1) to run N reference-engine unit computations
+    concurrently over disjoint label_group x symbol x year units, with serial
+    parent-side keystone registry writes and the existing append-safe
+    checkpoint ledger. The per-row reference label engine remains the
+    correctness oracle and is never modified, deleted, or weakened. It is NOT
+    a new engine, NOT cost-kernel vectorization (that stays backlog §6 option
+    2), NOT Ray/GPU/cluster, NOT alpha ideation. It makes no alpha,
+    profitability, or tradability claim.
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available but not the default for this campaign.
+  workflow2:
+    description: Ralph strict autonomous campaign loop with DAG-wave scheduling and a serial merge queue. The real-data benchmark phase is serialized by the shared registry resource_class.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 2
+    merge_queue: serial
+    update_active_campaign: coordinator_only
+  notes:
+  - Phases form a serial dependency chain (P00 -> P01 -> P02 -> P03 -> P04);
+    dag_wave is used for harness consistency, not for parallel build fan-out.
+  - Phase branches must never write ACTIVE_CAMPAIGN.md; the coordinator owns it.
+  - RLPC-P03 runs the bounded real benchmark against the production data root
+    and registry; it shares resource_class materialization_registry and is
+    must_run_alone. No parallel SQLite writes, ever.
+  - The paused FUTSUB run (2026-06-07T235209Z..., STOP present, FUTSUB-P19
+    mid-materialization with ~134/216 full-window cells durably checkpointed)
+    is DATA for this campaign - do not touch its run dir, worktree, registry
+    rows, or checkpoints except where RLPC-P04 explicitly amends the FUTSUB
+    campaign contract files.
+runtime:
+  python: '3.12'
+  package_root: src/alpha_system
+  test_root: tests
+  smoke_command: python tools/verify.py --smoke
+  full_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+  research_venv: ~/.venvs/alpha_system_research
+  data_root_env: ALPHA_DATA_ROOT
+  optional_dependency_pattern: 'require_dependency("polars") only where the existing driver already requires it; the reference engine itself stays dependency-free.'
+  consumed_primitives:
+  - src/alpha_system/labels/engine.py + labels/families/** — the per-row REFERENCE oracle; consumed AS-IS, never edited
+  - src/alpha_system/labels/roll_guard.py + labels/version.py — guard and label_available_ts semantics; must be byte-identical across serial and parallel runs
+  - src/alpha_system/labels/store.py + labels/registry.py — keystone label registry; ALL writes remain serial in the parent process
+  - src/alpha_system/features/scaleout/driver.py worker machinery from LCFP-P06 — spawn-context ProcessPoolExecutor (~L4084-4159), per-unit compute output contract, serial registration in unit order (_register_fast_label_worker_output ~L3951), worker plan resolution (_resolve_worker_plan ~L6903), append-safe _ScaleoutLedger checkpoints (~L3557)
+  - src/alpha_system/cli/scaleout.py — --engine/--workers parsing (~L242-352), _resolve_label_workers env convention (ALPHA_LABEL_CPU_WORKERS then ALPHA_CPU_WORKERS, ~L386)
+  - src/alpha_system/core/value_store.py — Parquet-first value sink; workers write values, parent registers
+  - tests/unit/feature_compute_fast_path/test_scaleout_worker_parallelism.py — existing worker-pool test pattern to mirror for the reference engine
+  editable_in_campaign:
+  - src/alpha_system/features/scaleout/driver.py (reference-engine worker entrypoint + engine-gate loosening at ~L895-898/913-916 + parent-side serial registration wiring; NO label math)
+  - src/alpha_system/cli/scaleout.py (allow --workers N with --engine reference; default stays 1)
+  - tools/reference_label_parallel_compute/** (benchmark harness)
+  - tests/unit/reference_label_parallel_compute/** + tests/unit/feature_compute_fast_path/** (worker/determinism/resume tests + tiny synthetic fixtures)
+  - campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/** (RLPC-P04 ENGINE POLICY amendment only)
+  - docs/STRUCTURAL_BACKLOG.md (RLPC-P04 §6 status update only)
+  engineering_invariants:
+  - Worker processes NEVER open or write the label registry SQLite (labels.sqlite) or any registry database; registration happens only in the parent, serially, in deterministic unit order.
+  - Worker processes write only unit-scoped Parquet/value-store outputs under $ALPHA_DATA_ROOT and return manifests; the checkpoint ledger is appended by the parent only after successful registration (identical to the LCFP-P06 v1 worker contract).
+  - Spawn context only (never fork); per-worker thread caps exported (POLARS_MAX_THREADS / OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / NUMEXPR_MAX_THREADS = 2) per the FUTSUB thread-control convention.
+  - label_version_id / content-hash / guard / label_available_ts semantics are engine-invariant AND worker-count-invariant; any difference between serial and parallel output is a BLOCKER, never a tolerance.
+  - The reference engine code path per unit is the SAME code the serial loop runs; the only change is which process runs it.
+models:
+  build_time_roles:
+    strategy_campaign_framing: ChatGPT GPT-5.5 Thinking
+    specs_semantic_review_done_check: Claude Opus 4.8 xhigh
+    source_map_verifier_mechanical_audit: Claude Sonnet 4.6
+    execution_tests_repair_handoffs: Codex GPT-5.5 xhigh
+    orchestration_state_machine_dag_merge_queue: Ralph
+  notes:
+  - Build-time model roles write/review/merge the campaign. No in-product autonomous agents.
+lane_policy:
+  green: Low-risk automatic work (campaign control docs, indexes, value-free scaffolding).
+  yellow: Material engineering work requiring fresh Claude Opus review.
+  red: External, destructive, live, production, costly, or broker-adjacent work; requires scoped authorization.
+  red_authorization_required:
+  - PROJECT_OP_AUTHORIZED
+  - PROJECT_OP_SCOPE
+  - PROJECT_OP_EXPIRES
+  red_expected_in_campaign: false
+  default_lane: yellow
+state_machine:
+  driver: ralph
+  strict: true
+  stop_checks_before:
+  - provider calls
+  - phase selection
+  - codex execution
+  - validation
+  - review
+  - PR creation
+  - CI waiting
+  - merge gate
+  - merge
+  - done-check
+  - next-phase selection
+  resume: from recorded run state, never regenerating completed work
+artifact_policy:
+  never_commit: &never_commit
+  - runs/**
+  - raw or canonical market data
+  - provider responses (Databento DBN/Zstd, IBKR)
+  - materialized feature values
+  - materialized label values
+  - local SQLite registries (datasets/features/labels) and journals/WAL
+  - benchmark output values / heavy artifacts
+  - heavy artifacts (parquet/arrow/feather)
+  - research run logs and caches
+  never_commit_globs: &never_commit_globs
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - '**/*.sqlite'
+  - '**/*.sqlite3'
+  - '**/*.db'
+  - '**/*.db-journal'
+  - '**/*.wal'
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  - '**/*.pkl'
+  - '**/*.npy'
+  - '**/*.npz'
+  - '**/*.log'
+  - '**/logs/**'
+  - '**/tmp/**'
+  - '**/cache/**'
+  - '**/.pytest_cache/**'
+  - runs/**
+  - artifacts/**
+  - '**/*credential*'
+  local_only_by_default:
+  - artifacts/**
+  - runs/**
+  - $ALPHA_DATA_ROOT/**
+  allowed_commit:
+  - campaign control files
+  - docs
+  - scaleout driver worker code (reference-engine unit-parallel path)
+  - determinism / resume / single-writer test code + tiny synthetic fixtures
+  - benchmark harness code + value-free benchmark summaries
+  - handoffs
+  - reviews
+  tiny_fixture_exceptions:
+    allowed: true
+    paths:
+    - tests/fixtures/**
+    - tests/unit/reference_label_parallel_compute/fixtures/**
+    requirements:
+    - synthetic
+    - tiny
+    - value-free of real market data
+  research_evidence_artifacts:
+    note: >-
+      Evidence under research/reference_label_parallel_compute_v1/** is
+      commit-eligible ONLY when value-free: determinism reports (counts,
+      hash-match booleans), benchmark summaries (elapsed, units/sec, speedup,
+      worker policy, registry deltas). Label values, Parquet, SQLite, and
+      provider responses stay local-only and are never committed.
+  phase_requirements:
+    explicit_artifact_policy_required: true
+    explicit_staging_required: true
+    artifact_audit_before_merge: true
+    no_raw_data_commits: true
+    no_canonical_data_commits: true
+    no_feature_value_commits: true
+    no_label_value_commits: true
+    no_local_db_commits: true
+    no_heavy_artifact_commits: true
+git_policy:
+  explicit_staging_only: true
+  forbidden_commands:
+  - git add .
+  - git add -A
+  force_push_allowed: false
+  commit_raw_data_allowed: false
+  commit_heavy_artifacts_allowed: false
+  commit_local_db_allowed: false
+  commit_feature_or_label_values_allowed: false
+  require_handoff_per_phase: true
+  require_git_status_short: true
+  require_explicit_file_list_in_handoff: true
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  branch_prefix_workflow2: auto/
+  commit_message_format: '<campaign_id>/<phase_id>: <summary>'
+review_policy:
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  yellow_requires_fresh_review: true
+  green_review_optional: true
+  red_requires_scoped_authorization: true
+  review_artifacts:
+    commit_eligible: reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/<phase_id>/**
+    run_local: runs/<run_id>/phases/<phase_id>/review.md and verdict.json
+  semantic_done_check_required: true
+  allowed_verdicts:
+  - PASS
+  - PASS_WITH_WARNINGS
+  - REWORK
+  - BLOCKED
+merge_policy:
+  merge_queue: serial
+  auto_merge_for_green: true
+  auto_merge_for_yellow_after_review: true
+  auto_merge_for_red: false
+  clean_merge_gate_required: true
+  artifact_audit_before_merge: true
+  protected_branch: main
+  no_force_push: true
+  one_pr_at_a_time: true
+determinism_policy:
+  serial_parallel_equivalence_required: true
+  equivalence_dimensions:
+  - emitted record sets (canonical serialization, order-normalized)
+  - label_version_ids and content hashes
+  - registry row contents and lineage
+  - guard outcomes and label_available_ts
+  unexplained_difference_is_blocker: true
+  interruption_resume_required: true
+  resume_requirements:
+  - a pass killed between units resumes without duplicate units and without holes
+  - checkpoint ledger rows correspond 1:1 with registered units
+  single_writer_audit_required: true
+benchmark_policy:
+  bounded_real_benchmark_required_before_release: true
+  reference_never_timed_on_full_window: true
+  bounded_slice_self_validating: at least one contract-roll event and at least one session/maintenance gap in the slice, or widen/fail with a clear message
+  real_wiring_required: benchmark entrypoints must invoke the real scaleout driver; stubbed timing callbacks or blocked-only summaries are failures unless the data root is genuinely absent
+  worker_sweep: [1, 2, 4, 8]
+  speedup_definition: wall-clock units/sec at workers=N vs workers=1 on the SAME bounded unit grid, component timings (compute vs serial registration) disclosed
+  release_criterion: unit-parallel speedup >= 3.0x at 8 workers, else NOT_RELEASED with an honest component-timing diagnosis (registry-serialization ceiling, IO bound, etc.)
+  benchmark_values_local_only: true
+identity_and_registry_policy:
+  exact_label_version_id_semantics_required: true
+  keystone_identity_preserved: true
+  parallel_path_emits_values_only_never_new_identities: true
+  registry_writes_parent_only_serial: true
+phases:
+- id: RLPC-P00
+  name: Campaign Bootstrap + FUTSUB Pause-State Record
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the campaign contract bundle and evidence scaffolding, and record the FUTSUB-P19 pause state (STOP present, ~134/216 full-window cost_adjusted cells durably checkpointed, all values/registry rows preserved). NO deletion, NO registry mutation, NO value writes.
+  scope:
+  - Confirm the 6-file campaign bundle is present and internally consistent; confirm root ACTIVE_CAMPAIGN.md selects this campaign (coordinator-owned).
+  - Create research/reference_label_parallel_compute_v1/ evidence skeleton (README + .gitkeep, value-free).
+  - Record the FUTSUB pause state in handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md - run 2026-06-07T235209Z stopped 2026-06-11T01:45Z at FUTSUB-P19 mid full-window pass (STOP file text records the rationale), checkpoint ledger and labels registry preserved as-is, P19 worktree preserved.
+  non_goals:
+  - Any driver/CLI code change, test, benchmark, registry or value write; resuming or modifying the FUTSUB run.
+  checks:
+  - git status --short
+  - test -f ACTIVE_CAMPAIGN.md
+  - grep -q "REFERENCE_LABEL_PARALLEL_COMPUTE_V1" ACTIVE_CAMPAIGN.md
+  - test -f campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/GOAL.md
+  - test -f campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/campaign.yaml
+  - test -f campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/PHASE_PLAN.md
+  - test -f campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/ACCEPTANCE.md
+  - test -f campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RISK_REGISTER.md
+  - test -f campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RUNBOOK.md
+  - test -f handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md
+  - python -c "import yaml; yaml.safe_load(open('campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/campaign.yaml'))"
+  - python tools/verify.py --smoke
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/**
+  - research/reference_label_parallel_compute_v1/README.md
+  - research/reference_label_parallel_compute_v1/.gitkeep
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P00.md
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_PAUSE_STATE.md
+  - reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P00/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: &forbidden_paths
+  - src/alpha_system/execution/**
+  - src/alpha_system/broker/**
+  - src/alpha_system/live/**
+  - src/alpha_system/signals/**
+  - src/alpha_system/strategies/**
+  - src/alpha_system/portfolio/**
+  - src/alpha_system/management/**
+  - src/alpha_system/l2/**
+  - src/alpha_system/backtest/**
+  - src/alpha_system/agent_factory/**
+  - src/alpha_system/labels/engine.py
+  - src/alpha_system/labels/families/**
+  - src/alpha_system/labels/roll_guard.py
+  - src/alpha_system/labels/version.py
+  - data/raw/**
+  - data/canonical/**
+  - registry/*.sqlite
+  - metadata/*.sqlite
+  - artifacts/**
+  - '**/*.parquet'
+  - '**/*.arrow'
+  - '**/*.feather'
+  - '**/*.dbn'
+  - '**/*.zst'
+  artifact_policy: &ap
+    commit_only:
+    - campaign control + overview docs
+    - value-free evidence skeleton and summaries
+    - driver/CLI worker code + determinism/resume/benchmark tests + tiny synthetic fixtures
+    - commit-eligible handoff/review
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle merged on main, ACTIVE_CAMPAIGN points here, pause-state handoff records the stopped FUTSUB run truthfully, no runs/ or value/DB path staged.
+- id: RLPC-P01
+  name: Reference-Engine Unit-Parallel Worker Path
+  lane: YELLOW
+  dependencies:
+  - RLPC-P00
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Extend the existing LCFP-P06 spawn-context worker pool so `alpha scaleout label-pack --engine reference --workers N` computes disjoint units in N worker processes through the UNCHANGED reference per-unit pipeline, with ALL registry writes serial in the parent and the existing checkpoint-ledger semantics preserved.
+  scope:
+  - In src/alpha_system/features/scaleout/driver.py, add a reference-engine worker entrypoint that executes the SAME per-unit reference compute the serial loop runs today (panel/input load, reference engine math, validation, value-store Parquet write) and returns the unit output manifest; reuse the existing spawn ProcessPoolExecutor, worker-plan resolution, and serial parent-side registration-in-unit-order machinery (mirror the v1 contract at ~L3951/~L4084-4159).
+  - Loosen the engine gate (~L895-898/913-916) so parallel compute is allowed for SCALEOUT_ENGINE_REFERENCE label packs; default workers remains 1 everywhere; explicit --workers N or ALPHA_LABEL_CPU_WORKERS opts in.
+  - In src/alpha_system/cli/scaleout.py, honor --workers with --engine reference for label packs (remove any reference-engine workers rejection); help text documents the policy.
+  - Export per-worker thread caps (POLARS_MAX_THREADS/OMP_NUM_THREADS/OPENBLAS_NUM_THREADS/NUMEXPR_MAX_THREADS=2) in the worker initializer, matching the FUTSUB convention.
+  - Enforce the single-writer invariant in code structure - worker entrypoint takes no registry handle and never imports/opens labels.sqlite; registration happens only in the parent after futures complete, serially, in deterministic unit order; checkpoint ledger appended by the parent only after successful registration.
+  - Unit tests (synthetic fixtures, no real data) mirroring tests/unit/feature_compute_fast_path/test_scaleout_worker_parallelism.py for the reference engine - serial-order registration, per-unit failure retryability, worker-plan caps, parent-only registry writes (assert the worker code path opens no SQLite connection), checkpoint-after-registration ordering.
+  non_goals:
+  - Any change to labels/engine.py, labels/families/**, roll_guard, version/availability semantics, or the v1 fast path; any real-data run; any benchmark; cost-kernel vectorization (backlog §6 option 2).
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/reference_label_parallel_compute -q
+  - python -m pytest tests/unit/feature_compute_fast_path/test_scaleout_worker_parallelism.py -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: engineering
+  allowed_paths:
+  - src/alpha_system/features/scaleout/driver.py
+  - src/alpha_system/cli/scaleout.py
+  - tests/unit/reference_label_parallel_compute/**
+  - tests/unit/feature_compute_fast_path/test_scaleout_worker_parallelism.py
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P01.md
+  - reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P01/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - '`--engine reference --workers N` computes units in N spawn workers with byte-identical per-unit semantics; registry writes provably parent-only and serial; default behavior (workers=1) unchanged; all listed tests green; no label-math file touched.'
+- id: RLPC-P02
+  name: Determinism, Single-Writer, and Interruption-Resume Gate
+  lane: YELLOW
+  dependencies:
+  - RLPC-P01
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Prove parallel == serial exactly, and prove the checkpoint/resume contract survives interruption, before any real-data release.
+  scope:
+  - Determinism suite (synthetic grid, multiple families incl. cost_adjusted-shaped units) - run the same unit grid at workers=1 and workers=4 into isolated temp data roots; assert order-normalized record sets, label_version_ids, content hashes, registry rows/lineage, guard outcomes, and label_available_ts are IDENTICAL; any difference is a hard test failure (no tolerances).
+  - Interruption-resume suite - kill/abort a parallel pass between units (simulated worker failure + parent abort), then resume; assert no duplicate units, no holes, checkpoint ledger rows correspond 1:1 with registered units, and the final state equals an uninterrupted run.
+  - Single-writer audit test - instrument the worker entrypoint (e.g. patch sqlite3.connect in worker context or assert via code-path inspection) proving worker processes never open the label registry; plus a canary-style test that FAILS if a future edit makes workers write the registry directly.
+  - If $ALPHA_DATA_ROOT with real data is present locally, one bounded real-slice determinism spot-check (workers=1 vs workers=4 on a tiny accepted slice) with a value-free committed report; skip cleanly with reason in CI where data is absent.
+  non_goals:
+  - Benchmarks/timing claims; FUTSUB amendments; any full-window run.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/reference_label_parallel_compute -q
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: engineering
+  allowed_paths:
+  - tests/unit/reference_label_parallel_compute/**
+  - src/alpha_system/features/scaleout/driver.py
+  - research/reference_label_parallel_compute_v1/determinism/**
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P02.md
+  - reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P02/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Serial/parallel equivalence proven exact on the synthetic grid; interruption-resume proven duplicate-free and hole-free; single-writer audit + canary-style guard test in place; CI green without real data.
+- id: RLPC-P03
+  name: Bounded Real Benchmark + Release Gate (workers 1/2/4/8)
+  lane: YELLOW
+  dependencies:
+  - RLPC-P02
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Measure real unit-parallel throughput on a bounded cost_adjusted slice and set the production reference worker policy honestly.
+  scope:
+  - Benchmark harness under tools/reference_label_parallel_compute/ that invokes the REAL scaleout driver on a bounded self-validating real cost_adjusted unit grid (>= 8 runnable units; slice must contain a contract-roll event and a session/maintenance gap or widen/fail with a clear message) into an isolated benchmark data-root namespace, sweeping workers 1/2/4/8.
+  - Report per cell - wall elapsed, units/sec, speedup vs workers=1 on the same grid, component timings (worker compute vs serial parent registration), peak RSS, registry delta, determinism spot-check vs the workers=1 cell.
+  - Write the value-free summary to research/reference_label_parallel_compute_v1/benchmark/benchmark_summary.md and set the production policy - reference label packs adopt workers=8 if measured speedup >= 3.0x at 8 workers, else NOT_RELEASED with an honest component-timing diagnosis; never time the reference engine on a full window.
+  - The production registry is never the benchmark target; benchmark values stay local-only.
+  non_goals:
+  - FUTSUB amendments; full-window runs; v1 fast-path changes.
+  checks:
+  - git status --short
+  - python -m pytest tests/unit/reference_label_parallel_compute -q
+  - test -f research/reference_label_parallel_compute_v1/benchmark/benchmark_summary.md
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class:
+  - materialization_registry
+  merge_group: benchmark
+  allowed_paths:
+  - tools/reference_label_parallel_compute/**
+  - tests/unit/reference_label_parallel_compute/**
+  - research/reference_label_parallel_compute_v1/benchmark/**
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P03.md
+  - reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P03/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - Real bounded benchmark committed value-free with honest component timings and a deterministic worker policy (workers=8 released at >=3.0x, or NOT_RELEASED with diagnosis); production registry untouched.
+- id: RLPC-P04
+  name: FUTSUB Amendment + Resume Handoff + Backlog Closeout
+  lane: YELLOW
+  dependencies:
+  - RLPC-P03
+  spec_required: true
+  executor: Codex GPT-5.5 xhigh
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Wire the released worker policy into the paused FUTSUB campaign and hand the coordinator an executable resume path.
+  scope:
+  - Amend campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/campaign.yaml (and PHASE_PLAN/RUNBOOK ENGINE POLICY bullets) so reference-policy label phases (P19 and any later reference-family label work) use `--engine reference --workers <released policy>` with the thread-control convention; if RLPC-P03 ended NOT_RELEASED, record that honestly and leave FUTSUB policy unchanged.
+  - Update docs/STRUCTURAL_BACKLOG.md §6 - option 1 delivered (link evidence) or honestly blocked; option 2 (cost-kernel vectorization) stays backlog.
+  - Write handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_RESUME_ON_PARALLEL_REFERENCE.md - exact coordinator resume steps (repoint ACTIVE_CAMPAIGN to FUTSUB [coordinator-owned], clear the FUTSUB STOP file, reset FUTSUB-P19 to clean PENDING via documented state surgery so the regenerated spec inherits the amended policy, resume the run; checkpointed cells are durable so only the remaining full-window cells recompute).
+  - Durable lessons to the project-skill if applicable.
+  non_goals:
+  - Touching the FUTSUB run dir, registry, values, checkpoints, or worktree; resuming the run itself (coordinator does that after this campaign completes).
+  checks:
+  - git status --short
+  - python -c "import yaml; yaml.safe_load(open('campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/campaign.yaml'))"
+  - test -f handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_RESUME_ON_PARALLEL_REFERENCE.md
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/**
+  - docs/STRUCTURAL_BACKLOG.md
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P04.md
+  - handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_RESUME_ON_PARALLEL_REFERENCE.md
+  - reviews/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P04/**
+  - .claude/skills/project-skill/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy: *ap
+  done_criteria:
+  - FUTSUB contract amended per the MEASURED released policy (or honestly not), backlog §6 closed out truthfully, executable resume handoff present.
+acceptance:
+  campaign_done_when:
+  - All five phases merged with required reviews and green checks.
+  - Serial/parallel exact equivalence and interruption-resume proven by committed tests.
+  - Bounded real benchmark committed value-free with an honest worker policy decision (released >=3.0x at 8 workers, or NOT_RELEASED with diagnosis).
+  - FUTSUB contract amended consistently with the measured policy and an executable resume handoff exists.
+  - No runs/, value, or DB artifact committed anywhere in the campaign.
+stop_conditions:
+- Contradictory scope, repeated execution failures, missing authorization, or impossible validation - stop and mark BLOCKED rather than weakening a gate.
+- Any serial-vs-parallel output difference - BLOCKED, never a tolerance bump.
