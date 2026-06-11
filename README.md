@@ -7,17 +7,18 @@ and validating offline research substrate under Frontier Harness Generic
 ## Current Snapshot
 
 The repository-level campaign pointer selects
-`REFERENCE_LABEL_PARALLEL_COMPUTE_V1`. This Workflow 2 campaign removes a
-reference-label throughput blocker by adding and validating unit-level worker
-parallelism around the unchanged reference label engine.
+`REFERENCE_LABEL_PARALLEL_COMPUTE_V1`. This Workflow 2 campaign is at 5/5
+phases complete pending RLPC-P04 merge. It added and validated an opt-in
+unit-level worker path around the unchanged reference label engine, then closed
+the release gate honestly.
 
-RLPC-P03 adds the bounded real benchmark and release gate for the
-reference-engine unit-parallel worker path. The committed summary measures the
-real `cost_adjusted` driver path over a self-validating ES/2024 grid at workers
-1/2/4/8, confirms deterministic label-version/content-hash equality, and records
-`NOT_RELEASED` because workers=8 measured 2.14x versus the 3.0x release gate.
-Default workers remain 1; after RLPC-P03 merges, the active next phase is
-RLPC-P04, the FUTSUB amendment/resume handoff and backlog closeout.
+RLPC-P03 measured the real `cost_adjusted` driver path over a self-validating
+ES/2024 grid at workers 1/2/4/8, confirmed deterministic
+label-version/content-hash equality, and recorded `NOT_RELEASED` because
+workers=8 measured 2.14x versus the 3.0x release gate. RLPC-P04 records that
+outcome in the structural backlog and handoff. Default reference workers remain
+1; FUTSUB remains the next active campaign after the coordinator repoints
+`ACTIVE_CAMPAIGN.md`, and FUTSUB resumes on unchanged serial reference policy.
 
 Durable artifacts in this campaign snapshot:
 
@@ -37,6 +38,10 @@ Durable artifacts in this campaign snapshot:
   - value-free RLPC-P03 worker sweep and release decision.
 - `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P03.md` - executor handoff
   for the bounded real benchmark and release gate.
+- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/FUTSUB_RESUME_ON_PARALLEL_REFERENCE.md`
+  - coordinator handoff for resuming FUTSUB-P19 after RLPC closeout.
+- `handoffs/REFERENCE_LABEL_PARALLEL_COMPUTE_V1/RLPC-P04.md` - executor handoff
+  for the NOT_RELEASED backlog closeout and FUTSUB resume handoff.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the

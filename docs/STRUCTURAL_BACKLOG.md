@@ -79,6 +79,14 @@ is data-foundation scope; see ADR-0006 §4.
 
 ## 6. Reference-engine label families have no parallel throughput path (post-LCFP)
 
+Status as of RLPC-P04: option 1 was delivered as engineering but
+**NOT_RELEASED as production policy**. RLPC-P01/P02 landed an explicit opt-in
+unit-parallel reference-worker path with parity, resume, and single-writer
+guards; default reference workers remain 1. RLPC-P03 then measured the bounded
+real `cost_adjusted` ES/2024 grid and recorded `NOT_RELEASED`: workers=8 reached
+2.14x versus workers=1, below the 3.0x release gate. Evidence:
+`research/reference_label_parallel_compute_v1/benchmark/benchmark_summary.md`.
+
 The accepted LCFP per-family engine policy keeps `fixed_extended`, `close_out`,
 and `cost_adjusted` on the per-row reference engine because the P08 benchmark
 measured reference faster than the V1 fast pack for those families (best fast
@@ -89,20 +97,24 @@ for year-appends (~minutes) but slow for any future full-window backfill or new
 cost-label/index grids (FUTSUB-P19's historical tail ran ~2-3h).
 
 If reference-family throughput becomes a real bottleneck again (new cost
-profiles, new derived indexes, large backfills), two recorded upgrades, in
-preference order:
+profiles, new derived indexes, large backfills), the recorded status is:
 
 1. **Unit-level parallelism for the reference engine** (cheap, semantics-safe):
-   reuse the LCFP-P06 worker pattern — parallelize compute over independent
-   `label_group x symbol x dataset_version/year` units with the existing single
-   serial keystone registry writer; same engine, same code, no parity re-proof
-   needed. Expect ~6-7x at 8 workers on the unit grid.
+   delivered as an opt-in path (`--workers` / `ALPHA_LABEL_CPU_WORKERS`) but not
+   adopted as FUTSUB or production policy. The RLPC-P03 sweep measured workers
+   1/2/4/8 at 1.00x / 1.36x / 1.83x / 2.14x on the same 9-unit bounded real
+   grid, with determinism PASS at every worker count and production registry
+   delta 0. Because workers=8 missed the 3.0x release gate, reference-family
+   policy remains serial/default workers=1.
 2. **Cost-kernel vectorization to make V1 win** (riskier): batch
    Decimal-or-float cost arithmetic + batched LabelValueRecord validation in
    the fast pack; requires fresh parity + benchmark gate before the per-family
-   policy flips (precision semantics feed the truth chain).
+   policy flips (precision semantics feed the truth chain). This stays backlog
+   as the standing escalation. The next attempt must account for the measured
+   RLPC-P03 ceiling: parent-side serial registration was 86.077229 s,
+   86.172520 s, and 90.097791 s at workers 2/4/8 versus 3.515340 s at workers=1,
+   while worker compute fell from 526.587762 s to 157.706309 s.
 
-Trigger: adopt (1) the first time a reference-family materialization is
-projected > ~1h wall-clock. Evidence basis:
+Original evidence basis:
 `research/label_compute_fast_path_v1/benchmark/benchmark_summary.md`,
 `reviews/LABEL_COMPUTE_FAST_PATH_V1/P172002_LCFP_P08_PANEL_CACHE_SPEEDUP-review.md`.
