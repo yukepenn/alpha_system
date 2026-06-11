@@ -40,6 +40,31 @@ New durable surfaces through this `FUTSUB-P26` executor snapshot:
 - `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P26.md`
   records validation, inputs, quality context, and artifact policy for
   coordinator use.
+campaign. This `FUTSUB-P27` executor snapshot opens the `rerun` gate
+(`FUTSUB-P27`...`FUTSUB-P29`) by re-locking the Core Pilot StudySpecs against
+the full futures substrate where the current registry and strict resolver make
+them newly resolvable. The StudySpec resolver-smoke recorded in the re-lock
+report resolved 8 re-issued StudySpecs and preserved 2 named fail-closed gaps.
+
+Active / next phase is Ralph-owned. Until Ralph validates, reviews, and merges
+this executor snapshot, `FUTSUB-P27` remains the nominal active phase. After
+merge, the nominal next phase is `FUTSUB-P28` - Re-run Previously INCONCLUSIVE
+Core Pilot Studies.
+
+New durable surfaces through this `FUTSUB-P27` executor snapshot:
+
+- `research/futures_substrate_scaleout_v1/rerun/studyspec_relock.md` records
+  the value-free re-lock evidence, old-to-new StudySpec mapping, resolver-smoke
+  counts, P28 rerun list, and named remaining gaps.
+- `research/futures_substrate_scaleout_v1/rerun/study_specs/` contains the
+  re-issued value-free StudySpec lock documents.
+- `docs/futures_substrate_scaleout/CORE_PILOT_RELOCK.md` documents the bounded
+  re-lock contract, fixed fields, re-issued fields, and fail-closed gap policy.
+- `tests/unit/futures_substrate_scaleout/test_studyspec_relock_smoke.py`
+  hermetically validates the committed re-lock artifacts without
+  `ALPHA_DATA_ROOT` or local registries.
+- `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FUTSUB-P27.md`
+  records validation, changed paths, and artifact policy for coordinator use.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -81,6 +106,10 @@ to `ALPHA_VALIDATION_GOVERNANCE_V1`. P26 keeps BBO as a time-sampled and
 forward-filled tradability proxy, never execution truth, and records
 cross-market `strict_intersection` alignment with per-instrument `available_ts`
 discipline and no cross-instrument forward-fill.
+to `ALPHA_VALIDATION_GOVERNANCE_V1`. P27 re-locks existing Core Pilot
+StudySpecs only; it does not create new alpha ideas, tune parameters, run
+diagnostics, materialize values, mutate registries, or weaken the strict
+resolver.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
