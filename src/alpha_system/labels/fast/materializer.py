@@ -82,7 +82,13 @@ class FastLabelPackError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class LabelPanelFrameRequest:
-    """Request to load one symbol-year OHLCV+BBO label panel through local readers."""
+    """Request to load one symbol-year OHLCV+BBO label panel through local readers.
+
+    ``dataset_version_id`` addresses the OHLCV view. The BBO view lives in its
+    own DatasetVersion; ``bbo_dataset_version_id`` must carry that identity when
+    a pack consumes BBO. When it is omitted the request falls back to
+    ``dataset_version_id`` (single-DatasetVersion synthetic fixtures only).
+    """
 
     canonical_root: str | Path
     dataset_version_id: str
@@ -92,9 +98,16 @@ class LabelPanelFrameRequest:
     end_ts: str | None = None
     ohlcv_partition_schema: str = DEFAULT_OHLCV_PARTITION_SCHEMA
     bbo_partition_schema: str = DEFAULT_BBO_PARTITION_SCHEMA
+    bbo_dataset_version_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "dataset_version_id", _require_text(self.dataset_version_id))
+        if self.bbo_dataset_version_id is not None:
+            object.__setattr__(
+                self,
+                "bbo_dataset_version_id",
+                _require_text(self.bbo_dataset_version_id),
+            )
         object.__setattr__(self, "symbol", _require_text(self.symbol).upper())
         if isinstance(self.year, bool) or not isinstance(self.year, int) or self.year < 1970:
             raise FastLabelPackError("year must be an integer >= 1970")
@@ -120,6 +133,10 @@ class LabelPanelFrameRequest:
     @property
     def resolved_end_ts(self) -> str:
         return self.end_ts or f"{self.year + 1:04d}-01-01T00:00:00+00:00"
+
+    @property
+    def resolved_bbo_dataset_version_id(self) -> str:
+        return self.bbo_dataset_version_id or self.dataset_version_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +275,9 @@ class FastLabelComputation:
 class FastLabelMaterializer:
     """Compute, persist, and register governed label packs through label keystones."""
 
+    _PANEL_CACHE_MAX_ENTRIES = 2
+    _FRAME_CACHE_MAX_ENTRIES = 2
+
     def __init__(
         self,
         *,
@@ -266,7 +286,21 @@ class FastLabelMaterializer:
     ) -> None:
         self._canonical_ohlcv_loader = canonical_ohlcv_loader
         self._canonical_bbo_loader = canonical_bbo_loader
+        # Process-local bounded panel-frame cache (LCFP-P08 panel-cache phase).
+        # The key is the full LabelPanelFrameRequest, which embeds the
+        # (symbol, year/window, OHLCV DatasetVersion, BBO DatasetVersion)
+        # cache identity plus canonical root and partition schemas, so a
+        # different dataset version can never alias a cached frame. Eviction
+        # is FIFO by request (symbol-year) key so long scaleout runs do not
+        # accumulate loaded panels.
         self._frame_cache: dict[LabelPanelFrameRequest, Any] = {}
+        # Shared-panel and terminal-model caches amortize the once-per-batch
+        # input adaptation across the many per-horizon packs that consume one
+        # symbol-year frame. Keys are frame object identities; the cached frame
+        # reference keeps each id stable while the entry lives. Bounded to the
+        # most recent panels so long scaleout runs do not accumulate frames.
+        self._panel_cache: dict[int, tuple[Any, Any]] = {}
+        self._terminal_model_cache: dict[int, dict[tuple[str, str], Any]] = {}
 
     def load_symbol_year_price_frame(self, request: LabelPanelFrameRequest) -> Any:
         """Load and cache one symbol-year OHLCV+BBO panel through sanctioned readers."""
@@ -287,13 +321,22 @@ class FastLabelMaterializer:
         )
         bbo_rows = self._canonical_bbo_loader(
             canonical_root=request.canonical_root,
-            dataset_version_id=request.dataset_version_id,
+            dataset_version_id=request.resolved_bbo_dataset_version_id,
             symbol=request.symbol,
             start_ts=request.resolved_start_ts,
             end_ts=request.resolved_end_ts,
             partition_schema=request.bbo_partition_schema,
         )
         frame = self.frame_from_rows(ohlcv_rows=ohlcv_rows, bbo_rows=bbo_rows)
+        while len(self._frame_cache) >= self._FRAME_CACHE_MAX_ENTRIES:
+            oldest_request = next(iter(self._frame_cache))
+            evicted_frame = self._frame_cache.pop(oldest_request)
+            # Drop the evicted frame's derived shared-panel and terminal-model
+            # entries with it: they hold a strong reference to the frame, and
+            # keeping them would let an evicted symbol-year panel outlive its
+            # frame-cache bound.
+            self._panel_cache.pop(id(evicted_frame), None)
+            self._terminal_model_cache.pop(id(evicted_frame), None)
         self._frame_cache[request] = frame
         return frame
 
@@ -461,6 +504,33 @@ class FastLabelMaterializer:
             )
         return tuple(all_records)
 
+    def _cached_panel_state(
+        self, price_frame: Any, pl: Any
+    ) -> tuple[Any, dict[tuple[str, str], Any]]:
+        """Return the shared panel and terminal-model cache for one input frame.
+
+        The prepared shared panel is the once-per-batch input adaptation; this
+        cache lets every per-horizon pack computed from the same raw frame reuse
+        it instead of re-running the per-row preparation scan.
+        """
+
+        from alpha_system.labels.fast.panel import SharedLabelPanel
+
+        if isinstance(price_frame, SharedLabelPanel):
+            return price_frame, {}
+        key = id(price_frame)
+        cached = self._panel_cache.get(key)
+        if cached is not None and cached[0] is price_frame:
+            return cached[1], self._terminal_model_cache.setdefault(key, {})
+        prepared = _prepare_panel(_coerce_frame(price_frame, pl), pl)
+        panel = _shared_label_panel_from_prepared_panel(prepared, pl)
+        while len(self._panel_cache) >= self._PANEL_CACHE_MAX_ENTRIES:
+            oldest = next(iter(self._panel_cache))
+            self._panel_cache.pop(oldest, None)
+            self._terminal_model_cache.pop(oldest, None)
+        self._panel_cache[key] = (price_frame, panel)
+        return panel, self._terminal_model_cache.setdefault(key, {})
+
     def compute_values_with_metadata(
         self,
         price_frame: Any,
@@ -470,9 +540,8 @@ class FastLabelMaterializer:
 
         pl = require_dependency("polars")
         pack = _require_pack(pack)
-        frame = _prepare_panel(_coerce_frame(price_frame, pl), pl)
-        panel = _shared_label_panel_from_prepared_panel(frame, pl)
-        terminal_models = _terminal_models_for_pack(panel, pack)
+        panel, terminal_cache = self._cached_panel_state(price_frame, pl)
+        terminal_models = _terminal_models_for_pack(panel, pack, cache=terminal_cache)
         records_by_label: dict[str, tuple[LabelValueRecord, ...]] = {}
         event_sets: dict[str, dict[str, set[datetime]]] = defaultdict(dict)
         all_records: list[LabelValueRecord] = []
@@ -548,33 +617,38 @@ class _WriteResult:
     handle: ValueStoreHandle
 
 
-def _terminal_models_for_pack(panel: Any, pack: FastLabelPack) -> dict[tuple[str, str], Any]:
+def _terminal_models_for_pack(
+    panel: Any,
+    pack: FastLabelPack,
+    *,
+    cache: dict[tuple[str, str], Any] | None = None,
+) -> dict[tuple[str, str], Any]:
     from alpha_system.labels.fast.panel import (
         TerminalKind,
         TerminalRequest,
         resolve_terminal_indices,
     )
 
-    models: dict[tuple[str, str], Any] = {}
+    models: dict[tuple[str, str], Any] = cache if cache is not None else {}
     for definition in pack.definitions:
-        if not isinstance(definition, (FixedHorizonLabelDefinition, PathLabelDefinition)):
+        # Path labels use the reference family's positional trade-bar horizon
+        # semantics and therefore consume no terminal-index model.
+        if not isinstance(definition, FixedHorizonLabelDefinition):
             continue
         terminal_key = _terminal_model_key(definition)
         if terminal_key in models:
             continue
-        horizon_minutes = _terminal_horizon_minutes_or_none(definition)
+        horizon_minutes = _fixed_horizon_minutes_or_none(definition)
         if horizon_minutes is not None:
             models[terminal_key] = resolve_terminal_indices(
                 panel,
                 TerminalRequest(
                     kind=TerminalKind.FIXED_HORIZON,
                     horizon_minutes=horizon_minutes,
-                    price_basis=_terminal_price_basis(definition),
+                    price_basis=definition.price_basis,
                 ),
             )
             continue
-        if not isinstance(definition, FixedHorizonLabelDefinition):
-            raise FastLabelPackError("path labels require a fixed horizon terminal model")
         models[terminal_key] = resolve_terminal_indices(
             panel,
             TerminalRequest(
@@ -600,11 +674,7 @@ def _compute_definition_records_from_panel(
     if isinstance(definition, PathLabelDefinition):
         from alpha_system.labels.fast.path import compute_path_records_from_panel
 
-        return compute_path_records_from_panel(
-            panel,
-            definition,
-            terminal_models[_terminal_model_key(definition)],
-        )
+        return compute_path_records_from_panel(panel, definition)
     raise FastLabelPackError("fast pack contains an unsupported label definition")
 
 
@@ -700,17 +770,33 @@ def _compute_cost_adjusted_records_from_panel(
     panel: Any,
     definition: CostAdjustedLabelDefinition,
 ) -> tuple[LabelValueRecord, ...]:
+    """Compute cost/spread-adjusted records with reference iteration semantics.
+
+    The reference family iterates the BBO view directly (one record per BBO
+    quote row, gap records included) and resolves the terminal as the exact
+    ``(series_id, event_ts + horizon)`` BBO row. Real canonical BBO timestamps
+    are not minute-aligned, so the OHLCV-anchored panel join must not anchor
+    this family (LCFP-P08 repair: the joined path emitted zero records on real
+    slices). The shared panel carries the un-joined quote rows for this use.
+    """
+
     from alpha_system.labels.fast.panel import (
         LabelAvailabilityFamily,
         derive_label_available_ts,
     )
 
     horizon = _cost_horizon_delta(definition)
-    bbo_rows_by_key = _cost_bbo_rows_by_key(panel)
+    quote_rows = sorted(panel.bbo_rows, key=lambda row: row.available_ts)
+    bbo_rows_by_key: dict[tuple[str, datetime], Any] = {}
+    for row in quote_rows:
+        key = (row.series_id, row.event_ts)
+        if key in bbo_rows_by_key:
+            raise FastLabelPackError(
+                "cost-adjusted BBO rows must not duplicate series_id/event_ts"
+            )
+        bbo_rows_by_key[key] = row
     records: list[LabelValueRecord] = []
-    for source in panel.rows:
-        if not _panel_has_bbo_row(source):
-            continue
+    for source in quote_rows:
         horizon_end_ts = source.event_ts + horizon
         terminal = bbo_rows_by_key.get((source.series_id, horizon_end_ts))
         label_available_ts = derive_label_available_ts(
@@ -789,25 +875,48 @@ def _cost_adjusted_value_and_flags(
     return float(adjusted_return), ()
 
 
+# Per-definition cost-model constants, hoisted out of the per-row loop like
+# the reference family hoists ``_CostModel.from_cost_adjustment`` (LCFP-P08
+# profile finding: per-row payload parsing dominated the cost kernel).
+_COST_MODEL_CONSTANTS: dict[str, tuple[SpreadCost, BpsCost | None]] = {}
+_COST_MODEL_CONSTANTS_MAX = 64
+
+
+def _cost_model_constants(
+    definition: CostAdjustedLabelDefinition,
+) -> tuple[SpreadCost, BpsCost | None]:
+    cached = _COST_MODEL_CONSTANTS.get(definition.label_version_id)
+    if cached is not None:
+        return cached
+    payload = definition.spec.cost_adjustment.cost_model.to_dict()
+    spread_model = _spread_cost_profile(payload)
+    bps_model: BpsCost | None = None
+    if definition.name is CostAdjustedLabelName.COST_ADJUSTED_FWD_RET:
+        bps_model = BpsCost(
+            _decimal_from_payload(
+                payload.get("fixed_cost_bps"),
+                "cost_model.fixed_cost_bps",
+            )
+        )
+    while len(_COST_MODEL_CONSTANTS) >= _COST_MODEL_CONSTANTS_MAX:
+        _COST_MODEL_CONSTANTS.pop(next(iter(_COST_MODEL_CONSTANTS)), None)
+    _COST_MODEL_CONSTANTS[definition.label_version_id] = (spread_model, bps_model)
+    return (spread_model, bps_model)
+
+
 def _cost_adjustment_return(
     definition: CostAdjustedLabelDefinition,
     source: Any,
     terminal: Any,
 ) -> Decimal:
-    payload = definition.spec.cost_adjustment.cost_model.to_dict()
-    spread_model = _spread_cost_profile(payload)
+    spread_model, bps_model = _cost_model_constants(definition)
     entry_fill = _cost_input(source, side="buy")
     exit_fill = _cost_input(terminal, side="sell")
     adjustment = (
         spread_model.cost_for_fill(entry_fill).total / entry_fill.notional
         + spread_model.cost_for_fill(exit_fill).total / exit_fill.notional
     )
-    if definition.name is CostAdjustedLabelName.COST_ADJUSTED_FWD_RET:
-        fixed_bps = _decimal_from_payload(
-            payload.get("fixed_cost_bps"),
-            "cost_model.fixed_cost_bps",
-        )
-        bps_model = BpsCost(fixed_bps)
+    if bps_model is not None:
         adjustment += bps_model.cost_for_fill(entry_fill).total / entry_fill.notional
     return adjustment
 
@@ -859,28 +968,6 @@ def _ordered_quality_flags(flags: Sequence[str]) -> tuple[str, ...]:
         if token not in normalized:
             normalized.append(token)
     return tuple(normalized)
-
-
-def _cost_bbo_rows_by_key(panel: Any) -> dict[tuple[str, datetime], Any]:
-    by_key: dict[tuple[str, datetime], Any] = {}
-    for row in panel.rows:
-        if not _panel_has_bbo_row(row):
-            continue
-        key = (row.series_id, row.event_ts)
-        if key in by_key:
-            raise FastLabelPackError("cost-adjusted BBO rows must not duplicate series_id/event_ts")
-        by_key[key] = row
-    return by_key
-
-
-def _panel_has_bbo_row(row: Any) -> bool:
-    return (
-        row.bid is not None
-        or row.ask is not None
-        or row.mid is not None
-        or row.spread is not None
-        or bool(row.bbo_quality_flags)
-    )
 
 
 def _cost_horizon_delta(definition: CostAdjustedLabelDefinition) -> timedelta:

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta, time
 from decimal import Decimal
 from enum import StrEnum
+from functools import lru_cache
 from types import MappingProxyType
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -196,6 +197,60 @@ class SharedLabelPanelRow:
 
 
 @dataclass(frozen=True, slots=True)
+class SharedBBOQuoteRow:
+    """One normalized BBO quote row kept at its own (possibly sub-minute) ts.
+
+    Real canonical BBO timestamps are not minute-aligned, so quote rows cannot
+    be folded into the OHLCV-anchored panel join. The cost-adjusted reference
+    family iterates BBO rows directly; the fast kernel consumes these rows to
+    reproduce that record set exactly (LCFP-P08 repair).
+    """
+
+    instrument_id: str
+    series_id: str
+    contract_id: str
+    event_ts: datetime
+    bar_end_ts: datetime
+    available_ts: datetime
+    bid: float | None = None
+    ask: float | None = None
+    bid_size: float | None = None
+    ask_size: float | None = None
+    mid: float | None = None
+    spread: float | None = None
+    microprice: float | None = None
+    bbo_missing: bool = False
+    bbo_quarantined: bool = False
+    bbo_invariant_violation: bool = False
+    bbo_quality_flags: Sequence[str] = ()
+
+    def __post_init__(self) -> None:
+        for field_name in ("instrument_id", "series_id", "contract_id"):
+            object.__setattr__(self, field_name, _require_text(getattr(self, field_name)))
+        for field_name in ("event_ts", "bar_end_ts", "available_ts"):
+            object.__setattr__(
+                self,
+                field_name,
+                _coerce_datetime(getattr(self, field_name), field_name),
+            )
+        for field_name in (
+            "bid",
+            "ask",
+            "bid_size",
+            "ask_size",
+            "mid",
+            "spread",
+            "microprice",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _to_float_or_none(getattr(self, field_name), field_name),
+            )
+        object.__setattr__(self, "bbo_quality_flags", _quality_flags(self.bbo_quality_flags))
+
+
+@dataclass(frozen=True, slots=True)
 class SharedLabelPanel:
     """Immutable shared per-symbol-year label panel."""
 
@@ -205,6 +260,7 @@ class SharedLabelPanel:
     roll_calendar: Sequence[RollCalendarRecord | Mapping[str, object]] = ()
     maintenance_windows: Sequence[MaintenanceWindow] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    bbo_rows: Sequence[SharedBBOQuoteRow] = ()
     _index_by_terminal_key: Mapping[tuple[str, str, datetime], int] = field(
         init=False,
         repr=False,
@@ -237,6 +293,10 @@ class SharedLabelPanel:
         object.__setattr__(self, "rows", tuple(normalized_rows))
         object.__setattr__(self, "roll_calendar", _coerce_roll_calendar(self.roll_calendar))
         object.__setattr__(self, "maintenance_windows", tuple(self.maintenance_windows))
+        for quote_row in self.bbo_rows:
+            if not isinstance(quote_row, SharedBBOQuoteRow):
+                raise FastLabelPackError("SharedLabelPanel.bbo_rows must be SharedBBOQuoteRow")
+        object.__setattr__(self, "bbo_rows", tuple(self.bbo_rows))
         object.__setattr__(
             self,
             "metadata",
@@ -424,6 +484,30 @@ def build_shared_label_panel(
             "maintenance_policy_id": MAINTENANCE_POLICY_ID,
             "maintenance_guard_version": MAINTENANCE_GUARD_VERSION,
         },
+        bbo_rows=tuple(_shared_bbo_quote_row(row) for row in bbo_rows),
+    )
+
+
+def _shared_bbo_quote_row(bbo: Mapping[str, Any]) -> SharedBBOQuoteRow:
+    flags = _quality_flags(bbo.get("quality_flags", ()))
+    return SharedBBOQuoteRow(
+        instrument_id=_require_text(bbo["instrument_id"]),
+        series_id=_require_text(bbo["series_id"]),
+        contract_id=_require_text(bbo["contract_id"]),
+        event_ts=_coerce_datetime(bbo["event_ts"], "event_ts"),
+        bar_end_ts=_coerce_datetime(bbo["bar_end_ts"], "bar_end_ts"),
+        available_ts=_coerce_datetime(bbo["available_ts"], "available_ts"),
+        bid=_to_float_or_none(bbo.get("bid"), "bid"),
+        ask=_to_float_or_none(bbo.get("ask"), "ask"),
+        bid_size=_to_float_or_none(bbo.get("bid_size"), "bid_size"),
+        ask_size=_to_float_or_none(bbo.get("ask_size"), "ask_size"),
+        mid=_to_float_or_none(bbo.get("mid"), "mid"),
+        spread=_to_float_or_none(bbo.get("spread"), "spread"),
+        microprice=_to_float_or_none(bbo.get("microprice"), "microprice"),
+        bbo_missing=MISSING_BBO_QUALITY_FLAG in flags,
+        bbo_quarantined=BBO_QUARANTINE_QUALITY_FLAG in flags,
+        bbo_invariant_violation=not _bbo_invariants_hold(bbo),
+        bbo_quality_flags=flags,
     )
 
 
@@ -836,8 +920,16 @@ def _cme_trade_date(value: datetime) -> Any:
     return local.date()
 
 
+@lru_cache(maxsize=1 << 18)
+def _maintenance_local_cached(value: datetime) -> datetime:
+    return value.astimezone(_MAINTENANCE_TIMEZONE)
+
+
 def _maintenance_local(value: datetime) -> datetime:
-    return _coerce_datetime(value, "event_ts").astimezone(_MAINTENANCE_TIMEZONE)
+    # Pure timezone conversion, memoized: terminal resolution converts the
+    # same panel timestamps once per horizon per role, which dominated the
+    # guard scan in the LCFP-P08 profile.
+    return _maintenance_local_cached(_coerce_datetime(value, "event_ts"))
 
 
 def _maintenance_windows(start_ts: datetime, end_ts: datetime) -> tuple[MaintenanceWindow, ...]:
@@ -897,7 +989,11 @@ def _coerce_roll_calendar(
 
 
 def _root_symbol(row: SharedLabelPanelRow) -> str | None:
-    candidates = (row.instrument_id, row.contract_id, row.series_id)
+    return _root_symbol_cached((row.instrument_id, row.contract_id, row.series_id))
+
+
+@lru_cache(maxsize=4096)
+def _root_symbol_cached(candidates: tuple[str, str, str]) -> str | None:
     for value in candidates:
         text = value.upper()
         tokens = tuple(token for token in re.split(r"[^A-Z0-9]+|_", text) if token)
@@ -1153,6 +1249,7 @@ __all__ = [
     "LabelQualityMetadata",
     "MaintenanceWindow",
     "SharedLabelPanel",
+    "SharedBBOQuoteRow",
     "SharedLabelPanelRow",
     "TerminalGuardDisposition",
     "TerminalIndexModel",

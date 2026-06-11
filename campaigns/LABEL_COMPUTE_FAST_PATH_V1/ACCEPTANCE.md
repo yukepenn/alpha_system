@@ -66,7 +66,14 @@ on the required parity set**:
   blocked-only summary are failures unless the data root is genuinely absent.
 - **Worker policy benchmarked**: workers swept over `{1,2,4,8}` where safe, with resolver
   smoke and parity confirmation (value / label_available_ts / guards / identity) on the same
-  slice per worker count; a production worker policy is selected and documented.
+  slice per worker count; a production engine + worker policy is selected and documented
+  PER FAMILY (fast where measured faster, reference where reference remains faster — both
+  engines are parity-gated so correctness is engine-independent). The path family (the
+  campaign's motivating 9.24 hr reference bottleneck) must be measured materially faster on
+  the fast path; families where fast does not win are documented honestly with component
+  timings and stay on the reference engine. *(Amended 2026-06-10 after the first P08 attempt
+  honestly returned BLOCKED_SPEEDUP; rationale in WF1 phase
+  P172002_LCFP_P08_PANEL_CACHE_SPEEDUP.)*
 
 ## Capability gate (LCFP-P06)
 

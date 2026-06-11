@@ -76,3 +76,33 @@ materialized partition and constructing the consumption handle directly. A clean
 fix would persist the reports (or add a `load_accepted_dataset_version` /
 report re-derivation helper) so the registry-resolve path works end to end. This
 is data-foundation scope; see ADR-0006 §4.
+
+## 6. Reference-engine label families have no parallel throughput path (post-LCFP)
+
+The accepted LCFP per-family engine policy keeps `fixed_extended`, `close_out`,
+and `cost_adjusted` on the per-row reference engine because the P08 benchmark
+measured reference faster than the V1 fast pack for those families (best fast
+cells 0.55x / 0.40x / 0.72x; profile: per-row cost-kernel Decimal arithmetic +
+record validation + value-store writes, not vectorizable panel math). Reference
+compute for those families is currently **single-threaded per family** — fine
+for year-appends (~minutes) but slow for any future full-window backfill or new
+cost-label/index grids (FUTSUB-P19's historical tail ran ~2-3h).
+
+If reference-family throughput becomes a real bottleneck again (new cost
+profiles, new derived indexes, large backfills), two recorded upgrades, in
+preference order:
+
+1. **Unit-level parallelism for the reference engine** (cheap, semantics-safe):
+   reuse the LCFP-P06 worker pattern — parallelize compute over independent
+   `label_group x symbol x dataset_version/year` units with the existing single
+   serial keystone registry writer; same engine, same code, no parity re-proof
+   needed. Expect ~6-7x at 8 workers on the unit grid.
+2. **Cost-kernel vectorization to make V1 win** (riskier): batch
+   Decimal-or-float cost arithmetic + batched LabelValueRecord validation in
+   the fast pack; requires fresh parity + benchmark gate before the per-family
+   policy flips (precision semantics feed the truth chain).
+
+Trigger: adopt (1) the first time a reference-family materialization is
+projected > ~1h wall-clock. Evidence basis:
+`research/label_compute_fast_path_v1/benchmark/benchmark_summary.md`,
+`reviews/LABEL_COMPUTE_FAST_PATH_V1/P172002_LCFP_P08_PANEL_CACHE_SPEEDUP-review.md`.

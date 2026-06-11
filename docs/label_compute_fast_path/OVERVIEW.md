@@ -93,19 +93,36 @@ same-bar path policies, BBO missingness, horizon overlap metadata, exact
 `label_available_ts`, and exact identity parity, and records value-free evidence
 in `research/label_compute_fast_path_v1/parity/parity_report.md`.
 
+LCFP-P08 runs the bounded real-data benchmark/readiness gate on a
+roll-containing month with session/maintenance gaps. The gate backs up the
+local label registry, invokes the real P01 reference runner and the real fast
+label materializer, sweeps workers 1/2/4/8 where safe, confirms resolver smoke
+and parity per worker count, and records only value-free timing/readiness
+evidence in `research/label_compute_fast_path_v1/benchmark/benchmark_summary.md`.
+Post-acceptance engine selection is per family: fast where measured materially
+faster and reference where the reference engine remains faster.
+
+LCFP-P09 closes the campaign with a value-free verdict and a coordinator-only
+FUTSUB reintegration handoff. The closeout cites the P07 parity report and P08
+benchmark summary, reports `code_status`, `fast_label_path_v1_status`,
+`execute_status`, `registry_status`, and `artifact_status` separately, and
+records the recommended `ACTIVE_CAMPAIGN.md` repoint without editing it.
+
 ## FUTSUB Supersession
 
 The paused `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` FUTSUB-P18/P19 specs
 treated a V1 fast label path as out of scope. This campaign deliberately
 supersedes that historical policy, but only after LCFP acceptance. Until the
-LCFP acceptance gates pass, the reference engine remains the production label
-materialization path.
+LCFP acceptance gates pass, the reference engine remains the only sanctioned
+label materialization path.
 
 After LCFP-P09, the coordinator may amend FUTSUB P16-P20 to use the accepted
-fast label path, preserve existing reference-produced values and registry rows
-unless they are superseded and verified through the official process, clear the
-FUTSUB STOP condition, and resume the predecessor run. Phase branches do not
-perform that reintegration.
+per-family engine policy: V1 fast labels for `fixed_base` and `path`, reference
+labels for `fixed_extended`, `close_out`, and `cost_adjusted`. Existing
+reference-produced values and registry rows are preserved unless they are
+superseded and verified through the official process. The coordinator, not an
+LCFP phase branch, clears the FUTSUB STOP condition and resumes the predecessor
+run.
 
 This campaign is research-only substrate engineering and makes no alpha,
 profitability, tradability, execution-quality, broker, live-trading,
