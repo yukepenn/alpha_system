@@ -1,4 +1,4 @@
-# Alpha System Operating Compass v4.1 — Consolidated Roadmap
+# Alpha System Operating Compass v4.2 — Consolidated Roadmap
 
 Status: canonical. Supersedes Compass v2 / v2.1 / v3 / v3.5 (chat-only). Where
 older routes conflict with this document, this document wins. Live phase status
@@ -469,3 +469,48 @@ Recorded 2026-06-10 so future evidence can grade them:
 
 If the kill-shot contradicts these, the diagnosis branch (Stage D) wins over
 the prior, by construction.
+
+---
+
+## 7. Upside options adopted post-v4.1 (v4.2, 2026-06-10 red-team)
+
+Six gaps found by adversarial self-review; all additive, none delay the
+kill-shot:
+
+1. **Evidence-accrual loop.** The corpus grows ~36 symbol-months/year. Every
+   `INCONCLUSIVE + UNDERPOWERED` verdict auto-requeues for retest when enough
+   new accepted data lands to materially change its power. Time is an ally;
+   underpowered is a queue state, not a tombstone. (Rigor Floor deliverable.)
+2. **Pipeline FDR calibration (surrogate runs).** Beyond the single planted
+   fake-alpha canary: periodically run the full study machinery on
+   label-shuffled/surrogate data; any survivor = measured pipeline leakage.
+   Cheap with fast labels; hardens the floor empirically. (Rigor Floor.)
+3. **Economic event calendar substrate.** FOMC/CPI/NFP/OPEX/quad-witching
+   calendar (essentially free data) becomes a substrate input before Mining
+   V2; event-conditioned variants and event-day handling become declarable in
+   StudySpecs. (Post-kill-shot substrate increment; small.)
+4. **Calendar/flow seasonality family.** Day-of-week, month-end rebalancing,
+   roll-week dynamics — flow-driven mechanism, structurally low-correlated
+   with the six price-action families; computable from existing data.
+   (Mining V2 family candidate.)
+5. **Hypothesis-sourcing discipline.** Standing agent activity: mine
+   literature/SSRN into mechanism cards feeding the research queue — attacks
+   the idea-quality bottleneck with research time, not infrastructure.
+   (May start any time; output is queue input, never evidence.)
+6. **Data-tier upgrade as a diagnosis branch, not just cost calibration.**
+   TBBO/MBP-1 sample months serve microstructure FEATURES (effective-spread
+   dynamics, trade-side imbalance) in the zero-survivor diagnosis — the
+   OHLCV+BBO tier is the most-mined tier; differentiated edge may need the
+   next tier. (External cost = human ask, unchanged.)
+
+USER-GATED options (explicitly NOT adopted without human sign-off, as they
+change risk/methodology posture):
+
+- **Overnight edge class**: relaxing the hard intraday-flat boundary for a
+  governed overnight-hold family (session-close → next-open labels, explicit
+  gap-risk budget). Documented premium; real gap risk. Awaiting user decision.
+- **Early bounded ML**: one pre-declared ML pipeline (e.g. purged-CV gradient
+  boosting over honest features) as a Track-B pooled hypothesis inside Mining
+  V2, instead of waiting for the late ML stage. Sample-efficient; largest
+  p-hacking surface. Requires surrogate-FDR-calibrated floor first. Awaiting
+  user decision.
