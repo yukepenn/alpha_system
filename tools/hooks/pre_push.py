@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 
@@ -33,6 +33,11 @@ def strict_artifacts_present() -> bool:
     has_handoff = any(path.suffix == ".md" for path in handoffs.rglob("*") if path.is_file())
     has_review = any(path.suffix in {".md", ".json"} for path in reviews.rglob("*") if path.is_file())
     return has_handoff and has_review
+
+
+def _scrub_git_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    source = os.environ if env is None else env
+    return {key: value for key, value in source.items() if not key.startswith("GIT_")}
 
 
 def _is_zero_sha(sha: str) -> bool:
@@ -94,8 +99,9 @@ def main() -> int:
         [sys.executable, "tools/verify.py", "--smoke"],
         [sys.executable, "tools/hooks/canary_runner.py"],
     ]
+    clean_env = _scrub_git_env()
     for command in checks:
-        result = subprocess.run(command, cwd=ROOT, check=False)
+        result = subprocess.run(command, cwd=ROOT, env=clean_env, check=False)
         if result.returncode:
             return result.returncode
     return 0

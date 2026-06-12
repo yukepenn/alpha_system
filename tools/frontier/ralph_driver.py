@@ -2938,8 +2938,7 @@ def cleanup_phase_worktree_after_merge(
     else:
         # In-tree (serial default) mode: there is no worktree to remove, but the
         # merged remote branch still needs cleanup. merge_pr no longer passes
-        # `--delete-branch` (it can flip core.bare while a branch is checked out),
-        # so delete the frontier-owned remote branch directly here. A plain
+        # `--delete-branch`; keep cleanup outside gh as defense in depth. A plain
         # `git push --delete` does not flip core.bare. Guarded to auto/ branches,
         # skipped under mock/dry-run; best-effort, never blocks the merge.
         branch = str(phase.get("branch") or "").strip()
@@ -3560,10 +3559,11 @@ def restore_local_repo_after_merge(
 ) -> dict[str, Any]:
     """Post-merge repo hygiene for both worktree/parallel and in-tree modes.
 
-    A ``gh pr merge`` run with the working directory set to a phase worktree
-    (where the merged branch is the checked-out branch) can, on some gh/git
-    versions, leave the *shared* repo with ``core.bare = true``. The remote merge
-    still succeeds, but every subsequent phase then fails its local git
+    The recurring 2026-06 ``core.bare`` flips were root-caused to hook-leaked
+    ``GIT_DIR`` into scratch ``git init`` and are scrubbed at the hook boundary.
+    This guard remains as defense in depth: if any local Git/GitHub operation
+    leaves the *shared* repo with ``core.bare = true``, every subsequent phase
+    then fails its local git
     (``fatal: this operation must be run in a work tree``) and the wave
     coordinator blocks. This guard repairs the local repository after each
     successful merge:
