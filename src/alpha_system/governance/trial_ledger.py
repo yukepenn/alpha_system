@@ -48,6 +48,8 @@ TRIAL_LEDGER_REQUIRED_FIELDS = (
     "code_hash",
     "config_hash",
 )
+TRIAL_LEDGER_OPTIONAL_FIELDS = ("surrogate_flag",)
+TRIAL_LEDGER_ALLOWED_FIELDS = TRIAL_LEDGER_REQUIRED_FIELDS + TRIAL_LEDGER_OPTIONAL_FIELDS
 TRIAL_LEDGER_ID_COMPONENT_FIELDS = tuple(
     field for field in TRIAL_LEDGER_REQUIRED_FIELDS if field != "trial_id"
 )
@@ -101,6 +103,7 @@ TRIAL_LEDGER_FIELD_TYPES: dict[str, ExpectedType] = {
     "locked_test_contamination_flag": bool,
     "code_hash": str,
     "config_hash": str,
+    "surrogate_flag": bool,
 }
 
 
@@ -121,6 +124,7 @@ class TrialLedgerRecord:
     locked_test_contamination_flag: bool
     code_hash: str
     config_hash: str
+    surrogate_flag: bool = False
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> TrialLedgerRecord:
@@ -139,7 +143,7 @@ class TrialLedgerRecord:
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a strict JSON-compatible representation."""
 
-        return {
+        payload: dict[str, JsonValue] = {
             "trial_id": self.trial_id,
             "alpha_spec_id": self.alpha_spec_id,
             "study_spec_id": self.study_spec_id,
@@ -154,6 +158,9 @@ class TrialLedgerRecord:
             "code_hash": self.code_hash,
             "config_hash": self.config_hash,
         }
+        if self.surrogate_flag:
+            payload["surrogate_flag"] = True
+        return payload
 
     def to_canonical_json(self) -> str:
         """Serialize the validated record through the canonical primitive."""
@@ -178,6 +185,8 @@ class TrialLedgerAccounting:
     failed_or_abandoned_count: int
     oos_touched_count: int
     locked_test_contamination_count: int
+    surrogate_count: int
+    production_attempt_count: int
     any_oos_touched: bool
     any_locked_test_contamination: bool
     budget_check: StudyBudgetCheck
@@ -199,6 +208,8 @@ class TrialLedgerAccounting:
             "failed_or_abandoned_count": self.failed_or_abandoned_count,
             "oos_touched_count": self.oos_touched_count,
             "locked_test_contamination_count": self.locked_test_contamination_count,
+            "surrogate_count": self.surrogate_count,
+            "production_attempt_count": self.production_attempt_count,
             "any_oos_touched": self.any_oos_touched,
             "any_locked_test_contamination": self.any_locked_test_contamination,
             "budget_check": self.budget_check.to_dict(),
@@ -239,6 +250,7 @@ def create_trial_ledger_record(
     locked_test_contamination_flag: bool,
     code_hash: str,
     config_hash: str,
+    surrogate_flag: bool = False,
 ) -> TrialLedgerRecord:
     """Create a validated `TrialLedgerRecord` without running a study."""
 
@@ -256,6 +268,8 @@ def create_trial_ledger_record(
         "code_hash": code_hash,
         "config_hash": config_hash,
     }
+    if surrogate_flag:
+        payload["surrogate_flag"] = True
     payload["trial_id"] = generate_trial_ledger_id(payload)
     return validate_trial_ledger_record(payload)
 
@@ -268,6 +282,8 @@ def generate_trial_ledger_id(payload: Mapping[str, Any]) -> str:
         field: _normalize_id_component(field, mapping[field])
         for field in TRIAL_LEDGER_ID_COMPONENT_FIELDS
     }
+    if mapping.get("surrogate_flag") is True:
+        components["surrogate_flag"] = True
     return generate_governance_id(GovernanceIdKind.TRIAL_LEDGER_RECORD, components)
 
 
@@ -278,7 +294,7 @@ def validate_trial_ledger_record(payload: Mapping[str, Any]) -> TrialLedgerRecor
         payload,
         required_fields=TRIAL_LEDGER_NON_NULL_REQUIRED_FIELDS,
         field_types=TRIAL_LEDGER_FIELD_TYPES,
-        allowed_fields=TRIAL_LEDGER_REQUIRED_FIELDS,
+        allowed_fields=TRIAL_LEDGER_ALLOWED_FIELDS,
         object_name="TrialLedgerRecord",
     )
 
@@ -339,6 +355,7 @@ def validate_trial_ledger_record(payload: Mapping[str, Any]) -> TrialLedgerRecor
         locked_test_contamination_flag=mapping["locked_test_contamination_flag"],
         code_hash=mapping["code_hash"],
         config_hash=mapping["config_hash"],
+        surrogate_flag=bool(mapping.get("surrogate_flag", False)),
     )
 
 
@@ -401,13 +418,18 @@ def account_trial_ledger(
             )
         )
 
+    production_records = [record for record in study_records if not record.surrogate_flag]
     variant_counts: dict[str, int] = {}
     status_counts = {status.value: 0 for status in TrialStatus}
     oos_touched_count = 0
     locked_test_contamination_count = 0
+    surrogate_count = 0
     for record in study_records:
-        variant_counts[record.variant_id] = variant_counts.get(record.variant_id, 0) + 1
         status_counts[record.status.value] += 1
+        if record.surrogate_flag:
+            surrogate_count += 1
+        else:
+            variant_counts[record.variant_id] = variant_counts.get(record.variant_id, 0) + 1
         if record.oos_touched_flag:
             oos_touched_count += 1
         if record.locked_test_contamination_flag:
@@ -423,7 +445,7 @@ def account_trial_ledger(
         variant_budget=variant_budget,
         attempt_count=len(study_records),
         observed_variant_count=observed_variant_count,
-        variant_attempt_count=len(study_records),
+        variant_attempt_count=len(production_records),
         variant_ids=variant_ids,
         variant_counts=dict(sorted(variant_counts.items())),
         status_counts=status_counts,
@@ -432,6 +454,8 @@ def account_trial_ledger(
         failed_or_abandoned_count=failed_count + abandoned_count,
         oos_touched_count=oos_touched_count,
         locked_test_contamination_count=locked_test_contamination_count,
+        surrogate_count=surrogate_count,
+        production_attempt_count=len(production_records),
         any_oos_touched=oos_touched_count > 0,
         any_locked_test_contamination=locked_test_contamination_count > 0,
         budget_check=budget_check,
@@ -473,7 +497,9 @@ def summarize_trial_ledger_variants(
     )
     validated_records = _validate_records(materialized_records)
     study_records = [
-        record for record in validated_records if record.study_spec_id == study_spec_id
+        record
+        for record in validated_records
+        if record.study_spec_id == study_spec_id and not record.surrogate_flag
     ]
     grouped: dict[str, list[TrialLedgerRecord]] = {}
     for record in study_records:

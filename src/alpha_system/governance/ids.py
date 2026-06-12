@@ -10,8 +10,10 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-from alpha_system.governance.serialization import GovernanceSerializationError, canonical_serialize
-
+from alpha_system.governance.serialization import (
+    GovernanceSerializationError,
+    canonical_serialize,
+)
 
 TOKEN_LENGTH = 24
 GOVERNANCE_ID_PATTERN = re.compile(
@@ -37,6 +39,7 @@ class GovernanceIdKind(StrEnum):
     BUDGET_AMENDMENT_RECORD = "BudgetAmendmentRecord"
     SEALED_HOLDOUT_WINDOW = "SealedHoldoutWindow"
     HOLDOUT_ACCESS_LOG = "HoldoutAccessLog"
+    SURROGATE_STUDY_RUN = "SurrogateStudyRun"
     POOLED_HYPOTHESIS_RECORD = "PooledHypothesisRecord"
 
 
@@ -57,6 +60,7 @@ GOVERNANCE_ID_PREFIXES = MappingProxyType(
         GovernanceIdKind.BUDGET_AMENDMENT_RECORD.value: "bamend",
         GovernanceIdKind.SEALED_HOLDOUT_WINDOW.value: "holdwin",
         GovernanceIdKind.HOLDOUT_ACCESS_LOG.value: "haccess",
+        GovernanceIdKind.SURROGATE_STUDY_RUN.value: "surrun",
         GovernanceIdKind.POOLED_HYPOTHESIS_RECORD.value: "poolhyp",
     }
 )

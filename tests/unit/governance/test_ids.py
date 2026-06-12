@@ -30,6 +30,7 @@ EXPECTED_PREFIXES = {
     "BudgetAmendmentRecord": "bamend",
     "SealedHoldoutWindow": "holdwin",
     "HoldoutAccessLog": "haccess",
+    "SurrogateStudyRun": "surrun",
     "PooledHypothesisRecord": "poolhyp",
 }
 

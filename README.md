@@ -10,6 +10,11 @@ The repository-level campaign pointer targets
 `DISCOVERY_RIGOR_FLOOR_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
+Current campaign progress after the `RIGOR-P05` merge:
+`RIGOR-P00` through `RIGOR-P03`, `RIGOR-P05`, and `RIGOR-P06` are complete
+per the current campaign snapshot. The active / next phase is `RIGOR-P04`
+(executable RANDOM_TARGET + planted-fake-alpha canary) if it has not already
+merged, followed by `RIGOR-P07` closeout and kill-shot readiness.
 Current campaign progress after the `RIGOR-P04` merge:
 `RIGOR-P00` through `RIGOR-P04` are complete, and `RIGOR-P06` has also landed
 per the current campaign snapshot. The active / next phase is `RIGOR-P05`
@@ -39,6 +44,17 @@ New durable surfaces through `RIGOR-P03`:
 - `src/alpha_system/governance/requeue.py`, `alpha governance requeue-scan`,
   and `research/discovery_rigor_floor_v1/requeue/REQUEUE_SCAN.md` provide the
   landed evidence-accrual requeue scan from `RIGOR-P06`.
+- `src/alpha_system/governance/surrogate_run.py` defines the
+  `SurrogateStudyRun` schema, seeded label-shuffle runner, calibration
+  harness, and declared zero-pass surrogate-FDR threshold.
+- `TrialLedgerRecord.surrogate_flag` distinguishes surrogate trials while
+  excluding them from production variant/family budget accounting.
+- `alpha governance surrogate-calibrate` runs N seeded label-shuffled
+  calibrations in an isolated namespace and exits non-zero on
+  `LEAKAGE_BLOCKED` or errored calibration.
+- `research/discovery_rigor_floor_v1/surrogate_fdr/RIGOR-P05_synthetic_calibration.md`
+  records the value-free synthetic calibration report; real-data calibration
+  remains a coordinator runbook step before FUTSUB-P28 kill-shot resume.
 - `src/alpha_system/governance/sealed_holdout.py` defines
   `SealedHoldoutWindow`, exactly-one-active declaration enforcement,
   terminal `BREACHED` transitions, and append-only `HoldoutAccessLog`
@@ -105,6 +121,10 @@ engines, or worktrees are changed by this phase.
 RIGOR-P03 is also governance-only: it declares and gates the sealed holdout
 regime with value-free metadata and does not run, inspect, or mutate study
 values, registries, FUTSUB run state, broker surfaces, or execution engines.
+RIGOR-P05 is governance/calibration machinery only: surrogate study outputs,
+shuffled labels, ledgers, and scratch registries are local-only isolated
+namespace artifacts; the committed report is value-free and makes no alpha,
+profitability, tradability, or production-readiness claim.
 RIGOR-P04 is governance-only: it uses tiny synthetic fixtures, tmp namespaces,
 and value-free pass/fail evidence to close the negative-control canary floor;
 it does not run real-data studies, mutate production registries or ledgers, or
