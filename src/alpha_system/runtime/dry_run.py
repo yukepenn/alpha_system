@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from alpha_system.backtest.futures_fees import active_fee_schedule_cost_component_descriptor
 from alpha_system.data.foundation.datasets import DatasetVersion
 from alpha_system.experiments.limits import CombinationLimit
 from alpha_system.governance.alpha_spec import (
@@ -328,7 +329,16 @@ def run_runtime_dry_run(config: RuntimeDryRunConfig | None = None) -> RuntimeDry
         runtime_input_pack=input_resolution.input_pack,
         fixture_root=active_config.fixture_root,
     )
-    cost_model_version = CostModelVersion(bbo_available=True)
+    cost_model_version = CostModelVersion.from_mappings(
+        cost_model_descriptor={
+            "model": "composite",
+            "components": (
+                active_fee_schedule_cost_component_descriptor(default_symbol="MES"),
+                {"model": "spread_cost", "assumption": "half_spread"},
+            ),
+        },
+        bbo_available=True,
+    )
     cost_stress_spec = CostStressSpec(cost_model_version=cost_model_version)
     signal_probe_spec = _signal_probe_spec(
         runtime_input_pack=input_resolution.input_pack,

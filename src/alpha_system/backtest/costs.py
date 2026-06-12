@@ -7,6 +7,12 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 
+from alpha_system.backtest.futures_fees import (
+    ACTIVE_FEE_SCHEDULE_VERSION_ID,
+    FuturesFeeScheduleVersion,
+    fee_schedule_by_version,
+)
+
 
 ZERO = Decimal("0")
 
@@ -202,6 +208,68 @@ class SpreadCost:
 
 
 @dataclass(frozen=True, slots=True)
+class FuturesFeeScheduleCost:
+    """Apply a versioned public futures hard-fee schedule per contract."""
+
+    schedule_version_id: str = ACTIVE_FEE_SCHEDULE_VERSION_ID
+    default_symbol: str | None = None
+    name: str = "futures_fee_schedule"
+
+    def __post_init__(self) -> None:
+        schedule = fee_schedule_by_version(self.schedule_version_id)
+        if schedule.placeholder:
+            msg = "placeholder fee schedules are retained for history only"
+            raise CostModelError(msg)
+        default_symbol = (
+            schedule.default_symbol
+            if self.default_symbol is None
+            else _symbol(self.default_symbol, "default_symbol")
+        )
+        schedule.entry_for_symbol(default_symbol)
+        object.__setattr__(self, "schedule_version_id", schedule.version_id)
+        object.__setattr__(self, "default_symbol", default_symbol)
+        object.__setattr__(self, "name", _text(self.name, "name"))
+
+    @property
+    def schedule(self) -> FuturesFeeScheduleVersion:
+        """Return the configured fee schedule."""
+
+        return fee_schedule_by_version(self.schedule_version_id)
+
+    def cost_for_fill(self, fill: CostInput) -> CostBreakdown:
+        symbol = self._symbol_from_fill(fill)
+        entry = self.schedule.entry_for_symbol(symbol)
+        breakdown = CostBreakdown()
+        for component_name, amount in entry.component_amounts():
+            breakdown = breakdown.with_component(component_name, amount * fill.quantity)
+        return breakdown
+
+    def to_dict(self) -> dict[str, Any]:
+        schedule = self.schedule
+        return {
+            "model": self.name,
+            "schedule_version_id": schedule.version_id,
+            "schedule_semantic_version": schedule.semantic_version,
+            "as_of_date": schedule.as_of_date,
+            "currency": schedule.currency,
+            "default_symbol": self.default_symbol,
+            "source_summary": schedule.source_summary,
+            "per_side_per_contract": {
+                entry.symbol: entry.to_dict() for entry in schedule.entries
+            },
+        }
+
+    def _symbol_from_fill(self, fill: CostInput) -> str:
+        value = (
+            fill.metadata.get("symbol")
+            or fill.metadata.get("root_symbol")
+            or fill.metadata.get("instrument_id")
+            or self.default_symbol
+        )
+        return _symbol(str(value), "symbol")
+
+
+@dataclass(frozen=True, slots=True)
 class ExplicitZeroCostModel:
     """Explicit fixture-only zero-cost model for tiny correctness fixtures."""
 
@@ -367,6 +435,17 @@ def _cost_component_from_mapping(payload: Any) -> SupportsCost:
         )
     if model == "spread_cost":
         return SpreadCost(assumption=str(payload.get("assumption", "half_spread")))
+    if model == "futures_fee_schedule":
+        return FuturesFeeScheduleCost(
+            schedule_version_id=str(
+                payload.get("schedule_version_id", ACTIVE_FEE_SCHEDULE_VERSION_ID)
+            ),
+            default_symbol=(
+                None
+                if payload.get("default_symbol") is None
+                else str(payload.get("default_symbol"))
+            ),
+        )
     if model == "zero_cost":
         return ExplicitZeroCostModel(
             fixture_only=bool(payload.get("fixture_only", False)),
@@ -396,6 +475,10 @@ def _text(value: Any, field_name: str) -> str:
         msg = f"{field_name} must be a non-empty string"
         raise CostModelError(msg)
     return value.strip()
+
+
+def _symbol(value: Any, field_name: str) -> str:
+    return _text(value, field_name).upper()
 
 
 def _decimal(value: Any, field_name: str) -> Decimal:
