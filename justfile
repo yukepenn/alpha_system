@@ -81,6 +81,9 @@ frontier-review:
 frontier-merge:
     python tools/frontier/merge_gate.py --phase "${FRONTIER_PHASE:?set FRONTIER_PHASE}"
 
+pr-merge number:
+    python tools/frontier/pr_merge.py "{{number}}"
+
 frontier-new-campaign:
     python tools/frontier/campaign.py new --campaign-id "${FRONTIER_CAMPAIGN:?set FRONTIER_CAMPAIGN}"
 
