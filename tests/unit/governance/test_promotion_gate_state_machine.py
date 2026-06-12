@@ -9,6 +9,12 @@ from alpha_system.governance.alpha_spec import (
     generate_alpha_spec_id,
     validate_alpha_spec,
 )
+from alpha_system.governance.canaries import (
+    REQUIRED_NEGATIVE_CONTROL_TYPES,
+    NegativeControlPassFail,
+    create_negative_control_result,
+    expected_failure_for_canary_type,
+)
 from alpha_system.governance.evidence_bundle import (
     EvidenceBundle,
     create_evidence_bundle,
@@ -190,7 +196,11 @@ def variant_ledger_path_with_records(
     return ledger_path
 
 
-def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> EvidenceBundle:
+def evidence_bundle(
+    records: tuple[TrialLedgerRecord, ...],
+    *,
+    omitted_controls: tuple[str, ...] = (),
+) -> EvidenceBundle:
     active_study_spec_id = records[0].study_spec_id if records else STUDY_SPEC_ID
     active_alpha_spec_id = records[0].alpha_spec_id if records else ALPHA_SPEC_ID
     return create_evidence_bundle(
@@ -206,13 +216,10 @@ def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> EvidenceBundle:
             "diagnostics_run_ref": "diagnostics-run-001",
             "metric_set": "synthetic governance smoke metrics",
         },
-        negative_control_results=[
-            {
-                "control_name": "permuted labels control",
-                "result": "failed closed",
-                "summary": "synthetic control did not create admissible evidence",
-            }
-        ],
+        negative_control_results=negative_control_results(
+            active_study_spec_id,
+            omitted_controls=omitted_controls,
+        ),
         limitations=["synthetic metadata fixture only"],
         artifact_manifest=[
             {
@@ -224,6 +231,31 @@ def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> EvidenceBundle:
         ],
         reviewer_verdict_reference=reviewer_verdict().reviewer_verdict_id,
     )
+
+
+def negative_control_results(
+    study_spec_id: str,
+    *,
+    omitted_controls: tuple[str, ...] = (),
+) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES:
+        if control_type in omitted_controls:
+            continue
+        expected_failure = expected_failure_for_canary_type(control_type)
+        results.append(
+            create_negative_control_result(
+                canary_type=control_type,
+                expected_failure=expected_failure,
+                observed_result=expected_failure,
+                pass_fail=NegativeControlPassFail.PASS,
+                related_study_or_evidence=study_spec_id,
+                notes=(
+                    f"Synthetic {control_type} control result for promotion-gate tests."
+                ),
+            ).to_dict()
+        )
+    return results
 
 
 def trial_ledger_file(tmp_path: Path) -> Path:
@@ -442,6 +474,33 @@ def test_diagnostics_run_to_evidence_ready_requires_valid_evidence_bundle(
     assert transition.next_state is PromotionLifecycleState.EVIDENCE_READY
     assert transition.evidence_bundle == bundle
     assert transition.trial_ledger_refs == (records[0].trial_id,)
+
+
+def test_evidence_ready_blocks_missing_required_negative_control_through_gate(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records, omitted_controls=("random_target",))
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+            ),
+        )
+
+    assert any(
+        issue.code == "missing_required_negative_control_result"
+        and issue.expected == "random_target"
+        for issue in exc_info.value.issues
+    )
 
 
 def test_evidence_ready_blocks_missing_trial_ledger_path() -> None:
