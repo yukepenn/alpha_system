@@ -1,0 +1,41 @@
+{
+  "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
+  "phase_id": "P085901_BBO_EVENT_TS_GRID",
+  "lane": "yellow",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-fresh-adversarial",
+  "reviewed_commit": "38ae871",
+  "branch": "wf1/bbo-grid",
+  "reviewed_at": "2026-06-12",
+  "evidence": {
+    "both_paths_fixed": "family.py:638/:701/:711 emit row.bar_end_ts; fast bbo_tradability.py:317 aliases _EVENT_TS from bar_end_ts feeding event_ts_expr:106",
+    "parity_covers_event_ts": "parity_harness._record_key includes event_ts; mutation A (reference revert) fails 2 tests",
+    "pit_constraint_cited": "data/databento/canonicalize.py:999-1001 quarantines BBO rows unless bar_start_ts <= event_ts <= bar_end_ts, so bar_end_ts >= quote ts always",
+    "identity_pins": "test_current_production_feature_version_ids_are_pinned passes on branch (literal fver hashes incl. bbo spread_zscore)",
+    "canary_ci": "canary_runner.py green; registry_event_ts_grid scanned=3 off_grid=4 allowed_debt=4 violations=0",
+    "canary_live_readonly": "ALPHA_DATA_ROOT live run (sqlite mode=ro): scanned=2680 off_grid=528 allowed_debt=528 violations=0 exit 0; all 528 = bbo_tradability BBO_PENDING_RE_MATERIALIZATION",
+    "validation_reproduced": "focused 18 passed (handoff 16+2skip = importorskip polars under system python); 332 passed; governance 645 passed; verify --smoke exit 0; ci-parity 3309 passed/75 skipped; git ls-files runs empty"
+  },
+  "mutation_tests": [
+    {
+      "id": "A_reference_event_ts_revert",
+      "mutation": "family.py emission lines 638/701/711 reverted to row.event_ts",
+      "expected": "parity FAIL",
+      "observed": "2 failed (pack parity + family grid assertion), restored, suite green, tree clean",
+      "result": "PASS"
+    },
+    {
+      "id": "B_nonallowlisted_offgrid_fixture",
+      "mutation": "synthetic fixture with off-grid base_ohlcv registration via --fixture",
+      "expected": "canary FAIL naming family/pack",
+      "observed": "exit 1, FAIL violations=1, VIOLATION line names family=base_ohlcv pack=feature_set_mutation_offgrid",
+      "result": "PASS"
+    }
+  ],
+  "warnings": [
+    "W1: COST_SPREAD_LABEL_MIRROR_DEFECT allowlist entry is dead grandfathering — live registry has 0 REGISTERED off-grid cost_adjusted rows (all 938 off-grid label rows DEPRECATED); id_prefix='' would silently allow future off-grid cost_adjusted registrations; remove the one line in the re-materialization follow-up",
+    "W2: _read_registry_rows returns () silently on a missing table — schema rename would make live mode pass while scanning nothing; table names verified present today",
+    "W3: handoff/README debt narrative for cost/spread labels is stale vs live registry (already repaired); Codex disclosed it could not run live mode"
+  ],
+  "blocking_findings": []
+}

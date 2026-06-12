@@ -8,6 +8,7 @@ import json
 import re
 import sys
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,11 @@ from alpha_system.governance.detection_statistic import (
     evaluate_detection_statistic,
 )
 from alpha_system.governance.serialization import deserialize
-from alpha_system.governance.study_spec import StudySpec, generate_study_spec_id, validate_study_spec
+from alpha_system.governance.study_spec import (
+    StudySpec,
+    generate_study_spec_id,
+    validate_study_spec,
+)
 from alpha_system.governance.surrogate_run import (
     SURROGATE_FALSE_PASS_BOUND_STATEMENT,
     SurrogateCalibrationReport,
@@ -28,7 +33,12 @@ from alpha_system.governance.surrogate_run import (
     calibrate_surrogate_fdr,
     render_value_free_calibration_report,
     require_isolated_namespace,
+    study_config_for_surrogate_scope,
     surrogate_calibration_report_from_rows,
+)
+from alpha_system.governance.feature_lock_validation import (
+    ValueStoreContentHashVerification,
+    verify_registered_value_store_content_hash,
 )
 from alpha_system.governance.validation import GovernanceValidationError, ValidationIssue
 from alpha_system.runtime.input_resolver import FeatureLabelPackResolver, RuntimeInputResolverError
@@ -46,6 +56,36 @@ SUPPORTED_FORWARD_HORIZONS: dict[str, tuple[int, str]] = {
     "30m": (1800, "forward_return_30m"),
 }
 PARTITION_RE = re.compile(r"^(?P<symbol>[A-Z0-9]+)_(?P<year>\d{4})_")
+SUPPORT_FEATURE_FAMILIES = frozenset({"base_ohlcv", "session_calendar_maintenance"})
+
+
+@dataclass(frozen=True, slots=True)
+class _MaterializedPack:
+    path: Path
+    source_path: str
+    expected_content_hash: str
+    actual_content_hash: str
+    total_rows: int
+    staged_rows: int
+    off_grid_event_ts_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _StagingProvenance:
+    factor_id: str
+    runtime_factor_id: str
+    feature_version_id: str
+    label_id: str
+    label_version_id: str
+    feature_partition: str
+    label_partition: str
+    feature_rows_total: int
+    feature_rows_staged: int
+    label_rows_total: int
+    label_rows_staged: int
+    off_grid_label_event_ts_count: int
+    feature_source_path: str
+    label_source_path: str
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -125,14 +165,24 @@ def run_real_surrogate_calibration(
     study_spec = _load_study_spec(study_spec_path)
     scope = study_spec.dataset_scope
     horizon_text, horizon_seconds, label_type = _declared_primary_horizon(scope)
-    label_lock = _select_label_lock(scope, horizon_text)
-    feature_lock = _select_feature_lock(scope, label_lock)
+    label_locks = _select_label_locks(scope, horizon_text)
+    declared_feature_family = _declared_feature_family(scope)
+    declared_factor_ids = _declared_factor_ids(
+        scope,
+        declared_feature_family=declared_feature_family,
+    )
+    expected_sub_config_count = _expected_sub_config_count(
+        scope,
+        label_locks=label_locks,
+        declared_feature_family=declared_feature_family,
+    )
     if rescore_existing:
         report = _rescore_existing_report(
             active_namespace,
             study_spec=study_spec,
             runs_per_config=active_runs_per_config,
             base_seed=active_base_seed,
+            surrogate_spec_count=expected_sub_config_count,
         )
         _write_real_report(
             report,
@@ -141,8 +191,10 @@ def run_real_surrogate_calibration(
             study_spec=study_spec,
             runs_per_config=active_runs_per_config,
             horizon_text=horizon_text,
-            label_lock=label_lock,
-            feature_lock=feature_lock,
+            declared_feature_family=declared_feature_family,
+            declared_factor_ids=declared_factor_ids,
+            label_locks=label_locks,
+            staging_provenance=(),
             namespace=active_namespace,
         )
         return _result_payload(
@@ -155,48 +207,126 @@ def run_real_surrogate_calibration(
             runs_per_config=active_runs_per_config,
             report_out=report_out,
             alpha_data_root=alpha_data_root,
+            declared_factor_ids=declared_factor_ids,
+            staged_label_pack_count=len(label_locks),
         )
 
     active_resolver = resolver or FeatureLabelPackResolver(alpha_data_root=alpha_data_root)
-    resolved = _resolve_records(
-        active_resolver,
-        feature_lock=feature_lock,
-        label_lock=label_lock,
-    )
-
-    input_dir = active_namespace / "real_surrogate_inputs" / study_spec.study_spec_id
-    input_dir.mkdir(parents=True, exist_ok=True)
-    data_version = f"surrogate:{label_lock['dataset_version_id']}"
-    factor_values_path = _materialize_factor_jsonl(
-        resolved["feature_record"],
-        input_dir / "factor-values.jsonl",
-        data_version=data_version,
-    )
-    labels_path = _materialize_label_jsonl(
-        resolved["label_record"],
-        input_dir / "labels.jsonl",
-        data_version=data_version,
-        horizon_seconds=horizon_seconds,
-        label_type=label_type,
-    )
-    surrogate_spec = _surrogate_study_spec(
-        study_spec,
-        feature_record=resolved["feature_record"],
-        label_record=resolved["label_record"],
-        factor_values_path=factor_values_path,
-        labels_path=labels_path,
-        data_version=data_version,
-        horizon_seconds=horizon_seconds,
-        label_type=label_type,
-    )
+    input_root = active_namespace / "real_surrogate_inputs" / study_spec.study_spec_id
+    input_root.mkdir(parents=True, exist_ok=True)
+    surrogate_specs: list[StudySpec] = []
+    staging_provenance: list[_StagingProvenance] = []
+    for label_lock in label_locks:
+        feature_locks = _declared_feature_locks_for_label(
+            scope,
+            label_lock=label_lock,
+            declared_feature_family=declared_feature_family,
+        )
+        for feature_lock in feature_locks:
+            resolved = _resolve_records(
+                active_resolver,
+                feature_lock=feature_lock,
+                label_lock=label_lock,
+            )
+            input_dir = (
+                input_root
+                / _path_token(str(label_lock["partition"]))
+                / _path_token(str(feature_lock["feature_id"]))
+            )
+            input_dir.mkdir(parents=True, exist_ok=True)
+            data_version = (
+                f"surrogate:{label_lock['dataset_version_id']}:{label_lock['partition']}"
+            )
+            factor_values = _materialize_factor_jsonl(
+                resolved["feature_record"],
+                input_dir / "factor-values.jsonl",
+                data_version=data_version,
+                feature_lock=feature_lock,
+            )
+            labels = _materialize_label_jsonl(
+                resolved["label_record"],
+                input_dir / "labels.jsonl",
+                data_version=data_version,
+                horizon_seconds=horizon_seconds,
+                label_type=label_type,
+                label_lock=label_lock,
+            )
+            surrogate_spec = _surrogate_study_spec(
+                study_spec,
+                feature_record=resolved["feature_record"],
+                label_record=resolved["label_record"],
+                factor_values_path=factor_values.path,
+                labels_path=labels.path,
+                data_version=data_version,
+                horizon_seconds=horizon_seconds,
+                label_type=label_type,
+            )
+            runtime_factor_id = _runtime_factor_id(
+                surrogate_spec,
+                seed=active_base_seed,
+                labels_path=labels.path,
+                output_dir=input_dir / "runtime_factor_probe",
+            )
+            factor_id = _lock_text(feature_lock, "feature_id", "feature lock")
+            if runtime_factor_id != factor_id:
+                raise GovernanceValidationError(
+                    ValidationIssue(
+                        field="dataset_scope.surrogate_fdr.factor_id",
+                        code="runtime_factor_id_mismatch",
+                        message=(
+                            "calibration staging factor_id must match the "
+                            "study runtime StudyConfig.factor_id construction path"
+                        ),
+                        expected=factor_id,
+                        actual=runtime_factor_id,
+                    )
+                )
+            surrogate_specs.append(surrogate_spec)
+            staging_provenance.append(
+                _StagingProvenance(
+                    factor_id=factor_id,
+                    runtime_factor_id=runtime_factor_id,
+                    feature_version_id=_lock_text(
+                        feature_lock,
+                        "feature_version_id",
+                        "feature lock",
+                    ),
+                    label_id=label_type,
+                    label_version_id=_lock_text(
+                        label_lock,
+                        "label_version_id",
+                        "label lock",
+                    ),
+                    feature_partition=_lock_text(feature_lock, "partition", "feature lock"),
+                    label_partition=_lock_text(label_lock, "partition", "label lock"),
+                    feature_rows_total=factor_values.total_rows,
+                    feature_rows_staged=factor_values.staged_rows,
+                    label_rows_total=labels.total_rows,
+                    label_rows_staged=labels.staged_rows,
+                    off_grid_label_event_ts_count=labels.off_grid_event_ts_count,
+                    feature_source_path=factor_values.source_path,
+                    label_source_path=labels.source_path,
+                )
+            )
+    if not surrogate_specs:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="dataset_scope.feature_pack_locks",
+                code="no_declared_factor_sub_configs",
+                message="declared factor derivation produced no surrogate sub-configs",
+                expected="one or more declared factor locks matching label partitions",
+                actual="0",
+            )
+        )
 
     reports: list[SurrogateCalibrationReport] = []
+    seed_block_size = len(surrogate_specs) * active_runs_per_config
     for config_index, perturbation_type in enumerate(PERTURBATION_CONFIGS):
         reports.append(
             calibrate_surrogate_fdr(
-                (surrogate_spec,),
+                tuple(surrogate_specs),
                 run_budget=active_runs_per_config,
-                base_seed=active_base_seed + config_index * active_runs_per_config,
+                base_seed=active_base_seed + config_index * seed_block_size,
                 namespace=active_namespace,
                 perturbation_type=perturbation_type,
             )
@@ -209,17 +339,22 @@ def run_real_surrogate_calibration(
         study_spec=study_spec,
         runs_per_config=active_runs_per_config,
         horizon_text=horizon_text,
-        label_lock=label_lock,
-        feature_lock=feature_lock,
+        declared_feature_family=declared_feature_family,
+        declared_factor_ids=declared_factor_ids,
+        label_locks=label_locks,
+        staging_provenance=tuple(staging_provenance),
         namespace=active_namespace,
     )
     return _result_payload(
         report,
         study_spec=study_spec,
-        surrogate_study_spec_id=surrogate_spec.study_spec_id,
+        surrogate_study_spec_id=surrogate_specs[0].study_spec_id,
         runs_per_config=active_runs_per_config,
         report_out=report_out,
         alpha_data_root=alpha_data_root,
+        surrogate_study_spec_ids=tuple(spec.study_spec_id for spec in surrogate_specs),
+        declared_factor_ids=declared_factor_ids,
+        staged_label_pack_count=len(label_locks),
     )
 
 
@@ -264,15 +399,18 @@ def _declared_primary_horizon(scope: Mapping[str, Any]) -> tuple[str, int, str]:
     )
 
 
-def _select_label_lock(scope: Mapping[str, Any], horizon_text: str) -> Mapping[str, Any]:
+def _select_label_locks(
+    scope: Mapping[str, Any],
+    horizon_text: str,
+) -> tuple[Mapping[str, Any], ...]:
     locks = _mapping_sequence(scope.get("label_pack_locks"), "label_pack_locks")
     suffix = f"fwd_ret_{horizon_text}"
-    candidates = [
+    candidates = tuple(
         lock
         for lock in locks
         if str(lock.get("label_id", "")).endswith(suffix)
         or str(lock.get("partition", "")).endswith(suffix)
-    ]
+    )
     if not candidates:
         raise GovernanceValidationError(
             ValidationIssue(
@@ -283,39 +421,145 @@ def _select_label_lock(scope: Mapping[str, Any], horizon_text: str) -> Mapping[s
                 actual=f"{len(locks)} label locks",
             )
         )
-    return sorted(
+    _require_unique_lock_ids(
         candidates,
-        key=lambda lock: (
-            str(lock.get("partition", "")),
-            str(lock.get("label_version_id", "")),
-        ),
-    )[0]
+        lock_id_field="label_version_id",
+        field="dataset_scope.label_pack_locks",
+        code="duplicate_primary_horizon_label_lock",
+    )
+    return candidates
 
 
-def _select_feature_lock(
+def _declared_feature_family(scope: Mapping[str, Any]) -> str:
+    locks = _mapping_sequence(scope.get("feature_pack_locks"), "feature_pack_locks")
+    candidate_families = _unique_in_order(
+        _lock_text(lock, "feature_family", "feature lock")
+        for lock in locks
+        if not _support_feature_family(_lock_text(lock, "feature_family", "feature lock"))
+    )
+    if len(candidate_families) != 1:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="dataset_scope.feature_pack_locks",
+                code=(
+                    "declared_factor_family_missing"
+                    if not candidate_families
+                    else "declared_factor_family_ambiguous"
+                ),
+                message=(
+                    "StudySpec must expose exactly one non-support feature family "
+                    "for real surrogate calibration"
+                ),
+                expected="one non-support feature_family",
+                actual=", ".join(candidate_families) if candidate_families else "none",
+            )
+        )
+    return candidate_families[0]
+
+
+def _declared_factor_ids(
     scope: Mapping[str, Any],
+    *,
+    declared_feature_family: str,
+) -> tuple[str, ...]:
+    locks = _mapping_sequence(scope.get("feature_pack_locks"), "feature_pack_locks")
+    factor_ids = _unique_in_order(
+        _lock_text(lock, "feature_id", "feature lock")
+        for lock in locks
+        if _lock_text(lock, "feature_family", "feature lock") == declared_feature_family
+    )
+    if not factor_ids:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="dataset_scope.feature_pack_locks",
+                code="declared_factor_lock_missing",
+                message="declared feature family must contain at least one factor lock",
+                expected=f"feature_family={declared_feature_family}",
+                actual="0 locks",
+            )
+        )
+    return factor_ids
+
+
+def _expected_sub_config_count(
+    scope: Mapping[str, Any],
+    *,
+    label_locks: Sequence[Mapping[str, Any]],
+    declared_feature_family: str,
+) -> int:
+    return sum(
+        len(
+            _declared_feature_locks_for_label(
+                scope,
+                label_lock=label_lock,
+                declared_feature_family=declared_feature_family,
+            )
+        )
+        for label_lock in label_locks
+    )
+
+
+def _declared_feature_locks_for_label(
+    scope: Mapping[str, Any],
+    *,
     label_lock: Mapping[str, Any],
-) -> Mapping[str, Any]:
+    declared_feature_family: str,
+) -> tuple[Mapping[str, Any], ...]:
     locks = _mapping_sequence(scope.get("feature_pack_locks"), "feature_pack_locks")
     label_partition = str(label_lock.get("partition", ""))
     label_match = PARTITION_RE.match(label_partition)
-    candidates = locks
+    expected_partition = ""
     if label_match is not None:
         symbol = label_match.group("symbol")
         year = label_match.group("year")
         expected_partition = f"{symbol}_{year}_full_year"
-        candidates = [lock for lock in locks if str(lock.get("partition")) == expected_partition]
+    candidates = tuple(
+        lock
+        for lock in locks
+        if _lock_text(lock, "feature_family", "feature lock") == declared_feature_family
+        and (not expected_partition or str(lock.get("partition")) == expected_partition)
+    )
     if not candidates:
         raise GovernanceValidationError(
             ValidationIssue(
                 field="dataset_scope.feature_pack_locks",
                 code="matching_feature_pack_not_found",
-                message="StudySpec must lock at least one feature pack for the label partition",
-                expected="feature pack for the label symbol/year",
+                message=(
+                    "StudySpec must lock declared feature-family packs for the "
+                    "label partition"
+                ),
+                expected=f"feature_family={declared_feature_family} partition={expected_partition}",
                 actual=f"{len(locks)} feature locks",
             )
         )
-    return sorted(candidates, key=_feature_lock_sort_key)[0]
+    feature_ids = _unique_in_order(
+        _lock_text(lock, "feature_id", "feature lock") for lock in candidates
+    )
+    output: list[Mapping[str, Any]] = []
+    for feature_id in feature_ids:
+        matches = tuple(
+            lock
+            for lock in candidates
+            if _lock_text(lock, "feature_id", "feature lock") == feature_id
+        )
+        if len(matches) != 1:
+            raise GovernanceValidationError(
+                ValidationIssue(
+                    field="dataset_scope.feature_pack_locks",
+                    code="ambiguous_declared_factor_lock",
+                    message=(
+                        "declared factor must resolve to exactly one feature lock "
+                        "for each label partition"
+                    ),
+                    expected=(
+                        f"one lock for feature_id={feature_id} "
+                        f"partition={expected_partition or label_partition}"
+                    ),
+                    actual=f"{len(matches)} locks",
+                )
+            )
+        output.append(matches[0])
+    return tuple(output)
 
 
 def _resolve_records(
@@ -352,15 +596,44 @@ def _resolve_records(
                 actual=f"feature={feature_record is not None}, label={label_record is not None}",
             )
         )
+    _assert_record_matches_lock(
+        feature_record,
+        feature_lock,
+        version_field="feature_version_id",
+        pack_kind="feature",
+    )
+    _assert_record_matches_lock(
+        label_record,
+        label_lock,
+        version_field="label_version_id",
+        pack_kind="label",
+    )
+    _assert_feature_record_factor(feature_record, feature_lock)
     return {"feature_record": feature_record, "label_record": label_record}
 
 
-def _materialize_factor_jsonl(record: Any, path: Path, *, data_version: str) -> Path:
-    rows = _load_value_rows(record)
+def _materialize_factor_jsonl(
+    record: Any,
+    path: Path,
+    *,
+    data_version: str,
+    feature_lock: Mapping[str, Any],
+) -> _MaterializedPack:
+    rows, verification = _load_value_rows(
+        record,
+        pack_kind="feature",
+        version_id=_lock_text(feature_lock, "feature_version_id", "feature lock"),
+    )
+    staged_rows = _filter_rows_by_version(
+        rows,
+        expected_version=_lock_text(feature_lock, "feature_version_id", "feature lock"),
+        row_version_field="feature_version_id",
+        pack_kind="feature",
+    )
     converted: list[dict[str, Any]] = []
     counters: dict[tuple[str, str], int] = {}
     numeric_count = 0
-    for row in rows:
+    for row in staged_rows:
         event_ts = _iso_text(row.get("event_ts"), "event_ts")
         entity_id = _text(row.get("entity_id"), "entity_id")
         trade_date = event_ts[:10]
@@ -373,8 +646,12 @@ def _materialize_factor_jsonl(record: Any, path: Path, *, data_version: str) -> 
             numeric_count += 1
         converted.append(
             {
-                "factor_id": record.feature_spec.feature_id,
-                "factor_version": record.feature_version_id,
+                "factor_id": _lock_text(feature_lock, "feature_id", "feature lock"),
+                "factor_version": _lock_text(
+                    feature_lock,
+                    "feature_version_id",
+                    "feature lock",
+                ),
                 "instrument_id": entity_id,
                 "event_ts": event_ts,
                 "available_ts": _iso_text(row.get("available_ts"), "available_ts"),
@@ -397,7 +674,15 @@ def _materialize_factor_jsonl(record: Any, path: Path, *, data_version: str) -> 
                 actual=record.feature_version_id,
             )
         )
-    return _write_jsonl(path, converted)
+    output = _write_jsonl(path, converted)
+    return _MaterializedPack(
+        path=output,
+        source_path=verification.path,
+        expected_content_hash=verification.expected_content_hash,
+        actual_content_hash=verification.actual_content_hash,
+        total_rows=len(rows),
+        staged_rows=len(staged_rows),
+    )
 
 
 def _materialize_label_jsonl(
@@ -407,10 +692,21 @@ def _materialize_label_jsonl(
     data_version: str,
     horizon_seconds: int,
     label_type: str,
-) -> Path:
-    rows = _load_value_rows(record)
+    label_lock: Mapping[str, Any],
+) -> _MaterializedPack:
+    rows, verification = _load_value_rows(
+        record,
+        pack_kind="label",
+        version_id=_lock_text(label_lock, "label_version_id", "label lock"),
+    )
+    staged_rows = _filter_rows_by_version(
+        rows,
+        expected_version=_lock_text(label_lock, "label_version_id", "label lock"),
+        row_version_field="label_version_id",
+        pack_kind="label",
+    )
     converted: list[dict[str, Any]] = []
-    for row in rows:
+    for row in staged_rows:
         event_ts = _iso_text(row.get("event_ts"), "event_ts")
         horizon_end_ts = _iso_text(row.get("horizon_end_ts"), "horizon_end_ts")
         label_available_ts = _iso_text(
@@ -437,7 +733,16 @@ def _materialize_label_jsonl(
                 "label_available_ts": label_available_ts,
             }
         )
-    return _write_jsonl(path, converted)
+    output = _write_jsonl(path, converted)
+    return _MaterializedPack(
+        path=output,
+        source_path=verification.path,
+        expected_content_hash=verification.expected_content_hash,
+        actual_content_hash=verification.actual_content_hash,
+        total_rows=len(rows),
+        staged_rows=len(staged_rows),
+        off_grid_event_ts_count=_off_grid_event_ts_count(staged_rows),
+    )
 
 
 def _surrogate_study_spec(
@@ -483,19 +788,27 @@ def _rescore_existing_report(
     study_spec: StudySpec,
     runs_per_config: int,
     base_seed: int,
+    surrogate_spec_count: int,
 ) -> SurrogateCalibrationReport:
     rows: list[dict[str, Any]] = []
+    seed_block_size = surrogate_spec_count * runs_per_config
     for config_index, perturbation_type in enumerate(PERTURBATION_CONFIGS):
-        for run_index in range(runs_per_config):
-            seed = base_seed + config_index * runs_per_config + run_index
-            rows.append(
-                _rescore_existing_seed(
-                    namespace,
-                    study_spec=study_spec,
-                    perturbation_type=perturbation_type,
-                    seed=seed,
+        for spec_index in range(surrogate_spec_count):
+            for run_index in range(runs_per_config):
+                seed = (
+                    base_seed
+                    + config_index * seed_block_size
+                    + spec_index * runs_per_config
+                    + run_index
                 )
-            )
+                rows.append(
+                    _rescore_existing_seed(
+                        namespace,
+                        study_spec=study_spec,
+                        perturbation_type=perturbation_type,
+                        seed=seed,
+                    )
+                )
     return surrogate_calibration_report_from_rows(rows)
 
 
@@ -636,8 +949,10 @@ def _write_real_report(
     study_spec: StudySpec,
     runs_per_config: int,
     horizon_text: str,
-    label_lock: Mapping[str, Any],
-    feature_lock: Mapping[str, Any],
+    declared_feature_family: str,
+    declared_factor_ids: Sequence[str],
+    label_locks: Sequence[Mapping[str, Any]],
+    staging_provenance: Sequence[_StagingProvenance],
     namespace: Path,
 ) -> Path:
     output = Path(report_out).expanduser().resolve(strict=False)
@@ -649,8 +964,10 @@ def _write_real_report(
             study_spec=study_spec,
             runs_per_config=runs_per_config,
             horizon_text=horizon_text,
-            label_lock=label_lock,
-            feature_lock=feature_lock,
+            declared_feature_family=declared_feature_family,
+            declared_factor_ids=declared_factor_ids,
+            label_locks=label_locks,
+            staging_provenance=staging_provenance,
             namespace=namespace,
         ),
         encoding="utf-8",
@@ -666,14 +983,23 @@ def _result_payload(
     runs_per_config: int,
     report_out: str | Path,
     alpha_data_root: str | Path,
+    surrogate_study_spec_ids: Sequence[str] = (),
+    declared_factor_ids: Sequence[str] = (),
+    staged_label_pack_count: int = 0,
 ) -> dict[str, Any]:
     output = Path(report_out).expanduser().resolve(strict=False)
     _reject_production_registry_report_path(output, Path(alpha_data_root).expanduser())
+    surrogate_ids = tuple(surrogate_study_spec_ids) or (surrogate_study_spec_id,)
     return {
         "status": "ok" if report.accepted else "blocked",
         "accepted": report.accepted,
         "study_spec_id": study_spec.study_spec_id,
         "surrogate_study_spec_id": surrogate_study_spec_id,
+        "surrogate_study_spec_ids": list(surrogate_ids),
+        "surrogate_study_spec_count": len(surrogate_ids),
+        "declared_factor_ids": list(declared_factor_ids),
+        "declared_factor_count": len(declared_factor_ids),
+        "staged_label_pack_count": staged_label_pack_count,
         "declared_runs_per_config": runs_per_config,
         "perturbation_configs": [item.value for item in PERTURBATION_CONFIGS],
         "threshold_verdict": report.threshold_verdict,
@@ -692,10 +1018,16 @@ def _render_real_report(
     study_spec: StudySpec,
     runs_per_config: int,
     horizon_text: str,
-    label_lock: Mapping[str, Any],
-    feature_lock: Mapping[str, Any],
+    declared_feature_family: str,
+    declared_factor_ids: Sequence[str],
+    label_locks: Sequence[Mapping[str, Any]],
+    staging_provenance: Sequence[_StagingProvenance],
     namespace: Path,
 ) -> str:
+    label_versions = _unique_in_order(
+        _lock_text(lock, "label_version_id", "label lock") for lock in label_locks
+    )
+    off_grid_count = sum(item.off_grid_label_event_ts_count for item in staging_provenance)
     header = [
         f"# Real-Data Surrogate Calibration: {study_spec.study_spec_id}",
         "",
@@ -709,11 +1041,53 @@ def _render_real_report(
         f"- Bound statement: {SURROGATE_FALSE_PASS_BOUND_STATEMENT}.",
         f"- Declared primary horizon used for this run: `{horizon_text}`.",
         f"- Perturbation configs: {', '.join(item.value for item in PERTURBATION_CONFIGS)}.",
-        f"- Resolved label version: `{label_lock['label_version_id']}`.",
-        f"- Resolved feature version: `{feature_lock['feature_version_id']}`.",
+        "- Runtime factor derivation path: "
+        "`alpha_system.governance.surrogate_run.study_config_for_surrogate_scope` "
+        "-> `StudyConfig.from_mapping`.",
+        f"- Declared feature family: `{declared_feature_family}`.",
+        f"- Declared factor count: {len(declared_factor_ids)}.",
+        f"- Declared factors: {_inline_code_list(declared_factor_ids)}.",
+        f"- Declared label pack count: {len(label_locks)}.",
+        f"- Declared label versions: {_inline_code_list(label_versions)}.",
+        f"- Staged surrogate sub-config count: {len(staging_provenance)}.",
+        f"- Off-grid locked label event_ts count: {off_grid_count}.",
         f"- Isolated namespace: `{namespace.as_posix()}`.",
         "",
+        "## Staging Provenance",
+        "",
     ]
+    if staging_provenance:
+        header.extend(
+            [
+                "| Factor | Runtime Factor | Feature Version | Label Version | "
+                "Feature Partition | Label Partition | Feature Rows | Label Rows | "
+                "Off-Grid Label event_ts |",
+                "|---|---|---|---|---|---|---:|---:|---:|",
+            ]
+        )
+        for item in staging_provenance:
+            header.append(
+                "| `{factor_id}` | `{runtime_factor_id}` | `{feature_version_id}` | "
+                "`{label_version_id}` | `{feature_partition}` | `{label_partition}` | "
+                "{feature_rows_staged}/{feature_rows_total} | "
+                "{label_rows_staged}/{label_rows_total} | "
+                "{off_grid_label_event_ts_count} |".format(
+                    factor_id=item.factor_id,
+                    runtime_factor_id=item.runtime_factor_id,
+                    feature_version_id=item.feature_version_id,
+                    label_version_id=item.label_version_id,
+                    feature_partition=item.feature_partition,
+                    label_partition=item.label_partition,
+                    feature_rows_staged=item.feature_rows_staged,
+                    feature_rows_total=item.feature_rows_total,
+                    label_rows_staged=item.label_rows_staged,
+                    label_rows_total=item.label_rows_total,
+                    off_grid_label_event_ts_count=item.off_grid_label_event_ts_count,
+                )
+            )
+    else:
+        header.append("- No values were staged; `--rescore-existing` mode only rescored outputs.")
+    header.append("")
     rendered = render_value_free_calibration_report(
         report,
         title=f"Surrogate Calibration Counts: {study_spec.study_spec_id}",
@@ -721,18 +1095,70 @@ def _render_real_report(
     return "\n".join(header) + rendered.split("\n", 1)[1]
 
 
-def _load_value_rows(record: Any) -> list[dict[str, Any]]:
+def _load_value_rows(
+    record: Any,
+    *,
+    pack_kind: str,
+    version_id: str,
+) -> tuple[list[dict[str, Any]], ValueStoreContentHashVerification]:
+    verification = verify_registered_value_store_content_hash(
+        record,
+        pack_kind=pack_kind,
+        version_id=version_id,
+    )
     value_format = ValueStoreFormat(str(record.value_store_format))
-    if value_format is ValueStoreFormat.PARQUET:
+    if value_format in (ValueStoreFormat.PARQUET, ValueStoreFormat.DUAL) and record.parquet_path:
         if not record.parquet_path:
             raise ValueError("registered Parquet value store is missing parquet_path")
-        return load_parquet_values(record.parquet_path)
+        return load_parquet_values(record.parquet_path), verification
     path = Path(record.materialization_output_path)
     return [
         json.loads(line)
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
-    ]
+    ], verification
+
+
+def _filter_rows_by_version(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    expected_version: str,
+    row_version_field: str,
+    pack_kind: str,
+) -> list[dict[str, Any]]:
+    staged: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        actual_version = row.get(row_version_field)
+        if not isinstance(actual_version, str) or not actual_version.strip():
+            raise GovernanceValidationError(
+                ValidationIssue(
+                    field=f"{pack_kind}_pack.rows[{index}].{row_version_field}",
+                    code="value_row_version_field_missing",
+                    message=(
+                        "value-store rows must carry their version id so staging can "
+                        "filter a multi-version pack"
+                    ),
+                    expected=row_version_field,
+                    actual=(
+                        type(actual_version).__name__
+                        if actual_version is not None
+                        else "missing"
+                    ),
+                )
+            )
+        if actual_version.strip() == expected_version:
+            staged.append(dict(row))
+    if not staged:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"{pack_kind}_pack.{row_version_field}",
+                code="locked_value_rows_not_found",
+                message="value store contains no rows for the locked version id",
+                expected=expected_version,
+                actual=f"{len(rows)} total rows",
+            )
+        )
+    return staged
 
 
 def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> Path:
@@ -761,30 +1187,6 @@ def _reject_production_registry_report_path(path: Path, alpha_data_root: Path) -
     )
 
 
-def _feature_lock_sort_key(lock: Mapping[str, Any]) -> tuple[int, str, str]:
-    feature_id = str(lock.get("feature_id", ""))
-    score = 0
-    if "session_id" in feature_id or feature_id.endswith("_id"):
-        score -= 10
-    if any(
-        token in feature_id
-        for token in (
-            "minutes",
-            "flag",
-            "ratio",
-            "count",
-            "volume",
-            "price",
-            "return",
-            "volatility",
-            "delta",
-            "spread",
-        )
-    ):
-        score += 5
-    return (-score, str(lock.get("partition", "")), str(lock.get("feature_version_id", "")))
-
-
 def _mapping_sequence(value: Any, field_name: str) -> tuple[Mapping[str, Any], ...]:
     if not isinstance(value, Sequence) or isinstance(value, str):
         raise GovernanceValidationError(
@@ -810,6 +1212,162 @@ def _mapping_sequence(value: Any, field_name: str) -> tuple[Mapping[str, Any], .
             )
         output.append(item)
     return tuple(output)
+
+
+def _lock_text(lock: Mapping[str, Any], key: str, label: str) -> str:
+    value = lock.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"{label}.{key}",
+                code="missing_lock_field",
+                message="lock entry is missing a required text field",
+                expected=key,
+                actual=type(value).__name__ if value is not None else "missing",
+            )
+        )
+    return value.strip()
+
+
+def _require_unique_lock_ids(
+    locks: Sequence[Mapping[str, Any]],
+    *,
+    lock_id_field: str,
+    field: str,
+    code: str,
+) -> None:
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for lock in locks:
+        lock_id = _lock_text(lock, lock_id_field, "lock")
+        if lock_id in seen:
+            duplicates.append(lock_id)
+        seen.add(lock_id)
+    if duplicates:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=field,
+                code=code,
+                message="declared lock collection contains duplicate version ids",
+                expected="unique lock ids",
+                actual=", ".join(duplicates),
+            )
+        )
+
+
+def _support_feature_family(feature_family: str) -> bool:
+    return (
+        feature_family in SUPPORT_FEATURE_FAMILIES
+        or feature_family.startswith("session_calendar")
+    )
+
+
+def _unique_in_order(values: Sequence[str] | Any) -> tuple[str, ...]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value)
+        if text in seen:
+            continue
+        seen.add(text)
+        output.append(text)
+    return tuple(output)
+
+
+def _assert_record_matches_lock(
+    record: Any,
+    lock: Mapping[str, Any],
+    *,
+    version_field: str,
+    pack_kind: str,
+) -> None:
+    checks = (
+        (version_field, version_field),
+        ("dataset_version_id", "dataset_version_id"),
+        ("partition_id", "partition"),
+    )
+    for record_attr, lock_key in checks:
+        actual = getattr(record, record_attr, None)
+        expected = _lock_text(lock, lock_key, f"{pack_kind} lock")
+        if actual != expected:
+            raise GovernanceValidationError(
+                ValidationIssue(
+                    field=f"{pack_kind}_record.{record_attr}",
+                    code="resolved_record_lock_mismatch",
+                    message=(
+                        "resolved registry record must match the StudySpec lock "
+                        "before staging"
+                    ),
+                    expected=expected,
+                    actual=str(actual),
+                )
+            )
+
+
+def _assert_feature_record_factor(record: Any, feature_lock: Mapping[str, Any]) -> None:
+    feature_spec = getattr(record, "feature_spec", None)
+    actual = getattr(feature_spec, "feature_id", None)
+    expected = _lock_text(feature_lock, "feature_id", "feature lock")
+    if actual != expected:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="feature_record.feature_spec.feature_id",
+                code="resolved_feature_factor_mismatch",
+                message="resolved feature record must match the declared factor lock",
+                expected=expected,
+                actual=str(actual),
+            )
+        )
+
+
+def _runtime_factor_id(
+    study_spec: StudySpec,
+    *,
+    seed: int,
+    labels_path: Path,
+    output_dir: Path,
+) -> str:
+    scope = study_spec.dataset_scope.get("surrogate_fdr")
+    if not isinstance(scope, Mapping):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="dataset_scope.surrogate_fdr",
+                code="missing_surrogate_scope_after_staging",
+                message="staged surrogate StudySpec must carry surrogate_fdr scope",
+                expected="mapping",
+                actual=type(scope).__name__,
+            )
+        )
+    return study_config_for_surrogate_scope(
+        study_spec,
+        scope=scope,
+        seed=seed,
+        shuffled_labels_path=labels_path,
+        output_dir=output_dir,
+    ).factor_id
+
+
+def _off_grid_event_ts_count(rows: Sequence[Mapping[str, Any]]) -> int:
+    count = 0
+    for row in rows:
+        event_ts = _iso_text(row.get("event_ts"), "event_ts")
+        parsed = datetime.fromisoformat(event_ts.replace("Z", "+00:00"))
+        if parsed.second != 0 or parsed.microsecond != 0:
+            count += 1
+    return count
+
+
+def _path_token(value: str) -> str:
+    token = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
+    if not token:
+        raise ValueError("path token cannot be empty")
+    return token
+
+
+def _inline_code_list(values: Sequence[str]) -> str:
+    if not values:
+        return "`none`"
+    return ", ".join(f"`{value}`" for value in values)
 
 
 def _session_id(entity_id: str, event_ts: str) -> str:

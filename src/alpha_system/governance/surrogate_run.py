@@ -1225,6 +1225,25 @@ def _study_config_for_surrogate(
     shuffled_labels_path: Path,
     output_dir: Path,
 ) -> StudyConfig:
+    return study_config_for_surrogate_scope(
+        study_spec,
+        scope=scope,
+        seed=seed,
+        shuffled_labels_path=shuffled_labels_path,
+        output_dir=output_dir,
+    )
+
+
+def study_config_for_surrogate_scope(
+    study_spec: StudySpec,
+    *,
+    scope: Mapping[str, Any],
+    seed: int,
+    shuffled_labels_path: Path,
+    output_dir: Path,
+) -> StudyConfig:
+    """Build the `StudyConfig` payload used by the surrogate study runtime."""
+
     payload: dict[str, Any] = {
         "study_id": f"{study_spec.study_spec_id}-surrogate-{seed}",
         "factor_id": _scope_text(scope, "factor_id"),
@@ -1891,6 +1910,7 @@ __all__ = [
     "render_value_free_calibration_report",
     "require_isolated_namespace",
     "run_surrogate_study",
+    "study_config_for_surrogate_scope",
     "surrogate_calibration_report_from_rows",
     "validate_surrogate_study_run",
     "write_label_shuffled_copy",

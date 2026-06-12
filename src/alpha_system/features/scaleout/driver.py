@@ -2769,6 +2769,33 @@ def materialize_v1_feature_unit(
     )
 
 
+def materialize_v1_feature_unit_force_recompute(
+    config: ScaleoutConfig,
+    unit: ScaleoutUnit,
+    alpha_data_root: Path,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> MaterializedUnitEvidence:
+    """Materialize one V1 feature unit while honoring serial force-recompute."""
+
+    output = _compute_v1_feature_unit_output(
+        config,
+        unit,
+        alpha_data_root,
+        dataset_registry_path,
+        canonical_root,
+        write_manifest=False,
+        include_records=True,
+        force_recompute=True,
+    )
+    return _register_v1_worker_output(
+        config,
+        unit,
+        alpha_data_root=alpha_data_root,
+        output=output,
+    )
+
+
 def _compute_v1_feature_unit_output(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
@@ -2781,6 +2808,7 @@ def _compute_v1_feature_unit_output(
     prepared_feature_set: Any | None = None,
     prepared_feature_request_payloads: Mapping[str, Mapping[str, Any]] | None = None,
     prepared_registry_metadata: Mapping[str, Any] | None = None,
+    force_recompute: bool = False,
 ) -> Any:
     """Compute and persist one V1 unit without mutating the feature registry."""
 
@@ -2797,7 +2825,12 @@ def _compute_v1_feature_unit_output(
     )
 
     if prepared_feature_set is None:
-        prepared = _prepare_v1_worker_job(config, unit, alpha_data_root=alpha_data_root)
+        prepared = _prepare_v1_worker_job(
+            config,
+            unit,
+            alpha_data_root=alpha_data_root,
+            force_recompute=force_recompute,
+        )
         feature_set = prepared.feature_set
         request_payloads = prepared.feature_request_payloads
         governance_metadata = prepared.registry_metadata
@@ -4457,13 +4490,26 @@ def _execute_stage(
         else:
             for unit in runnable_units:
                 try:
-                    evidence = executor(
-                        config,
-                        unit,
-                        alpha_data_root,
-                        dataset_registry_path,
-                        canonical_root,
-                    )
+                    if (
+                        force_recompute
+                        and engine == SCALEOUT_ENGINE_V1
+                        and executor is materialize_v1_feature_unit
+                    ):
+                        evidence = materialize_v1_feature_unit_force_recompute(
+                            config,
+                            unit,
+                            alpha_data_root,
+                            dataset_registry_path,
+                            canonical_root,
+                        )
+                    else:
+                        evidence = executor(
+                            config,
+                            unit,
+                            alpha_data_root,
+                            dataset_registry_path,
+                            canonical_root,
+                        )
                     record = ScaleoutUnitRecord(
                         unit=unit,
                         status="completed",

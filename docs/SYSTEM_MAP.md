@@ -79,7 +79,7 @@
 
 ## Safety canaries (`evals/canaries/`)
 
-- `forbidden_boundary_import` · `forbidden_destructive_op` · `forbidden_git_add_dot` · `forbidden_large_binary` · `forbidden_raw_data_commit` · `forbidden_scope_drift` · `forbidden_secret` · `forbidden_test_tamper` · `future_shift` · `optimistic_fill` · `permuted_labels` · `planted_fake_alpha` · `planted_fake_alpha_clean_twin` · `random_target` · `true_alpha_detection`
+- `forbidden_boundary_import` · `forbidden_destructive_op` · `forbidden_git_add_dot` · `forbidden_large_binary` · `forbidden_raw_data_commit` · `forbidden_scope_drift` · `forbidden_secret` · `forbidden_test_tamper` · `future_shift` · `optimistic_fill` · `permuted_labels` · `planted_fake_alpha` · `planted_fake_alpha_clean_twin` · `random_target` · `registry_event_ts_grid` · `true_alpha_detection`
 
 ## Workflow entry points
 

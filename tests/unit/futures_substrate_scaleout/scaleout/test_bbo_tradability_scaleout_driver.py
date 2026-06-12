@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import alpha_system.features.scaleout.driver as scaleout_driver
 from alpha_system.features.scaleout import load_scaleout_config, render_scaleout_summary_markdown
 from alpha_system.features.scaleout.driver import (
+    MaterializedUnitEvidence,
+    ScaleoutTarget,
     _unit_executor_for_family,
     materialize_v1_feature_unit,
     materialize_bbo_tradability_top_book_unit,
@@ -36,3 +39,47 @@ def test_bbo_tradability_scaleout_full_window_preview_has_proxy_guardrails() -> 
     assert "time-sampled and forward-filled" in rendered
     assert "Passive-fill" in rendered
     assert "Missing, quarantined, wide-spread, and low-depth" in rendered
+
+
+def test_serial_v1_force_recompute_uses_force_helper(monkeypatch, tmp_path) -> None:
+    config = load_scaleout_config(CONFIG_PATH)
+    calls: list[str] = []
+
+    def _acceptance_lock_noop(*_args, **_kwargs) -> None:
+        return None
+
+    def _fake_force_helper(config, unit, alpha_data_root, dataset_registry_path, canonical_root):
+        calls.append(unit.unit_id)
+        return MaterializedUnitEvidence(
+            parquet_path=(tmp_path / "values.parquet").as_posix(),
+            content_hash="sha256:test",
+            row_count=1,
+            feature_version_ids=("fver_test",),
+        )
+
+    monkeypatch.setattr(
+        scaleout_driver,
+        "_require_persisted_acceptance_lock",
+        _acceptance_lock_noop,
+    )
+    monkeypatch.setattr(
+        scaleout_driver,
+        "materialize_v1_feature_unit_force_recompute",
+        _fake_force_helper,
+    )
+
+    summary = run_scaleout(
+        config,
+        alpha_data_root=tmp_path,
+        dataset_registry_path=tmp_path / "datasets.sqlite",
+        canonical_root=tmp_path / "canonical",
+        rollout="full-window",
+        execute=True,
+        target=ScaleoutTarget(symbols=("ES",), years=(2019,)),
+        force_recompute=True,
+        workers=1,
+    )
+
+    assert calls == ["mbu_cff63bcd382b1b68cd745ce3"]
+    assert summary.completed_count == 1
+    assert summary.records[0].feature_version_ids == ("fver_test",)

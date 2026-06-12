@@ -62,6 +62,7 @@ def test_all_bbo_features_are_gated_versioned_causal_and_available() -> None:
 
     results = compute_bbo_features(definitions, view)
 
+    assert any(row.event_ts != row.bar_end_ts for row in view.rows)
     assert set(results) == set(BBOFeatureName)
     for definition in definitions:
         assert definition.spec.family is FeatureFamily.BBO_TRADABILITY
@@ -72,6 +73,7 @@ def test_all_bbo_features_are_gated_versioned_causal_and_available() -> None:
         records = results[definition.name]
         assert len(records) == len(view.rows)
         assert all(record.feature_version_id == definition.feature_version_id for record in records)
+        assert [record.event_ts for record in records] == [row.bar_end_ts for row in view.rows]
         assert [record.available_ts for record in records] == [
             row.available_ts for row in view.rows
         ]
@@ -405,7 +407,7 @@ def _row(
         series_id="ES.c.0",
         bar_start_ts=bar_start_ts,
         bar_end_ts=bar_start_ts + timedelta(minutes=1),
-        event_ts=bar_start_ts + timedelta(minutes=1),
+        event_ts=bar_start_ts + timedelta(seconds=59, milliseconds=800),
         available_ts=bar_start_ts + timedelta(minutes=1, seconds=1),
         ingested_at=bar_start_ts + timedelta(minutes=1, seconds=2),
         bid=bid_decimal,
