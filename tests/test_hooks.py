@@ -120,6 +120,35 @@ def test_test_tamper_guard_blocks_skip(tmp_path, monkeypatch) -> None:
     assert test_tamper_guard.main([str(path)]) == 1
 
 
+def test_test_tamper_guard_allows_sanctioned_local_data_skip_helper(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    Path("tests").mkdir()
+    path = Path("tests/test_local_data.py")
+    path.write_text(
+        "from tests._helpers.local_data import skip_unless_local_registry\n\n"
+        "def test_local_data():\n"
+        "    skip_unless_local_registry(lambda: 'registry/features.sqlite')\n",
+        encoding="utf-8",
+    )
+
+    assert test_tamper_guard.main([str(path)]) == 0
+
+
+def test_test_tamper_guard_still_blocks_raw_skip_with_helper_import(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    Path("tests").mkdir()
+    path = Path("tests/test_bad_local_data.py")
+    path.write_text(
+        "import pytest\n"
+        "from tests._helpers.local_data import skip_unless_local_registry\n\n"
+        "def test_bad():\n"
+        "    pytest.skip('bad')\n",
+        encoding="utf-8",
+    )
+
+    assert test_tamper_guard.main([str(path)]) == 1
+
+
 def test_forbidden_pattern_guard_blocks_second_pnl_truth(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     path = Path("src/alpha_system/research_alt_pnl.py")

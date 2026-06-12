@@ -2687,6 +2687,57 @@ def run_phase_validation(root: Path) -> tuple[bool, str]:
         return run_validation_commands()
 
 
+def ci_parity_required_for_phase(phase: dict[str, Any]) -> bool:
+    return str(phase.get("lane") or "").lower() in {"yellow", "red"}
+
+
+def run_ci_parity_for_phase(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    root: Path,
+) -> tuple[bool, str]:
+    if not ci_parity_required_for_phase(phase):
+        return True, ""
+    phase_id = phase["phase_id"]
+    if os.environ.get("FRONTIER_SKIP_CI_PARITY") == "1":
+        append_event(
+            run_dir,
+            state,
+            "CI_PARITY_SKIP_ESCAPE_USED",
+            phase_id=phase_id,
+            lane=str(phase.get("lane") or ""),
+            reason="FRONTIER_SKIP_CI_PARITY=1 skipped `just ci-parity`.",
+        )
+        return True, "# CI Parity\n\nSKIPPED: FRONTIER_SKIP_CI_PARITY=1 skipped `just ci-parity`.\n"
+    result = run_local_command(["just", "ci-parity"], root=root)
+    append_event(
+        run_dir,
+        state,
+        "CI_PARITY_CHECK",
+        phase_id=phase_id,
+        lane=str(phase.get("lane") or ""),
+        returncode=result.returncode,
+    )
+    return result.returncode == 0, "# CI Parity\n\n" + command_block(result)
+
+
+def append_ci_parity_validation(
+    validation_ok: bool,
+    validation_text: str,
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    *,
+    root: Path,
+) -> tuple[bool, str]:
+    ci_ok, ci_text = run_ci_parity_for_phase(run_dir, state, phase, root=root)
+    if ci_text:
+        validation_text = validation_text.rstrip() + "\n\n" + ci_text
+    return validation_ok and ci_ok, validation_text
+
+
 def parse_review_verdict(text: str) -> str:
     return parse_review_text(text).verdict
 
@@ -4656,6 +4707,14 @@ def execute_provider_phase(
             block_provider_run(run_dir, state, phase, "BLOCKED", "STOP file exists before validation.")
             return False
         validation_ok, validation_text = run_phase_validation(execution_root)
+        validation_ok, validation_text = append_ci_parity_validation(
+            validation_ok,
+            validation_text,
+            run_dir,
+            state,
+            phase,
+            root=execution_root,
+        )
         (phase_dir / "validation.md").write_text(validation_text, encoding="utf-8")
         if not validation_ok:
             write_provider_verdict(phase_dir, state, phase, "REWORK", source="validation")
@@ -4906,6 +4965,14 @@ def run_provider_repair_loop(
         (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
 
         validation_ok, repair_validation_text = run_phase_validation(execution_root)
+        validation_ok, repair_validation_text = append_ci_parity_validation(
+            validation_ok,
+            repair_validation_text,
+            run_dir,
+            state,
+            phase,
+            root=execution_root,
+        )
         (attempt_dir / "repair_validation.md").write_text(repair_validation_text, encoding="utf-8")
         (phase_dir / "repair_validation.md").write_text(repair_validation_text, encoding="utf-8")
         if not validation_ok:

@@ -16,7 +16,7 @@ from tools.frontier.github_utils import merge_pr
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Merge a PR through the Frontier gh wrapper.")
+    parser = argparse.ArgumentParser(description="Merge a PR through the Frontier auto-first gh wrapper.")
     parser.add_argument("number", help="Pull request number.")
     parser.add_argument("--method", default="squash", choices=("squash", "merge", "rebase"))
     parser.add_argument("--dry-run", action="store_true")
