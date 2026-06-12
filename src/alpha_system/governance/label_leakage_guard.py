@@ -7,11 +7,15 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from alpha_system.governance.label_spec import LabelSpec, validate_label_spec
+from alpha_system.governance.sealed_holdout import (
+    HoldoutAccessType,
+    emit_holdout_access_if_intersects,
+)
 from alpha_system.governance.serialization import JsonValue
-
 
 FeatureReferences = Iterable[Any] | Mapping[str, Any] | str | None
 
@@ -139,10 +143,35 @@ class _FeatureReference:
 def check_label_leakage(
     label_spec: LabelSpec | Mapping[str, Any],
     feature_references: FeatureReferences,
+    *,
+    sealed_holdout_registry_path: str | Path | None = None,
+    holdout_access_log_path: str | Path | None = None,
+    study_spec_id: str | None = None,
+    actor: str | None = None,
+    access_type: HoldoutAccessType | str = HoldoutAccessType.VALIDATION,
+    rationale: str | None = None,
+    timestamp: str | None = None,
+    access_start_date: str | None = None,
+    access_end_date: str | None = None,
+    access_partition_spec: Mapping[str, Any] | None = None,
+    authorized_evaluation_context: bool = False,
 ) -> LabelLeakageResult:
     """Check requested features against a `LabelSpec` for future-information leakage."""
 
     spec = _coerce_label_spec(label_spec)
+    _emit_holdout_access_log(
+        sealed_holdout_registry_path=sealed_holdout_registry_path,
+        holdout_access_log_path=holdout_access_log_path,
+        study_spec_id=study_spec_id,
+        actor=actor,
+        access_type=access_type,
+        rationale=rationale,
+        timestamp=timestamp,
+        access_start_date=access_start_date,
+        access_end_date=access_end_date,
+        access_partition_spec=access_partition_spec,
+        authorized_evaluation_context=authorized_evaluation_context,
+    )
     label_availability = _parse_iso_datetime(spec.availability_time)
     forbidden = _forbidden_reference_sets(spec)
     features, findings = _coerce_feature_references(feature_references)
@@ -161,6 +190,38 @@ def _coerce_label_spec(value: LabelSpec | Mapping[str, Any]) -> LabelSpec:
     if isinstance(value, LabelSpec):
         return validate_label_spec(value.to_dict())
     return validate_label_spec(value)
+
+
+def _emit_holdout_access_log(
+    *,
+    sealed_holdout_registry_path: str | Path | None,
+    holdout_access_log_path: str | Path | None,
+    study_spec_id: str | None,
+    actor: str | None,
+    access_type: HoldoutAccessType | str,
+    rationale: str | None,
+    timestamp: str | None,
+    access_start_date: str | None,
+    access_end_date: str | None,
+    access_partition_spec: Mapping[str, Any] | None,
+    authorized_evaluation_context: bool,
+) -> None:
+    if sealed_holdout_registry_path is None and holdout_access_log_path is None:
+        return
+    emit_holdout_access_if_intersects(
+        sealed_holdout_registry_path=sealed_holdout_registry_path,
+        holdout_access_log_path=holdout_access_log_path,
+        study_spec_id=study_spec_id or "",
+        actor=actor or "",
+        access_type=access_type,
+        rationale=rationale or "Label leakage guard evaluated sealed holdout access.",
+        timestamp=timestamp,
+        access_start_date=access_start_date,
+        access_end_date=access_end_date,
+        access_partition_spec=access_partition_spec,
+        authorized_evaluation_context=authorized_evaluation_context,
+        fail_on_unauthorized_locked_test=True,
+    )
 
 
 def _coerce_feature_references(
@@ -231,7 +292,11 @@ def _feature_items(feature_references: FeatureReferences) -> list[Any] | None:
 def _feature_reference_from_item(item: Any, index: int) -> _FeatureReference:
     candidate_references = _candidate_reference_strings(item)
     information_time, metadata_issue = _information_time(item)
-    reference = sorted(candidate_references)[0] if candidate_references else str(type(item).__name__)
+    reference = (
+        sorted(candidate_references)[0]
+        if candidate_references
+        else str(type(item).__name__)
+    )
     return _FeatureReference(
         index=index,
         reference=reference,

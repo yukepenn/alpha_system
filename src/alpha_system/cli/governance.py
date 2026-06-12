@@ -329,6 +329,8 @@ def run_build_evidence(args: argparse.Namespace) -> int:
                 family_id=args.family_id,
                 variant_ledger_path=args.variant_ledger_path,
                 budget_amendments=_load_budget_amendments(args.budget_amendment),
+                sealed_holdout_registry_path=args.sealed_holdout_registry_path,
+                require_sealed_holdout=args.require_sealed_holdout,
             ),
         )
         entry = registry.save(
@@ -341,6 +343,10 @@ def run_build_evidence(args: argparse.Namespace) -> int:
         payload["resolved_study_spec_id"] = bundle.study_spec_id
         payload["resolved_trial_ledger_path"] = str(Path(args.trial_ledger_path))
         payload["resolved_variant_ledger_path"] = str(Path(args.variant_ledger_path))
+        if args.sealed_holdout_registry_path:
+            payload["resolved_sealed_holdout_registry_path"] = str(
+                Path(args.sealed_holdout_registry_path)
+            )
         payload["validated_transition"] = "DIAGNOSTICS_RUN->EVIDENCE_READY"
         return payload
 
@@ -607,6 +613,15 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         action="append",
         default=[],
         help="Optional BudgetAmendmentRecord JSON file. May be supplied multiple times.",
+    )
+    evidence_parser.add_argument(
+        "--sealed-holdout-registry-path",
+        help="Optional sealed holdout declaration file or directory for EVIDENCE_READY.",
+    )
+    evidence_parser.add_argument(
+        "--require-sealed-holdout",
+        action="store_true",
+        help="Fail closed unless a valid non-breached sealed holdout declaration is supplied.",
     )
     _add_status_message_argument(evidence_parser)
     evidence_parser.set_defaults(handler=run_build_evidence)

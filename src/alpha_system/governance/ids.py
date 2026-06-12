@@ -35,6 +35,8 @@ class GovernanceIdKind(StrEnum):
     NEGATIVE_CONTROL_RESULT = "NegativeControlResult"
     ALPHA_BOOK_RECORD = "AlphaBookRecord"
     BUDGET_AMENDMENT_RECORD = "BudgetAmendmentRecord"
+    SEALED_HOLDOUT_WINDOW = "SealedHoldoutWindow"
+    HOLDOUT_ACCESS_LOG = "HoldoutAccessLog"
 
 
 GOVERNANCE_ID_PREFIXES = MappingProxyType(
@@ -52,6 +54,8 @@ GOVERNANCE_ID_PREFIXES = MappingProxyType(
         GovernanceIdKind.NEGATIVE_CONTROL_RESULT.value: "nctrl",
         GovernanceIdKind.ALPHA_BOOK_RECORD.value: "abook",
         GovernanceIdKind.BUDGET_AMENDMENT_RECORD.value: "bamend",
+        GovernanceIdKind.SEALED_HOLDOUT_WINDOW.value: "holdwin",
+        GovernanceIdKind.HOLDOUT_ACCESS_LOG.value: "haccess",
     }
 )
 GOVERNANCE_ID_OBJECTS_BY_PREFIX = MappingProxyType(

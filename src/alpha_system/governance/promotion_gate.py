@@ -29,14 +29,18 @@ from alpha_system.governance.promotion import (
     PromotionLifecycleState,
     validate_promotion_decision,
 )
+from alpha_system.governance.rejected_idea import (
+    RejectedIdeaRecord,
+    validate_rejected_idea_record,
+)
 from alpha_system.governance.reviewer_verdict import (
     MERGE_ELIGIBLE_REVIEWER_VERDICTS,
     ReviewerVerdict,
     validate_reviewer_verdict,
 )
-from alpha_system.governance.rejected_idea import (
-    RejectedIdeaRecord,
-    validate_rejected_idea_record,
+from alpha_system.governance.sealed_holdout import (
+    SealedHoldoutRegistry,
+    SealedHoldoutStatus,
 )
 from alpha_system.governance.study_spec import StudySpec, validate_diagnostics_gate
 from alpha_system.governance.trial_ledger import (
@@ -44,13 +48,13 @@ from alpha_system.governance.trial_ledger import (
     TrialLedgerRecord,
     validate_trial_ledger_record,
 )
-from alpha_system.governance.variant_ledger import (
-    BudgetAmendmentRecord,
-    validate_variant_and_family_budget,
-)
 from alpha_system.governance.validation import (
     GovernanceValidationError,
     ValidationIssue,
+)
+from alpha_system.governance.variant_ledger import (
+    BudgetAmendmentRecord,
+    validate_variant_and_family_budget,
 )
 
 IMPLEMENTATION_HANDOFF_REQUIRED_STATE = "IMPLEMENTED"
@@ -113,6 +117,8 @@ class PromotionGateContext:
     family_id: str | None = None
     variant_ledger_path: str | Path | None = None
     budget_amendments: tuple[BudgetAmendmentRecord | Mapping[str, Any], ...] = ()
+    sealed_holdout_registry_path: str | Path | None = None
+    require_sealed_holdout: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +229,7 @@ def validate_governance_transition(
             active_context.trial_ledger_records,
             require_non_empty=True,
         )
+        _validate_evidence_ready_holdout_gate(active_context, trial_records)
         _validate_variant_budget_context(
             active_context,
             trial_records=trial_records,
@@ -317,6 +324,59 @@ def _validate_variant_budget_context(
         persist=persist,
         require_recorded=require_recorded,
     )
+
+
+def _validate_evidence_ready_holdout_gate(
+    context: PromotionGateContext,
+    trial_records: tuple[TrialLedgerRecord, ...],
+) -> None:
+    issues: list[ValidationIssue] = []
+    contaminated_ids = [
+        record.trial_id for record in trial_records if record.locked_test_contamination_flag
+    ]
+    if contaminated_ids:
+        issues.append(
+            ValidationIssue(
+                field="trial_ledger_records",
+                code="locked_test_contamination_blocks_evidence_ready",
+                message=(
+                    "locked-test contamination blocks EVIDENCE_READY with no waiver "
+                    "path in this campaign"
+                ),
+                expected="no TrialLedgerRecord.locked_test_contamination_flag values",
+                actual=", ".join(contaminated_ids),
+            )
+        )
+
+    if context.sealed_holdout_registry_path is None and context.require_sealed_holdout:
+        issues.append(
+            ValidationIssue(
+                field="sealed_holdout_registry_path",
+                code="missing_sealed_holdout_registry_path",
+                message="sealed holdout declaration is required before EVIDENCE_READY",
+                expected="path to a sealed holdout declaration registry",
+                actual="missing",
+            )
+        )
+    elif context.sealed_holdout_registry_path is not None:
+        try:
+            window = SealedHoldoutRegistry(context.sealed_holdout_registry_path).gate_window()
+        except GovernanceValidationError as exc:
+            issues.extend(exc.issues)
+        else:
+            if window.status is SealedHoldoutStatus.BREACHED:
+                issues.append(
+                    ValidationIssue(
+                        field="sealed_holdout_window.status",
+                        code="sealed_holdout_window_breached",
+                        message="BREACHED sealed holdout window blocks EVIDENCE_READY",
+                        expected="DECLARED or SEALED",
+                        actual=f"{window.window_id}:BREACHED",
+                    )
+                )
+
+    if issues:
+        raise GovernanceValidationError(issues)
 
 
 def reachable_states() -> tuple[str, ...]:

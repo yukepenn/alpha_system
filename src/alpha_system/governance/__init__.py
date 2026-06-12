@@ -13,6 +13,7 @@ __all__ = [
     "requeue",
     "reviewer_verdict",
     "serialization",
+    "sealed_holdout",
     "study_spec",
     "validation",
     "verdict_reason_code",
