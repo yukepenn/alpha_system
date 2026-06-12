@@ -1,4 +1,4 @@
-# Alpha System Operating Compass v4.4 — Consolidated Roadmap
+# Alpha System Operating Compass v4.5 — Consolidated Roadmap
 
 Status: canonical. Supersedes Compass v2 / v2.1 / v3 / v3.5 (chat-only). Where
 older routes conflict with this document, this document wins. Live phase status
@@ -20,6 +20,15 @@ false-positive control (§3.B item 4), first-book existence bar vs ramp bar
 producer-side standardization doctrine (§4), Stage-stage REUSE annotations
 (§3.E/G/H/J/K), and operational-truth requirements (§3.K/O). Changes are
 recorded inline with [v4.4] tags; §8 records the red-team verdict.
+
+Patched to v4.5 on 2026-06-12 (user-directed course correction, pre-kill-shot):
+(a) §3.C readiness preconditions marked DELIVERED with evidence pointers —
+the obligations became artifacts; (b) Stage L gains the STAGED CREW DOCTRINE —
+researcher-crew count is an output of measured per-lane economics, never an
+ambition input; onboarding many agent researchers early is explicitly named
+an anti-pattern; (c) new §9 digest queue records open decisions awaiting the
+post-kill-shot war council so they are neither lost nor prematurely decided.
+Changes carry [v4.5] tags.
 
 ---
 
@@ -339,7 +348,15 @@ Rigor Floor gate machinery and closeout artifacts are delivered by
     probable win legally skippable.
   - No new alpha batch, no broad mining.
 - READINESS PRECONDITIONS [v4.4 — verified gaps from the 2026-06-12 red-team;
-  the kill-shot does not fire until each is green]:
+  the kill-shot does not fire until each is green]
+  [v4.5 STATUS: ALL DELIVERED 2026-06-12 — holdout coverage contract test
+  (PR #388 + re-verified against RELOCK_V2), reconciliation + substrate
+  audits committed (PR #398), power memos (PR #394), caveat register
+  (KILL_SHOT_READINESS.md), real fees v2 (PR #390), Track-B registered
+  pre-metric against V2 ids; the remaining live gate is the real-data
+  surrogate calibration (row 6), running at patch time. The checklist file
+  research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md is the
+  deterministic truth; this list remains as the design record]:
   1. Sealed-holdout coverage: the declared window MUST intersect every locked
      StudySpec input (all symbols, both dataset families, rolling end_date) —
      proven by a contract test, not by reading the declaration. A window that
@@ -529,6 +546,27 @@ Rigor Floor gate machinery and closeout artifacts are delivered by
   deweighted/retired — the user's "multiple active factors, add/rotate/retire"
   steady state. This stage is where research throughput scales; it inherits
   every gate below it unchanged.
+- [v4.5] STAGED CREW DOCTRINE (user-set, 2026-06-12): crew count is an
+  OUTPUT of measured economics, never an ambition input. Onboarding many
+  agent researchers early is an anti-pattern: each lane multiplies compute,
+  review bandwidth, and FDR/variant budget consumption BEFORE it multiplies
+  validated output, and unproven substrate value makes that spend
+  unrecoverable. Scaling gates:
+  - L0 (pilot): EXACTLY ONE researcher lane, only after (i) the kill-shot
+    verdict is read and the survivor-gate branch chosen, and (ii)
+    SHIP_REFIT_V1 has made operations boring (first-light smoke standard,
+    diagnostics fast-path, job-runner/merge/disk-RAM hardening). The pilot
+    runs >=3 full idea→verdict cycles with a clean ledger: cost per verdict,
+    review hours per verdict, FDR budget consumed, defects escaped (target 0).
+  - L1 (second lane): only after L0 economics are measured and the
+    variant/FDR budget model is re-derived for 2 concurrent lanes (parallel
+    miners multiply false-discovery pressure; budgets must be partitioned,
+    not duplicated).
+  - L2+ (widen): only when validated idea throughput — not enthusiasm — is
+    the binding constraint: the hypothesis-sourcing pipeline (§7.5)
+    produces more well-formed ideas than existing lanes can verdict, AND
+    marginal lane cost < marginal expected validated-edge value under the
+    measured L0/L1 numbers.
 
 ### Stage M — ML meta-labeling  [after stable base signals]
 
@@ -752,3 +790,33 @@ primitive-grain driver targeting (post-kill-shot), differentiated-substrate
 scheduling (Stage D(a) decision or explicit user pull-forward). Two standing
 user decisions: TBBO sample-month purchase timing; differentiated-substrate
 start timing. Honest priors in §6 stand unchanged and remain scorable.
+
+---
+
+## 9. v4.5 digest queue (open items for the post-kill-shot war council — recorded, not yet decided)
+
+Parking these here so they are neither lost nor decided prematurely. Each is
+a DECISION to make with kill-shot evidence in hand, not a commitment:
+
+1. TBBO measured-cost integration: fold the 3-month ES TBBO calibration into
+   the cost stack's spread/slippage layers (versioned, like fees v2); decide
+   NQ/RTY treatment (conservative multipliers vs more data — spending freeze
+   in force, hard-stop ask either way).
+2. Diagnostics fast-path: LCFP-pattern parity-gated engine for
+   research/diagnostics.py (~10x precedent) — turns the surrogate floor from
+   a day-burner into a sub-hour routine; top SHIP_REFIT_V1 candidate.
+3. SHIP_REFIT_V1 scope: seam audit (implicit cross-layer contracts →
+   written contracts + canaries + guards; label-side pack writers are the
+   known open seam) + ops pain log (RAM/disk budgeting for compute chains,
+   job-runner discipline, merge babysitter, runbook state-aware
+   preconditions, first-light smoke as campaign-close gate).
+4. DIFFERENTIATED_SUBSTRATE_V1 contract authoring (overnight §7.7, events
+   §7.3, seasonality §7.4, hypothesis sourcing §7.5) — timing depends on the
+   survivor-gate branch.
+5. bbo_tradability_spread_ticks substrate finding: zero numeric values across
+   all partitions/years (caveat register + first-light case study) — decide
+   repair vs retire for the feature.
+6. Statusline/ops niceties carried as standing config, not campaign work.
+
+Promotion rule: an item leaves this queue only by becoming a campaign
+contract, a standing doctrine section above, or an explicit REJECTED note.
