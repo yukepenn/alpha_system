@@ -28,6 +28,7 @@ EXPECTED_PREFIXES = {
     "ReviewerVerdict": "rver",
     "NegativeControlResult": "nctrl",
     "AlphaBookRecord": "abook",
+    "BudgetAmendmentRecord": "bamend",
 }
 
 

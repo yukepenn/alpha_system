@@ -22,6 +22,7 @@ from alpha_system.governance.trial_ledger import (
     TrialStatus,
     create_trial_ledger_record,
 )
+from alpha_system.governance.variant_ledger import validate_variant_and_family_budget
 
 FIXTURE_ROOT = Path("tests/fixtures/governance")
 HYPOTHESIS_FIXTURE = FIXTURE_ROOT / "hypothesis_card_valid.json"
@@ -47,6 +48,16 @@ def _load_json(path: Path) -> dict[str, object]:
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.write_text(json.dumps(payload, sort_keys=True, indent=2), encoding="utf-8")
     return path
+
+
+def _trial_ledger_file(tmp_path: Path) -> Path:
+    return _write_json(
+        tmp_path / "trial-ledger.json",
+        {
+            "schema": "synthetic-trial-ledger-v1",
+            "records": [],
+        },
+    )
 
 
 def _linked_alpha_spec(tmp_path: Path) -> Path:
@@ -301,6 +312,76 @@ def test_build_evidence_without_trial_ledger_path_rejects_at_gate(
     assert code == 2
     assert payload["status"] == "rejected"
     assert payload["issues"][0]["code"] == "missing_trial_ledger_path"
+
+
+def test_build_evidence_with_trial_ledger_still_requires_variant_ledger_path(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    registry_path = tmp_path / "governance.sqlite3"
+    registry = GovernanceRegistry(registry_path)
+    trial = _trial_record()
+    registry.save(StudySpec.from_mapping(_load_json(STUDY_FIXTURE)), "DIAGNOSTICS_ALLOWED")
+    registry.save(trial, "DIAGNOSTICS_RUN")
+    bundle_path = _write_json(
+        tmp_path / "evidence-bundle.json",
+        _evidence_bundle((trial,), _reviewer_verdict()).to_dict(),
+    )
+
+    code, payload = _run_cli(
+        [
+            "governance",
+            "build-evidence",
+            "--registry-path",
+            str(registry_path),
+            "--trial-ledger-path",
+            str(_trial_ledger_file(tmp_path)),
+            "--family-id",
+            "family-cli-rigor",
+            str(bundle_path),
+        ],
+        capsys,
+    )
+
+    assert code == 2
+    assert payload["status"] == "rejected"
+    assert payload["issues"][0]["code"] == "missing_variant_ledger_path"
+
+
+def test_variant_ledger_summary_is_read_only(tmp_path: Path, capsys) -> None:
+    ledger_path = tmp_path / "variant-ledger.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
+    spec = StudySpec.from_mapping(_load_json(STUDY_FIXTURE))
+    record = _trial_record()
+    validate_variant_and_family_budget(
+        spec,
+        trial_ledger_records=(record,),
+        family_id="family-cli-rigor",
+        variant_ledger_path=ledger_path,
+        created_at=TIMESTAMP,
+    )
+    before = ledger_path.read_text(encoding="utf-8")
+
+    code, payload = _run_cli(
+        [
+            "governance",
+            "variant-ledger-summary",
+            "--ledger-path",
+            str(ledger_path),
+            "--family-id",
+            "family-cli-rigor",
+            "--family-budget",
+            "2",
+        ],
+        capsys,
+    )
+
+    assert code == 0
+    assert payload["status"] == "ok"
+    assert payload["record_count"] == 1
+    assert payload["families"]["family-cli-rigor"]["observed_variant_count"] == 1
+    assert payload["family_budget_check"]["status"] == "RESPECTED"
+    assert ledger_path.read_text(encoding="utf-8") == before
 
 
 def test_review_rejects_self_approval(capsys, tmp_path: Path) -> None:

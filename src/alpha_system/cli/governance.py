@@ -47,12 +47,16 @@ from alpha_system.governance.serialization import (
     JsonValue,
     deserialize,
 )
-from alpha_system.governance.study_spec import validate_study_spec
+from alpha_system.governance.study_spec import StudySpec, validate_study_spec
 from alpha_system.governance.trial_ledger import TrialLedgerRecord, validate_trial_ledger_record
 from alpha_system.governance.validation import (
     GovernanceValidationError,
     ValidationIssue,
     require_mapping,
+)
+from alpha_system.governance.variant_ledger import (
+    VariantLedger,
+    validate_budget_amendment_record,
 )
 
 
@@ -299,15 +303,32 @@ def run_build_evidence(args: argparse.Namespace) -> int:
                 object_name=GovernanceIdKind.EVIDENCE_BUNDLE.value,
             )
         )
-        registry.get_object(bundle.study_spec_id, object_kind=GovernanceIdKind.STUDY_SPEC)
+        study_spec = cast(
+            StudySpec,
+            registry.get_object(bundle.study_spec_id, object_kind=GovernanceIdKind.STUDY_SPEC),
+        )
+        trial_records: list[TrialLedgerRecord] = []
         for trial_id in bundle.trial_ids:
-            registry.get_object(trial_id, object_kind=GovernanceIdKind.TRIAL_LEDGER_RECORD)
+            trial_records.append(
+                cast(
+                    TrialLedgerRecord,
+                    registry.get_object(
+                        trial_id,
+                        object_kind=GovernanceIdKind.TRIAL_LEDGER_RECORD,
+                    ),
+                )
+            )
         validate_governance_transition(
             "DIAGNOSTICS_RUN",
             "EVIDENCE_READY",
             PromotionGateContext(
                 evidence_bundle=bundle,
+                study_spec=study_spec,
+                trial_ledger_records=tuple(trial_records),
                 trial_ledger_path=args.trial_ledger_path,
+                family_id=args.family_id,
+                variant_ledger_path=args.variant_ledger_path,
+                budget_amendments=_load_budget_amendments(args.budget_amendment),
             ),
         )
         entry = registry.save(
@@ -319,10 +340,44 @@ def run_build_evidence(args: argparse.Namespace) -> int:
         payload["resolved_trial_ids"] = list(bundle.trial_ids)
         payload["resolved_study_spec_id"] = bundle.study_spec_id
         payload["resolved_trial_ledger_path"] = str(Path(args.trial_ledger_path))
+        payload["resolved_variant_ledger_path"] = str(Path(args.variant_ledger_path))
         payload["validated_transition"] = "DIAGNOSTICS_RUN->EVIDENCE_READY"
         return payload
 
     return _run_json_command("build-evidence", _execute)
+
+
+def run_variant_ledger_summary(args: argparse.Namespace) -> int:
+    """Run ``alpha governance variant-ledger-summary``."""
+
+    def _execute() -> dict[str, object]:
+        ledger = VariantLedger(args.ledger_path)
+        payload: dict[str, object] = {
+            "status": "ok",
+            "command": "variant-ledger-summary",
+            **ledger.summary(),
+        }
+        if (args.family_id is None) != (args.family_budget is None):
+            raise GovernanceValidationError(
+                ValidationIssue(
+                    field="family_budget",
+                    code="incomplete_family_budget_request",
+                    message=(
+                        "family budget status requires both --family-id and "
+                        "--family-budget"
+                    ),
+                    expected="both family-id and family-budget, or neither",
+                    actual="one argument missing",
+                )
+            )
+        if args.family_id is not None and args.family_budget is not None:
+            payload["family_budget_check"] = ledger.family_budget_check(
+                family_id=args.family_id,
+                family_budget=args.family_budget,
+            ).to_dict()
+        return payload
+
+    return _run_json_command("variant-ledger-summary", _execute)
 
 
 def run_review(args: argparse.Namespace) -> int:
@@ -480,6 +535,15 @@ def _load_feature_pack_locks(path: str | Path) -> list[Mapping[str, Any] | str]:
     return list(locks)
 
 
+def _load_budget_amendments(paths: list[str]) -> tuple[Mapping[str, Any], ...]:
+    return tuple(
+        validate_budget_amendment_record(
+            load_governance_mapping(path, object_name="BudgetAmendmentRecord")
+        ).to_dict()
+        for path in paths
+    )
+
+
 def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     """Register the ``alpha governance`` command group."""
 
@@ -530,8 +594,42 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         "evidence_bundle",
         help="Path to an EvidenceBundle JSON file.",
     )
+    evidence_parser.add_argument(
+        "--variant-ledger-path",
+        help="Path to the append-friendly VariantLedger JSONL file.",
+    )
+    evidence_parser.add_argument(
+        "--family-id",
+        help="Family ID used for VariantLedger family roll-up enforcement.",
+    )
+    evidence_parser.add_argument(
+        "--budget-amendment",
+        action="append",
+        default=[],
+        help="Optional BudgetAmendmentRecord JSON file. May be supplied multiple times.",
+    )
     _add_status_message_argument(evidence_parser)
     evidence_parser.set_defaults(handler=run_build_evidence)
+
+    ledger_summary_parser = governance_subparsers.add_parser(
+        "variant-ledger-summary",
+        help="Read-only summary of a VariantLedger JSONL file.",
+    )
+    ledger_summary_parser.add_argument(
+        "--ledger-path",
+        required=True,
+        help="Path to the VariantLedger JSONL file.",
+    )
+    ledger_summary_parser.add_argument(
+        "--family-id",
+        help="Optional family ID for a family-budget status check.",
+    )
+    ledger_summary_parser.add_argument(
+        "--family-budget",
+        type=int,
+        help="Optional family budget used with --family-id for status output.",
+    )
+    ledger_summary_parser.set_defaults(handler=run_variant_ledger_summary)
 
     review_parser = governance_subparsers.add_parser(
         "review",

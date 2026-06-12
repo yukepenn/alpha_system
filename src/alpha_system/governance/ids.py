@@ -34,6 +34,7 @@ class GovernanceIdKind(StrEnum):
     REVIEWER_VERDICT = "ReviewerVerdict"
     NEGATIVE_CONTROL_RESULT = "NegativeControlResult"
     ALPHA_BOOK_RECORD = "AlphaBookRecord"
+    BUDGET_AMENDMENT_RECORD = "BudgetAmendmentRecord"
 
 
 GOVERNANCE_ID_PREFIXES = MappingProxyType(
@@ -50,6 +51,7 @@ GOVERNANCE_ID_PREFIXES = MappingProxyType(
         GovernanceIdKind.REVIEWER_VERDICT.value: "rver",
         GovernanceIdKind.NEGATIVE_CONTROL_RESULT.value: "nctrl",
         GovernanceIdKind.ALPHA_BOOK_RECORD.value: "abook",
+        GovernanceIdKind.BUDGET_AMENDMENT_RECORD.value: "bamend",
     }
 )
 GOVERNANCE_ID_OBJECTS_BY_PREFIX = MappingProxyType(

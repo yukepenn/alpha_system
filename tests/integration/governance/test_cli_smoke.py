@@ -21,6 +21,7 @@ from alpha_system.governance.trial_ledger import (
     TrialStatus,
     create_trial_ledger_record,
 )
+from alpha_system.governance.variant_ledger import validate_variant_and_family_budget
 
 FIXTURE_ROOT = Path("tests/fixtures/governance")
 HYPOTHESIS_FIXTURE = FIXTURE_ROOT / "hypothesis_card_valid.json"
@@ -37,6 +38,7 @@ CODE_HASH = "a" * 64
 CONFIG_HASH = "b" * 64
 MANIFEST_HASH = "c" * 64
 TIMESTAMP = "2026-06-03T13:52:09Z"
+FAMILY_ID = "family-cli-smoke"
 
 
 def _run_alpha(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -68,6 +70,23 @@ def _trial_ledger_file(tmp_path: Path, records: tuple[TrialLedgerRecord, ...]) -
             "records": [record.to_dict() for record in records],
         },
     )
+
+
+def _variant_ledger_file(
+    tmp_path: Path,
+    study: StudySpec,
+    records: tuple[TrialLedgerRecord, ...],
+) -> Path:
+    path = tmp_path / "variant-ledger.jsonl"
+    path.write_text("", encoding="utf-8")
+    validate_variant_and_family_budget(
+        study,
+        trial_ledger_records=records,
+        family_id=FAMILY_ID,
+        variant_ledger_path=path,
+        created_at=TIMESTAMP,
+    )
+    return path
 
 
 def _linked_alpha_spec(tmp_path: Path) -> Path:
@@ -187,7 +206,9 @@ def test_governance_cli_end_to_end_smoke(tmp_path: Path) -> None:
     decision_path = _write_json(tmp_path / "promotion-decision.json", decision.to_dict())
 
     registry = GovernanceRegistry(registry_path)
-    registry.save(StudySpec.from_mapping(_load_json(STUDY_FIXTURE)), "DIAGNOSTICS_ALLOWED")
+    study = StudySpec.from_mapping(_load_json(STUDY_FIXTURE))
+    registry.save(study, "DIAGNOSTICS_ALLOWED")
+    variant_ledger_path = _variant_ledger_file(tmp_path, study, (completed, failed))
 
     validate_result = _run_alpha(
         [
@@ -220,6 +241,10 @@ def test_governance_cli_end_to_end_smoke(tmp_path: Path) -> None:
             str(registry_path),
             "--trial-ledger-path",
             str(trial_ledger_path),
+            "--family-id",
+            FAMILY_ID,
+            "--variant-ledger-path",
+            str(variant_ledger_path),
             str(bundle_path),
         ]
     )

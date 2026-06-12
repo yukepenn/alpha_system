@@ -29,22 +29,31 @@ from alpha_system.governance.promotion_gate import (
     require_trial_ledger_present,
     validate_governance_transition,
 )
+from alpha_system.governance.rejected_idea import (
+    RejectedIdeaReasonCategory,
+    create_rejected_idea_record,
+)
 from alpha_system.governance.reviewer_verdict import (
     ReviewerVerdict,
     ReviewerVerdictOutcome,
     create_reviewer_verdict,
 )
-from alpha_system.governance.rejected_idea import (
-    RejectedIdeaReasonCategory,
-    create_rejected_idea_record,
+from alpha_system.governance.study_spec import (
+    StudySpec,
+    generate_study_spec_id,
+    validate_study_spec,
 )
-from alpha_system.governance.study_spec import validate_study_spec
 from alpha_system.governance.trial_ledger import (
     TrialLedgerRecord,
     TrialStatus,
     create_trial_ledger_record,
 )
 from alpha_system.governance.validation import GovernanceValidationError
+from alpha_system.governance.variant_ledger import (
+    VariantLedger,
+    validate_variant_and_family_budget,
+    variant_ledger_records_from_trial_ledger,
+)
 from alpha_system.governance.verdict_reason_code import VerdictReasonCode
 
 HYPOTHESIS_FIXTURE = Path("tests/fixtures/governance/hypothesis_card_valid.json")
@@ -62,6 +71,8 @@ CODE_HASH = "a" * 64
 CONFIG_HASH = "b" * 64
 MANIFEST_HASH = "c" * 64
 TIMESTAMP = "2026-06-03T13:52:09Z"
+VARIANT_LEDGER_TIMESTAMP = "2026-06-11T12:00:00Z"
+FAMILY_ID = "family-rigor-floor"
 
 
 def load_json(path: Path) -> dict[str, object]:
@@ -82,6 +93,21 @@ def valid_alpha_spec_payload() -> dict[str, object]:
 
 def valid_study_spec_payload() -> dict[str, object]:
     return load_json(STUDY_SPEC_FIXTURE)
+
+
+def study_spec(
+    *,
+    variant_budget: int = 4,
+    family_budget: int | None = None,
+) -> StudySpec:
+    payload = valid_study_spec_payload()
+    payload["variant_budget"] = variant_budget
+    if family_budget is not None:
+        payload["family_budget"] = family_budget
+    else:
+        payload.pop("family_budget", None)
+    payload["study_spec_id"] = generate_study_spec_id(payload)
+    return validate_study_spec(payload)
 
 
 def reviewer_verdict(
@@ -118,15 +144,17 @@ def reviewer_context_fields() -> dict[str, object]:
 
 def trial_record(
     *,
+    spec: StudySpec | None = None,
     run_id: str = "diagnostics-run-001",
     variant_id: str = "variant-001",
     status: TrialStatus = TrialStatus.COMPLETED,
     failure_reason: str | None = None,
     locked_test_contamination_flag: bool = False,
 ) -> TrialLedgerRecord:
+    active_spec = spec or study_spec()
     return create_trial_ledger_record(
-        alpha_spec_id=ALPHA_SPEC_ID,
-        study_spec_id=STUDY_SPEC_ID,
+        alpha_spec_id=active_spec.alpha_spec_id,
+        study_spec_id=active_spec.study_spec_id,
         run_id=run_id,
         variant_id=variant_id,
         status=status,
@@ -140,10 +168,30 @@ def trial_record(
     )
 
 
+def variant_ledger_path_with_records(
+    tmp_path: Path,
+    records: tuple[TrialLedgerRecord, ...],
+    *,
+    spec: StudySpec | None = None,
+) -> Path:
+    ledger_path = tmp_path / f"variant-ledger-{len(records)}.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
+    validate_variant_and_family_budget(
+        spec or study_spec(),
+        trial_ledger_records=records,
+        family_id=FAMILY_ID,
+        variant_ledger_path=ledger_path,
+        created_at=VARIANT_LEDGER_TIMESTAMP,
+    )
+    return ledger_path
+
+
 def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> EvidenceBundle:
+    active_study_spec_id = records[0].study_spec_id if records else STUDY_SPEC_ID
+    active_alpha_spec_id = records[0].alpha_spec_id if records else ALPHA_SPEC_ID
     return create_evidence_bundle(
-        alpha_spec_id=ALPHA_SPEC_ID,
-        study_spec_id=STUDY_SPEC_ID,
+        alpha_spec_id=active_alpha_spec_id,
+        study_spec_id=active_study_spec_id,
         trial_ids=[record.trial_id for record in records],
         data_version="synthetic-data-v1",
         factor_version="synthetic-factor-v1",
@@ -321,37 +369,72 @@ def test_implemented_to_diagnostics_allowed_requires_study_spec() -> None:
     assert transition.next_state is PromotionLifecycleState.DIAGNOSTICS_ALLOWED
 
 
-def test_diagnostics_allowed_to_diagnostics_run_requires_trial_ledger() -> None:
+def test_diagnostics_allowed_to_diagnostics_run_requires_trial_ledger(tmp_path: Path) -> None:
+    spec = study_spec()
     record = trial_record()
+    ledger_path = tmp_path / "variant-ledger-entry.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
 
     transition = validate_governance_transition(
         "DIAGNOSTICS_ALLOWED",
         "DIAGNOSTICS_RUN",
-        PromotionGateContext(trial_ledger_records=(record,)),
+        PromotionGateContext(
+            study_spec=spec,
+            trial_ledger_records=(record,),
+            family_id=FAMILY_ID,
+            variant_ledger_path=ledger_path,
+        ),
     )
 
     assert transition.next_state is PromotionLifecycleState.DIAGNOSTICS_RUN
     assert transition.trial_ledger_refs == (record.trial_id,)
+    assert ledger_path.read_text(encoding="utf-8").strip()
 
 
 def test_diagnostics_run_to_evidence_ready_requires_valid_evidence_bundle(
     tmp_path: Path,
 ) -> None:
+    spec = study_spec()
     records = (trial_record(),)
     bundle = evidence_bundle(records)
+    ledger_path = variant_ledger_path_with_records(tmp_path, records, spec=spec)
 
     transition = validate_governance_transition(
         "DIAGNOSTICS_RUN",
         "EVIDENCE_READY",
         PromotionGateContext(
             evidence_bundle=bundle,
+            study_spec=spec,
+            trial_ledger_records=records,
             trial_ledger_path=trial_ledger_file(tmp_path),
+            family_id=FAMILY_ID,
+            variant_ledger_path=ledger_path,
         ),
     )
 
     assert transition.next_state is PromotionLifecycleState.EVIDENCE_READY
     assert transition.evidence_bundle == bundle
     assert transition.trial_ledger_refs == (records[0].trial_id,)
+
+
+def test_evidence_ready_blocks_missing_trial_ledger_path() -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                family_id=FAMILY_ID,
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "missing_trial_ledger_path"
 
 
 def test_evidence_ready_transition_blocks_missing_trial_ledger(
@@ -415,6 +498,89 @@ def test_trial_ledger_presence_probe_blocks_unparseable_json(tmp_path: Path) -> 
         require_trial_ledger_present(ledger_path)
 
     assert exc_info.value.issues[0].code == "unparseable_trial_ledger"
+
+
+def test_evidence_ready_blocks_missing_variant_ledger_path(tmp_path: Path) -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "missing_variant_ledger_path"
+
+
+def test_evidence_ready_blocks_unrecorded_variant_ledger(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    ledger_path = tmp_path / "empty-variant-ledger.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+                variant_ledger_path=ledger_path,
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "variant_ledger_missing_records"
+
+
+def test_evidence_ready_blocks_variant_budget_overrun_from_recorded_ledger(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec(variant_budget=1)
+    records = (
+        trial_record(spec=spec, run_id="diagnostics-run-budget-a", variant_id="variant-a"),
+        trial_record(spec=spec, run_id="diagnostics-run-budget-b", variant_id="variant-b"),
+    )
+    _, variant_records = variant_ledger_records_from_trial_ledger(
+        records,
+        study_spec=spec,
+        family_id=FAMILY_ID,
+        created_at=VARIANT_LEDGER_TIMESTAMP,
+    )
+    ledger_path = tmp_path / "overrun-variant-ledger.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
+    VariantLedger(ledger_path).append_records(variant_records)
+    bundle = evidence_bundle(records)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+                variant_ledger_path=ledger_path,
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "variant_budget_overrun"
 
 
 def test_evidence_ready_to_reviewed_requires_independent_reviewer_verdict() -> None:
