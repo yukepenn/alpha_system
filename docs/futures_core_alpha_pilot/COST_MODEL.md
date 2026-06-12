@@ -14,11 +14,21 @@ contract is:
   LabelPack ids/hashes.
 - Applies to ES/NQ/RTY pilot research diagnostics only.
 
+## Fee Schedule V2
+
+`fee_schedule_cme_equity_index_retail_discount_v2_2026_06_11` supersedes the
+Layer-1 placeholder amounts while retaining the v1 contract for history. It
+covers ES, NQ, RTY, MES, MNQ, and M2K with USD-per-contract-per-side CME
+exchange fee, clearing fee, NFA regulatory fee, and representative public retail
+discount-broker commission components. As of 2026-06-11, the all-in per-side
+research constants are $1.99 for ES/NQ/RTY and $0.36 for MES/MNQ/M2K. These are
+offline public-source research assumptions only, not account-specific broker
+terms, live/paper trading approval, or tradability evidence.
+
 ## Three Layers
 
-- Layer 1 - hard transaction cost: broker/exchange/clearing/regulatory fee
-  placeholders with declared units and dated/versioned schedule references where
-  later reviewed config supports them.
+- Layer 1 - hard transaction cost: versioned broker/exchange/clearing/regulatory
+  fee schedule constants for the supported CME equity-index futures symbols.
 - Layer 2 - spread crossing: point-in-time BBO bid/ask/mid/`spread_ticks`
   methodology, with missing or invalid BBO flagged rather than fabricated.
 - Layer 3 - slippage proxy: bucketed adverse-slippage and capacity proxy

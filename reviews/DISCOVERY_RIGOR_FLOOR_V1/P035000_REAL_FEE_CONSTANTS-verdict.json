@@ -1,0 +1,81 @@
+{
+  "phase_id": "P035000_REAL_FEE_CONSTANTS",
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewed_at": "2026-06-11",
+  "worktree": "/home/yuke_zhang/projects/alpha_system-wf1-ci-selfheal",
+  "branch": "feat/real-fee-constants",
+  "worktree_head": "819c1537fd013598f3d0a84bc034e432e9933074",
+  "origin_main_at_review": "97cf79d66fb0bf0bfd05d7371d2f131fdb05f95b",
+  "checks": {
+    "scope_fee_constants_and_version_plumbing_only": {
+      "pass": true,
+      "slippage_py_in_diff": false,
+      "costs_py_deletion_lines": 0,
+      "spread_slippage_descriptors_changed": false,
+      "replaced_layer1_placeholder": "bps_cost 1.0 (BBO branch) / conservative_default_cost_model BpsCost(1.0) (non-BBO fallback)"
+    },
+    "versioning_append_only": {
+      "pass": true,
+      "new_version": "fee_schedule_cme_equity_index_retail_discount_v2_2026_06_11",
+      "old_version_retained_resolvable": "fee_schedule_futcore_pilot_placeholder_v1",
+      "base_profile_consumes_new_version": true,
+      "placeholder_refuses_cost_use": true,
+      "zero_cost_stays_zero": true
+    },
+    "constants_sanity": {
+      "pass": true,
+      "minis_all_in_per_side_usd": "1.99",
+      "micros_all_in_per_side_usd": "0.36",
+      "minis_in_range_1.50_3.00": true,
+      "micros_in_range_0.25_0.85": true,
+      "micros_lt_minis_per_symbol": true,
+      "source_citations_with_as_of_dates": true,
+      "fake_precision_flagged": false
+    },
+    "mutation_a_constant_drift": {
+      "pass": true,
+      "mutation": "ES_CME_EXCHANGE_FEE_PER_SIDE 1.38 -> 1.37",
+      "result": "2 failed, 7 passed (pin test FAILED)",
+      "restored_sha256_byte_identical": "4f570e292ee1f36ba11ed9adf5be3b387dd9a8e7e5f26773508c719b14bae3df"
+    },
+    "mutation_b_placeholder_repoint": {
+      "pass": true,
+      "mutation": "ACTIVE_FEE_SCHEDULE_VERSION_ID -> PLACEHOLDER_FEE_SCHEDULE_VERSION_ID",
+      "result": "10 failed, 3 passed (base-profile test FAILED; placeholder guard raised)",
+      "restored_sha256_byte_identical": "4f570e292ee1f36ba11ed9adf5be3b387dd9a8e7e5f26773508c719b14bae3df"
+    },
+    "validation_runs": {
+      "pass": true,
+      "pytest_unit_cost_or_fee": "91 passed, 2669 deselected",
+      "pytest_governance_integration": "723 passed, 2 failed (known-env baseline: duckdb/polars fixture pair, exact match)",
+      "canary_runner": "23 PASS, exit 0",
+      "verify_smoke": "exit 0"
+    },
+    "git_hygiene": {
+      "pass": true,
+      "staged_files": 0,
+      "git_ls_files_runs": "empty",
+      "no_commit_made": true
+    }
+  },
+  "warnings": [
+    {
+      "id": "W1",
+      "summary": "Synthetic dry-run probe fixture label values scaled 3x to keep the plumbing smoke net-positive under real MES double-cost fees; disclosed in executor notes, test assertions unchanged, fixture is synthetic-only."
+    },
+    {
+      "id": "W2",
+      "summary": "Citations give source type + offline authoring as-of date (2026-06-11), not the schedule's published effective date; constants not network-verified this phase (spec-permitted honest sourcing). Online re-verification required before any paper/live/broker-adjacent use."
+    },
+    {
+      "id": "W3",
+      "summary": "Replacing the 1.0-bps Layer-1 placeholder lowers default hard cost for large-notional minis (ES ~$25/side @ $250k notional -> $1.99/side); intended by spec, spread/slippage layers unchanged, but downstream net-edge numbers move optimistic vs the old placeholder."
+    },
+    {
+      "id": "W4",
+      "summary": "Worktree HEAD 819c153 is 2 docs/campaign-only commits behind origin/main 97cf79d; rebase/merge before PR."
+    }
+  ],
+  "research_only": true
+}
