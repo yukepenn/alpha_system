@@ -1,0 +1,42 @@
+{
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "P036000_IDENTITY_PINS_DST_FIXTURE",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude_fresh_adversarial_wf1",
+  "reviewed_at": "2026-06-11",
+  "worktree": "/home/yuke_zhang/projects/alpha_system-wf1-identity-pins",
+  "branch": "test/identity-pins-dst",
+  "base_commit": "819c1537fd013598f3d0a84bc034e432e9933074",
+  "diff_state": "uncommitted_working_tree_only",
+  "checks": {
+    "scope_tests_fixtures_only": "PASS",
+    "pin_truth_production_builders_and_independent_hash": "PASS",
+    "fixture_honesty_static_labels_real_timestamps": "PASS",
+    "mutation_pin_hex_char_fails": "PASS",
+    "mutation_rth_open_shift_fails": "PASS",
+    "mutation_files_restored_byte_identical_sha256": "PASS",
+    "parity_consumes_real_fast_and_reference_paths": "PASS",
+    "validation_pytest_features_fastpath": "PASS (200 passed in 4.12s)",
+    "validation_canary_runner": "PASS (23 canaries, exit 0)",
+    "validation_verify_smoke": "PASS (exit 0)",
+    "git_nothing_staged": "PASS",
+    "git_ls_files_runs_empty": "PASS"
+  },
+  "evidence": {
+    "spot_checked_pin": "fver_a1563521cb4502061b49aa43a7e1a7e214eb28b851e141373afd5ab051d68193",
+    "spot_check_method": "independent hashlib.sha256 over canonical json of {algorithm, feature_contract: spec.to_identity_dict()} equals builder fvid equals pin; second pin (base_ohlcv_returns) also matched",
+    "conditioned_pins": 5,
+    "unconditioned_pins": 2,
+    "session_truth_keys_in_conditioned_identity": true,
+    "session_truth_keys_in_unconditioned_identity": false,
+    "mutation_a": "pin hex a->b: 1 failed in 0.12s; restored sha256 0a359f921cb9de7540d2d3ffac38665d1ef46ba22f8dfefaa62f11dc03ccab16",
+    "mutation_b": "PRE_DST open 14:30Z->15:30Z: flip test FAILED line 68; restored sha256 e121e778ffa7e042e117e28476cf61f7bad5911247dfe21c78e6d39137c5c69c",
+    "boundary_flip_asserted": "ETH at open-1min, RTH at open for 2024-03-08T14:30Z (EST), 2024-03-11T13:30Z (EDT), 2024-07-02T13:30Z (EDT)"
+  },
+  "warnings": [
+    "Pins use fixed synthetic dataset_version_id (dsv_identity_pin_fixture_v1); dataset_version_ids enter identity, so pins guard the production derivation contract rather than literal production-registry fvids (matches spec intent and existing test idiom).",
+    "Parity test is uniform-timestamp-shift-insensitive by construction; DST boundary truth is carried by the flip test against production classify_session_timestamp (verified by mutation b).",
+    "Worktree base 819c153 is 2 commits behind origin/main (97cf79d); delta is docs/campaign-only, no src or tests paths, pins verified current."
+  ],
+  "repair_required": false
+}
