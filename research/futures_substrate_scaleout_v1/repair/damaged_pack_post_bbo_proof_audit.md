@@ -1,5 +1,8 @@
 # Damaged Pack Audit Summary
 
+Detailed provenance table:
+`research/futures_substrate_scaleout_v1/repair/damaged_pack_provenance.md`.
+
 | Family | Rows | Hash identity | Stale | Hash mismatch | Missing path | Unreadable |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | bbo_tradability_top_book | 264 | 34 | 230 | 0 | 0 | 0 |

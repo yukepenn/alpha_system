@@ -171,7 +171,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--baseline-provenance",
         type=Path,
-        help="CSV from --provenance-out; proof output is limited to those fvers.",
+        help="CSV or Markdown table from --provenance-out; proof output is limited to those fvers.",
     )
     parser.add_argument("--summary-out", type=Path)
     parser.add_argument("--require-stale-count", type=int)
@@ -294,40 +294,38 @@ def _read_manifest_hash(path: Path) -> str:
 
 
 def _write_provenance(path: Path, rows: list[tuple[RegistryRow, str, DiskInfo]]) -> None:
-    _ensure_parent(path)
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=PROVENANCE_FIELDS)
-        writer.writeheader()
-        for row, status, disk in rows:
-            if status != "stale":
-                continue
-            source_config, repair_config = FAMILY_CONFIGS[row.family]
-            writer.writerow(
-                {
-                    "family": row.family,
-                    "partition_id": row.partition_id,
-                    "feature_id": row.feature_id,
-                    "feature_version_id": row.feature_version_id,
-                    "feature_request_id": row.feature_request_id,
-                    "materialization_plan_id": row.materialization_plan_id,
-                    "dataset_version_id": row.dataset_version_id,
-                    "lifecycle_state": row.lifecycle_state,
-                    "registered_at": row.registered_at,
-                    "producer_campaign": row.producer_campaign,
-                    "producer_phase": row.producer_phase,
-                    "producer_engine_id": row.producer_engine_id,
-                    "value_schema_version": row.value_schema_version,
-                    "registry_value_content_hash": row.registry_value_content_hash,
-                    "parquet_path": row.parquet_path,
-                    "current_manifest_hash": disk.manifest_hash,
-                    "current_disk_feature_count": len(disk.feature_version_ids),
-                    "current_disk_row_count": disk.row_count,
-                    "status_at_audit": status,
-                    "source_config_path": source_config,
-                    "repair_config_path": repair_config,
-                    "command_template": _command_template(repair_config),
-                }
-            )
+    output_rows = []
+    for row, status, disk in rows:
+        if status != "stale":
+            continue
+        source_config, repair_config = FAMILY_CONFIGS[row.family]
+        output_rows.append(
+            {
+                "family": row.family,
+                "partition_id": row.partition_id,
+                "feature_id": row.feature_id,
+                "feature_version_id": row.feature_version_id,
+                "feature_request_id": row.feature_request_id,
+                "materialization_plan_id": row.materialization_plan_id,
+                "dataset_version_id": row.dataset_version_id,
+                "lifecycle_state": row.lifecycle_state,
+                "registered_at": row.registered_at,
+                "producer_campaign": row.producer_campaign,
+                "producer_phase": row.producer_phase,
+                "producer_engine_id": row.producer_engine_id,
+                "value_schema_version": row.value_schema_version,
+                "registry_value_content_hash": row.registry_value_content_hash,
+                "parquet_path": row.parquet_path,
+                "current_manifest_hash": disk.manifest_hash,
+                "current_disk_feature_count": len(disk.feature_version_ids),
+                "current_disk_row_count": disk.row_count,
+                "status_at_audit": status,
+                "source_config_path": source_config,
+                "repair_config_path": repair_config,
+                "command_template": _command_template(repair_config),
+            }
+        )
+    _write_rows(path, PROVENANCE_FIELDS, output_rows)
 
 
 def _write_proof(
@@ -336,36 +334,34 @@ def _write_proof(
     *,
     baseline_hashes: dict[str, str],
 ) -> None:
-    _ensure_parent(path)
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=PROOF_FIELDS)
-        writer.writeheader()
-        for row, status, disk in rows:
-            baseline_hash = baseline_hashes.get(
-                row.feature_version_id,
-                row.registry_value_content_hash,
-            )
-            present = row.feature_version_id in disk.feature_version_ids
-            writer.writerow(
-                {
-                    "family": row.family,
-                    "partition_id": row.partition_id,
-                    "feature_id": row.feature_id,
-                    "feature_version_id": row.feature_version_id,
-                    "baseline_registry_value_content_hash": baseline_hash,
-                    "current_registry_value_content_hash": row.registry_value_content_hash,
-                    "current_manifest_hash": disk.manifest_hash,
-                    "present_on_disk": str(present).lower(),
-                    "baseline_hash_identity": str(
-                        present and baseline_hash == disk.manifest_hash
-                    ).lower(),
-                    "current_registry_hash_identity": str(status == "hash_identity").lower(),
-                    "current_disk_feature_count": len(disk.feature_version_ids),
-                    "current_disk_row_count": disk.row_count,
-                    "status_at_audit": status,
-                    "parquet_path": row.parquet_path,
-                }
-            )
+    output_rows = []
+    for row, status, disk in rows:
+        baseline_hash = baseline_hashes.get(
+            row.feature_version_id,
+            row.registry_value_content_hash,
+        )
+        present = row.feature_version_id in disk.feature_version_ids
+        output_rows.append(
+            {
+                "family": row.family,
+                "partition_id": row.partition_id,
+                "feature_id": row.feature_id,
+                "feature_version_id": row.feature_version_id,
+                "baseline_registry_value_content_hash": baseline_hash,
+                "current_registry_value_content_hash": row.registry_value_content_hash,
+                "current_manifest_hash": disk.manifest_hash,
+                "present_on_disk": str(present).lower(),
+                "baseline_hash_identity": str(
+                    present and baseline_hash == disk.manifest_hash
+                ).lower(),
+                "current_registry_hash_identity": str(status == "hash_identity").lower(),
+                "current_disk_feature_count": len(disk.feature_version_ids),
+                "current_disk_row_count": disk.row_count,
+                "status_at_audit": status,
+                "parquet_path": row.parquet_path,
+            }
+        )
+    _write_rows(path, PROOF_FIELDS, output_rows)
 
 
 def _write_summary(path: Path, rows: list[tuple[RegistryRow, str, DiskInfo]]) -> None:
@@ -417,22 +413,110 @@ def _read_baseline_hashes(
     partition: str | None,
     families: tuple[str, ...],
 ) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for row in _read_rows(path):
+        if partition and row.get("partition_id") != partition:
+            continue
+        if row.get("family") not in families:
+            continue
+        if row.get("status_at_audit") != "stale":
+            continue
+        feature_version_id = _text(row.get("feature_version_id"), "feature_version_id")
+        values[feature_version_id] = _text(
+            row.get("registry_value_content_hash"),
+            "registry_value_content_hash",
+        )
+    return values
+
+
+def _write_rows(path: Path, fields: list[str], rows: list[dict[str, object]]) -> None:
+    _ensure_parent(path)
+    if path.suffix.lower() == ".md":
+        _write_markdown_table(path, fields, rows)
+        return
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_markdown_table(path: Path, fields: list[str], rows: list[dict[str, object]]) -> None:
+    lines = [
+        "| " + " | ".join(fields) + " |",
+        "| " + " | ".join("---" for _ in fields) + " |",
+    ]
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(_markdown_cell(row.get(field, "")) for field in fields)
+            + " |"
+        )
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _read_rows(path: Path) -> list[dict[str, str]]:
+    if path.suffix.lower() == ".md":
+        return _read_markdown_table(path)
     with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        values: dict[str, str] = {}
-        for row in reader:
-            if partition and row.get("partition_id") != partition:
-                continue
-            if row.get("family") not in families:
-                continue
-            if row.get("status_at_audit") != "stale":
-                continue
-            feature_version_id = _text(row.get("feature_version_id"), "feature_version_id")
-            values[feature_version_id] = _text(
-                row.get("registry_value_content_hash"),
-                "registry_value_content_hash",
-            )
-        return values
+        return [dict(row) for row in csv.DictReader(handle)]
+
+
+def _read_markdown_table(path: Path) -> list[dict[str, str]]:
+    table_lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
+    table_lines = [line for line in table_lines if line.startswith("|")]
+    if len(table_lines) < 2:
+        raise ValueError(f"Markdown table has no header: {path}")
+    header = _split_markdown_row(table_lines[0])
+    if not _is_markdown_separator(_split_markdown_row(table_lines[1])):
+        raise ValueError(f"Markdown table has no separator row: {path}")
+    rows = []
+    for line in table_lines[2:]:
+        cells = _split_markdown_row(line)
+        if len(cells) != len(header):
+            raise ValueError(f"Markdown table row has {len(cells)} cells, expected {len(header)}")
+        rows.append(dict(zip(header, cells, strict=True)))
+    return rows
+
+
+def _split_markdown_row(line: str) -> list[str]:
+    text = line.strip()
+    if text.startswith("|"):
+        text = text[1:]
+    if text.endswith("|"):
+        text = text[:-1]
+    cells: list[str] = []
+    current = []
+    escaped = False
+    for char in text:
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "|":
+            cells.append("".join(current).strip())
+            current = []
+            continue
+        current.append(char)
+    if escaped:
+        current.append("\\")
+    cells.append("".join(current).strip())
+    return cells
+
+
+def _is_markdown_separator(cells: list[str]) -> bool:
+    for cell in cells:
+        marker = cell.replace(":", "").replace("-", "").strip()
+        if marker:
+            return False
+    return True
+
+
+def _markdown_cell(value: object) -> str:
+    return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
 
 
 def _command_template(config_path: str) -> str:
