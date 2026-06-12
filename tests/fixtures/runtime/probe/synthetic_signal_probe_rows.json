@@ -15,7 +15,7 @@
     "available_ts": "2026-01-02T14:31:05+00:00",
     "label_available_ts": "2026-01-02T14:36:00+00:00",
     "feature_value": "0.6",
-    "label_value": "0.3",
+    "label_value": "0.9",
     "price": "1",
     "session_label": "RTH"
   },
@@ -25,7 +25,7 @@
     "available_ts": "2026-01-02T14:32:05+00:00",
     "label_available_ts": "2026-01-02T14:37:00+00:00",
     "feature_value": "-0.6",
-    "label_value": "0.25",
+    "label_value": "0.75",
     "price": "1",
     "session_label": "RTH"
   },
@@ -35,7 +35,7 @@
     "available_ts": "2026-01-02T14:33:05+00:00",
     "label_available_ts": "2026-01-02T14:38:00+00:00",
     "feature_value": "-0.6",
-    "label_value": "-0.3",
+    "label_value": "-0.9",
     "price": "1",
     "session_label": "RTH"
   },
@@ -45,7 +45,7 @@
     "available_ts": "2026-01-02T14:34:05+00:00",
     "label_available_ts": "2026-01-02T14:39:00+00:00",
     "feature_value": "0.0",
-    "label_value": "-0.25",
+    "label_value": "-0.75",
     "price": "1",
     "session_label": "RTH"
   },

@@ -31,6 +31,16 @@ capital-allocation claim.
 No other `CostModelVersion` id or cost-stress profile name is part of this
 pilot contract unless a later reviewed phase explicitly supersedes this file.
 
+P035000_REAL_FEE_CONSTANTS supersedes only the Layer-1 hard-fee placeholder with
+`fee_schedule_cme_equity_index_retail_discount_v2_2026_06_11`. The original
+`cmv_futcore_pilot_three_layer_session_stress_v1` contract remains retained for
+history. The v2 schedule covers ES, NQ, RTY, MES, MNQ, and M2K with
+USD-per-contract-per-side CME exchange, clearing, NFA regulatory, and
+representative public retail discount-broker commission components. The
+constants are offline public-source research assumptions as of 2026-06-11 and
+are not account-specific broker terms, paper/live trading approval, or
+tradability evidence.
+
 ## Locked Input-Pack Cross-Reference
 
 This cost contract is bound to the `FUTCORE-P03` input lock only by ids and
@@ -59,7 +69,9 @@ diagnostics rely on those inputs.
 ## Layer 1 - Hard Transaction Cost
 
 Layer 1 models mandatory hard charges as reviewed parameters, not account
-observations and not live fee data.
+observations and not live fee data. Version 1 retained symbolic placeholders;
+fee schedule v2 fills the supported CME equity-index futures symbols with
+reviewed, dated research constants.
 
 | Parameter | Unit | Contract rule |
 | --- | --- | --- |

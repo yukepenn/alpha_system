@@ -46,6 +46,7 @@ class CostStressFill:
     spread: Decimal | None = None
     multiplier: Decimal = Decimal("1")
     session_label: str = "RTH"
+    symbol: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "price", _decimal(self.price, field="price"))
@@ -59,6 +60,12 @@ class CostStressFill:
             "session_label",
             _text(self.session_label, field="session_label").upper(),
         )
+        if self.symbol is not None:
+            object.__setattr__(
+                self,
+                "symbol",
+                _text(self.symbol, field="symbol").upper(),
+            )
         # Delegate numeric and side validation to the consumed primitive input contracts.
         self.cost_input()
         self.slippage_input()
@@ -79,6 +86,10 @@ class CostStressFill:
                 value.get("session_label", value.get("session", "RTH")),
                 field="session_label",
             ),
+            symbol=_optional_text(
+                value.get("symbol", value.get("root_symbol", value.get("instrument_id"))),
+                field="symbol",
+            ),
         )
 
     @property
@@ -90,6 +101,7 @@ class CostStressFill:
     def cost_input(self) -> costs.CostInput:
         """Return the consumed primitive cost input."""
 
+        metadata = {} if self.symbol is None else {"symbol": self.symbol}
         return costs.CostInput(
             price=self.price,
             quantity=self.quantity,
@@ -98,6 +110,7 @@ class CostStressFill:
             ask=self.ask,
             spread=self.spread,
             multiplier=self.multiplier,
+            metadata=metadata,
         )
 
     def slippage_input(self) -> slippage.SlippageInput:
@@ -617,6 +630,12 @@ def _text(value: object, *, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CostStressRuntimeError(f"{field} is required")
     return value.strip()
+
+
+def _optional_text(value: object, *, field: str) -> str | None:
+    if value is None:
+        return None
+    return _text(value, field=field)
 
 
 def _decimal(value: object, *, field: str) -> Decimal:

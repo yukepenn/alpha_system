@@ -9,17 +9,28 @@ routing code, paper trading, live trading, or production execution advice.
 
 Supported cost components are:
 
+- versioned CME equity-index futures hard-fee schedule per contract;
 - fixed commission per fill;
 - per-share or per-contract commission;
 - basis-point cost on fill notional;
 - half-spread and full-spread assumptions when spread data is present;
 - explicit fixture-only zero cost.
 
-Non-test defaults are conservative and non-zero. `default_execution_config()`
-uses non-zero bps cost and non-zero bps slippage. A zero-cost model must be
-created through `fixture_zero_cost_execution_config()` or a config payload with
-`zero_cost_fixture: true`, `cost_model.model: "zero_cost"`, and
-`fixture_only: true`.
+Fee schedule v2
+(`fee_schedule_cme_equity_index_retail_discount_v2_2026_06_11`) replaces the
+Layer-1 futures-fee placeholder for ES, NQ, RTY, MES, MNQ, and M2K. It records
+CME exchange fee, clearing fee, NFA regulatory fee, and a representative public
+retail discount-broker commission as USD per contract per side. The constants
+are offline public-source research assumptions as of 2026-06-11; they are not
+account-specific, broker advice, or live/paper execution authorization.
+
+Non-test defaults are conservative and non-zero. Runtime cost-stress defaults
+use the v2 hard-fee schedule plus the existing spread/slippage proxy layers.
+`default_execution_config()` still uses the reference-engine non-zero hook for
+local backtest accounting. A zero-cost model must be created through
+`fixture_zero_cost_execution_config()` or a config payload with
+`zero_cost_fixture: true`, `cost_model.model: "zero_cost"`, and `fixture_only:
+true`.
 
 ## Slippage Models
 
