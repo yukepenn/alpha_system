@@ -1,0 +1,49 @@
+{
+  "candidate_study_spec_ids": [
+    "sspec_652fcc23a6f725b405612b8e",
+    "sspec_676a012a4a4cdf3d169cd981",
+    "sspec_1d87dfbe3d24810720f75014",
+    "sspec_c2114a3c6c90595350151af0",
+    "sspec_950ad6bb7063928d9ff8ea4f",
+    "sspec_6088f0ed5b02b161bfb54943"
+  ],
+  "not_registered": true,
+  "registration_payload_template": {
+    "aggregation_rule": "equal_weight_mean",
+    "horizons": [
+      "5m"
+    ],
+    "mechanism_rationale": "Template only: register one mechanism-based cross-symbol Track-B pooled hypothesis before any Track-A metric marker exists, keeping ES/NQ/RTY membership fixed.",
+    "members": [
+      "sspec_652fcc23a6f725b405612b8e#symbol=ES",
+      "sspec_652fcc23a6f725b405612b8e#symbol=NQ",
+      "sspec_652fcc23a6f725b405612b8e#symbol=RTY"
+    ],
+    "pool_kind": "cross_symbol",
+    "pooled_hypothesis_id": "GENERATE_WITH_alpha_system.governance.pooled_hypothesis.generate_pooled_hypothesis_id",
+    "registered_at": "SET_AT_ACTUAL_PRE_METRIC_REGISTRATION",
+    "registered_before_metrics": "SET_TRUE_ONLY_AFTER_METRICS_MARKER_CHECK",
+    "sessions": [
+      "rth"
+    ],
+    "symbols": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "variant_ledger_record": {
+      "alpha_spec_id": "SET_TO_LINKED_ALPHA_SPEC_ID",
+      "attempt_count": 1,
+      "created_at": "MATCH_REGISTERED_AT",
+      "family_id": "pooled-track-b-cross-symbol",
+      "status": "PLANNED",
+      "study_spec_id": "sspec_652fcc23a6f725b405612b8e",
+      "trial_ids": [
+        "SET_TO_PRE_METRIC_POOLED_REGISTRATION_TRIAL_REF"
+      ],
+      "variant_id": "pooled-track-b-cross-symbol-v1"
+    }
+  },
+  "source_relock_report": "research/futures_substrate_scaleout_v1/rerun/studyspec_relock.md",
+  "template_status": "DRAFT_NOT_REGISTERED"
+}

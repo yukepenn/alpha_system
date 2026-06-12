@@ -31,6 +31,7 @@ EXPECTED_PREFIXES = {
     "SealedHoldoutWindow": "holdwin",
     "HoldoutAccessLog": "haccess",
     "SurrogateStudyRun": "surrun",
+    "PooledHypothesisRecord": "poolhyp",
 }
 
 

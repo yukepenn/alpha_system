@@ -35,6 +35,9 @@ from alpha_system.governance.promotion_gate import (
     PromotionGateContext,
     validate_governance_transition,
 )
+from alpha_system.governance.pooled_hypothesis import (
+    PooledHypothesisRegistry,
+)
 from alpha_system.governance.registry import GovernanceRegistry, GovernanceRegistryEntry
 from alpha_system.governance.rejected_idea import validate_rejected_idea_record
 from alpha_system.governance.requeue import (
@@ -390,6 +393,51 @@ def run_variant_ledger_summary(args: argparse.Namespace) -> int:
     return _run_json_command("variant-ledger-summary", _execute)
 
 
+def run_register_pooled_hypothesis(args: argparse.Namespace) -> int:
+    """Run ``alpha governance register-pooled-hypothesis``."""
+
+    def _execute() -> dict[str, object]:
+        registry = PooledHypothesisRegistry(args.registry_path)
+        payload = load_governance_mapping(
+            args.pooled_hypothesis,
+            object_name=GovernanceIdKind.POOLED_HYPOTHESIS_RECORD.value,
+        )
+        result = registry.register(
+            payload,
+            variant_ledger_path=args.variant_ledger_path,
+            metrics_started_marker_path=args.metrics_started_marker,
+        )
+        payload: dict[str, object] = {
+            "status": "ok",
+            "command": "register-pooled-hypothesis",
+            "registry_path": str(Path(args.registry_path)),
+            "variant_ledger_path": str(Path(args.variant_ledger_path)),
+            **result.to_dict(),
+        }
+        if args.metrics_started_marker:
+            payload["metrics_started_marker_path"] = str(Path(args.metrics_started_marker))
+        return payload
+
+    return _run_json_command("register-pooled-hypothesis", _execute)
+
+
+def run_pooled_hypotheses_list(args: argparse.Namespace) -> int:
+    """Run ``alpha governance pooled-hypotheses list``."""
+
+    def _execute() -> dict[str, object]:
+        registry = PooledHypothesisRegistry(args.registry_path)
+        records = registry.load_records()
+        return {
+            "status": "ok",
+            "command": "pooled-hypotheses list",
+            "registry_path": str(Path(args.registry_path)),
+            "count": len(records),
+            "pooled_hypotheses": [record.to_dict() for record in records],
+        }
+
+    return _run_json_command("pooled-hypotheses list", _execute)
+
+
 def run_review(args: argparse.Namespace) -> int:
     """Run ``alpha governance review``."""
 
@@ -729,6 +777,51 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Optional value-free Markdown calibration report output path.",
     )
     surrogate_parser.set_defaults(handler=run_surrogate_calibrate)
+
+    pooled_register_parser = governance_subparsers.add_parser(
+        "register-pooled-hypothesis",
+        help="Register a pre-declared pooled Track-B hypothesis.",
+    )
+    pooled_register_parser.add_argument(
+        "pooled_hypothesis",
+        help="Path to a PooledHypothesisRecord JSON file.",
+    )
+    pooled_register_parser.add_argument(
+        "--registry-path",
+        required=True,
+        help="Path to the append-only pooled-hypothesis JSONL registry.",
+    )
+    pooled_register_parser.add_argument(
+        "--variant-ledger-path",
+        required=True,
+        help="Path to the VariantLedger JSONL file receiving the pooled linkage entry.",
+    )
+    pooled_register_parser.add_argument(
+        "--metrics-started-marker",
+        help="Optional Track-A metrics-started marker file; absent means registration allowed.",
+    )
+    pooled_register_parser.set_defaults(handler=run_register_pooled_hypothesis)
+
+    pooled_parser = governance_subparsers.add_parser(
+        "pooled-hypotheses",
+        help="Read pooled Track-B hypothesis registrations.",
+    )
+    pooled_subparsers = pooled_parser.add_subparsers(dest="pooled_hypotheses_command")
+    pooled_list_parser = pooled_subparsers.add_parser(
+        "list",
+        help="List registered pooled Track-B hypotheses.",
+    )
+    pooled_list_parser.add_argument(
+        "--registry-path",
+        required=True,
+        help="Path to the append-only pooled-hypothesis JSONL registry.",
+    )
+    pooled_list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON. JSON is the only supported output for this read-only command.",
+    )
+    pooled_list_parser.set_defaults(handler=run_pooled_hypotheses_list)
 
     review_parser = governance_subparsers.add_parser(
         "review",

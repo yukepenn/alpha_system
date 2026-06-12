@@ -12,6 +12,7 @@ from alpha_system.governance.sealed_holdout import (
     SealedHoldoutRegistry,
     SealedHoldoutStatus,
     SealedHoldoutWindow,
+    access_intersects_holdout,
     create_sealed_holdout_window,
     emit_holdout_access_if_intersects,
     require_single_active_holdout_window,
@@ -76,6 +77,47 @@ def test_sealed_holdout_window_round_trips_and_rejects_unknown_status() -> None:
     with pytest.raises(GovernanceValidationError) as exc_info:
         validate_sealed_holdout_window(payload)
     assert exc_info.value.issues[0].code == "invalid_sealed_holdout_status"
+
+
+def test_rolling_holdout_window_allows_open_end_but_requires_marker() -> None:
+    rolling = create_sealed_holdout_window(
+        partition_spec=_partition(),
+        start_date="2025-01-01",
+        end_date=None,
+        rolling=True,
+        status=SealedHoldoutStatus.SEALED,
+        declared_at=DECLARED_AT,
+        sealed_by="research-governance-owner",
+        provenance={
+            "compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B sealed holdout doctrine",
+            "value_free": True,
+        },
+    )
+
+    assert rolling.end_date is None
+    assert rolling.rolling is True
+    assert access_intersects_holdout(
+        rolling,
+        access_start_date="2027-01-01",
+        access_end_date="2027-01-31",
+        access_partition_spec={"dataset_family": "futures_core_alpha_pilot_v1"},
+    )
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        create_sealed_holdout_window(
+            partition_spec=_partition(),
+            start_date="2025-01-01",
+            end_date=None,
+            status=SealedHoldoutStatus.SEALED,
+            declared_at=DECLARED_AT,
+            sealed_by="research-governance-owner",
+            provenance={
+                "compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B sealed holdout doctrine",
+                "value_free": True,
+            },
+        )
+
+    assert exc_info.value.issues[0].code == "missing_non_rolling_holdout_end_date"
 
 
 def test_registry_enforces_exactly_one_active_window(tmp_path: Path) -> None:

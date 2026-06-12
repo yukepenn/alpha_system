@@ -40,6 +40,7 @@ class GovernanceIdKind(StrEnum):
     SEALED_HOLDOUT_WINDOW = "SealedHoldoutWindow"
     HOLDOUT_ACCESS_LOG = "HoldoutAccessLog"
     SURROGATE_STUDY_RUN = "SurrogateStudyRun"
+    POOLED_HYPOTHESIS_RECORD = "PooledHypothesisRecord"
 
 
 GOVERNANCE_ID_PREFIXES = MappingProxyType(
@@ -60,6 +61,7 @@ GOVERNANCE_ID_PREFIXES = MappingProxyType(
         GovernanceIdKind.SEALED_HOLDOUT_WINDOW.value: "holdwin",
         GovernanceIdKind.HOLDOUT_ACCESS_LOG.value: "haccess",
         GovernanceIdKind.SURROGATE_STUDY_RUN.value: "surrun",
+        GovernanceIdKind.POOLED_HYPOTHESIS_RECORD.value: "poolhyp",
     }
 )
 GOVERNANCE_ID_OBJECTS_BY_PREFIX = MappingProxyType(

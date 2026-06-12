@@ -56,9 +56,10 @@ def test_cost_model_version_defaults_to_spread_when_bbo_is_available() -> None:
     bbo_version = CostModelVersion.from_mappings(bbo_available=True)
     fallback_version = CostModelVersion.from_mappings(bbo_available=False)
 
-    assert bbo_version.cost_model_descriptor["components"][0]["model"] == "spread_cost"
+    assert bbo_version.cost_model_descriptor["components"][0]["model"] == "futures_fee_schedule"
+    assert bbo_version.cost_model_descriptor["components"][1]["model"] == "spread_cost"
     assert bbo_version.slippage_model_descriptor["components"][0]["model"] == "spread_sensitive"
-    assert fallback_version.cost_model_descriptor["components"][0]["model"] == "bps_cost"
+    assert fallback_version.cost_model_descriptor["components"][0]["model"] == "futures_fee_schedule"
     assert fallback_version.slippage_model_descriptor["components"][0]["model"] == "bps"
 
 

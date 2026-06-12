@@ -6,6 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
+from alpha_system.backtest.futures_fees import (
+    active_fee_schedule_cost_component_descriptor,
+)
 from alpha_system.backtest import costs, slippage
 from alpha_system.governance.serialization import (
     GovernanceSerializationError,
@@ -170,8 +173,15 @@ def _resolved_cost_descriptor(
         cost_model_descriptor = {
             "model": "composite",
             "components": (
+                active_fee_schedule_cost_component_descriptor(default_symbol="ES"),
                 {"model": "spread_cost", "assumption": "half_spread"},
-                {"model": "bps_cost", "bps": "1.0"},
+            ),
+        }
+    if cost_model is None and cost_model_descriptor is None and not bbo_available:
+        cost_model_descriptor = {
+            "model": "composite",
+            "components": (
+                active_fee_schedule_cost_component_descriptor(default_symbol="ES"),
             ),
         }
     if cost_model is None:
