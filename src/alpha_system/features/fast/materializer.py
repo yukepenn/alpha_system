@@ -42,6 +42,10 @@ from alpha_system.features.engine import (
     FeatureMaterializationResult,
     build_feature_materialization_plan,
 )
+from alpha_system.features.pack_integrity import (
+    reconcile_registered_feature_pack_path,
+    require_registered_feature_pack_superset,
+)
 from alpha_system.features.store import FeatureStore
 from alpha_system.governance.feature_request import FeatureRequest
 from alpha_system.governance.serialization import JsonValue, canonical_serialize
@@ -371,6 +375,7 @@ class PackMaterializer:
         feature_requests: Mapping[str, FeatureRequest | Mapping[str, Any]],
         store: FeatureStore | None = None,
         registry_metadata: Mapping[str, Any] | None = None,
+        reconcile_after_register: bool = True,
     ) -> tuple[Any, ...]:
         """Register every feature through ``FeatureStore`` using serial writes."""
 
@@ -411,6 +416,13 @@ class PackMaterializer:
                         registry_metadata=metadata,
                     )
                 )
+        if reconcile_after_register:
+            handle = materialization_result.value_store_handle
+            if handle is not None and handle.parquet_path:
+                reconcile_registered_feature_pack_path(
+                    alpha_data_root=materialization_result.plan.alpha_data_root,
+                    parquet_path=handle.parquet_path,
+                )
         return tuple(records)
 
 
@@ -442,6 +454,11 @@ def _write_records(
         parquet_path = plan.output_path.with_name("values.parquet")
         _require_under_root(parquet_path, plan.alpha_data_root)
         if not parquet_is_current(parquet_path, content_hash):
+            require_registered_feature_pack_superset(
+                alpha_data_root=plan.alpha_data_root,
+                parquet_path=parquet_path,
+                incoming_feature_version_ids=plan.feature_version_ids,
+            )
             write_parquet_values(
                 record_dicts,
                 parquet_path,

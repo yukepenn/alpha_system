@@ -594,6 +594,37 @@ class FeatureRegistry:
 
         return self.resolve_registered_feature(feature_version_id)
 
+    def read_registered_parquet_features(self) -> tuple[FeatureRegistryRecord, ...]:
+        """Return all REGISTERED feature rows that point at a Parquet value store."""
+
+        with self._connect(read_only=True) as connection:
+            _ensure_schema(connection)
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM feature_registry_records
+                WHERE lifecycle_state = ?
+                  AND parquet_path IS NOT NULL
+                ORDER BY parquet_path, feature_version_id
+                """,
+                (FeatureRegistryLifecycleState.REGISTERED.value,),
+            ).fetchall()
+        return tuple(_record_from_row(row) for row in rows)
+
+    def resolve_registered_features_by_parquet_path(
+        self,
+        parquet_path: object,
+    ) -> tuple[FeatureRegistryRecord, ...]:
+        """Return REGISTERED feature rows whose Parquet path equals ``parquet_path``."""
+
+        target = _normalized_parquet_path(parquet_path)
+        return tuple(
+            record
+            for record in self.read_registered_parquet_features()
+            if record.parquet_path is not None
+            and _normalized_parquet_path(record.parquet_path) == target
+        )
+
     def resolve_feature_set(self, feature_set: FeatureSetSpec) -> tuple[FeatureRegistryRecord, ...]:
         """Resolve registered records for every member of a FeatureSetSpec."""
 
@@ -1420,6 +1451,17 @@ def _require_outside_repo(path: Path, field_name: str) -> None:
     resolved = path.resolve(strict=False)
     if resolved == repo_root or resolved.is_relative_to(repo_root):
         raise FeatureRegistryError(f"{field_name} must be outside the repository tree")
+
+
+def _normalized_parquet_path(value: object) -> str:
+    if isinstance(value, Path):
+        text = value.as_posix()
+    else:
+        text = _require_text(value, "parquet_path")
+    try:
+        return Path(text).expanduser().resolve(strict=False).as_posix()
+    except RuntimeError as exc:
+        raise FeatureRegistryError("parquet_path could not be resolved") from exc
 
 
 def _require_path(value: str | Path, field_name: str) -> Path:

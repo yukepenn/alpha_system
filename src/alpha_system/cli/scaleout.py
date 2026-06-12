@@ -9,6 +9,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+from alpha_system.features.pack_integrity import audit_registered_feature_packs
 from alpha_system.features.scaleout import (
     DEFAULT_SCALEOUT_ENGINE,
     DEFAULT_LABEL_SCALEOUT_CONFIG,
@@ -116,6 +117,22 @@ def run_label_pack(args: argparse.Namespace) -> int:
             _emit_text(summary.to_dict())
         return 0 if summary.failed_count == 0 else 2
     except (OSError, ScaleoutError, ValueError) as exc:
+        print(f"scaleout command error: {exc}", file=sys.stderr)
+        return 2
+
+
+def run_pack_audit(args: argparse.Namespace) -> int:
+    """Run ``alpha scaleout pack-audit``."""
+
+    try:
+        summary = audit_registered_feature_packs(alpha_data_root=args.alpha_data_root)
+        payload = summary.to_dict()
+        if args.json:
+            print(json.dumps(payload, sort_keys=True, indent=2))
+        else:
+            _emit_pack_audit_text(payload)
+        return 0 if summary.stale_registry_count == 0 else 2
+    except (OSError, ValueError) as exc:
         print(f"scaleout command error: {exc}", file=sys.stderr)
         return 2
 
@@ -352,6 +369,17 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     label_parser.add_argument("--json", action="store_true", help="Emit JSON.")
     label_parser.set_defaults(handler=run_label_pack)
 
+    audit_parser = scaleout_subparsers.add_parser(
+        "pack-audit",
+        help="Audit registered feature pack Parquet paths without reading values aloud.",
+    )
+    audit_parser.add_argument(
+        "--alpha-data-root",
+        help="Local data root containing registry/features.sqlite and values.",
+    )
+    audit_parser.add_argument("--json", action="store_true", help="Emit JSON.")
+    audit_parser.set_defaults(handler=run_pack_audit)
+
 
 def _target_from_args(args: argparse.Namespace) -> ScaleoutTarget:
     return ScaleoutTarget(
@@ -461,4 +489,31 @@ def _emit_text(payload: dict[str, object]) -> None:
         print(f"Estimated total seconds: {estimate['estimated_total_seconds']}")
 
 
-__all__ = ["register_subparser", "run_feature_pack"]
+def _emit_pack_audit_text(payload: dict[str, object]) -> None:
+    print("Scaleout pack-audit")
+    print(f"Paths: {payload['total_path_count']}")
+    print(f"Clean: {payload['clean_count']}")
+    print(f"Stale registry: {payload['stale_registry_count']}")
+    print(f"Benign extra: {payload['benign_extra_count']}")
+    for entry in payload.get("entries", []):
+        if not isinstance(entry, dict) or entry.get("status") == "clean":
+            continue
+        print(
+            "Path: "
+            f"{entry['parquet_path']} status={entry['status']} "
+            f"registered={entry['registered_feature_count']} "
+            f"disk={entry['disk_feature_count']}"
+        )
+        for key in (
+            "missing_registered_feature_version_ids",
+            "extra_disk_feature_version_ids",
+            "hash_mismatch_feature_version_ids",
+        ):
+            ids = entry.get(key)
+            if ids:
+                print(f"{key}: {json.dumps(ids, sort_keys=True)}")
+        if entry.get("read_error"):
+            print(f"read_error: {entry['read_error']}")
+
+
+__all__ = ["register_subparser", "run_feature_pack", "run_label_pack", "run_pack_audit"]
