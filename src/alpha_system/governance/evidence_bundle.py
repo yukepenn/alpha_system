@@ -7,6 +7,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
+from alpha_system.governance.canaries.catalog import REQUIRED_NEGATIVE_CONTROL_TYPES
+from alpha_system.governance.canaries.negative_control_result import (
+    NegativeControlPassFail,
+    NegativeControlResult,
+    validate_negative_control_result,
+)
 from alpha_system.governance.ids import (
     GovernanceIdError,
     GovernanceIdKind,
@@ -388,8 +394,13 @@ def validate_evidence_ready_gate(
     if issues:
         raise GovernanceValidationError(issues)
     if isinstance(evidence_bundle, EvidenceBundle):
-        return validate_evidence_bundle(evidence_bundle.to_dict())
-    return validate_evidence_bundle(evidence_bundle)
+        bundle = validate_evidence_bundle(evidence_bundle.to_dict())
+    else:
+        bundle = validate_evidence_bundle(evidence_bundle)
+    control_issues = _validate_required_negative_controls_for_evidence_ready(bundle)
+    if control_issues:
+        raise GovernanceValidationError(control_issues)
+    return bundle
 
 
 def assert_evidence_ready(
@@ -597,6 +608,101 @@ def _validate_negative_control_results(values: list[Any]) -> list[ValidationIssu
                 )
             issues.extend(_validate_substantive_value(value, field=f"{field}.{key}"))
     return issues
+
+
+def _validate_required_negative_controls_for_evidence_ready(
+    bundle: EvidenceBundle,
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    results_by_type: dict[str, NegativeControlResult] = {}
+    allowed_refs = {bundle.study_spec_id, bundle.evidence_bundle_id}
+
+    for index, item in enumerate(bundle.negative_control_results):
+        field = f"negative_control_results[{index}]"
+        try:
+            result = validate_negative_control_result(item)
+        except GovernanceValidationError as exc:
+            issues.extend(
+                _prefix_negative_control_issues(exc.issues, parent_field=field)
+            )
+            continue
+
+        control_type = result.canary_type.value
+        if control_type in results_by_type:
+            issues.append(
+                ValidationIssue(
+                    field=f"{field}.canary_type",
+                    code="duplicate_required_negative_control_result",
+                    message=(
+                        "Evidence-ready gate requires one current result per "
+                        "required negative-control type"
+                    ),
+                    expected="unique required negative-control canary_type",
+                    actual=control_type,
+                )
+            )
+        results_by_type.setdefault(control_type, result)
+
+        if result.pass_fail is not NegativeControlPassFail.PASS:
+            issues.append(
+                ValidationIssue(
+                    field=f"{field}.pass_fail",
+                    code="failed_required_negative_control_result",
+                    message=(
+                        "Evidence-ready gate requires every required negative "
+                        f"control to PASS; {control_type} did not pass"
+                    ),
+                    expected=f"{control_type}:PASS",
+                    actual=f"{control_type}:{result.pass_fail.value}",
+                )
+            )
+        if result.related_study_or_evidence not in allowed_refs:
+            issues.append(
+                ValidationIssue(
+                    field=f"{field}.related_study_or_evidence",
+                    code="stale_required_negative_control_result",
+                    message=(
+                        "Evidence-ready gate requires negative-control results "
+                        f"to reference this study or evidence bundle; {control_type} "
+                        "is stale"
+                    ),
+                    expected=" or ".join(sorted(allowed_refs)),
+                    actual=result.related_study_or_evidence,
+                )
+            )
+
+    for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES:
+        if control_type not in results_by_type:
+            issues.append(
+                ValidationIssue(
+                    field="negative_control_results",
+                    code="missing_required_negative_control_result",
+                    message=(
+                        "Evidence-ready gate requires a PASS result for every "
+                        f"required negative-control type; missing {control_type}"
+                    ),
+                    expected=control_type,
+                    actual="missing",
+                )
+            )
+    return issues
+
+
+def _prefix_negative_control_issues(
+    issues: list[ValidationIssue],
+    *,
+    parent_field: str,
+) -> list[ValidationIssue]:
+    return [
+        ValidationIssue(
+            field=f"{parent_field}.{issue.field}",
+            code=issue.code,
+            message=issue.message,
+            expected=issue.expected,
+            actual=issue.actual,
+        )
+        for issue in issues
+    ]
 
 
 def _validate_limitations(values: list[Any]) -> list[ValidationIssue]:

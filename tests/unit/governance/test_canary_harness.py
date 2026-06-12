@@ -10,12 +10,14 @@ from alpha_system.governance.canaries import (
     NegativeControlPassFail,
     NegativeControlResult,
     NegativeControlType,
+    REQUIRED_NEGATIVE_CONTROL_TYPES,
     expected_failure_for_canary_type,
     load_default_canary_fixture,
     run_future_shift_canary,
     run_governance_canary,
     run_label_leakage_canary,
     run_optimistic_fill_canary,
+    run_random_target_canary,
     run_required_governance_canaries,
 )
 
@@ -43,12 +45,16 @@ def test_required_governance_canaries_run_in_canonical_scope() -> None:
         tuple(result.canary_type for result in results)
         == EXECUTABLE_NEGATIVE_CONTROL_TYPES
     )
+    assert tuple(result.canary_type.value for result in results) == (
+        REQUIRED_NEGATIVE_CONTROL_TYPES
+    )
     assert all(result.pass_fail is NegativeControlPassFail.PASS for result in results)
 
 
 @pytest.mark.parametrize(
     ("canary_type", "runner"),
     [
+        (NegativeControlType.RANDOM_TARGET, run_random_target_canary),
         (NegativeControlType.FUTURE_SHIFT, run_future_shift_canary),
         (NegativeControlType.PERMUTED_LABELS, run_label_leakage_canary),
         (NegativeControlType.OPTIMISTIC_FILL, run_optimistic_fill_canary),
@@ -70,14 +76,15 @@ def test_missed_guard_is_recorded_as_fail(
     assert result.expected_failure_observed is False
 
 
-def test_random_target_remains_catalogued_but_not_executable_in_argov_p14() -> None:
-    with pytest.raises(ValueError, match="not executable in ARGOV-P14"):
-        run_governance_canary(NegativeControlType.RANDOM_TARGET)
+def test_random_target_default_fixture_is_deterministic_and_executable() -> None:
+    fixture = load_default_canary_fixture("random_target")
 
+    first = run_governance_canary(NegativeControlType.RANDOM_TARGET, fixture)
+    second = run_governance_canary("random_target", fixture)
 
-def test_default_fixture_loader_rejects_non_executable_canary() -> None:
-    with pytest.raises(ValueError, match="not executable in ARGOV-P14"):
-        load_default_canary_fixture("random_target")
+    assert first == second
+    assert first.pass_fail is NegativeControlPassFail.PASS
+    assert first.observed_result == expected_failure_for_canary_type("random_target")
 
 
 def test_guard_exception_is_not_silently_converted_to_pass() -> None:
