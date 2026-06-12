@@ -1,0 +1,53 @@
+{
+  "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
+  "phase_id": "P110000_RELOCK_V2",
+  "reviewed_commit": "2983ed0",
+  "branch": "wf1/relock-v2",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-fresh-adversarial-wf1",
+  "reviewed_at": "2026-06-12",
+  "evidence": {
+    "lock_truth": "4112/4112 feature locks and 840/840 label locks verified against live read-only registries: REGISTERED, value_content_hash/identity/record_count exact; 0 mismatches",
+    "bbo_grid": "264/264 bbo locks minute-grid first_event_ts; cited fver_09cac6dd...059e51 = bbo_tradability_spread_zscore ES_2019_full_year 2019-01-01T23:01:00+00:00, registered_at 2026-06-12T02:01:07Z (post-#401 re-mat)",
+    "labels_unchanged": "label_version_id lists identical old vs new for all 10 pairs; label_pack_locks byte-identical",
+    "count_reconciliation": "independent derivation from origin/main: old bundle 4560 feature locks incl. exactly 448 countdown locks (224 bars_to_roll + 224 minutes_to_roll); per-sspec oldF-newF equals countdown count; 0 non-countdown drops, 0 gains; change taxonomy 720 new-fver + 1456 same-fver hash-refresh + 1936 identical = 4112",
+    "id_map": "all 10 old->new mapped; generate_study_spec_id reproduces all 10 committed ids; sealed-holdout window_id holdwin_3ed860d2e163f8c6e4cbeb66 re-derives",
+    "semantics": "held-fixed fields (alpha_spec_id, label_spec_id, split_protocol, metrics, cost_assumptions, variant_budget, locked_test_policy, negative_controls, stopping_rules) deep-equal for all 10; zero drift",
+    "reference_updates": "tests/templates repointed to V2 ids; power memo/audits/REGISTERED_RECORD additive addenda (memo diff pure-addition); repo grep of 10 old ids finds only provenance/historical/map hits",
+    "holdout_intersection_test": "test_rigor_p03_sealed_holdout_declaration.py::test_kill_shot_window_intersects_every_relocked_locked_test_input PASS (3 passed)",
+    "track_b_not_registered": "no src/tools code in diff; live pooled_hypotheses.jsonl mtime predates phase commit and still anchors P022000 ids; registry mtimes match handoff (1781266783/1781194502)",
+    "mutation_test": "1-char value_content_hash corruption in bbo sspec -> 4 loud failures (governance id mismatch + live-registry validator); restored exactly; suite green; worktree clean",
+    "validation_reruns": "686 passed; 134 passed; canaries all pass; verify --smoke exit 0; ci-parity 3313 passed/80 skipped — all match handoff"
+  },
+  "findings": [
+    {
+      "id": "MINOR-1",
+      "severity": "MINOR",
+      "summary": "Substrate-invariant audit preamble: 2 original lines reworded in place instead of pure addendum; predicates/findings untouched"
+    },
+    {
+      "id": "MINOR-2",
+      "severity": "MINOR",
+      "summary": "Sealed-holdout declaration edited in place; superseded window holdwin_bcf16744d03b8546a219fcd1 not recorded in supersession chain (git-history only); holdout boundary itself unchanged"
+    },
+    {
+      "id": "MINOR-3",
+      "severity": "MINOR",
+      "summary": "Relock report bucket 'registry_metadata_refresh: 1456' actually comprises 1456 value_content_hash changes (in-place content re-registration under same fver); counts truthful, label understates"
+    },
+    {
+      "id": "NOTE-1",
+      "severity": "NOTE",
+      "summary": "GATE_INVENTORY.md still pins original holdwin_d5cba... (pre-existing staleness from P033000, not introduced here)"
+    },
+    {
+      "id": "NOTE-2",
+      "severity": "NOTE",
+      "summary": "v1 union-restore config deletions are scope addition beyond spec section 3 but implement P113000 review MINOR-2; v2 + bbo configs intact"
+    }
+  ],
+  "required_followups": [
+    "Record holdwin_bcf16744... -> holdwin_3ed860d2... supersession in a follow-up addendum or GATE_INVENTORY note",
+    "Coordinator must re-register Track-B pooled hypotheses against the V2 StudySpec ids before any Track-A metric starts"
+  ]
+}
