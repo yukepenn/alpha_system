@@ -1,0 +1,50 @@
+{
+  "schema": "frontier-review-verdict-v1",
+  "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
+  "phase_id": "P050912_SURROGATE_BLOCK_NULLS",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [],
+  "required_repairs": [],
+  "warnings": [
+    "W1: bound statement duplicated (surrogate_run.py:702 + run_real_surrogate_calibration.py:482); only assertion is a substring check on the tool report which embeds both copies — mutation 6c SURVIVED for each single-site corruption; core renderer bound line has zero coverage. Follow-up: shared constant + per-renderer assertion.",
+    "W2: bootstrap identity_block_count conflates ineligible singleton blocks with genuinely self-sampled eligible blocks; ambiguous audit counter (not a spec violation).",
+    "W3: with-replacement property proven via duplicate_source_block_count summary counter, not output-row inspection; counter-preserving mutation would survive.",
+    "W4: real FeatureLabelPackResolver constructor branch untested (tests inject _FakeResolver); loud-skip test asserts nothing when local registry exists; matches spec's sanctioned idiom.",
+    "W5: unused timedelta import (tool, no CI lint); derangement fallback rotation not provably fixed-point-free (~0.63^128 reach probability); tool bridge fabricates path_metadata.required_future_bars/observed_future_bars=1 and synthetic session_id (values verbatim, isolated namespace, no second value truth); trade date = UTC calendar date of event_ts (overnight sessions split at midnight UTC)."
+  ],
+  "mutation_tests": [
+    {
+      "id": "A",
+      "mutation": "block shuffle identity (_deranged_block_indices returns range(length))",
+      "result": "KILLED",
+      "failing_test": "test_trade_date_block_shuffle_preserves_skeleton_and_within_day_order"
+    },
+    {
+      "id": "B",
+      "mutation": "bootstrap without replacement (rng.sample permutation)",
+      "result": "KILLED",
+      "failing_test": "test_trade_date_block_bootstrap_resamples_blocks_with_replacement"
+    },
+    {
+      "id": "C1",
+      "mutation": "corrupt bound statement in render_value_free_calibration_report (surrogate_run.py:702)",
+      "result": "SURVIVED",
+      "failing_test": null
+    },
+    {
+      "id": "C2",
+      "mutation": "corrupt bound statement in tool report header (run_real_surrogate_calibration.py:482)",
+      "result": "SURVIVED",
+      "failing_test": null
+    }
+  ],
+  "validation_reproduced": {
+    "pytest_governance": "638 passed (matches handoff)",
+    "pytest_surrogate_plus_rigor_floor": "53 passed (18 surrogate + 35 rigor floor; handoff's 35 consistent)",
+    "canary_runner": "All Frontier canaries passed (25)",
+    "verify_smoke": "exit 0",
+    "ci_parity": "3300 passed, 75 skipped (matches handoff)",
+    "git_ls_files_runs": "empty",
+    "worktree_clean_after_mutations": true
+  }
+}
