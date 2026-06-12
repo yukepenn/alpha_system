@@ -10,12 +10,11 @@ The repository-level campaign pointer targets
 `DISCOVERY_RIGOR_FLOOR_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress after the `RIGOR-P03` merge:
-`RIGOR-P00` through `RIGOR-P03` are complete, and `RIGOR-P06` has also landed
-per the current campaign snapshot. The active / next phases are `RIGOR-P04`
-(executable RANDOM_TARGET + planted-fake-alpha canary) and `RIGOR-P05`
-(surrogate-FDR calibration), which are parallel-eligible after the sealed
-holdout gate.
+Current campaign progress after the `RIGOR-P04` merge:
+`RIGOR-P00` through `RIGOR-P04` are complete, and `RIGOR-P06` has also landed
+per the current campaign snapshot. The active / next phase is `RIGOR-P05`
+(surrogate-FDR calibration), followed by `RIGOR-P07` closeout once the
+remaining rigor-floor gates are merged.
 
 New durable surfaces through `RIGOR-P03`:
 
@@ -51,11 +50,22 @@ New durable surfaces through `RIGOR-P03`:
   contamination and BREACHED sealed-holdout declarations with no waiver path.
 - `research/discovery_rigor_floor_v1/sealed_holdout/` contains the value-free
   initial kill-shot sealed-window declaration and RIGOR-P03 gate inventory.
+- `src/alpha_system/governance/canaries/harness.py` now executes all four
+  required negative controls in catalog order, including `RANDOM_TARGET`.
+- `src/alpha_system/governance/canaries/planted_fake_alpha.py` provides the
+  end-to-end planted lookahead canary; `tools/hooks/canary_runner.py` registers
+  both `governance_random_target` and the expected-block `planted_fake_alpha`
+  scenario.
+- `validate_evidence_ready_gate` now requires current `PASS` results for all
+  required negative controls before `EVIDENCE_READY`.
+- `research/discovery_rigor_floor_v1/canary_floor/RIGOR-P04_canary_floor.md`
+  records the value-free 4/4 canary inventory, planted-fake-alpha rejection,
+  and gate-to-bypass-test mapping.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
   FUTSUB boundary state at the P27/P28 gate.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md` through `RIGOR-P03.md` and
   `RIGOR-P06.md` record executor verification and handoffs for completed
-  landed phases.
+  landed phases; `RIGOR-P04.md` records this canary-floor phase.
 
 The gated FUTSUB run
 `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` remains
@@ -95,6 +105,10 @@ engines, or worktrees are changed by this phase.
 RIGOR-P03 is also governance-only: it declares and gates the sealed holdout
 regime with value-free metadata and does not run, inspect, or mutate study
 values, registries, FUTSUB run state, broker surfaces, or execution engines.
+RIGOR-P04 is governance-only: it uses tiny synthetic fixtures, tmp namespaces,
+and value-free pass/fail evidence to close the negative-control canary floor;
+it does not run real-data studies, mutate production registries or ledgers, or
+produce any score/value claim.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
