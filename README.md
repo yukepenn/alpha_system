@@ -10,78 +10,34 @@ The repository-level campaign pointer targets
 `DISCOVERY_RIGOR_FLOOR_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress after the `RIGOR-P05` merge:
-`RIGOR-P00` through `RIGOR-P03`, `RIGOR-P05`, and `RIGOR-P06` are complete
-per the current campaign snapshot. The active / next phase is `RIGOR-P04`
-(executable RANDOM_TARGET + planted-fake-alpha canary) if it has not already
-merged, followed by `RIGOR-P07` closeout and kill-shot readiness.
-Current campaign progress after the `RIGOR-P04` merge:
-`RIGOR-P00` through `RIGOR-P04` are complete, and `RIGOR-P06` has also landed
-per the current campaign snapshot. The active / next phase is `RIGOR-P05`
-(surrogate-FDR calibration), followed by `RIGOR-P07` closeout once the
-remaining rigor-floor gates are merged.
+Current campaign progress after `RIGOR-P07`: `RIGOR-P00` through `RIGOR-P07`
+are complete in the campaign snapshot, pending Ralph-owned closeout review,
+staging, commit, PR/CI, merge, and done-check handling. The active / next
+campaign action is closeout review and done-check; FUTSUB kill-shot resume is a
+coordinator step after campaign completion per
+`handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md`.
 
-New durable surfaces through `RIGOR-P03`:
+New durable surfaces through `RIGOR-P07`:
 
-- `research/discovery_rigor_floor_v1/` defines the value-free evidence root for
-  gate inventories, canary pass/fail tables, calibration statistics, and
-  readiness records.
-- `src/alpha_system/governance/verdict_reason_code.py` defines the closed
-  `VerdictReasonCode` taxonomy; `promotion_gate.py` requires a present,
-  parseable, non-destructively writable trial ledger before `EVIDENCE_READY`.
-- `research/futures_core_alpha_pilot_v1/verdict_annotations/` contains the six
-  additive annotations for historical Core Pilot inconclusive verdicts.
-- `research/discovery_rigor_floor_v1/RIGOR_P01_REASON_CODE_AND_LEDGER_GATES.md`
-  records the value-free gate/test/annotation evidence for this phase.
-- `src/alpha_system/governance/variant_ledger.py` defines first-class
-  `VariantLedgerRecord` JSONL persistence, family budget roll-ups, and
-  provenance-carrying budget amendments.
-- `alpha governance variant-ledger-summary` provides a read-only ledger scan and
-  optional family-budget status summary; `StudySpec.family_budget` remains
-  optional for legacy StudySpec payloads.
-- `research/discovery_rigor_floor_v1/RIGOR_P02_GATE_INVENTORY.md` records the
-  value-free gate and bypass-test inventory.
-- `src/alpha_system/governance/requeue.py`, `alpha governance requeue-scan`,
-  and `research/discovery_rigor_floor_v1/requeue/REQUEUE_SCAN.md` provide the
-  landed evidence-accrual requeue scan from `RIGOR-P06`.
-- `src/alpha_system/governance/surrogate_run.py` defines the
-  `SurrogateStudyRun` schema, seeded label-shuffle runner, calibration
-  harness, and declared zero-pass surrogate-FDR threshold.
-- `TrialLedgerRecord.surrogate_flag` distinguishes surrogate trials while
-  excluding them from production variant/family budget accounting.
-- `alpha governance surrogate-calibrate` runs N seeded label-shuffled
-  calibrations in an isolated namespace and exits non-zero on
-  `LEAKAGE_BLOCKED` or errored calibration.
-- `research/discovery_rigor_floor_v1/surrogate_fdr/RIGOR-P05_synthetic_calibration.md`
-  records the value-free synthetic calibration report; real-data calibration
-  remains a coordinator runbook step before FUTSUB-P28 kill-shot resume.
-- `src/alpha_system/governance/sealed_holdout.py` defines
-  `SealedHoldoutWindow`, exactly-one-active declaration enforcement,
-  terminal `BREACHED` transitions, and append-only `HoldoutAccessLog`
-  persistence.
-- The label leakage guard and study-entry budget hook can emit sealed-holdout
-  access log records; missing or unwritable logs fail closed when those
-  surfaces are armed.
-- The governance `EVIDENCE_READY` transition now blocks locked-test
-  contamination and BREACHED sealed-holdout declarations with no waiver path.
-- `research/discovery_rigor_floor_v1/sealed_holdout/` contains the value-free
-  initial kill-shot sealed-window declaration and RIGOR-P03 gate inventory.
-- `src/alpha_system/governance/canaries/harness.py` now executes all four
-  required negative controls in catalog order, including `RANDOM_TARGET`.
-- `src/alpha_system/governance/canaries/planted_fake_alpha.py` provides the
-  end-to-end planted lookahead canary; `tools/hooks/canary_runner.py` registers
-  both `governance_random_target` and the expected-block `planted_fake_alpha`
-  scenario.
-- `validate_evidence_ready_gate` now requires current `PASS` results for all
-  required negative controls before `EVIDENCE_READY`.
-- `research/discovery_rigor_floor_v1/canary_floor/RIGOR-P04_canary_floor.md`
-  records the value-free 4/4 canary inventory, planted-fake-alpha rejection,
-  and gate-to-bypass-test mapping.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
-  FUTSUB boundary state at the P27/P28 gate.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md` through `RIGOR-P03.md` and
-  `RIGOR-P06.md` record executor verification and handoffs for completed
-  landed phases; `RIGOR-P04.md` records this canary-floor phase.
+- `tests/unit/discovery_rigor_floor/test_rigor_p07_integration_audit.py` drives
+  one synthetic study through the full gate stack and proves both happy and
+  fail-closed directions.
+- `research/discovery_rigor_floor_v1/integration_audit/RIGOR-P07_gate_audit.md`
+  records the value-free gate-to-bypass-canary table.
+- `research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md` is the
+  fail-closed kill-shot readiness checklist, including compass v4.4
+  preconditions and the surrogate-calibration statistical floor.
+- `docs/discovery_rigor_floor/TRACK_B_PREREGISTRATION_TEMPLATE.md` maps the
+  Track-B pre-registration payload field-for-field to
+  `PooledHypothesisRecord`.
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md` gives the
+  coordinator-only ordered FUTSUB resume path.
+- `docs/OPERATING_COMPASS_V4.md` now has the additive Stage B status note with
+  `MET` and `PENDING-coordinator` readiness statuses.
+- Earlier RIGOR surfaces remain in force: reason-code validation,
+  trial-ledger and VariantLedger gates, sealed holdout and access log,
+  executable 4/4 negative controls, planted-fake-alpha canary, surrogate-FDR
+  machinery, and evidence-accrual requeue scan.
 
 The gated FUTSUB run
 `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` remains
@@ -129,6 +85,11 @@ RIGOR-P04 is governance-only: it uses tiny synthetic fixtures, tmp namespaces,
 and value-free pass/fail evidence to close the negative-control canary floor;
 it does not run real-data studies, mutate production registries or ledgers, or
 produce any score/value claim.
+RIGOR-P07 is closeout-only: the integration audit uses pytest tmp namespaces,
+and the readiness checklist, Track-B template, compass note, and FUTSUB resume
+handoff are value-free coordinator artifacts. It does not resume FUTSUB, remove
+STOP files, register Track B, run real-data studies, inspect Track A metrics, or
+touch values, registries, broker surfaces, execution engines, or worktrees.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
