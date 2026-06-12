@@ -41,6 +41,8 @@ STUDY_SPEC_REQUIRED_FIELDS = (
     "negative_controls",
     "stopping_rules",
 )
+STUDY_SPEC_OPTIONAL_FIELDS = ("family_budget",)
+STUDY_SPEC_ALLOWED_FIELDS = STUDY_SPEC_REQUIRED_FIELDS + STUDY_SPEC_OPTIONAL_FIELDS
 STUDY_SPEC_ID_COMPONENT_FIELDS = tuple(
     field for field in STUDY_SPEC_REQUIRED_FIELDS if field != "study_spec_id"
 )
@@ -56,6 +58,7 @@ STUDY_SPEC_FIELD_TYPES = {
     "locked_test_policy": dict,
     "negative_controls": list,
     "stopping_rules": list,
+    "family_budget": int,
 }
 IMPLEMENTED_STATE = "IMPLEMENTED"
 DIAGNOSTICS_ALLOWED_STATE = "DIAGNOSTICS_ALLOWED"
@@ -136,6 +139,7 @@ class StudySpec:
     locked_test_policy: dict[str, JsonValue]
     negative_controls: list[str]
     stopping_rules: list[str]
+    family_budget: int | None = None
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> StudySpec:
@@ -154,7 +158,7 @@ class StudySpec:
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a strict JSON-compatible representation."""
 
-        return {
+        payload: dict[str, JsonValue] = {
             "study_spec_id": self.study_spec_id,
             "alpha_spec_id": self.alpha_spec_id,
             "label_spec_id": self.label_spec_id,
@@ -167,6 +171,9 @@ class StudySpec:
             "negative_controls": list(self.negative_controls),
             "stopping_rules": list(self.stopping_rules),
         }
+        if self.family_budget is not None:
+            payload["family_budget"] = self.family_budget
+        return payload
 
     def to_canonical_json(self) -> str:
         """Serialize the validated record through the canonical primitive."""
@@ -186,6 +193,7 @@ def create_study_spec(
     locked_test_policy: dict[str, JsonValue],
     negative_controls: list[str],
     stopping_rules: list[str],
+    family_budget: int | None = None,
 ) -> StudySpec:
     """Create a validated `StudySpec` without running diagnostics."""
 
@@ -201,6 +209,8 @@ def create_study_spec(
         "negative_controls": list(negative_controls),
         "stopping_rules": list(stopping_rules),
     }
+    if family_budget is not None:
+        payload["family_budget"] = family_budget
     payload["study_spec_id"] = generate_study_spec_id(payload)
     return validate_study_spec(payload)
 
@@ -214,6 +224,8 @@ def generate_study_spec_id(payload: Mapping[str, Any]) -> str:
         object_name="StudySpec",
     )
     components = {field: mapping[field] for field in STUDY_SPEC_ID_COMPONENT_FIELDS}
+    if "family_budget" in mapping:
+        components["family_budget"] = mapping["family_budget"]
     return generate_governance_id(GovernanceIdKind.STUDY_SPEC, components)
 
 
@@ -224,7 +236,7 @@ def validate_study_spec(payload: Mapping[str, Any]) -> StudySpec:
         payload,
         required_fields=STUDY_SPEC_REQUIRED_FIELDS,
         field_types=STUDY_SPEC_FIELD_TYPES,
-        allowed_fields=STUDY_SPEC_REQUIRED_FIELDS,
+        allowed_fields=STUDY_SPEC_ALLOWED_FIELDS,
         object_name="StudySpec",
     )
 
@@ -238,6 +250,8 @@ def validate_study_spec(payload: Mapping[str, Any]) -> StudySpec:
     ):
         issues.extend(_validate_mapping_is_substantive(mapping, field))
     issues.extend(_validate_variant_budget(mapping["variant_budget"]))
+    if "family_budget" in mapping:
+        issues.extend(_validate_family_budget(mapping["family_budget"]))
     for field in ("metrics", "negative_controls", "stopping_rules"):
         issues.extend(_validate_list_of_text(mapping, field))
     issues.extend(_validate_locked_test_policy(mapping))
@@ -273,6 +287,7 @@ def validate_study_spec(payload: Mapping[str, Any]) -> StudySpec:
         locked_test_policy=dict(mapping["locked_test_policy"]),
         negative_controls=list(mapping["negative_controls"]),
         stopping_rules=list(mapping["stopping_rules"]),
+        family_budget=mapping.get("family_budget"),
     )
 
 
@@ -500,6 +515,30 @@ def _validate_variant_budget(value: int) -> list[ValidationIssue]:
     return []
 
 
+def _validate_family_budget(value: int) -> list[ValidationIssue]:
+    if type(value) is not int:
+        return [
+            ValidationIssue(
+                field="family_budget",
+                code="invalid_family_budget_type",
+                message="StudySpec.family_budget must be an exact integer cap when declared",
+                expected="positive int",
+                actual=type(value).__name__,
+            )
+        ]
+    if value <= 0:
+        return [
+            ValidationIssue(
+                field="family_budget",
+                code="invalid_family_budget",
+                message="StudySpec.family_budget must be a positive bounded integer cap",
+                expected="positive int",
+                actual=str(value),
+            )
+        ]
+    return []
+
+
 def _validate_observed_count(value: int) -> list[ValidationIssue]:
     if type(value) is not int:
         return [
@@ -588,7 +627,10 @@ def _validate_locked_test_policy(mapping: Mapping[str, Any]) -> list[ValidationI
 
 def _validate_canonical_serializable(mapping: Mapping[str, Any]) -> list[ValidationIssue]:
     try:
-        canonical_serialize({field: mapping[field] for field in STUDY_SPEC_REQUIRED_FIELDS})
+        payload = {field: mapping[field] for field in STUDY_SPEC_REQUIRED_FIELDS}
+        if "family_budget" in mapping:
+            payload["family_budget"] = mapping["family_budget"]
+        canonical_serialize(payload)
     except GovernanceSerializationError as exc:
         return [
             ValidationIssue(
@@ -625,6 +667,8 @@ def _normalize_text(value: str) -> str:
 __all__ = [
     "DIAGNOSTICS_ALLOWED_STATE",
     "IMPLEMENTED_STATE",
+    "STUDY_SPEC_ALLOWED_FIELDS",
+    "STUDY_SPEC_OPTIONAL_FIELDS",
     "STUDY_SPEC_REQUIRED_FIELDS",
     "StudyBudgetCheck",
     "StudyBudgetStatus",

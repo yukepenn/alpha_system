@@ -176,6 +176,51 @@ def test_create_study_spec_generates_content_bound_id() -> None:
     assert spec.study_spec_id.startswith("sspec_")
 
 
+def test_family_budget_is_optional_and_omitted_from_legacy_payloads() -> None:
+    payload = load_valid_study_spec_payload()
+
+    spec = validate_study_spec(payload)
+
+    assert spec.family_budget is None
+    assert "family_budget" not in spec.to_dict()
+    assert tuple(spec.to_dict()) == STUDY_SPEC_REQUIRED_FIELDS
+
+
+def test_declared_family_budget_is_validated_and_content_addressed() -> None:
+    payload = load_valid_study_spec_payload()
+    payload["family_budget"] = 6
+    payload["study_spec_id"] = generate_study_spec_id(payload)
+
+    spec = validate_study_spec(payload)
+
+    assert spec.family_budget == 6
+    assert spec.to_dict()["family_budget"] == 6
+    assert spec.study_spec_id == generate_study_spec_id(spec.to_dict())
+
+
+@pytest.mark.parametrize(
+    ("family_budget", "code"),
+    [
+        (0, "invalid_family_budget"),
+        (-1, "invalid_family_budget"),
+        (True, "invalid_field_type"),
+        ("unbounded", "invalid_field_type"),
+    ],
+)
+def test_declared_family_budget_rejects_invalid_values(
+    family_budget: object,
+    code: str,
+) -> None:
+    payload = load_valid_study_spec_payload()
+    payload["family_budget"] = family_budget
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_study_spec(payload)
+
+    assert exc_info.value.issues[0].field == "family_budget"
+    assert exc_info.value.issues[0].code == code
+
+
 def test_diagnostics_gate_allows_only_valid_study_spec() -> None:
     payload = load_valid_study_spec_payload()
 

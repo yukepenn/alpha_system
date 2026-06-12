@@ -44,6 +44,10 @@ from alpha_system.governance.trial_ledger import (
     TrialLedgerRecord,
     validate_trial_ledger_record,
 )
+from alpha_system.governance.variant_ledger import (
+    BudgetAmendmentRecord,
+    validate_variant_and_family_budget,
+)
 from alpha_system.governance.validation import (
     GovernanceValidationError,
     ValidationIssue,
@@ -106,6 +110,9 @@ class PromotionGateContext:
     rejection_reason: str | None = None
     locked_test_contamination_metadata: Mapping[str, Any] | None = None
     trial_ledger_path: str | Path | None = None
+    family_id: str | None = None
+    variant_ledger_path: str | Path | None = None
+    budget_amendments: tuple[BudgetAmendmentRecord | Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +204,12 @@ def validate_governance_transition(
             active_context.trial_ledger_records,
             require_non_empty=True,
         )
+        _validate_variant_budget_context(
+            active_context,
+            trial_records=trial_records,
+            persist=True,
+            require_recorded=False,
+        )
         return GovernanceTransition(
             previous_state,
             next_state,
@@ -206,6 +219,16 @@ def validate_governance_transition(
     if previous_state is PromotionLifecycleState.DIAGNOSTICS_RUN:
         require_trial_ledger_present(active_context.trial_ledger_path)
         evidence_bundle = validate_evidence_ready_gate(active_context.evidence_bundle)
+        trial_records = _validate_trial_records(
+            active_context.trial_ledger_records,
+            require_non_empty=True,
+        )
+        _validate_variant_budget_context(
+            active_context,
+            trial_records=trial_records,
+            persist=False,
+            require_recorded=True,
+        )
         return GovernanceTransition(
             previous_state,
             next_state,
@@ -276,6 +299,24 @@ def assert_promotion_gate(
     """Alias for fail-closed state-machine validation."""
 
     return validate_governance_transition(from_state, to_state, context)
+
+
+def _validate_variant_budget_context(
+    context: PromotionGateContext,
+    *,
+    trial_records: tuple[TrialLedgerRecord, ...],
+    persist: bool,
+    require_recorded: bool,
+) -> None:
+    validate_variant_and_family_budget(
+        context.study_spec,
+        trial_ledger_records=trial_records,
+        family_id=context.family_id,
+        variant_ledger_path=context.variant_ledger_path,
+        amendments=context.budget_amendments,
+        persist=persist,
+        require_recorded=require_recorded,
+    )
 
 
 def reachable_states() -> tuple[str, ...]:

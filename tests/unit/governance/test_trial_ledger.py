@@ -11,10 +11,12 @@ from alpha_system.governance.trial_ledger import (
     TRIAL_LEDGER_REQUIRED_FIELDS,
     TrialLedgerAccounting,
     TrialLedgerRecord,
+    TrialLedgerVariantSummary,
     TrialStatus,
     account_trial_ledger,
     create_trial_ledger_record,
     generate_trial_ledger_id,
+    summarize_trial_ledger_variants,
     validate_trial_ledger_record,
 )
 from alpha_system.governance.validation import GovernanceValidationError
@@ -349,3 +351,37 @@ def test_trial_ledger_accounting_blocks_missing_ledger_for_study() -> None:
 
     assert exc_info.value.issues[0].code == "missing_trial_ledger_records"
     assert exc_info.value.issues[0].field == "records"
+
+
+def test_trial_ledger_variant_summaries_share_accounting_counts() -> None:
+    first = validate_trial_ledger_record(
+        valid_trial_payload(
+            run_id="diagnostics-run-summary-001",
+            variant_id="variant-a",
+        )
+    )
+    second = validate_trial_ledger_record(
+        valid_trial_payload(
+            run_id="diagnostics-run-summary-002",
+            variant_id="variant-a",
+        )
+    )
+    third = validate_trial_ledger_record(
+        valid_trial_payload(
+            run_id="diagnostics-run-summary-003",
+            variant_id="variant-b",
+        )
+    )
+
+    accounting, summaries = summarize_trial_ledger_variants(
+        (first, second, third),
+        study_spec_id=STUDY_SPEC_ID,
+        variant_budget=3,
+    )
+
+    assert accounting.variant_counts == {"variant-a": 2, "variant-b": 1}
+    assert all(isinstance(summary, TrialLedgerVariantSummary) for summary in summaries)
+    assert {
+        summary.variant_id: summary.attempt_count for summary in summaries
+    } == accounting.variant_counts
+    assert summaries[0].trial_ids == tuple(sorted((first.trial_id, second.trial_id)))

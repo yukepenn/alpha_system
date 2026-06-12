@@ -16,4 +16,5 @@ __all__ = [
     "study_spec",
     "validation",
     "verdict_reason_code",
+    "variant_ledger",
 ]

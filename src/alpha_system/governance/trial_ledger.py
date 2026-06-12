@@ -205,6 +205,26 @@ class TrialLedgerAccounting:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class TrialLedgerVariantSummary:
+    """Trial-ledger variant roll-up derived from `TrialLedgerAccounting`."""
+
+    variant_id: str
+    attempt_count: int
+    trial_ids: tuple[str, ...]
+    statuses: tuple[TrialStatus, ...]
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        """Return explicit variant-attempt metadata."""
+
+        return {
+            "variant_id": self.variant_id,
+            "attempt_count": self.attempt_count,
+            "trial_ids": list(self.trial_ids),
+            "statuses": [status.value for status in self.statuses],
+        }
+
+
 def create_trial_ledger_record(
     *,
     alpha_spec_id: str,
@@ -431,6 +451,65 @@ def evaluate_trial_ledger_accounting(
         study_spec_id=study_spec_id,
         variant_budget=variant_budget,
     )
+
+
+def summarize_trial_ledger_variants(
+    records: Iterable[TrialLedgerRecord | Mapping[str, Any]],
+    *,
+    study_spec_id: str,
+    variant_budget: int,
+) -> tuple[TrialLedgerAccounting, tuple[TrialLedgerVariantSummary, ...]]:
+    """Return accounting plus per-variant trial refs from the same validated input."""
+
+    materialized_records = (
+        records
+        if isinstance(records, Mapping) or isinstance(records, str) or records is None
+        else tuple(records)
+    )
+    accounting = account_trial_ledger(
+        materialized_records,
+        study_spec_id=study_spec_id,
+        variant_budget=variant_budget,
+    )
+    validated_records = _validate_records(materialized_records)
+    study_records = [
+        record for record in validated_records if record.study_spec_id == study_spec_id
+    ]
+    grouped: dict[str, list[TrialLedgerRecord]] = {}
+    for record in study_records:
+        grouped.setdefault(record.variant_id, []).append(record)
+
+    summaries: list[TrialLedgerVariantSummary] = []
+    issues: list[ValidationIssue] = []
+    for variant_id in accounting.variant_ids:
+        variant_records = grouped.get(variant_id, [])
+        attempt_count = accounting.variant_counts[variant_id]
+        if len(variant_records) != attempt_count:
+            issues.append(
+                ValidationIssue(
+                    field="variant_counts",
+                    code="variant_accounting_diverged",
+                    message=(
+                        "TrialLedgerAccounting.variant_counts must match the "
+                        "validated TrialLedgerRecord grouping"
+                    ),
+                    expected=str(attempt_count),
+                    actual=str(len(variant_records)),
+                )
+            )
+            continue
+        ordered = tuple(sorted(variant_records, key=lambda record: record.trial_id))
+        summaries.append(
+            TrialLedgerVariantSummary(
+                variant_id=variant_id,
+                attempt_count=attempt_count,
+                trial_ids=tuple(record.trial_id for record in ordered),
+                statuses=tuple(record.status for record in ordered),
+            )
+        )
+    if issues:
+        raise GovernanceValidationError(issues)
+    return accounting, tuple(summaries)
 
 
 def _validate_id_components_present(payload: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -761,10 +840,12 @@ __all__ = [
     "TRIAL_LEDGER_REQUIRED_FIELDS",
     "TrialLedgerAccounting",
     "TrialLedgerRecord",
+    "TrialLedgerVariantSummary",
     "TrialStatus",
     "account_trial_ledger",
     "create_trial_ledger_record",
     "evaluate_trial_ledger_accounting",
     "generate_trial_ledger_id",
+    "summarize_trial_ledger_variants",
     "validate_trial_ledger_record",
 ]

@@ -69,6 +69,7 @@ from alpha_system.governance.trial_ledger import (
 from alpha_system.governance.validation import GovernanceValidationError
 
 FIXTURE_PATH = Path("tests/fixtures/governance/end_to_end/synthetic_lifecycle_fixture.json")
+FAMILY_ID = "family-end-to-end-dry-run"
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,11 +152,18 @@ def test_synthetic_end_to_end_governance_dry_run(tmp_path: Path) -> None:
     )
     assert diagnostics_allowed.next_state is PromotionLifecycleState.DIAGNOSTICS_ALLOWED
     registry.save(objects.study, "DIAGNOSTICS_ALLOWED")
+    variant_ledger_path = tmp_path / "variant-ledger.jsonl"
+    variant_ledger_path.write_text("", encoding="utf-8")
 
     diagnostics_run = validate_governance_transition(
         "DIAGNOSTICS_ALLOWED",
         "DIAGNOSTICS_RUN",
-        PromotionGateContext(trial_ledger_records=objects.trials),
+        PromotionGateContext(
+            study_spec=objects.study,
+            trial_ledger_records=objects.trials,
+            family_id=FAMILY_ID,
+            variant_ledger_path=variant_ledger_path,
+        ),
     )
     assert set(diagnostics_run.trial_ledger_refs) == {record.trial_id for record in objects.trials}
     for canary in objects.canaries:
@@ -183,6 +191,10 @@ def test_synthetic_end_to_end_governance_dry_run(tmp_path: Path) -> None:
             str(registry_path),
             "--trial-ledger-path",
             str(trial_ledger_path),
+            "--family-id",
+            FAMILY_ID,
+            "--variant-ledger-path",
+            str(variant_ledger_path),
             str(bundle_path),
         ]
     )

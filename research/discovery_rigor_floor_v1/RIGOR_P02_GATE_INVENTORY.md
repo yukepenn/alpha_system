@@ -1,0 +1,14 @@
+# RIGOR-P02 Gate Inventory
+
+Value-free inventory for First-Class VariantLedger + Family Budgets.
+
+| Gate | Fail-closed behavior | Bypass-test reference |
+|---|---|---|
+| Study-entry variant budget hook | Missing ledger, unwritable ledger, or study variant-budget overrun without a predeclared amendment raises `GovernanceValidationError` before records are appended. | `tests/unit/discovery_rigor_floor/test_rigor_p02_bypass_canaries.py::test_entry_hook_canary_blocks_variant_budget_overrun`; `test_unwritable_ledger_canary_blocks_entry_hook` |
+| Platform VariantLedger recording | Ledger rows are canonical JSONL `VariantLedgerRecord` values derived from `TrialLedgerAccounting`; malformed rows or missing trial refs are rejected. | `tests/unit/governance/test_variant_ledger.py::test_variant_ledger_record_round_trips_from_trial_accounting`; `test_variant_ledger_record_rejects_bad_trial_ref_and_attempt_count` |
+| Family budget roll-up | `FamilyBudgetCheck` aggregates observed exposures by `(study_spec_id, variant_id)` across all studies sharing `family_id`; repeated local variant labels in different studies do not undercount. | `tests/unit/governance/test_variant_ledger.py::test_family_budget_rolls_up_across_studies`; `test_family_budget_counts_same_variant_label_per_study` |
+| Budget and amendment provenance | Declared family budgets are content-addressed through `StudySpec`; overrun is accepted only when a predeclared `BudgetAmendmentRecord` matches scope, target, prior budget, new budget, and timestamp. Tampering with either is rejected. | `tests/unit/discovery_rigor_floor/test_rigor_p02_bypass_canaries.py::test_recorded_budget_canary_detects_study_spec_budget_tampering`; `test_budget_amendment_canary_detects_tampering`; `tests/unit/governance/test_variant_ledger.py::test_predeclared_amendment_allows_overrun_and_tamper_is_detected` |
+| Promotion `EVIDENCE_READY` budget gate | Evidence-ready transition first requires the P01 trial ledger path to be present, parseable, and writable, then requires the VariantLedger to already contain the variant records for the evidence trials and budget status `RESPECTED` unless a valid amendment is supplied. | `tests/unit/governance/test_promotion_gate_state_machine.py::test_evidence_ready_blocks_missing_trial_ledger_path`; `tests/unit/discovery_rigor_floor/test_rigor_p02_bypass_canaries.py::test_promotion_gate_canary_blocks_unrecorded_variant_ledger`; `tests/unit/governance/test_promotion_gate_state_machine.py::test_evidence_ready_blocks_variant_budget_overrun_from_recorded_ledger` |
+| Read-only CLI scan | `alpha governance variant-ledger-summary` reads the ledger and optional family-budget status without mutating the JSONL file. | `tests/unit/governance/test_cli.py::test_variant_ledger_summary_is_read_only` |
+
+No market data, study values, PnL, return metrics, broker state, or live/paper trading behavior is introduced by this phase.

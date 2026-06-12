@@ -17,6 +17,11 @@ Audit + Kill-Shot Readiness + Resume Handoff, after `RIGOR-P04`, `RIGOR-P05`,
 and `RIGOR-P06` all merge.
 
 New durable surfaces through `RIGOR-P01`:
+Current campaign progress after the `RIGOR-P02` merge: `RIGOR-P00` through
+`RIGOR-P02` are complete; the active / next phase is `RIGOR-P03`, Sealed
+Holdout + Access Log + Contamination Gating.
+
+New durable surfaces through `RIGOR-P02`:
 
 - `research/discovery_rigor_floor_v1/` defines the value-free evidence root for
   gate inventories, canary pass/fail tables, calibration statistics, and
@@ -43,6 +48,27 @@ New durable surfaces through `RIGOR-P01`:
   verification and handoff for this phase.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P06.md` records the executor
   verification and handoff for the requeue scan phase.
+  reason-code taxonomy for inconclusive governance verdict evidence.
+- The governance `EVIDENCE_READY` transition requires a present, parseable, and
+  non-destructively writable trial-ledger path before evidence can be accepted.
+- `src/alpha_system/governance/variant_ledger.py` defines first-class
+  `VariantLedgerRecord` JSONL persistence, family budget roll-ups, and
+  provenance-carrying budget amendments.
+- `StudySpec.family_budget` is optional and validated when declared; legacy
+  StudySpec payloads remain valid without it.
+- The governance promotion gate now enforces variant-ledger budget status at
+  study entry and composes that check with the trial-ledger presence gate before
+  `EVIDENCE_READY`.
+- `alpha governance variant-ledger-summary` provides a read-only ledger scan and
+  optional family-budget status summary.
+- `research/discovery_rigor_floor_v1/RIGOR_P02_GATE_INVENTORY.md` records the
+  value-free gate and bypass-test inventory.
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
+  FUTSUB boundary state at the P27/P28 gate.
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md`,
+  `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01.md`, and
+  `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P02.md` record executor verification
+  and handoffs for completed phases.
 
 The gated FUTSUB run
 `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` remains
@@ -76,6 +102,9 @@ verdict annotations only. Historical Core Pilot evidence remains append-only:
 the original reviewer verdicts, study specs, evidence, and ledgers are not
 changed. FUTSUB research artifacts, run state, registries, values, and
 worktrees remain untouched.
+RIGOR-P02 is governance-only: no historical Core Pilot artifacts, FUTSUB
+research artifacts, run state, registries, values, broker surfaces, execution
+engines, or worktrees are changed by this phase.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
