@@ -37,6 +37,7 @@ class GovernanceIdKind(StrEnum):
     BUDGET_AMENDMENT_RECORD = "BudgetAmendmentRecord"
     SEALED_HOLDOUT_WINDOW = "SealedHoldoutWindow"
     HOLDOUT_ACCESS_LOG = "HoldoutAccessLog"
+    POOLED_HYPOTHESIS_RECORD = "PooledHypothesisRecord"
 
 
 GOVERNANCE_ID_PREFIXES = MappingProxyType(
@@ -56,6 +57,7 @@ GOVERNANCE_ID_PREFIXES = MappingProxyType(
         GovernanceIdKind.BUDGET_AMENDMENT_RECORD.value: "bamend",
         GovernanceIdKind.SEALED_HOLDOUT_WINDOW.value: "holdwin",
         GovernanceIdKind.HOLDOUT_ACCESS_LOG.value: "haccess",
+        GovernanceIdKind.POOLED_HYPOTHESIS_RECORD.value: "poolhyp",
     }
 )
 GOVERNANCE_ID_OBJECTS_BY_PREFIX = MappingProxyType(
