@@ -1,0 +1,41 @@
+{
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "phase_id": "P040500_TRUE_ALPHA_DETECTION_CANARY",
+  "lane": "yellow",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-fresh-adversarial-wf1",
+  "reviewed_at": "2026-06-12",
+  "base_commit": "80008c5",
+  "diff_state": "uncommitted_worktree",
+  "evidence": {
+    "pytest_governance_discovery_rigor_floor": "661 passed in 3.30s",
+    "canary_runner_total_pass": 25,
+    "canary_runner_previous_total": 23,
+    "new_canaries": [
+      "true_alpha_detection_detect_strong",
+      "true_alpha_detection_no_detect_weak"
+    ],
+    "verify_smoke_exit": 0,
+    "strong_measured_abs_pearson_ic": 0.968325,
+    "weak_measured_abs_pearson_ic": 0.593103,
+    "detection_threshold_abs_pearson_ic": 0.95,
+    "zero_signal_artifact_check_abs_ic": 0.296517,
+    "independent_recompute_match": "exact to 6 decimals for both fixtures",
+    "computed_strong_snr": 4.0002,
+    "declared_strong_snr": 4.01,
+    "mutation_a_strong_degraded_expect_detect": "FAILED loudly (strong NOT_DETECTED 0.593103)",
+    "mutation_b_weak_planted_expect_no_detect": "FAILED loudly (weak DETECTED 0.968325)",
+    "mutation_c_clean_twin_recontaminated": "2 phase tests FAILED (gate-pass + shape assertions)",
+    "fixture_restore": "sha256 byte-identical verified for all three fixtures",
+    "forbidden_path_changes": "none under src/alpha_system/{features,labels,runtime}",
+    "staged_files": "none",
+    "git_ls_files_runs": "empty",
+    "determinism": "static JSON fixtures, no RNG; measured IC bit-reproducible"
+  },
+  "warnings": [
+    "Declared SNR 4.01 vs computed 4.0002 in strong fixture JSON, README, and research note; recommend correcting to 4.00",
+    "Clean-twin locked_test_contamination_flag hardcoded False; cleanliness enforced by canary precondition ValueError rather than gate-mediated flag (still fails loudly under mutation)",
+    "Clean-twin gate-pass asserted in pytest only, not registered as a canary_runner scenario (spec only required runner registration for the detect/no-detect pair)"
+  ],
+  "blocking_findings": []
+}
