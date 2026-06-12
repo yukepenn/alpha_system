@@ -6,25 +6,25 @@
   "findings": [],
   "required_repairs": [],
   "warnings": [
-    "W1: hash-mismatch refusal has ZERO enforced test coverage — test_real_surrogate_calibration_refuses_value_hash_mismatch is polars-gated and skips in dev venv, CI venv, and GitHub CI (polars absent everywhere incl. pyproject); mutation A (swallow hash mismatch into exclusion) survived the full suite; restored code verified correct by direct JSONL probe (raises FeatureLockValidationError). Follow-up: add a polars-free JSONL hash-mismatch refusal test.",
-    "W2: not-all-null boundary unpinned — no partial-null fixture exists; mutation B (exclude >=50%-null factors) survived 686 tests; restored code verified correct by direct probe (50%-null factor stages, zero exclusions). Follow-up: add a partial-null inclusion test.",
-    "W3: no_declared_factor_sub_configs raise is now dead code — _raise_if_no_numeric_declared_factors fires first when surrogate_specs is empty even with zero exclusions; fail-closed either way but the zero-lock error code silently changed and its 'actual' text misleads.",
-    "W4: rescore trusts manifest included_sub_config_count without cross-checking included+excluded == expected_sub_config_count from declared locks; mitigated by isolated-namespace tool-written manifest, schema + study_spec_id validation, and legacy fallback to declared count."
+    "W1: RESOLVED by repair 33f8916 — polars-free JSONL hash-mismatch-with-healthy-sibling test added (test_real_surrogate_calibration_refuses_jsonl_hash_mismatch_with_sibling); runs PASSED (not skipped) in the plain no-polars interpreter; mutation A re-applied post-repair and KILLED. Original finding (preserved for history): hash-mismatch refusal had ZERO enforced coverage because the only test was polars-gated and skipped everywhere.",
+    "W2: RESOLVED by repair 33f8916 — 3-of-6 partial-null inclusion test added (test_real_surrogate_calibration_includes_partial_null_factor); mutation B re-applied post-repair and KILLED. Original finding (preserved for history): not-all-null boundary was unpinned; mutation B survived 686 tests.",
+    "W3: RESOLVED by repair 33f8916 — dead no_declared_factor_sub_configs raise removed; removal verified behavior-neutral (raise sat immediately after the unconditionally-raising _raise_if_no_numeric_declared_factors call in the same branch); zero-lock/zero-numeric case stays fail-closed with no_numeric_declared_factors_for_surrogate (test re-run PASS).",
+    "W4: CARRIED (minor) — rescore trusts manifest included_sub_config_count without cross-checking included+excluded == expected_sub_config_count from declared locks; mitigated by isolated-namespace tool-written manifest, schema + study_spec_id validation, and legacy fallback to declared count."
   ],
   "mutation_tests": [
     {
       "id": "A",
       "mutation": "exclusion branch catches ValueError from _load_value_rows so hash mismatch becomes an all_null_values exclusion",
-      "result": "SURVIVED",
-      "failing_test": null,
-      "note": "hash-mismatch test skipped everywhere (polars); probe showed corrupted-hash factor silently excluded with run ACCEPTED when a healthy sibling factor exists; restored code refuses correctly"
+      "result": "SURVIVED at original review (coverage gap, code correct by probe); KILLED post-repair",
+      "failing_test": "test_real_surrogate_calibration_refuses_jsonl_hash_mismatch_with_sibling",
+      "note": "post-repair re-review independently re-applied the mutation: new test FAILED (DID NOT RAISE FeatureLockValidationError — corruption silently swallowed beside a healthy sibling); restored, tree clean; new test PASSED (un-skipped) in the plain no-polars interpreter"
     },
     {
       "id": "B",
       "mutation": "exclusion condition widened to null_count*2 >= len(staged_rows) (50%-null excluded)",
-      "result": "SURVIVED",
-      "failing_test": null,
-      "note": "686 passed under mutation; no partial-null fixture in suite; restored code stages 50%-null factor with zero exclusions"
+      "result": "SURVIVED at original review (coverage gap, code correct by probe); KILLED post-repair",
+      "failing_test": "test_real_surrogate_calibration_includes_partial_null_factor",
+      "note": "post-repair re-review independently re-applied the widening (gate + inner condition): new 3-of-6-null test FAILED (factor wrongly excluded, fail-closed no_numeric_declared_factors_for_surrogate); restored, tree clean"
     },
     {
       "id": "C",
@@ -34,22 +34,31 @@
     }
   ],
   "checks": {
-    "exclusion_after_hash_and_fver": "PASS — order: resolver/lock checks -> verify_registered_value_store_content_hash -> _filter_rows_by_version (locked_value_rows_not_found blocks empty staged set) -> all-null exclusion; hash mismatch raises FeatureLockValidationError before exclusion is reachable",
-    "not_all_null_proceeds": "PASS in code (direct probe); unpinned by tests (W2)",
-    "zero_numeric_fail_closed": "PASS — no_numeric_declared_factors_for_surrogate asserted by test; mutation C killed; dead-code fallback raise still fail-closes",
+    "exclusion_after_hash_and_fver": "PASS — order: resolver/lock checks -> verify_registered_value_store_content_hash -> _filter_rows_by_version (locked_value_rows_not_found blocks empty staged set) -> all-null exclusion; hash mismatch raises FeatureLockValidationError before exclusion is reachable; now pinned by enforced test",
+    "not_all_null_proceeds": "PASS — now pinned by enforced test (3-of-6 partial-null factor stages, calibrates, zero exclusions)",
+    "zero_numeric_fail_closed": "PASS — no_numeric_declared_factors_for_surrogate asserted by test; mutation C killed; dead fallback raise removed in repair, removal verified behavior-neutral",
     "report_value_free": "PASS — excluded_factors = ids/reason/counts only; excluded staged jsonl unlinked; included-factor declared-K and bound statement unchanged",
     "rescore_consistency": "PASS — mixed test asserts rescored run_count and excluded_factors equal staging result; manifest schema/study_spec_id fail closed (W4 note)",
-    "diff_scope": "PASS — 4 files only (tool, tests, spec, handoff); perturbations/detection statistic/src integrity code untouched; one nuance: zero-lock error code changed (W3)",
-    "handoff_truthful": "PASS — re-ran: 686 passed/2 skipped; canaries all pass; verify --smoke exit 0; ci-parity 3315 passed/80 skipped (twice, second on restored clean tree); substrate-finding note (bbo_tradability_spread_ticks all-null -> caveat register + refit first-light) present"
+    "diff_scope": "PASS — repair diff (6504860..33f8916) touches exactly 3 files: tool, test module, phase handoff; no other drift; git status clean after all post-repair mutation restores",
+    "handoff_truthful": "PASS — repair handoff claims independently re-verified: 688 passed/2 skipped plain venv (== handoff's 690 in polars-bearing research venv); canaries pass; smoke exit 0; ci-parity 3317 passed/80 skipped"
   },
   "validation": {
-    "unit_tests": "686 passed, 2 skipped",
+    "unit_tests": "688 passed, 2 skipped (plain no-polars interpreter; +2 new tests vs original 686+2)",
     "canaries": "PASS",
     "verify_smoke": "PASS (exit 0)",
-    "ci_parity": "3315 passed, 80 skipped",
+    "ci_parity": "3317 passed, 80 skipped",
     "worktree_clean_after_mutations": true
   },
   "reviewed_commit": "a95d719",
+  "repair_commit": "33f8916",
   "reviewer": "claude-adversarial-wf1-fresh",
-  "reviewed_at": "2026-06-12"
+  "reviewed_at": "2026-06-12",
+  "post_repair_reverdict": {
+    "verdict": "PASS_WITH_WARNINGS",
+    "reverdict_at": "2026-06-12",
+    "mutations_a_b": "KILLED (independently re-applied and re-killed by this re-review)",
+    "warnings_resolved": ["W1", "W2", "W3"],
+    "warnings_carried": ["W4 (minor)"],
+    "history_note": "original verdict and SURVIVED records preserved; coverage repaired, no REWORK — production code was correct throughout"
+  }
 }

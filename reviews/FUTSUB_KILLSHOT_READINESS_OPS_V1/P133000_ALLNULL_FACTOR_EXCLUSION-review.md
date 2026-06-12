@@ -163,3 +163,84 @@ suite (one inherited from `origin/main`), not defects in the change; both
 prime-risk properties were independently proven by direct probes in this
 review. PASS_WITH_WARNINGS, with W1/W2 as strongly recommended follow-up
 tests before the kill-shot calibration is interpreted.
+
+---
+
+## Post-repair re-verdict
+
+- Re-reviewer: fresh post-repair adversarial pass (Workflow 1)
+- Date: 2026-06-12
+- Repair commit: `33f8916` ("P133000 repair: pin hash-mismatch + partial-null
+  boundaries (polars-free), remove dead raise")
+- Re-reviewed independently — executor claims NOT trusted; both mutations
+  re-applied by this reviewer, all gates re-run from scratch.
+
+### Re-verification results
+
+1. **Mutation A re-applied → KILLED.** Re-applied the exact prior mutation
+   (wrap `_load_value_rows` in `_materialize_factor_jsonl` with
+   `except ValueError` returning an `all_null_values` exclusion, so a hash
+   mismatch is swallowed). The NEW test
+   `test_real_surrogate_calibration_refuses_jsonl_hash_mismatch_with_sibling`
+   FAILED under the mutation (`DID NOT RAISE FeatureLockValidationError` —
+   exactly the silent-swallow failure mode with a healthy sibling factor
+   keeping the run alive). Restored via `git checkout`; tree verified clean.
+2. **Mutation B re-applied → KILLED.** Re-applied the prior widening
+   (`numeric_count == 0` gate and `null_count == len(staged_rows)` exclusion
+   condition → `null_count * 2 >= len(staged_rows)`, i.e. >=50%-null
+   excluded). The NEW test
+   `test_real_surrogate_calibration_includes_partial_null_factor` (3-of-6
+   null) FAILED under the mutation (factor wrongly excluded → namespace
+   fail-closed with `no_numeric_declared_factors_for_surrogate`). Restored;
+   tree verified clean.
+3. **New tests are enforced (not skipped).** Verbose run under the plain
+   interpreter (`/usr/bin/python`, independently verified to have NO `polars`;
+   `pyproject.toml` has no polars dependency): both new tests reported
+   `PASSED`. Only the two pre-existing polars-gated tests report `SKIPPED`.
+   The W1 coverage gap is closed in every enforced environment.
+4. **Dead-code removal is behavior-neutral.** The removed
+   `no_declared_factor_sub_configs` raise sat directly after
+   `_raise_if_no_numeric_declared_factors(included_sub_config_count=0, ...)`
+   inside the same `if not surrogate_specs:` block; that call raises
+   unconditionally when included count is 0, so the removed raise was provably
+   unreachable. Zero-numeric/zero-lock case stays fail-closed with code
+   `no_numeric_declared_factors_for_surrogate` — re-confirmed by running
+   `test_real_surrogate_calibration_refuses_when_all_declared_factors_all_null`
+   (PASS, asserts that exact code).
+5. **Full gates re-run (post-restore, clean tree):**
+   - `PYTHONPATH=$PWD:$PWD/src python -m pytest tests/unit/discovery_rigor_floor tests/unit/governance -q`
+     → **688 passed, 2 skipped** (686+2 pre-repair + 2 new tests; the 2 skips
+     are the pre-existing polars-gated tests — equals the handoff's "690
+     passed" in the polars-bearing research venv).
+   - `PYTHONPATH=$PWD/src python tools/hooks/canary_runner.py` → all Frontier
+     canaries passed.
+   - `PYTHONPATH=$PWD/src python tools/verify.py --smoke` → exit 0.
+   - `just ci-parity` (CI venv) → **3317 passed, 80 skipped** (was 3315+80;
+     +2 = the new tests).
+6. **No diff drift.** `git diff 6504860..33f8916` touches exactly the 3
+   stated files: the tool, its test module, and the phase handoff. `git
+   status` clean after all mutation restores.
+
+### Warning disposition
+
+- **W1 — RESOLVED.** Polars-free JSONL hash-mismatch-with-healthy-sibling
+  test added; mutation A now killed in the enforced suite.
+- **W2 — RESOLVED.** 3-of-6 partial-null inclusion test added; mutation B now
+  killed in the enforced suite.
+- **W3 — RESOLVED.** Dead `no_declared_factor_sub_configs` raise removed;
+  behavior-neutral (see item 4).
+- **W4 — CARRIED (minor).** Rescore still trusts the manifest's
+  `included_sub_config_count` without cross-checking
+  `included + excluded == expected_sub_config_count`; mitigations unchanged
+  (isolated tool-written manifest, schema + study_spec_id validation,
+  fail-closed malformed records, legacy declared-count fallback). Acceptable
+  residual.
+
+### Post-repair verdict
+
+**PASS_WITH_WARNINGS** (W4 carried as minor). The original verdict record
+stands unchanged for history (mutations A/B SURVIVED at original review time
+due to coverage gaps); the repair closed both coverage gaps and this re-review
+independently confirmed both mutations are now KILLED by the new enforced
+tests. No REWORK was required at any point — the production code was correct
+throughout; only test coverage was repaired.
