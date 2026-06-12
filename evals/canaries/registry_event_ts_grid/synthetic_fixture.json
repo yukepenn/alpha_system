@@ -1,0 +1,32 @@
+{
+  "fixture_id": "registry_event_ts_grid_synthetic_v1",
+  "registrations": [
+    {
+      "registration_kind": "feature",
+      "family": "base_ohlcv",
+      "pack_id": "feature_set_base_ohlcv_synthetic",
+      "registration_id": "base_ohlcv_returns",
+      "version_id": "fver_synthetic_base_ohlcv_returns",
+      "first_event_ts": "2024-01-02T14:31:00+00:00",
+      "last_event_ts": "2024-01-02T14:32:00+00:00"
+    },
+    {
+      "registration_kind": "feature",
+      "family": "bbo_tradability",
+      "pack_id": "feature_set_bbo_tradability_synthetic",
+      "registration_id": "bbo_tradability_mid",
+      "version_id": "fver_synthetic_bbo_mid",
+      "first_event_ts": "2024-01-02T14:31:00.800000+00:00",
+      "last_event_ts": "2024-01-02T14:32:00.800000+00:00"
+    },
+    {
+      "registration_kind": "label",
+      "family": "cost_adjusted",
+      "pack_id": "label_pack_cost_adjusted_synthetic",
+      "registration_id": "spread_adjusted_fwd_ret",
+      "version_id": "lver_synthetic_cost_adjusted",
+      "first_event_ts": "2024-01-02T14:31:00.250000+00:00",
+      "last_event_ts": "2024-01-02T14:32:00.250000+00:00"
+    }
+  ]
+}

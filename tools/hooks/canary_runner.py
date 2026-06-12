@@ -20,6 +20,7 @@ class Canary:
     command: list[str]
     paths: dict[str, str]
     expect_block: bool = True
+    report_on_pass: bool = False
 
 
 def write_files(base: Path, paths: dict[str, str]) -> None:
@@ -109,7 +110,8 @@ def true_alpha_detection_canary(strength: str, *, expected_detection: bool) -> C
         "from alpha_system.governance.canaries.true_alpha_detection import "
         "run_true_alpha_detection_canary; "
         "\ntry:\n"
-        "    with tempfile.TemporaryDirectory(prefix='frontier-true-alpha-detection-') as raw_tmp:\n"
+        "    with tempfile.TemporaryDirectory("
+        "prefix='frontier-true-alpha-detection-') as raw_tmp:\n"
         f"        result = run_true_alpha_detection_canary({strength!r}, workspace=Path(raw_tmp))\n"
         "except Exception as exc:\n"
         "    print(f'ERROR true_alpha_detection {type(exc).__name__}: {exc}', file=sys.stderr)\n"
@@ -119,13 +121,30 @@ def true_alpha_detection_canary(strength: str, *, expected_detection: bool) -> C
         "    f'{result.measured_abs_pearson_ic:.6f} '\n"
         "    f'{result.detection_threshold_abs_pearson_ic:.6f}'\n"
         ")\n"
-        f"raise SystemExit(0 if result.detected is {expected_detection!r} and result.expectation_met else 1)\n"
+        f"raise SystemExit(0 if result.detected is {expected_detection!r} "
+        "and result.expectation_met else 1)\n"
     )
     return Canary(
         f"true_alpha_detection_{expectation}_{strength}",
         [sys.executable, "-c", snippet],
         {},
         expect_block=False,
+    )
+
+
+def registry_event_ts_grid_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.registry_event_ts_grid import main; "
+        "raise SystemExit(main(['--mode', 'synthetic']))"
+    )
+    return Canary(
+        "registry_event_ts_grid",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+        report_on_pass=True,
     )
 
 
@@ -248,8 +267,7 @@ def scenarios() -> list[Canary]:
             [py, str(HOOKS / "forbidden_pattern_guard.py"), "src/runtime_ops.py"],
             {
                 "src/runtime_ops.py": (
-                    "def run():\n    PLACE_LIVE_ORDER = True\n"
-                    "    return PLACE_LIVE_ORDER\n"
+                    "def run():\n    PLACE_LIVE_ORDER = True\n    return PLACE_LIVE_ORDER\n"
                 )
             },
         ),
@@ -262,7 +280,8 @@ def scenarios() -> list[Canary]:
             {
                 "src/alpha_system/research_alt_pnl.py": (
                     "def compute_pnl(trades):\n    return sum(t.qty * t.px for t in trades)\n\n\n"
-                    "def build_equity_curve(trades):\n    return [compute_pnl(trades[:i]) for i in range(len(trades))]\n"
+                    "def build_equity_curve(trades):\n"
+                    "    return [compute_pnl(trades[:i]) for i in range(len(trades))]\n"
                 )
             },
         ),
@@ -270,7 +289,11 @@ def scenarios() -> list[Canary]:
             # The sanctioned reference engine path must NOT false-positive:
             # pnl/equity-curve definitions are legitimate there.
             "sanctioned_pnl_truth_allowed",
-            [py, str(HOOKS / "forbidden_pattern_guard.py"), "src/alpha_system/backtest/accounting_ext.py"],
+            [
+                py,
+                str(HOOKS / "forbidden_pattern_guard.py"),
+                "src/alpha_system/backtest/accounting_ext.py",
+            ],
             {
                 "src/alpha_system/backtest/accounting_ext.py": (
                     "def realized_pnl(fills):\n    return sum(f.qty * f.px for f in fills)\n"
@@ -314,6 +337,7 @@ def scenarios() -> list[Canary]:
         governance_canary("future_shift"),
         governance_canary("permuted_labels"),
         governance_canary("optimistic_fill"),
+        registry_event_ts_grid_canary(),
         planted_fake_alpha_canary(),
         true_alpha_detection_canary("strong", expected_detection=True),
         true_alpha_detection_canary("weak", expected_detection=False),
@@ -326,6 +350,8 @@ def main() -> int:
         passed, detail = run_canary(canary)
         if passed:
             print(f"PASS {canary.name}")
+            if canary.report_on_pass and detail:
+                print(detail)
         else:
             print(f"FAIL {canary.name}")
             if detail:

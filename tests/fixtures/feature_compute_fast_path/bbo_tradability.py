@@ -83,7 +83,7 @@ def _row(index: int, start: datetime, spec: dict[str, Any]) -> dict[str, Any]:
         "series_id": "ES_CONTINUOUS",
         "bar_start_ts": bar_start.isoformat(),
         "bar_end_ts": bar_end.isoformat(),
-        "event_ts": bar_end.isoformat(),
+        "event_ts": (bar_end - timedelta(milliseconds=200)).isoformat(),
         "available_ts": (bar_end + timedelta(seconds=1)).isoformat(),
         "ingested_at": (bar_end + timedelta(seconds=2)).isoformat(),
         "bid": str(bid),

@@ -314,7 +314,7 @@ def _prepare_frame(frame: Any) -> Any:
     prepared = frame.with_columns(
         (
             _template_session_label(pl, session_clock).alias(_SESSION),
-            pl.col("event_ts").cast(pl.Datetime("us", "UTC"), strict=False).alias(_EVENT_TS),
+            pl.col("bar_end_ts").cast(pl.Datetime("us", "UTC"), strict=False).alias(_EVENT_TS),
             pl.col("available_ts")
             .cast(pl.Datetime("us", "UTC"), strict=False)
             .alias(_AVAILABLE_TS),

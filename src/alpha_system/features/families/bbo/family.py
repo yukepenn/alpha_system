@@ -635,7 +635,7 @@ def _feature_value_record(
     return FeatureValueRecord(
         feature_version_id=definition.feature_version_id,
         entity_id=row.series_id,
-        event_ts=row.event_ts,
+        event_ts=row.bar_end_ts,
         available_ts=row.available_ts,
         value=value,
         quality_flags=_quality_flags(quality_flags),
@@ -698,7 +698,7 @@ def _points_from_valid_bbo_rows(
             points.append(
                 PrimitivePoint(
                     available_ts=row.available_ts,
-                    event_ts=row.event_ts,
+                    event_ts=row.bar_end_ts,
                     value=None,
                     session_label=state.segment_label,
                     quality_flags=_bbo_gap_flags(row),
@@ -708,7 +708,7 @@ def _points_from_valid_bbo_rows(
         points.append(
             PrimitivePoint(
                 available_ts=row.available_ts,
-                event_ts=row.event_ts,
+                event_ts=row.bar_end_ts,
                 value=_to_float(getattr(row, field_name), field_name),
                 session_label=state.segment_label,
                 quality_flags=(),

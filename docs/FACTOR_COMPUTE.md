@@ -24,9 +24,18 @@ data_version
 compute_version
 ```
 
-`event_ts` is the bar event timestamp. `available_ts` is the input bar
-`available_ts` plus the factor spec's `availability_lag`; it is not copied from
-future data and is never earlier than the input availability timestamp.
+`event_ts` is the emitted bar event timestamp. For bar-indexed feature
+families, every emitted `FeatureValueRecord.event_ts` MUST lie on the completed
+bar grid (`bar_end_ts`). Canonical quote-time timestamps, such as BBO
+`event_ts` values sampled inside a minute bar, are input properties only; a
+family that consumes them must normalize its emitted feature timestamps to the
+row's `bar_end_ts`.
+
+This normalization is point-in-time conservative: a quote observed inside the
+bar is claimed at the completed bar boundary rather than earlier. `available_ts`
+remains the latency-aware input availability timestamp plus the factor spec's
+`availability_lag`; it is not copied from future data and is never earlier than
+the input availability timestamp.
 
 ## Dependency Rules
 
