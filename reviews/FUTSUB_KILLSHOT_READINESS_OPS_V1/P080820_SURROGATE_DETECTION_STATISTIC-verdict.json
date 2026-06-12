@@ -1,0 +1,52 @@
+{
+  "phase_id": "P080820_SURROGATE_DETECTION_STATISTIC",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "warning",
+      "summary": "No committed test for file-present-but-uncomputable statistic (null/NaN/bool/missing-directional pearson_ic); reviewer empirically verified all four variants fail closed as ERROR with DetectionStatisticError. Suggest follow-up fixture test."
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "summary": "Detection threshold declared twice (canary fixture JSON 0.95 and TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC constant); drift is CI-pinned by test_detection_fixtures_declare_threshold_pair asserting fixture == constant."
+    },
+    {
+      "id": "N1",
+      "severity": "note",
+      "summary": "reason_code UNDERPOWERED reused for expected statistic non-pass on null runs; pre-existing enum reuse, semantically imprecise but harmless."
+    },
+    {
+      "id": "N2",
+      "severity": "note",
+      "summary": "gate_outcome records threshold and diagnostic name but not the measured IC, consistent with value-free artifact policy; intentional."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "mutation": "detection_statistic.py: detected = measured >= threshold -> measured < threshold",
+      "result": "KILLED",
+      "detail": "16 failures including BOTH P040500 canary tests (strong detected, weak not detected) AND surrogate statistic/calibration tests; proves one shared IC truth consumed by both legs."
+    },
+    {
+      "mutation": "surrogate_run.py: statistic_passed = detection_statistic.detected -> False",
+      "result": "KILLED",
+      "detail": "4 failures: statistic-pass test, LEAKAGE_BLOCKED calibration test, statistic-over-eligibility test, P05 zero-pass canary; zero-pass not vacuous."
+    },
+    {
+      "mutation": "run_real_surrogate_calibration.py: rescore drops ERROR rows (silent missing-seed skip)",
+      "result": "KILLED",
+      "detail": "test_real_surrogate_rescore_marks_missing_diagnostic_summary_error failed (error_count 0 != 1)."
+    }
+  ],
+  "validation_reproduced": {
+    "tests_unit_governance": "640 passed",
+    "tests_unit_discovery_rigor_floor": "37 passed",
+    "canary_runner": "25 PASS, All Frontier canaries passed.",
+    "verify_smoke": "exit 0",
+    "ci_parity": "3304 passed, 75 skipped",
+    "git_status_after_mutation_restore": "clean",
+    "handoff_claims_match": true
+  }
+}

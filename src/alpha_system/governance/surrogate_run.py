@@ -27,6 +27,10 @@ from alpha_system.governance.canaries.negative_control_result import (
     NegativeControlPassFail,
     create_negative_control_result,
 )
+from alpha_system.governance.detection_statistic import (
+    TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC,
+    evaluate_detection_statistic,
+)
 from alpha_system.governance.evidence_bundle import create_evidence_bundle
 from alpha_system.governance.ids import (
     GovernanceIdError,
@@ -88,6 +92,9 @@ class SurrogateGateStatus(StrEnum):
 ZERO_PASS_MET = "zero-pass-met"
 LEAKAGE_BLOCKED = VerdictReasonCode.LEAKAGE_BLOCKED.value
 CALIBRATION_BLOCKED = "CALIBRATION_BLOCKED"
+SURROGATE_FALSE_PASS_BOUND_STATEMENT = (
+    "zero passes in K bounds false-pass rate at about 3/K at 95%"
+)
 SURROGATE_STUDY_RUN_FIELDS = (
     "surrogate_id",
     "original_study_spec_id",
@@ -249,6 +256,7 @@ class SurrogateCalibrationReport:
     error_count: int
     gate_pass_count: int
     gate_pass_rate: float
+    eligibility_clean_count: int
     threshold_verdict: str
     per_run: tuple[dict[str, JsonValue], ...]
 
@@ -257,6 +265,18 @@ class SurrogateCalibrationReport:
         """Return true only when zero pass and zero errors were observed."""
 
         return self.threshold_verdict == ZERO_PASS_MET
+
+    @property
+    def statistic_pass_count(self) -> int:
+        """Return the statistic pass count that drives threshold verdicts."""
+
+        return self.gate_pass_count
+
+    @property
+    def statistic_pass_rate(self) -> float:
+        """Return the statistic pass rate that drives threshold verdicts."""
+
+        return self.gate_pass_rate
 
     @property
     def perturbation_type_counts(self) -> dict[str, dict[str, JsonValue]]:
@@ -274,20 +294,29 @@ class SurrogateCalibrationReport:
                     "error_count": 0,
                     "gate_pass_count": 0,
                     "gate_pass_rate": 0.0,
+                    "statistic_pass_count": 0,
+                    "statistic_pass_rate": 0.0,
+                    "eligibility_clean_count": 0,
                     "threshold_verdict": ZERO_PASS_MET,
                 },
             )
             bucket["run_count"] = int(bucket["run_count"]) + 1
             if row["gate_status"] == SurrogateGateStatus.ERROR.value:
                 bucket["error_count"] = int(bucket["error_count"]) + 1
-            if row.get("passed") is True:
+            if _row_statistic_passed(row):
                 bucket["gate_pass_count"] = int(bucket["gate_pass_count"]) + 1
+                bucket["statistic_pass_count"] = int(bucket["statistic_pass_count"]) + 1
+            if row.get("eligibility_clean") is True:
+                bucket["eligibility_clean_count"] = int(bucket["eligibility_clean_count"]) + 1
 
         for bucket in grouped.values():
             run_count = int(bucket["run_count"])
             error_count = int(bucket["error_count"])
-            pass_count = int(bucket["gate_pass_count"])
-            bucket["gate_pass_rate"] = 0.0 if run_count == 0 else pass_count / run_count
+            pass_count = int(bucket["statistic_pass_count"])
+            pass_rate = 0.0 if run_count == 0 else pass_count / run_count
+            bucket["gate_pass_count"] = pass_count
+            bucket["gate_pass_rate"] = pass_rate
+            bucket["statistic_pass_rate"] = pass_rate
             if pass_count > 0:
                 bucket["threshold_verdict"] = LEAKAGE_BLOCKED
             elif error_count > 0:
@@ -304,6 +333,9 @@ class SurrogateCalibrationReport:
             "error_count": self.error_count,
             "gate_pass_count": self.gate_pass_count,
             "gate_pass_rate": self.gate_pass_rate,
+            "statistic_pass_count": self.statistic_pass_count,
+            "statistic_pass_rate": self.statistic_pass_rate,
+            "eligibility_clean_count": self.eligibility_clean_count,
             "threshold_verdict": self.threshold_verdict,
             "perturbation_type_counts": self.perturbation_type_counts,
             "per_run": [dict(row) for row in self.per_run],
@@ -462,6 +494,12 @@ def run_surrogate_study(
     )
     study_result = _run_study_deterministic(study_config, seed=active_seed)
     diagnostics_status = _diagnostics_status(study_result.summary.warnings)
+    detection_statistic = evaluate_detection_statistic(
+        study_result.summary,
+        threshold_abs_pearson_ic=TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC,
+    )
+    statistic_passed = detection_statistic.detected
+    eligibility_clean = diagnostics_status == "PASS"
     reason_code = (
         VerdictReasonCode.UNDERPOWERED
         if diagnostics_status == "INCONCLUSIVE"
@@ -557,15 +595,27 @@ def run_surrogate_study(
             variant_ledger_path=variant_ledger_path,
         ),
     )
-    passed = diagnostics_status == "PASS"
-    gate_status = SurrogateGateStatus.PASSED if passed else SurrogateGateStatus.BLOCKED
+    gate_status = (
+        SurrogateGateStatus.PASSED
+        if statistic_passed
+        else SurrogateGateStatus.BLOCKED
+    )
     gate_outcome: dict[str, JsonValue] = {
         "status": gate_status.value,
-        "passed": passed,
-        "reason_code": None if passed else VerdictReasonCode.UNDERPOWERED.value,
+        "passed": statistic_passed,
+        "statistic_passed": statistic_passed,
+        "eligibility_clean": eligibility_clean,
+        "reason_code": (
+            None if statistic_passed else VerdictReasonCode.UNDERPOWERED.value
+        ),
         "evidence_transition": f"{evidence_transition.previous_state.value}->"
         f"{evidence_transition.next_state.value}",
         "diagnostics_status": diagnostics_status,
+        "diagnostic_name": detection_statistic.diagnostic_name,
+        "detection_threshold_abs_pearson_ic": round(
+            detection_statistic.detection_threshold_abs_pearson_ic,
+            6,
+        ),
         "warning_count": len(study_result.summary.warnings),
     }
     run = create_surrogate_study_run(
@@ -654,15 +704,39 @@ def calibrate_surrogate_fdr(
                     "surrogate_id": result.run.surrogate_id,
                     "gate_status": str(result.run.gate_outcome["status"]),
                     "passed": result.passed,
+                    "statistic_passed": result.run.gate_outcome.get(
+                        "statistic_passed"
+                    )
+                    is True,
+                    "eligibility_clean": result.run.gate_outcome.get(
+                        "eligibility_clean"
+                    )
+                    is True,
                     "reason_code": result.run.gate_outcome.get("reason_code"),
                 }
             )
 
-    run_count = len(rows)
-    error_count = sum(1 for row in rows if row["gate_status"] == SurrogateGateStatus.ERROR.value)
-    gate_pass_count = sum(1 for row in rows if row.get("passed") is True)
-    pass_rate = 0.0 if run_count == 0 else gate_pass_count / run_count
-    if gate_pass_count > 0:
+    return surrogate_calibration_report_from_rows(rows)
+
+
+def surrogate_calibration_report_from_rows(
+    rows: Iterable[Mapping[str, JsonValue]],
+) -> SurrogateCalibrationReport:
+    """Aggregate value-free surrogate rows using statistic-pass semantics."""
+
+    materialized = tuple(cast(dict[str, JsonValue], dict(row)) for row in rows)
+    run_count = len(materialized)
+    error_count = sum(
+        1
+        for row in materialized
+        if row["gate_status"] == SurrogateGateStatus.ERROR.value
+    )
+    statistic_pass_count = sum(1 for row in materialized if _row_statistic_passed(row))
+    pass_rate = 0.0 if run_count == 0 else statistic_pass_count / run_count
+    eligibility_clean_count = sum(
+        1 for row in materialized if row.get("eligibility_clean") is True
+    )
+    if statistic_pass_count > 0:
         threshold_verdict = LEAKAGE_BLOCKED
     elif error_count > 0:
         threshold_verdict = CALIBRATION_BLOCKED
@@ -671,10 +745,11 @@ def calibrate_surrogate_fdr(
     return SurrogateCalibrationReport(
         run_count=run_count,
         error_count=error_count,
-        gate_pass_count=gate_pass_count,
+        gate_pass_count=statistic_pass_count,
         gate_pass_rate=pass_rate,
+        eligibility_clean_count=eligibility_clean_count,
         threshold_verdict=threshold_verdict,
-        per_run=tuple(rows),
+        per_run=materialized,
     )
 
 
@@ -694,35 +769,42 @@ def render_value_free_calibration_report(
         "",
         "## Threshold",
         "",
-        "- Declared threshold: zero shuffled runs may pass the promotion gate.",
+        "- Declared threshold: zero shuffled runs may clear the shared "
+        "detection statistic.",
+        "- Statistic: `directional.pearson_ic` absolute value against threshold "
+        f"`{TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC:.6f}`.",
         f"- Threshold verdict: `{report.threshold_verdict}`.",
-        "- Any shuffled pass is `LEAKAGE_BLOCKED` and requires diagnosis before "
-        "the kill-shot resumes.",
+        "- Any shuffled statistic pass is `LEAKAGE_BLOCKED` and requires "
+        "diagnosis before the kill-shot resumes.",
+        "- `eligibility_clean` records warning-free diagnostics as context only; "
+        "it is not the pass criterion.",
         "- Errored runs block calibration success and are not counted as non-passes.",
-        "- Bound statement: zero passes in K bounds false-pass rate at about 3/K "
-        "at 95%.",
+        f"- Bound statement: {SURROGATE_FALSE_PASS_BOUND_STATEMENT}.",
         "",
         "## Synthetic Calibration Summary",
         "",
         f"- Run count: {report.run_count}",
         f"- Error count: {report.error_count}",
-        f"- Gate pass count: {report.gate_pass_count}",
-        f"- Gate pass rate: {report.gate_pass_rate:.6f}",
+        f"- Statistic pass count: {report.statistic_pass_count}",
+        f"- Statistic pass rate: {report.statistic_pass_rate:.6f}",
+        f"- Eligibility clean count: {report.eligibility_clean_count}",
         "",
         "## Per-Perturbation Counts",
         "",
-        "| Perturbation | Runs | Errors | Passes | Pass Rate | Verdict |",
-        "|---|---:|---:|---:|---:|---|",
+        "| Perturbation | Runs | Errors | Statistic Passes | Eligibility Clean | Statistic Pass Rate | Verdict |",
+        "|---|---:|---:|---:|---:|---:|---|",
     ]
     for perturbation_type, counts in sorted(report.perturbation_type_counts.items()):
         lines.append(
-            "| {perturbation_type} | {run_count} | {error_count} | {gate_pass_count} | "
-            "{gate_pass_rate:.6f} | {threshold_verdict} |".format(
+            "| {perturbation_type} | {run_count} | {error_count} | "
+            "{statistic_pass_count} | {eligibility_clean_count} | "
+            "{statistic_pass_rate:.6f} | {threshold_verdict} |".format(
                 perturbation_type=perturbation_type,
                 run_count=counts["run_count"],
                 error_count=counts["error_count"],
-                gate_pass_count=counts["gate_pass_count"],
-                gate_pass_rate=float(counts["gate_pass_rate"]),
+                statistic_pass_count=counts["statistic_pass_count"],
+                eligibility_clean_count=counts["eligibility_clean_count"],
+                statistic_pass_rate=float(counts["statistic_pass_rate"]),
                 threshold_verdict=counts["threshold_verdict"],
             )
         )
@@ -731,18 +813,21 @@ def render_value_free_calibration_report(
             "",
             "## Per-Run Seeds And Outcomes",
             "",
-            "| StudySpec | Perturbation | Seed | Outcome | Surrogate ID | Reason |",
-            "|---|---|---:|---|---|---|",
+            "| StudySpec | Perturbation | Seed | Outcome | Statistic Passed | Eligibility Clean | Surrogate ID | Reason |",
+            "|---|---|---:|---|---|---|---|---|",
         ]
     )
     for row in report.per_run:
         lines.append(
             "| {study_spec_id} | {perturbation_type} | {seed} | {gate_status} | "
-            "{surrogate_id} | {reason} |".format(
+            "{statistic_passed} | {eligibility_clean} | {surrogate_id} | "
+            "{reason} |".format(
                 study_spec_id=row.get("study_spec_id", ""),
                 perturbation_type=row.get("perturbation_type", ""),
                 seed=row.get("seed", ""),
                 gate_status=row.get("gate_status", ""),
+                statistic_passed=row.get("statistic_passed", row.get("passed", "")),
+                eligibility_clean=row.get("eligibility_clean", ""),
                 surrogate_id=row.get("surrogate_id", ""),
                 reason=row.get("reason_code") or row.get("error_type") or "",
             )
@@ -1512,6 +1597,12 @@ def _coerce_study_spec(value: StudySpec | Mapping[str, Any]) -> StudySpec:
     )
 
 
+def _row_statistic_passed(row: Mapping[str, JsonValue]) -> bool:
+    if "statistic_passed" in row:
+        return row.get("statistic_passed") is True
+    return row.get("passed") is True
+
+
 def _error_row(
     study_spec: StudySpec,
     *,
@@ -1526,6 +1617,8 @@ def _error_row(
         "surrogate_id": "",
         "gate_status": SurrogateGateStatus.ERROR.value,
         "passed": False,
+        "statistic_passed": False,
+        "eligibility_clean": False,
         "reason_code": None,
         "error_type": type(exc).__name__,
     }
@@ -1798,6 +1891,7 @@ __all__ = [
     "render_value_free_calibration_report",
     "require_isolated_namespace",
     "run_surrogate_study",
+    "surrogate_calibration_report_from_rows",
     "validate_surrogate_study_run",
     "write_label_shuffled_copy",
     "write_trade_date_block_bootstrap_copy",

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -13,6 +12,12 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from alpha_system.core.hashing import hash_config
+from alpha_system.governance.detection_statistic import (
+    DETECTED,
+    DETECTION_DIAGNOSTIC,
+    NOT_DETECTED,
+    evaluate_detection_statistic,
+)
 from alpha_system.governance.canaries.catalog import (
     REQUIRED_NEGATIVE_CONTROL_TYPES,
     NegativeControlType,
@@ -57,9 +62,6 @@ DEFAULT_TRUE_ALPHA_DETECTION_FIXTURE_PATHS: Mapping[str, Path] = MappingProxyTyp
 DEFAULT_PLANTED_FAKE_ALPHA_CLEAN_TWIN_FIXTURE_PATH = Path(
     "evals/canaries/planted_fake_alpha_clean_twin/synthetic_fixture.json"
 )
-DETECTION_DIAGNOSTIC = "directional.pearson_ic"
-DETECTED = "DETECTED"
-NOT_DETECTED = "NOT_DETECTED"
 CREATED_AT = "2026-06-12T00:00:00Z"
 CODE_HASH = "1" * 64
 CONFIG_HASH = "2" * 64
@@ -219,9 +221,12 @@ def _run_true_alpha_detection_canary(
     floor_snr = _required_number(fixture, "declared_detectable_floor_signal_to_noise")
     study_spec = _detection_study_spec(fixture)
     summary = _diagnostic_summary(fixture, workspace=workspace)
-    measured = abs(_pearson_ic(summary))
-    detected = measured >= threshold
-    outcome = DETECTED if detected else NOT_DETECTED
+    statistic = evaluate_detection_statistic(
+        summary,
+        threshold_abs_pearson_ic=threshold,
+    )
+    measured = statistic.measured_abs_pearson_ic
+    detected = statistic.detected
     diagnostics_status = _diagnostics_status(summary)
     trial = _detection_trial_record(
         study_spec,
@@ -274,8 +279,8 @@ def _run_true_alpha_detection_canary(
         strength=strength,
         expected_detection=expected_detection,
         detected=detected,
-        detection_outcome=outcome,
-        diagnostic_name=DETECTION_DIAGNOSTIC,
+        detection_outcome=statistic.detection_outcome,
+        diagnostic_name=statistic.diagnostic_name,
         measured_abs_pearson_ic=round(measured, 6),
         detection_threshold_abs_pearson_ic=threshold,
         declared_signal_to_noise=declared_snr,
@@ -699,20 +704,6 @@ def _required_pass_results(study_spec_id: str) -> list[dict[str, object]]:
         ).to_dict()
         for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES
     ]
-
-
-def _pearson_ic(summary: DiagnosticSummary) -> float:
-    directional = summary.diagnostics.get("directional")
-    if not isinstance(directional, Mapping):
-        msg = "directional diagnostics are required for detection canary"
-        raise ValueError(msg)
-    value = directional.get("pearson_ic")
-    if isinstance(value, Mapping):
-        value = value.get("ic")
-    if not isinstance(value, int | float) or not math.isfinite(float(value)):
-        msg = "directional.pearson_ic must be a finite number"
-        raise ValueError(msg)
-    return float(value)
 
 
 def _diagnostics_status(summary: DiagnosticSummary) -> str:

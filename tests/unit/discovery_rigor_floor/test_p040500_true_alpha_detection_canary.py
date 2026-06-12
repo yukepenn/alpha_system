@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from alpha_system.governance.detection_statistic import (
+    TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC,
+)
 from alpha_system.governance.canaries import (
     DETECTED,
     NOT_DETECTED,
@@ -71,6 +74,10 @@ def test_detection_fixtures_declare_threshold_pair() -> None:
     assert strong["detection_threshold_abs_pearson_ic"] == weak[
         "detection_threshold_abs_pearson_ic"
     ]
+    assert (
+        strong["detection_threshold_abs_pearson_ic"]
+        == TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC
+    )
     assert strong["declared_detectable_floor_signal_to_noise"] == weak[
         "declared_detectable_floor_signal_to_noise"
     ]
