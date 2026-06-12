@@ -52,6 +52,7 @@ from alpha_system.governance.serialization import (
 )
 from alpha_system.governance.study_spec import StudySpec, validate_study_spec
 from alpha_system.governance.surrogate_run import (
+    SurrogatePerturbationType,
     calibrate_surrogate_fdr,
     write_value_free_calibration_report,
 )
@@ -586,6 +587,7 @@ def run_surrogate_calibrate(args: argparse.Namespace) -> int:
             run_budget=args.runs,
             base_seed=args.base_seed,
             namespace=args.namespace,
+            perturbation_type=args.perturbation,
         )
         payload: dict[str, object] = {
             "status": "ok" if report.accepted else "blocked",
@@ -747,7 +749,7 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
 
     surrogate_parser = governance_subparsers.add_parser(
         "surrogate-calibrate",
-        help="Run seeded label-shuffled surrogate-FDR calibration in an isolated namespace.",
+        help="Run seeded surrogate-FDR calibration in an isolated namespace.",
     )
     surrogate_parser.add_argument(
         "--study-spec",
@@ -759,7 +761,17 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         "--runs",
         type=int,
         required=True,
-        help="Number of seeded label-shuffled runs to execute per StudySpec.",
+        help="Number of seeded surrogate runs to execute per StudySpec.",
+    )
+    surrogate_parser.add_argument(
+        "--perturbation",
+        choices=(
+            SurrogatePerturbationType.LABEL_SHUFFLE.value,
+            SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE.value,
+            SurrogatePerturbationType.TRADE_DATE_BLOCK_BOOTSTRAP.value,
+        ),
+        default=SurrogatePerturbationType.LABEL_SHUFFLE.value,
+        help="Label perturbation to apply; defaults to label_shuffle.",
     )
     surrogate_parser.add_argument(
         "--base-seed",

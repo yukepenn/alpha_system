@@ -26,6 +26,8 @@ from alpha_system.governance.surrogate_run import (
     run_surrogate_study,
     validate_surrogate_study_run,
     write_label_shuffled_copy,
+    write_trade_date_block_bootstrap_copy,
+    write_trade_date_block_shuffled_copy,
 )
 from alpha_system.governance.validation import GovernanceValidationError
 
@@ -93,6 +95,88 @@ def test_label_shuffle_moves_values_without_changing_alignment_keys(tmp_path: Pa
     assert [row["value"] for row in shuffled] != [row["value"] for row in original]
 
 
+def test_trade_date_block_shuffle_preserves_skeleton_and_within_day_order(
+    tmp_path: Path,
+) -> None:
+    rows = _multi_day_label_rows((2, 2, 2))
+    labels_path = _write_jsonl(tmp_path / "labels.jsonl", rows)
+    output_path = tmp_path / "namespace" / "labels" / "block-shuffle.jsonl"
+
+    summary = write_trade_date_block_shuffled_copy(labels_path, output_path, seed=11)
+
+    shuffled = _read_jsonl(output_path)
+    assert summary["timestamp_field"] == "event_ts"
+    assert summary["moved_count"] == len(rows)
+    assert _without_values(shuffled) == _without_values(rows)
+    original_by_date = _values_by_date(rows)
+    shuffled_by_date = _values_by_date(shuffled)
+    assert set(shuffled_by_date) == set(original_by_date)
+    for trade_date, values in shuffled_by_date.items():
+        assert values in original_by_date.values()
+        assert values != original_by_date[trade_date]
+
+
+def test_trade_date_block_shuffle_counts_unmatched_lengths(tmp_path: Path) -> None:
+    rows = _multi_day_label_rows((2, 2, 1))
+    labels_path = _write_jsonl(tmp_path / "labels.jsonl", rows)
+    output_path = tmp_path / "namespace" / "labels" / "block-shuffle.jsonl"
+
+    summary = write_trade_date_block_shuffled_copy(labels_path, output_path, seed=12)
+
+    shuffled = _read_jsonl(output_path)
+    assert summary["unmatched_block_count"] == 1
+    assert summary["unmatched_record_count"] == 1
+    assert _values_by_date(shuffled)["2026-01-04"] == _values_by_date(rows)["2026-01-04"]
+
+
+def test_trade_date_block_shuffle_fails_closed_without_event_ts(tmp_path: Path) -> None:
+    rows = _multi_day_label_rows((2, 2))
+    rows[0].pop("event_ts")
+    labels_path = _write_jsonl(tmp_path / "labels.jsonl", rows)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        write_trade_date_block_shuffled_copy(
+            labels_path,
+            tmp_path / "out.jsonl",
+            seed=13,
+        )
+
+    assert exc_info.value.issues[0].code == "missing_label_block_timestamp"
+
+
+def test_trade_date_block_bootstrap_resamples_blocks_with_replacement(
+    tmp_path: Path,
+) -> None:
+    rows = _multi_day_label_rows((2, 2, 2))
+    labels_path = _write_jsonl(tmp_path / "labels.jsonl", rows)
+    output_path = tmp_path / "namespace" / "labels" / "block-bootstrap.jsonl"
+    seed = _seed_for_bootstrap_duplicate(labels_path, output_path)
+
+    first = write_trade_date_block_bootstrap_copy(labels_path, output_path, seed=seed)
+    first_rows = _read_jsonl(output_path)
+    second_path = tmp_path / "namespace" / "labels" / "block-bootstrap-repeat.jsonl"
+    second = write_trade_date_block_bootstrap_copy(labels_path, second_path, seed=seed)
+
+    assert first["duplicate_source_block_count"] > 0
+    assert first["moved_count"] > 0
+    assert first == second
+    assert first_rows == _read_jsonl(second_path)
+    assert _without_values(first_rows) == _without_values(rows)
+    original_blocks = set(_values_by_date(rows).values())
+    assert set(_values_by_date(first_rows).values()).issubset(original_blocks)
+
+
+def test_trade_date_block_bootstrap_rejects_identity_arrangement(tmp_path: Path) -> None:
+    labels_path = _write_jsonl(tmp_path / "labels.jsonl", _multi_day_label_rows((1, 1)))
+    output_path = tmp_path / "namespace" / "labels" / "block-bootstrap.jsonl"
+    identity_seed = _seed_for_bootstrap_identity(labels_path, output_path)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        write_trade_date_block_bootstrap_copy(labels_path, output_path, seed=identity_seed)
+
+    assert exc_info.value.issues[0].code == "identity_trade_date_block_bootstrap"
+
+
 def test_surrogate_runner_uses_isolated_namespace_and_real_gate_stack(
     tmp_path: Path,
 ) -> None:
@@ -113,6 +197,34 @@ def test_surrogate_runner_uses_isolated_namespace_and_real_gate_stack(
     )
     assert trial_ledger["records"][0]["surrogate_flag"] is True
     assert Path(result.paths.variant_ledger_path).read_text(encoding="utf-8") == ""
+
+
+@pytest.mark.parametrize(
+    "perturbation_type",
+    (
+        SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE,
+        SurrogatePerturbationType.TRADE_DATE_BLOCK_BOOTSTRAP,
+    ),
+)
+def test_surrogate_runner_threads_block_perturbation_types(
+    tmp_path: Path,
+    perturbation_type: SurrogatePerturbationType,
+) -> None:
+    namespace = tmp_path / f"rigor_p05_surrogate_{perturbation_type.value}"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=10, multi_day=True)
+
+    result = run_surrogate_study(
+        spec,
+        seed=61,
+        namespace=namespace,
+        perturbation_type=perturbation_type,
+    )
+
+    assert result.run.perturbation_type is perturbation_type
+    assert result.run.gate_outcome["status"] == SurrogateGateStatus.BLOCKED.value
+    assert result.run.gate_outcome["passed"] is False
+    assert Path(result.paths.shuffled_labels_path).name == f"{perturbation_type.value}.jsonl"
 
 
 def test_surrogate_runner_is_seed_deterministic(tmp_path: Path) -> None:
@@ -149,6 +261,27 @@ def test_calibration_zero_pass_threshold_met_on_blocked_synthetic_runs(
     rendered = render_value_free_calibration_report(report)
     assert "Run count: 2" in rendered
     assert "0.03" not in rendered
+
+
+def test_calibration_records_per_perturbation_type_counts(tmp_path: Path) -> None:
+    namespace = tmp_path / "rigor_p05_surrogate_block_counts"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=10, multi_day=True)
+
+    report = calibrate_surrogate_fdr(
+        (spec,),
+        run_budget=2,
+        base_seed=500,
+        namespace=namespace,
+        perturbation_type=SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE,
+    )
+
+    counts = report.perturbation_type_counts[
+        SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE.value
+    ]
+    assert counts["run_count"] == 2
+    assert counts["error_count"] == 0
+    assert report.per_run[0]["perturbation_type"] == "trade_date_block_shuffle"
 
 
 def test_calibration_reports_leakage_blocked_when_any_shuffled_run_passes(
@@ -229,9 +362,47 @@ def test_surrogate_calibrate_cli_writes_value_free_report(
     assert report_path.read_text(encoding="utf-8").count("Gate pass rate") == 1
 
 
-def _study_spec(tmp_path: Path, *, min_total: int):
-    factor_path = _write_jsonl(tmp_path / f"factor-values-{min_total}.jsonl", _factor_rows())
-    label_path = _write_jsonl(tmp_path / f"labels-{min_total}.jsonl", _label_rows())
+def test_surrogate_calibrate_cli_accepts_block_perturbation_flag(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    namespace = tmp_path / "rigor_p05_surrogate_cli_block"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=10, multi_day=True)
+    spec_path = _write_json(tmp_path / "study-spec.json", spec.to_dict())
+
+    code = main(
+        [
+            "governance",
+            "surrogate-calibrate",
+            "--study-spec",
+            str(spec_path),
+            "--runs",
+            "1",
+            "--base-seed",
+            "600",
+            "--namespace",
+            str(namespace),
+            "--perturbation",
+            "trade_date_block_shuffle",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["per_run"][0]["perturbation_type"] == "trade_date_block_shuffle"
+    assert payload["perturbation_type_counts"]["trade_date_block_shuffle"]["run_count"] == 1
+
+
+def _study_spec(tmp_path: Path, *, min_total: int, multi_day: bool = False):
+    factor_path = _write_jsonl(
+        tmp_path / f"factor-values-{min_total}.jsonl",
+        _factor_rows(multi_day=multi_day),
+    )
+    label_path = _write_jsonl(
+        tmp_path / f"labels-{min_total}.jsonl",
+        _multi_day_label_rows((2, 2, 2)) if multi_day else _label_rows(),
+    )
     payload = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     payload["dataset_scope"] = {
         **payload["dataset_scope"],
@@ -253,7 +424,13 @@ def _study_spec(tmp_path: Path, *, min_total: int):
     return validate_study_spec(payload)
 
 
-def _factor_rows() -> list[dict[str, object]]:
+def _factor_rows(*, multi_day: bool = False) -> list[dict[str, object]]:
+    if not multi_day:
+        return _single_day_factor_rows()
+    return _multi_day_factor_rows()
+
+
+def _single_day_factor_rows() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for index, value in enumerate([1.0, 2.0, -1.0, -2.0]):
         event_ts = _event_ts(index)
@@ -265,6 +442,29 @@ def _factor_rows() -> list[dict[str, object]]:
                 "event_ts": _text(event_ts),
                 "available_ts": _text(event_ts + timedelta(seconds=5)),
                 "session_id": "XNYS:2026-01-02:regular",
+                "bar_index": index,
+                "value": value,
+                "normalized_value": value,
+                "quality_flags": ["synthetic"],
+                "data_version": "data:v1",
+                "compute_version": "test",
+            }
+        )
+    return rows
+
+
+def _multi_day_factor_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for index, value in enumerate([1.0, 2.0, -1.0, -2.0, 1.5, -1.5]):
+        event_ts = _event_ts(index % 2, day_offset=index // 2)
+        rows.append(
+            {
+                "factor_id": "fixture_close_delta",
+                "factor_version": "v1",
+                "instrument_id": "SYNTH",
+                "event_ts": _text(event_ts),
+                "available_ts": _text(event_ts + timedelta(seconds=5)),
+                "session_id": f"XNYS:{event_ts.date().isoformat()}:regular",
                 "bar_index": index,
                 "value": value,
                 "normalized_value": value,
@@ -304,8 +504,38 @@ def _label_rows() -> list[dict[str, object]]:
     return rows
 
 
-def _event_ts(index: int) -> datetime:
-    return datetime(2026, 1, 2, 14, 31 + index, tzinfo=UTC)
+def _multi_day_label_rows(day_lengths: tuple[int, ...]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    value = 1
+    for day_offset, day_length in enumerate(day_lengths):
+        for index in range(day_length):
+            event_ts = _event_ts(index, day_offset=day_offset)
+            horizon_end = event_ts + timedelta(seconds=60)
+            rows.append(
+                {
+                    "label_id": "forward_return_1m",
+                    "instrument_id": "SYNTH",
+                    "event_ts": _text(event_ts),
+                    "horizon": 60,
+                    "label_type": "forward_return_1m",
+                    "value": value,
+                    "path_metadata": {
+                        "session_id": f"XNYS:{event_ts.date().isoformat()}:regular",
+                        "label_version": "labels:v1",
+                        "horizon_end_ts": _text(horizon_end),
+                        "required_future_bars": 1,
+                        "observed_future_bars": 1,
+                    },
+                    "data_version": "data:v1",
+                    "label_available_ts": _text(event_ts + timedelta(seconds=65)),
+                }
+            )
+            value += 1
+    return rows
+
+
+def _event_ts(index: int, *, day_offset: int = 0) -> datetime:
+    return datetime(2026, 1, 2 + day_offset, 14, 31 + index, tzinfo=UTC)
 
 
 def _text(value: datetime) -> str:
@@ -331,3 +561,36 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+def _without_values(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [{key: value for key, value in row.items() if key != "value"} for row in rows]
+
+
+def _values_by_date(rows: list[dict[str, object]]) -> dict[str, tuple[object, ...]]:
+    values: dict[str, list[object]] = {}
+    for row in rows:
+        trade_date = str(row["event_ts"])[:10]
+        values.setdefault(trade_date, []).append(row["value"])
+    return {trade_date: tuple(items) for trade_date, items in values.items()}
+
+
+def _seed_for_bootstrap_duplicate(labels_path: Path, output_path: Path) -> int:
+    for seed in range(200):
+        try:
+            summary = write_trade_date_block_bootstrap_copy(labels_path, output_path, seed=seed)
+        except GovernanceValidationError:
+            continue
+        if int(summary["duplicate_source_block_count"]) > 0:
+            return seed
+    raise AssertionError("no duplicate bootstrap seed found")
+
+
+def _seed_for_bootstrap_identity(labels_path: Path, output_path: Path) -> int:
+    for seed in range(200):
+        try:
+            write_trade_date_block_bootstrap_copy(labels_path, output_path, seed=seed)
+        except GovernanceValidationError as exc:
+            if exc.issues[0].code == "identity_trade_date_block_bootstrap":
+                return seed
+    raise AssertionError("no identity bootstrap seed found")

@@ -43,6 +43,16 @@ def _spec() -> DatabentoRequestSpec:
     )
 
 
+def _tbbo_spec() -> DatabentoRequestSpec:
+    return DatabentoRequestSpec(
+        symbols=SYMBOLS,
+        stype_in="continuous",
+        schemas=("tbbo",),
+        start=SESSION_START,
+        end=SESSION_END,
+    )
+
+
 def _write_file_manifest(tmp_path: Path, data_root: Path) -> Path:
     manifest = DatabentoFileManifest(
         raw_root=(data_root / "raw").as_posix(),
@@ -137,6 +147,40 @@ def _record_source(
     return source
 
 
+def _tbbo_record_source() -> object:
+    def source(**kwargs: object) -> Mapping[str, tuple[Mapping[str, object], ...]]:
+        del kwargs
+        base_prices = {"ES": Decimal("5000"), "NQ": Decimal("17000"), "RTY": Decimal("2000")}
+        rows = []
+        for index, root in enumerate(ROOTS):
+            symbol = f"{root}.v.0"
+            trade_price = base_prices[root] + Decimal("0.50")
+            bid = trade_price - Decimal("0.25")
+            ask = trade_price + Decimal("0.25")
+            rows.append(
+                {
+                    "schema": "tbbo",
+                    "symbol": symbol,
+                    "instrument_id": index + 1,
+                    "ts_event": SESSION_START + timedelta(minutes=index, seconds=15),
+                    "price": _fixed_price(trade_price),
+                    "size": str(index + 2),
+                    "side": "A" if root == "ES" else "B",
+                    "bid_px_00": _fixed_price(bid),
+                    "ask_px_00": _fixed_price(ask),
+                    "bid_sz_00": str(11 + index),
+                    "ask_sz_00": str(12 + index),
+                    "bid_ct_00": 2 + index,
+                    "ask_ct_00": 3 + index,
+                    "sequence": 1000 + index,
+                    "ts_in_delta": 500 + index,
+                }
+            )
+        return {"tbbo": tuple(rows)}
+
+    return source
+
+
 def _env(data_root: Path) -> dict[str, str]:
     return {"CI": "true", "ALPHA_DATA_ROOT": data_root.as_posix()}
 
@@ -164,11 +208,71 @@ def _jsonl_rows(paths: tuple[str, ...]) -> list[dict[str, object]]:
     rows = []
     for path_text in paths:
         path = Path(path_text)
-        if path.suffix != ".jsonl":
+        if path.suffix == ".jsonl":
+            with path.open("r", encoding="utf-8") as handle:
+                rows.extend(json.loads(line) for line in handle if line.strip())
             continue
-        with path.open("r", encoding="utf-8") as handle:
-            rows.extend(json.loads(line) for line in handle if line.strip())
+        if path.suffix == ".parquet":
+            pyarrow = canonicalize_module._optional_module("pyarrow")
+            if pyarrow is not None:
+                parquet = canonicalize_module.importlib.import_module("pyarrow.parquet")
+                rows.extend(parquet.read_table(path).to_pylist())
+                continue
+            polars = canonicalize_module._optional_module("polars")
+            if polars is not None:
+                rows.extend(polars.read_parquet(path.as_posix()).to_dicts())
+                continue
     return rows
+
+
+def test_databento_tbbo_canonicalize_partition_manifest_and_fields_round_trip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_root = tmp_path / "alpha_data"
+    monkeypatch.setattr(canonicalize_module, "_optional_module", lambda module_name: None)
+
+    summary = run_canonicalize(
+        file_manifest_path=_write_file_manifest(tmp_path, data_root),
+        request_spec=_tbbo_spec(),
+        output_root=data_root,
+        instrument_config_path=INSTRUMENT_CONFIG,
+        calendar_config_path=CALENDAR_CONFIG,
+        validation_config_path=VALIDATION_CONFIG,
+        record_source=_tbbo_record_source(),
+        env=_env(data_root),
+        now=NOW,
+    )
+
+    assert summary.ohlcv_row_count == 0
+    assert summary.bbo_row_count == 0
+    assert summary.tbbo_row_count == 3
+    assert summary.missing_bbo_row_count == 0
+    assert summary.quarantined_row_count == 0
+    assert tuple(summary.output_paths) == ("tbbo",)
+    assert summary.tbbo_data_version is not None
+
+    manifest_path = Path(summary.canonical_root) / summary.tbbo_data_version / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["partition_schema"] == "tbbo"
+    assert manifest["row_count"] == 3
+    assert tuple(manifest["paths"]) == summary.output_paths["tbbo"]
+
+    rows = _jsonl_rows(summary.output_paths["tbbo"])
+    assert len(rows) == 3
+    first = next(row for row in rows if row["instrument_id"] == "inst_databento_es")
+    assert first["event_ts"] == (SESSION_START + timedelta(seconds=15)).isoformat()
+    assert first["available_ts"] == (SESSION_START + timedelta(seconds=20)).isoformat()
+    assert Decimal(str(first["trade_price"])) == Decimal("5000.50")
+    assert Decimal(str(first["trade_size"])) == Decimal("2")
+    assert first["aggressor_side"] == "ask"
+    assert Decimal(str(first["bid"])) == Decimal("5000.25")
+    assert Decimal(str(first["ask"])) == Decimal("5000.75")
+    assert Decimal(str(first["bid_size"])) == Decimal("11")
+    assert Decimal(str(first["ask_size"])) == Decimal("12")
+    assert first["session_label"] == "ETH"
+    assert first["sequence"] == 1000
+    assert first["ts_in_delta"] == 500
 
 
 def test_databento_canonicalize_quality_coverage_and_register_offline(
@@ -282,23 +386,31 @@ def test_databento_real_dbn_loader_requests_raw_fixed_point_prices(
     calls = []
 
     class FakeFrame:
+        def __init__(self, path_name: str) -> None:
+            self.path_name = path_name
+
         def reset_index(self) -> FakeFrame:
             return self
 
         def to_dict(self, orient: str) -> list[Mapping[str, object]]:
             assert orient == "records"
+            if self.path_name == "b.dbn.zst":
+                return [{"symbol": "ES.v.0", "price": _fixed_price(Decimal("5000.25"))}]
             return [{"symbol": "ES.v.0", "open": _fixed_price(Decimal("5000"))}]
 
     class FakeStore:
+        def __init__(self, path_name: str) -> None:
+            self.path_name = path_name
+
         def to_df(self, **kwargs: object) -> FakeFrame:
             calls.append(kwargs)
-            return FakeFrame()
+            return FakeFrame(self.path_name)
 
     class FakeDBNStore:
         @staticmethod
         def from_file(path: Path) -> FakeStore:
-            assert path.name == "a.dbn.zst"
-            return FakeStore()
+            assert path.name in {"a.dbn.zst", "b.dbn.zst"}
+            return FakeStore(path.name)
 
     monkeypatch.setitem(
         sys.modules,
@@ -315,16 +427,27 @@ def test_databento_real_dbn_loader_requests_raw_fixed_point_prices(
                 sha256="0" * 64,
                 size_bytes=0,
             ),
+            DatabentoFileRecord(
+                relative_path="glbx_mdp3/continuous/tbbo/job-b/b.dbn.zst",
+                schema="tbbo",
+                job_id="job-b",
+                sha256="1" * 64,
+                size_bytes=0,
+            ),
         ),
-        file_count=1,
+        file_count=2,
         total_bytes=0,
         created_at=NOW,
     )
 
     rows = canonicalize_module._load_real_dbn_rows(manifest)
 
-    assert calls == [{"price_type": "fixed", "pretty_ts": True, "map_symbols": True}]
+    assert calls == [
+        {"price_type": "fixed", "pretty_ts": True, "map_symbols": True},
+        {"price_type": "fixed", "pretty_ts": True, "map_symbols": True},
+    ]
     assert rows["ohlcv-1m"][0]["job_id"] == "job-a"
+    assert rows["tbbo"][0]["job_id"] == "job-b"
 
 
 def test_databento_missing_bbo_metric_does_not_block_registration(

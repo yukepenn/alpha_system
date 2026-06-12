@@ -31,6 +31,7 @@ DATABENTO_ALLOWED_STYPES: tuple[str, ...] = (
 DATABENTO_ALLOWED_SCHEMAS: tuple[str, ...] = (
     "ohlcv-1m",
     "bbo-1m",
+    "tbbo",
     "definition",
     "statistics",
     "status",
@@ -360,7 +361,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "--schemas",
         nargs="+",
         default=DATABENTO_ALLOWED_SCHEMAS,
-        help="Allowed schemas: ohlcv-1m bbo-1m definition statistics status",
+        help="Allowed schemas: ohlcv-1m bbo-1m tbbo definition statistics status",
     )
     parser.add_argument("--encoding", default=DATABENTO_ENCODING)
     parser.add_argument("--compression", default=DATABENTO_COMPRESSION)
