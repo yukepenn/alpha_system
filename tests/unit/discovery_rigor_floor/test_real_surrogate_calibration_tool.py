@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from alpha_system.governance.surrogate_run import CALIBRATION_BLOCKED
 from tests._helpers.local_data import skip_unless_local_registry
 from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
     run_real_surrogate_calibration,
@@ -55,11 +56,15 @@ def test_real_surrogate_calibration_tool_resolves_committed_locks_via_resolver(
     assert result["accepted"] is True
     assert result["run_count"] == 2
     assert result["gate_pass_count"] == 0
+    assert result["statistic_pass_count"] == 0
+    assert result["eligibility_clean_count"] == 0
     assert resolver.label_calls
     assert resolver.feature_calls
     rendered = report_path.read_text(encoding="utf-8")
     assert "Declared K per perturbation config: 1" in rendered
     assert "zero passes in K bounds false-pass rate at about 3/K at 95%" in rendered
+    assert "Statistic pass count: 0" in rendered
+    assert "Eligibility clean count: 0" in rendered
     assert "trade_date_block_shuffle" in rendered
     assert "trade_date_block_bootstrap" in rendered
     staged_labels = namespace / "real_surrogate_inputs" / result["study_spec_id"] / "labels.jsonl"
@@ -67,6 +72,104 @@ def test_real_surrogate_calibration_tool_resolves_committed_locks_via_resolver(
     assert json.loads(staged_labels.read_text(encoding="utf-8").splitlines()[0])[
         "event_ts"
     ].startswith("2026-01-02")
+
+
+def test_real_surrogate_calibration_rescores_existing_seed_outputs(
+    tmp_path: Path,
+) -> None:
+    feature_rows, label_rows = _value_rows()
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    resolver = _FakeResolver(
+        feature_record=_FeatureRecord(
+            feature_version_id="fver_" + "1" * 64,
+            materialization_output_path=feature_path.as_posix(),
+        ),
+        label_record=_LabelRecord(
+            label_version_id="lver_" + "2" * 64,
+            materialization_output_path=label_path.as_posix(),
+        ),
+    )
+    namespace = tmp_path / "rigor_p05_surrogate_rescore"
+    namespace.mkdir()
+    base_seed = _base_seed_without_bootstrap_identity(label_rows)
+    fresh = run_real_surrogate_calibration(
+        study_spec_path=COMMITTED_STUDY_SPEC,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "fresh.md",
+        resolver=resolver,
+    )
+
+    rescored = run_real_surrogate_calibration(
+        study_spec_path=COMMITTED_STUDY_SPEC,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "rescored.md",
+        rescore_existing=True,
+    )
+
+    for key in (
+        "accepted",
+        "run_count",
+        "error_count",
+        "gate_pass_count",
+        "statistic_pass_count",
+        "eligibility_clean_count",
+        "threshold_verdict",
+        "surrogate_study_spec_id",
+    ):
+        assert rescored[key] == fresh[key]
+
+
+def test_real_surrogate_rescore_marks_missing_diagnostic_summary_error(
+    tmp_path: Path,
+) -> None:
+    feature_rows, label_rows = _value_rows()
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    resolver = _FakeResolver(
+        feature_record=_FeatureRecord(
+            feature_version_id="fver_" + "1" * 64,
+            materialization_output_path=feature_path.as_posix(),
+        ),
+        label_record=_LabelRecord(
+            label_version_id="lver_" + "2" * 64,
+            materialization_output_path=label_path.as_posix(),
+        ),
+    )
+    namespace = tmp_path / "rigor_p05_surrogate_rescore_missing"
+    namespace.mkdir()
+    base_seed = _base_seed_without_bootstrap_identity(label_rows)
+    run_real_surrogate_calibration(
+        study_spec_path=COMMITTED_STUDY_SPEC,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "fresh.md",
+        resolver=resolver,
+    )
+    missing = namespace / f"seed_{base_seed}" / "study_outputs" / "diagnostic_summary.json"
+    missing.unlink()
+
+    rescored = run_real_surrogate_calibration(
+        study_spec_path=COMMITTED_STUDY_SPEC,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "rescored-missing.md",
+        rescore_existing=True,
+    )
+
+    assert rescored["accepted"] is False
+    assert rescored["error_count"] == 1
+    assert rescored["threshold_verdict"] == CALIBRATION_BLOCKED
 
 
 def test_real_local_label_registry_absence_is_loud_skip() -> None:

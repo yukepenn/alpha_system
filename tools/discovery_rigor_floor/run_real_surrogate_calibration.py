@@ -13,18 +13,22 @@ from pathlib import Path
 from typing import Any
 
 from alpha_system.core.value_store import ValueStoreFormat, load_parquet_values
+from alpha_system.governance.detection_statistic import (
+    TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC,
+    evaluate_detection_statistic,
+)
 from alpha_system.governance.serialization import deserialize
 from alpha_system.governance.study_spec import StudySpec, generate_study_spec_id, validate_study_spec
 from alpha_system.governance.surrogate_run import (
-    CALIBRATION_BLOCKED,
-    LEAKAGE_BLOCKED,
-    ZERO_PASS_MET,
+    SURROGATE_FALSE_PASS_BOUND_STATEMENT,
     SurrogateCalibrationReport,
     SurrogateGateStatus,
     SurrogatePerturbationType,
+    SurrogateStudyRun,
     calibrate_surrogate_fdr,
     render_value_free_calibration_report,
     require_isolated_namespace,
+    surrogate_calibration_report_from_rows,
 )
 from alpha_system.governance.validation import GovernanceValidationError, ValidationIssue
 from alpha_system.runtime.input_resolver import FeatureLabelPackResolver, RuntimeInputResolverError
@@ -55,6 +59,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_seed=args.base_seed,
             namespace=args.namespace,
             report_out=args.report_out,
+            rescore_existing=args.rescore_existing,
         )
     except (
         GovernanceValidationError,
@@ -90,6 +95,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Existing isolated scratch namespace for local-only staged values and runs.",
     )
     parser.add_argument("--report-out", required=True, help="Value-free Markdown report path.")
+    parser.add_argument(
+        "--rescore-existing",
+        action="store_true",
+        help=(
+            "Re-score existing namespace seed outputs instead of resolving packs "
+            "and re-running surrogate studies."
+        ),
+    )
     return parser
 
 
@@ -102,6 +115,7 @@ def run_real_surrogate_calibration(
     namespace: str | Path,
     report_out: str | Path,
     resolver: FeatureLabelPackResolver | None = None,
+    rescore_existing: bool = False,
 ) -> dict[str, Any]:
     """Resolve locked packs, run K per block-null config, and write one report."""
 
@@ -113,6 +127,36 @@ def run_real_surrogate_calibration(
     horizon_text, horizon_seconds, label_type = _declared_primary_horizon(scope)
     label_lock = _select_label_lock(scope, horizon_text)
     feature_lock = _select_feature_lock(scope, label_lock)
+    if rescore_existing:
+        report = _rescore_existing_report(
+            active_namespace,
+            study_spec=study_spec,
+            runs_per_config=active_runs_per_config,
+            base_seed=active_base_seed,
+        )
+        _write_real_report(
+            report,
+            report_out=report_out,
+            alpha_data_root=alpha_data_root,
+            study_spec=study_spec,
+            runs_per_config=active_runs_per_config,
+            horizon_text=horizon_text,
+            label_lock=label_lock,
+            feature_lock=feature_lock,
+            namespace=active_namespace,
+        )
+        return _result_payload(
+            report,
+            study_spec=study_spec,
+            surrogate_study_spec_id=_surrogate_study_spec_id_from_report(
+                report,
+                fallback=study_spec.study_spec_id,
+            ),
+            runs_per_config=active_runs_per_config,
+            report_out=report_out,
+            alpha_data_root=alpha_data_root,
+        )
+
     active_resolver = resolver or FeatureLabelPackResolver(alpha_data_root=alpha_data_root)
     resolved = _resolve_records(
         active_resolver,
@@ -158,34 +202,25 @@ def run_real_surrogate_calibration(
             )
         )
     report = _combine_reports(reports)
-    output = Path(report_out).expanduser().resolve(strict=False)
-    _reject_production_registry_report_path(output, Path(alpha_data_root).expanduser())
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        _render_real_report(
-            report,
-            study_spec=study_spec,
-            runs_per_config=active_runs_per_config,
-            horizon_text=horizon_text,
-            label_lock=label_lock,
-            feature_lock=feature_lock,
-            namespace=active_namespace,
-        ),
-        encoding="utf-8",
+    _write_real_report(
+        report,
+        report_out=report_out,
+        alpha_data_root=alpha_data_root,
+        study_spec=study_spec,
+        runs_per_config=active_runs_per_config,
+        horizon_text=horizon_text,
+        label_lock=label_lock,
+        feature_lock=feature_lock,
+        namespace=active_namespace,
     )
-    return {
-        "status": "ok" if report.accepted else "blocked",
-        "accepted": report.accepted,
-        "study_spec_id": study_spec.study_spec_id,
-        "surrogate_study_spec_id": surrogate_spec.study_spec_id,
-        "declared_runs_per_config": active_runs_per_config,
-        "perturbation_configs": [item.value for item in PERTURBATION_CONFIGS],
-        "threshold_verdict": report.threshold_verdict,
-        "run_count": report.run_count,
-        "error_count": report.error_count,
-        "gate_pass_count": report.gate_pass_count,
-        "report_path": output.as_posix(),
-    }
+    return _result_payload(
+        report,
+        study_spec=study_spec,
+        surrogate_study_spec_id=surrogate_spec.study_spec_id,
+        runs_per_config=active_runs_per_config,
+        report_out=report_out,
+        alpha_data_root=alpha_data_root,
+    )
 
 
 def _load_study_spec(path: str | Path) -> StudySpec:
@@ -439,24 +474,216 @@ def _surrogate_study_spec(
 
 def _combine_reports(reports: Sequence[SurrogateCalibrationReport]) -> SurrogateCalibrationReport:
     rows = tuple(row for report in reports for row in report.per_run)
-    run_count = len(rows)
-    error_count = sum(1 for row in rows if row["gate_status"] == SurrogateGateStatus.ERROR.value)
-    gate_pass_count = sum(1 for row in rows if row.get("passed") is True)
-    pass_rate = 0.0 if run_count == 0 else gate_pass_count / run_count
-    if gate_pass_count > 0:
-        verdict = LEAKAGE_BLOCKED
-    elif error_count > 0:
-        verdict = CALIBRATION_BLOCKED
-    else:
-        verdict = ZERO_PASS_MET
-    return SurrogateCalibrationReport(
-        run_count=run_count,
-        error_count=error_count,
-        gate_pass_count=gate_pass_count,
-        gate_pass_rate=pass_rate,
-        threshold_verdict=verdict,
-        per_run=rows,
+    return surrogate_calibration_report_from_rows(rows)
+
+
+def _rescore_existing_report(
+    namespace: Path,
+    *,
+    study_spec: StudySpec,
+    runs_per_config: int,
+    base_seed: int,
+) -> SurrogateCalibrationReport:
+    rows: list[dict[str, Any]] = []
+    for config_index, perturbation_type in enumerate(PERTURBATION_CONFIGS):
+        for run_index in range(runs_per_config):
+            seed = base_seed + config_index * runs_per_config + run_index
+            rows.append(
+                _rescore_existing_seed(
+                    namespace,
+                    study_spec=study_spec,
+                    perturbation_type=perturbation_type,
+                    seed=seed,
+                )
+            )
+    return surrogate_calibration_report_from_rows(rows)
+
+
+def _rescore_existing_seed(
+    namespace: Path,
+    *,
+    study_spec: StudySpec,
+    perturbation_type: SurrogatePerturbationType,
+    seed: int,
+) -> dict[str, Any]:
+    seed_dir = namespace / f"seed_{seed}"
+    summary_path = seed_dir / "study_outputs" / "diagnostic_summary.json"
+    try:
+        surrogate_run = _load_optional_surrogate_run(seed_dir)
+        if surrogate_run is not None:
+            if surrogate_run.seed != seed:
+                raise ValueError("surrogate run record seed does not match seed directory")
+            if surrogate_run.perturbation_type is not perturbation_type:
+                raise ValueError(
+                    "surrogate run record perturbation_type does not match rescore grid"
+                )
+        if not summary_path.is_file():
+            raise FileNotFoundError(summary_path.as_posix())
+        summary = _load_diagnostic_summary_mapping(summary_path)
+        statistic = evaluate_detection_statistic(
+            summary,
+            threshold_abs_pearson_ic=TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC,
+        )
+        eligibility_clean = _eligibility_clean_from_summary(summary)
+    except (OSError, ValueError) as exc:
+        return _rescore_error_row(
+            study_spec,
+            perturbation_type=perturbation_type,
+            seed=seed,
+            exc=exc,
+        )
+
+    statistic_passed = statistic.detected
+    return {
+        "study_spec_id": (
+            surrogate_run.original_study_spec_id
+            if surrogate_run is not None
+            else study_spec.study_spec_id
+        ),
+        "perturbation_type": (
+            surrogate_run.perturbation_type.value
+            if surrogate_run is not None
+            else perturbation_type.value
+        ),
+        "seed": seed,
+        "surrogate_id": surrogate_run.surrogate_id if surrogate_run is not None else "",
+        "gate_status": (
+            SurrogateGateStatus.PASSED.value
+            if statistic_passed
+            else SurrogateGateStatus.BLOCKED.value
+        ),
+        "passed": statistic_passed,
+        "statistic_passed": statistic_passed,
+        "eligibility_clean": eligibility_clean,
+        "reason_code": None if statistic_passed else "UNDERPOWERED",
+    }
+
+
+def _load_optional_surrogate_run(seed_dir: Path) -> SurrogateStudyRun | None:
+    record_dir = seed_dir / "surrogate_runs"
+    if not record_dir.exists():
+        return None
+    records = sorted(record_dir.glob("*.json"))
+    if not records:
+        return None
+    if len(records) > 1:
+        raise ValueError(f"expected one surrogate run record under {record_dir}")
+    return SurrogateStudyRun.from_canonical_json(records[0].read_text(encoding="utf-8"))
+
+
+def _load_diagnostic_summary_mapping(path: Path) -> Mapping[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, Mapping):
+        raise ValueError("diagnostic_summary.json root must be a JSON object")
+    if not isinstance(value.get("diagnostics"), Mapping):
+        raise ValueError("diagnostic_summary.json requires diagnostics mapping")
+    if not isinstance(value.get("warnings"), list):
+        raise ValueError("diagnostic_summary.json requires warnings list")
+    return value
+
+
+def _eligibility_clean_from_summary(summary: Mapping[str, Any]) -> bool:
+    warnings = summary.get("warnings")
+    if not isinstance(warnings, list):
+        raise ValueError("diagnostic_summary.json requires warnings list")
+    return len(warnings) == 0
+
+
+def _rescore_error_row(
+    study_spec: StudySpec,
+    *,
+    perturbation_type: SurrogatePerturbationType,
+    seed: int,
+    exc: BaseException,
+) -> dict[str, Any]:
+    return {
+        "study_spec_id": study_spec.study_spec_id,
+        "perturbation_type": perturbation_type.value,
+        "seed": seed,
+        "surrogate_id": "",
+        "gate_status": SurrogateGateStatus.ERROR.value,
+        "passed": False,
+        "statistic_passed": False,
+        "eligibility_clean": False,
+        "reason_code": None,
+        "error_type": type(exc).__name__,
+    }
+
+
+def _surrogate_study_spec_id_from_report(
+    report: SurrogateCalibrationReport,
+    *,
+    fallback: str,
+) -> str:
+    for row in report.per_run:
+        if not row.get("surrogate_id"):
+            continue
+        value = row.get("study_spec_id")
+        if isinstance(value, str) and value:
+            return value
+    for row in report.per_run:
+        value = row.get("study_spec_id")
+        if isinstance(value, str) and value:
+            return value
+    return fallback
+
+
+def _write_real_report(
+    report: SurrogateCalibrationReport,
+    *,
+    report_out: str | Path,
+    alpha_data_root: str | Path,
+    study_spec: StudySpec,
+    runs_per_config: int,
+    horizon_text: str,
+    label_lock: Mapping[str, Any],
+    feature_lock: Mapping[str, Any],
+    namespace: Path,
+) -> Path:
+    output = Path(report_out).expanduser().resolve(strict=False)
+    _reject_production_registry_report_path(output, Path(alpha_data_root).expanduser())
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        _render_real_report(
+            report,
+            study_spec=study_spec,
+            runs_per_config=runs_per_config,
+            horizon_text=horizon_text,
+            label_lock=label_lock,
+            feature_lock=feature_lock,
+            namespace=namespace,
+        ),
+        encoding="utf-8",
     )
+    return output
+
+
+def _result_payload(
+    report: SurrogateCalibrationReport,
+    *,
+    study_spec: StudySpec,
+    surrogate_study_spec_id: str,
+    runs_per_config: int,
+    report_out: str | Path,
+    alpha_data_root: str | Path,
+) -> dict[str, Any]:
+    output = Path(report_out).expanduser().resolve(strict=False)
+    _reject_production_registry_report_path(output, Path(alpha_data_root).expanduser())
+    return {
+        "status": "ok" if report.accepted else "blocked",
+        "accepted": report.accepted,
+        "study_spec_id": study_spec.study_spec_id,
+        "surrogate_study_spec_id": surrogate_study_spec_id,
+        "declared_runs_per_config": runs_per_config,
+        "perturbation_configs": [item.value for item in PERTURBATION_CONFIGS],
+        "threshold_verdict": report.threshold_verdict,
+        "run_count": report.run_count,
+        "error_count": report.error_count,
+        "gate_pass_count": report.gate_pass_count,
+        "statistic_pass_count": report.statistic_pass_count,
+        "eligibility_clean_count": report.eligibility_clean_count,
+        "report_path": output.as_posix(),
+    }
 
 
 def _render_real_report(
@@ -479,7 +706,7 @@ def _render_real_report(
         "## Scope",
         "",
         f"- Declared K per perturbation config: {runs_per_config}",
-        "- Bound statement: zero passes in K bounds false-pass rate at about 3/K at 95%.",
+        f"- Bound statement: {SURROGATE_FALSE_PASS_BOUND_STATEMENT}.",
         f"- Declared primary horizon used for this run: `{horizon_text}`.",
         f"- Perturbation configs: {', '.join(item.value for item in PERTURBATION_CONFIGS)}.",
         f"- Resolved label version: `{label_lock['label_version_id']}`.",

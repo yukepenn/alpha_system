@@ -50,12 +50,14 @@ def test_zero_pass_threshold_canary_blocks_any_shuffled_pass(tmp_path: Path) -> 
     report = calibrate_surrogate_fdr(
         (_study_spec(tmp_path, min_total=1),),
         run_budget=1,
-        base_seed=20,
+        base_seed=200,
         namespace=namespace,
     )
 
     assert report.threshold_verdict == LEAKAGE_BLOCKED
     assert report.gate_pass_count == 1
+    assert report.statistic_pass_count == 1
+    assert report.eligibility_clean_count == 1
 
 
 def test_error_masking_canary_blocks_zero_pass_success(tmp_path: Path) -> None:
@@ -78,6 +80,7 @@ def test_error_masking_canary_blocks_zero_pass_success(tmp_path: Path) -> None:
 
     assert report.error_count == 1
     assert report.gate_pass_count == 0
+    assert report.statistic_pass_count == 0
     assert report.threshold_verdict == CALIBRATION_BLOCKED
 
 
@@ -107,6 +110,7 @@ def test_synthetic_calibration_canary_is_zero_pass_in_ci(tmp_path: Path) -> None
     assert report.run_count == 2
     assert report.error_count == 0
     assert report.gate_pass_count == 0
+    assert report.statistic_pass_count == 0
 
 
 def _study_spec(tmp_path: Path, *, min_total: int):

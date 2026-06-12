@@ -7,6 +7,9 @@ from pathlib import Path
 import pytest
 
 from alpha_system.cli.main import main
+from alpha_system.governance.detection_statistic import (
+    TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC,
+)
 from alpha_system.governance.serialization import deserialize
 from alpha_system.governance.study_spec import (
     generate_study_spec_id,
@@ -189,6 +192,12 @@ def test_surrogate_runner_uses_isolated_namespace_and_real_gate_stack(
     assert result.run.perturbation_type is SurrogatePerturbationType.LABEL_SHUFFLE
     assert result.run.gate_outcome["status"] == SurrogateGateStatus.BLOCKED.value
     assert result.run.gate_outcome["passed"] is False
+    assert result.run.gate_outcome["statistic_passed"] is False
+    assert result.run.gate_outcome["eligibility_clean"] is False
+    assert (
+        result.run.gate_outcome["detection_threshold_abs_pearson_ic"]
+        == TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC
+    )
     assert result.run.gate_outcome["evidence_transition"] == "DIAGNOSTICS_RUN->EVIDENCE_READY"
     for path in result.paths.to_dict().values():
         assert Path(str(path)).is_relative_to(namespace)
@@ -227,6 +236,28 @@ def test_surrogate_runner_threads_block_perturbation_types(
     assert Path(result.paths.shuffled_labels_path).name == f"{perturbation_type.value}.jsonl"
 
 
+def test_surrogate_pass_uses_statistic_not_clean_diagnostics(tmp_path: Path) -> None:
+    passing_namespace = tmp_path / "rigor_p05_surrogate_statistic_pass"
+    blocked_namespace = tmp_path / "rigor_p05_surrogate_statistic_block"
+    passing_namespace.mkdir()
+    blocked_namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=1)
+
+    passing = run_surrogate_study(spec, seed=200, namespace=passing_namespace)
+    blocked = run_surrogate_study(spec, seed=20, namespace=blocked_namespace)
+
+    assert passing.run.gate_outcome["diagnostics_status"] == "PASS"
+    assert passing.run.gate_outcome["eligibility_clean"] is True
+    assert passing.run.gate_outcome["statistic_passed"] is True
+    assert passing.run.gate_outcome["passed"] is True
+    assert passing.run.gate_outcome["status"] == SurrogateGateStatus.PASSED.value
+    assert blocked.run.gate_outcome["diagnostics_status"] == "PASS"
+    assert blocked.run.gate_outcome["eligibility_clean"] is True
+    assert blocked.run.gate_outcome["statistic_passed"] is False
+    assert blocked.run.gate_outcome["passed"] is False
+    assert blocked.run.gate_outcome["status"] == SurrogateGateStatus.BLOCKED.value
+
+
 def test_surrogate_runner_is_seed_deterministic(tmp_path: Path) -> None:
     namespace = tmp_path / "rigor_p05_surrogate_determinism"
     namespace.mkdir()
@@ -258,8 +289,12 @@ def test_calibration_zero_pass_threshold_met_on_blocked_synthetic_runs(
     assert report.run_count == 2
     assert report.error_count == 0
     assert report.gate_pass_count == 0
+    assert report.statistic_pass_count == 0
+    assert report.eligibility_clean_count == 0
     rendered = render_value_free_calibration_report(report)
     assert "Run count: 2" in rendered
+    assert "Statistic pass count: 0" in rendered
+    assert "Eligibility clean count: 0" in rendered
     assert "0.03" not in rendered
 
 
@@ -281,6 +316,8 @@ def test_calibration_records_per_perturbation_type_counts(tmp_path: Path) -> Non
     ]
     assert counts["run_count"] == 2
     assert counts["error_count"] == 0
+    assert counts["statistic_pass_count"] == 0
+    assert counts["eligibility_clean_count"] == 0
     assert report.per_run[0]["perturbation_type"] == "trade_date_block_shuffle"
 
 
@@ -300,7 +337,30 @@ def test_calibration_reports_leakage_blocked_when_any_shuffled_run_passes(
 
     assert report.threshold_verdict == LEAKAGE_BLOCKED
     assert report.gate_pass_count == 1
+    assert report.statistic_pass_count == 1
+    assert report.eligibility_clean_count == 1
     assert report.accepted is False
+
+
+def test_calibration_verdict_follows_statistic_not_eligibility(
+    tmp_path: Path,
+) -> None:
+    namespace = tmp_path / "rigor_p05_surrogate_statistic_over_eligibility"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=10)
+
+    report = calibrate_surrogate_fdr(
+        (spec,),
+        run_budget=1,
+        base_seed=200,
+        namespace=namespace,
+    )
+
+    assert report.threshold_verdict == LEAKAGE_BLOCKED
+    assert report.statistic_pass_count == 1
+    assert report.eligibility_clean_count == 0
+    assert report.per_run[0]["statistic_passed"] is True
+    assert report.per_run[0]["eligibility_clean"] is False
 
 
 def test_calibration_errors_do_not_count_as_non_passes(tmp_path: Path) -> None:
@@ -323,6 +383,7 @@ def test_calibration_errors_do_not_count_as_non_passes(tmp_path: Path) -> None:
 
     assert report.error_count == 1
     assert report.gate_pass_count == 0
+    assert report.statistic_pass_count == 0
     assert report.threshold_verdict == CALIBRATION_BLOCKED
     assert report.accepted is False
 
@@ -359,7 +420,8 @@ def test_surrogate_calibrate_cli_writes_value_free_report(
     assert code == 0
     assert payload["threshold_verdict"] == ZERO_PASS_MET
     assert payload["gate_pass_count"] == 0
-    assert report_path.read_text(encoding="utf-8").count("Gate pass rate") == 1
+    assert payload["statistic_pass_count"] == 0
+    assert report_path.read_text(encoding="utf-8").count("Statistic pass rate") == 1
 
 
 def test_surrogate_calibrate_cli_accepts_block_perturbation_flag(
