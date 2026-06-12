@@ -1,0 +1,55 @@
+{
+  "schema": "frontier-review-verdict-v1",
+  "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
+  "phase_id": "P133000_ALLNULL_FACTOR_EXCLUSION",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [],
+  "required_repairs": [],
+  "warnings": [
+    "W1: hash-mismatch refusal has ZERO enforced test coverage — test_real_surrogate_calibration_refuses_value_hash_mismatch is polars-gated and skips in dev venv, CI venv, and GitHub CI (polars absent everywhere incl. pyproject); mutation A (swallow hash mismatch into exclusion) survived the full suite; restored code verified correct by direct JSONL probe (raises FeatureLockValidationError). Follow-up: add a polars-free JSONL hash-mismatch refusal test.",
+    "W2: not-all-null boundary unpinned — no partial-null fixture exists; mutation B (exclude >=50%-null factors) survived 686 tests; restored code verified correct by direct probe (50%-null factor stages, zero exclusions). Follow-up: add a partial-null inclusion test.",
+    "W3: no_declared_factor_sub_configs raise is now dead code — _raise_if_no_numeric_declared_factors fires first when surrogate_specs is empty even with zero exclusions; fail-closed either way but the zero-lock error code silently changed and its 'actual' text misleads.",
+    "W4: rescore trusts manifest included_sub_config_count without cross-checking included+excluded == expected_sub_config_count from declared locks; mitigated by isolated-namespace tool-written manifest, schema + study_spec_id validation, and legacy fallback to declared count."
+  ],
+  "mutation_tests": [
+    {
+      "id": "A",
+      "mutation": "exclusion branch catches ValueError from _load_value_rows so hash mismatch becomes an all_null_values exclusion",
+      "result": "SURVIVED",
+      "failing_test": null,
+      "note": "hash-mismatch test skipped everywhere (polars); probe showed corrupted-hash factor silently excluded with run ACCEPTED when a healthy sibling factor exists; restored code refuses correctly"
+    },
+    {
+      "id": "B",
+      "mutation": "exclusion condition widened to null_count*2 >= len(staged_rows) (50%-null excluded)",
+      "result": "SURVIVED",
+      "failing_test": null,
+      "note": "686 passed under mutation; no partial-null fixture in suite; restored code stages 50%-null factor with zero exclusions"
+    },
+    {
+      "id": "C",
+      "mutation": "_raise_if_no_numeric_declared_factors neutralized with early return",
+      "result": "KILLED",
+      "failing_test": "test_real_surrogate_calibration_refuses_when_all_declared_factors_all_null"
+    }
+  ],
+  "checks": {
+    "exclusion_after_hash_and_fver": "PASS — order: resolver/lock checks -> verify_registered_value_store_content_hash -> _filter_rows_by_version (locked_value_rows_not_found blocks empty staged set) -> all-null exclusion; hash mismatch raises FeatureLockValidationError before exclusion is reachable",
+    "not_all_null_proceeds": "PASS in code (direct probe); unpinned by tests (W2)",
+    "zero_numeric_fail_closed": "PASS — no_numeric_declared_factors_for_surrogate asserted by test; mutation C killed; dead-code fallback raise still fail-closes",
+    "report_value_free": "PASS — excluded_factors = ids/reason/counts only; excluded staged jsonl unlinked; included-factor declared-K and bound statement unchanged",
+    "rescore_consistency": "PASS — mixed test asserts rescored run_count and excluded_factors equal staging result; manifest schema/study_spec_id fail closed (W4 note)",
+    "diff_scope": "PASS — 4 files only (tool, tests, spec, handoff); perturbations/detection statistic/src integrity code untouched; one nuance: zero-lock error code changed (W3)",
+    "handoff_truthful": "PASS — re-ran: 686 passed/2 skipped; canaries all pass; verify --smoke exit 0; ci-parity 3315 passed/80 skipped (twice, second on restored clean tree); substrate-finding note (bbo_tradability_spread_ticks all-null -> caveat register + refit first-light) present"
+  },
+  "validation": {
+    "unit_tests": "686 passed, 2 skipped",
+    "canaries": "PASS",
+    "verify_smoke": "PASS (exit 0)",
+    "ci_parity": "3315 passed, 80 skipped",
+    "worktree_clean_after_mutations": true
+  },
+  "reviewed_commit": "a95d719",
+  "reviewer": "claude-adversarial-wf1-fresh",
+  "reviewed_at": "2026-06-12"
+}
