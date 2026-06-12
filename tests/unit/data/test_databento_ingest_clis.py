@@ -164,6 +164,14 @@ def test_request_spec_validates_allowed_databento_contract() -> None:
         start=START,
         end=END,
     )
+    tbbo_spec = DatabentoRequestSpec(
+        symbols=("ES.v.0",),
+        stype_in="continuous",
+        schemas=("tbbo",),
+        start=START,
+        end=END,
+    )
+    assert tbbo_spec.schemas == ("tbbo",)
 
 
 @pytest.mark.parametrize(
@@ -482,22 +490,26 @@ def test_file_manifest_hashes_sizes_and_refuses_changed_overwrite(tmp_path: Path
     raw_root = tmp_path / "raw_root"
     first = raw_root / "raw" / "glbx_mdp3" / "continuous" / "ohlcv-1m" / "job-a" / "a.dbn.zst"
     second = raw_root / "raw" / "glbx_mdp3" / "continuous" / "bbo-1m" / "job-b" / "b.dbn.zst"
+    third = raw_root / "raw" / "glbx_mdp3" / "continuous" / "tbbo" / "job-c" / "c.dbn.zst"
     first.parent.mkdir(parents=True, exist_ok=True)
     second.parent.mkdir(parents=True, exist_ok=True)
+    third.parent.mkdir(parents=True, exist_ok=True)
     first.write_bytes(b"alpha")
     second.write_bytes(b"beta")
+    third.write_bytes(b"gamma")
     output = tmp_path / "files.json"
 
     manifest = run_manifest_files(raw_root=raw_root, output_path=output, now=NOW)
 
     assert output.exists()
-    assert manifest.file_count == 2
-    assert manifest.total_bytes == len(b"alpha") + len(b"beta")
+    assert manifest.file_count == 3
+    assert manifest.total_bytes == len(b"alpha") + len(b"beta") + len(b"gamma")
     by_path = {record.relative_path: record for record in manifest.files}
     assert by_path[first.relative_to(raw_root).as_posix()].sha256 == hashlib.sha256(
         b"alpha"
     ).hexdigest()
     assert by_path[second.relative_to(raw_root).as_posix()].size_bytes == len(b"beta")
+    assert by_path[third.relative_to(raw_root).as_posix()].schema == "tbbo"
 
     same = run_manifest_files(raw_root=raw_root, output_path=output, now=NOW)
     assert same.manifest_hash == manifest.manifest_hash

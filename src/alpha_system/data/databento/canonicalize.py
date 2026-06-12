@@ -53,8 +53,11 @@ SOURCE_ID = "dsrc_databento_historical"
 CANONICAL_PROVIDER_SEGMENT = "glbx_mdp3"
 OHLCV_SCHEMA = "ohlcv-1m"
 BBO_SCHEMA = "bbo-1m"
+TBBO_SCHEMA = "tbbo"
 OHLCV_PARTITION_SCHEMA = "ohlcv_1m"
 BBO_PARTITION_SCHEMA = "bbo_1m"
+TBBO_PARTITION_SCHEMA = "tbbo"
+CANONICALIZE_SUPPORTED_SCHEMAS = frozenset((OHLCV_SCHEMA, BBO_SCHEMA, TBBO_SCHEMA))
 SUPPORTED_ROOTS: frozenset[str] = frozenset({"ES", "NQ", "RTY"})
 _PRICE_SCALE = Decimal("1000000000")
 # Real DBN loads use price_type="fixed", so price fields are raw fixed-point
@@ -85,6 +88,8 @@ class CanonicalizeSummary:
     storage_format: str
     source_manifest_hash: str
     request_spec_hash: str
+    tbbo_data_version: str | None = None
+    tbbo_row_count: int = 0
 
     def to_mapping(self) -> Mapping[str, object]:
         return MappingProxyType(
@@ -102,6 +107,153 @@ class CanonicalizeSummary:
                 "storage_format": self.storage_format,
                 "source_manifest_hash": self.source_manifest_hash,
                 "request_spec_hash": self.request_spec_hash,
+                "tbbo_data_version": self.tbbo_data_version,
+                "tbbo_row_count": self.tbbo_row_count,
+            }
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CanonicalTBBORecord:
+    """Validated local trade-with-BBO record for Databento TBBO rows."""
+
+    instrument_id: str
+    contract_id: str
+    series_id: str
+    bar_start_ts: datetime
+    bar_end_ts: datetime
+    event_ts: datetime
+    available_ts: datetime
+    ingested_at: datetime
+    trade_price: Decimal
+    trade_size: Decimal
+    aggressor_side: str
+    bid: Decimal
+    ask: Decimal
+    bid_size: Decimal
+    ask_size: Decimal
+    mid: Decimal
+    spread: Decimal
+    source: str
+    source_request_id: str
+    data_version: str
+    quality_flags: tuple[str, ...]
+    session_label: str
+    bid_order_count: int | None = None
+    ask_order_count: int | None = None
+    sequence: int | None = None
+    ts_in_delta: int | None = None
+
+    def __post_init__(self) -> None:
+        instrument_id = _require_text_value(self.instrument_id, "instrument_id")
+        contract_id = _require_text_value(self.contract_id, "contract_id")
+        series_id = _require_text_value(self.series_id, "series_id")
+        bar_start_ts = _parse_timestamp(self.bar_start_ts, "bar_start_ts")
+        bar_end_ts = _parse_timestamp(self.bar_end_ts, "bar_end_ts")
+        event_ts = _parse_timestamp(self.event_ts, "event_ts")
+        available_ts = _parse_timestamp(self.available_ts, "available_ts")
+        ingested_at = _parse_timestamp(self.ingested_at, "ingested_at")
+        trade_price = _positive_decimal(self.trade_price, "trade_price")
+        trade_size = _positive_decimal(self.trade_size, "trade_size")
+        aggressor_side = _normalize_aggressor_side(self.aggressor_side)
+        bid = _non_negative_decimal(self.bid, "bid")
+        ask = _non_negative_decimal(self.ask, "ask")
+        bid_size = _non_negative_decimal(self.bid_size, "bid_size")
+        ask_size = _non_negative_decimal(self.ask_size, "ask_size")
+        mid = _non_negative_decimal(self.mid, "mid")
+        spread = _non_negative_decimal(self.spread, "spread")
+        source = _require_text_value(self.source, "source")
+        source_request_id = _require_text_value(self.source_request_id, "source_request_id")
+        data_version = _require_text_value(self.data_version, "data_version")
+        quality_flags = _normalize_quality_flag_values(self.quality_flags)
+        session_label = _require_text_value(self.session_label, "session_label").upper()
+        bid_order_count = _optional_int(self.bid_order_count)
+        ask_order_count = _optional_int(self.ask_order_count)
+        sequence = _optional_int(self.sequence)
+        ts_in_delta = _optional_int(self.ts_in_delta)
+
+        if bar_end_ts <= bar_start_ts:
+            msg = "bar_end_ts must be greater than bar_start_ts"
+            raise DataFoundationValidationError(msg)
+        if event_ts < bar_start_ts or event_ts > bar_end_ts:
+            msg = "event_ts must fall within the TBBO minute interval"
+            raise DataFoundationValidationError(msg)
+        if available_ts < event_ts:
+            msg = "available_ts must be greater than or equal to event_ts"
+            raise DataFoundationValidationError(msg)
+        if ingested_at == available_ts:
+            msg = "ingested_at must be distinct from available_ts"
+            raise DataFoundationValidationError(msg)
+        if ask < bid:
+            msg = "ask must be greater than or equal to bid"
+            raise DataFoundationValidationError(msg)
+        expected_mid = (bid + ask) / Decimal("2")
+        expected_spread = ask - bid
+        if mid != expected_mid:
+            msg = "mid must equal (bid + ask) / 2"
+            raise DataFoundationValidationError(msg)
+        if spread != expected_spread:
+            msg = "spread must equal ask - bid"
+            raise DataFoundationValidationError(msg)
+
+        object.__setattr__(self, "instrument_id", instrument_id)
+        object.__setattr__(self, "contract_id", contract_id)
+        object.__setattr__(self, "series_id", series_id)
+        object.__setattr__(self, "bar_start_ts", bar_start_ts)
+        object.__setattr__(self, "bar_end_ts", bar_end_ts)
+        object.__setattr__(self, "event_ts", event_ts)
+        object.__setattr__(self, "available_ts", available_ts)
+        object.__setattr__(self, "ingested_at", ingested_at)
+        object.__setattr__(self, "trade_price", trade_price)
+        object.__setattr__(self, "trade_size", trade_size)
+        object.__setattr__(self, "aggressor_side", aggressor_side)
+        object.__setattr__(self, "bid", bid)
+        object.__setattr__(self, "ask", ask)
+        object.__setattr__(self, "bid_size", bid_size)
+        object.__setattr__(self, "ask_size", ask_size)
+        object.__setattr__(self, "mid", mid)
+        object.__setattr__(self, "spread", spread)
+        object.__setattr__(self, "source", source)
+        object.__setattr__(self, "source_request_id", source_request_id)
+        object.__setattr__(self, "data_version", data_version)
+        object.__setattr__(self, "quality_flags", quality_flags)
+        object.__setattr__(self, "session_label", session_label)
+        object.__setattr__(self, "bid_order_count", bid_order_count)
+        object.__setattr__(self, "ask_order_count", ask_order_count)
+        object.__setattr__(self, "sequence", sequence)
+        object.__setattr__(self, "ts_in_delta", ts_in_delta)
+
+    def to_mapping(self) -> Mapping[str, object]:
+        """Return a JSON-stable local canonical TBBO mapping."""
+
+        return MappingProxyType(
+            {
+                "instrument_id": self.instrument_id,
+                "contract_id": self.contract_id,
+                "series_id": self.series_id,
+                "bar_start_ts": self.bar_start_ts.isoformat(),
+                "bar_end_ts": self.bar_end_ts.isoformat(),
+                "event_ts": self.event_ts.isoformat(),
+                "available_ts": self.available_ts.isoformat(),
+                "ingested_at": self.ingested_at.isoformat(),
+                "trade_price": str(self.trade_price),
+                "trade_size": str(self.trade_size),
+                "aggressor_side": self.aggressor_side,
+                "bid": str(self.bid),
+                "ask": str(self.ask),
+                "bid_size": str(self.bid_size),
+                "ask_size": str(self.ask_size),
+                "mid": str(self.mid),
+                "spread": str(self.spread),
+                "source": self.source,
+                "source_request_id": self.source_request_id,
+                "data_version": self.data_version,
+                "quality_flags": self.quality_flags,
+                "session_label": self.session_label,
+                "bid_order_count": self.bid_order_count,
+                "ask_order_count": self.ask_order_count,
+                "sequence": self.sequence,
+                "ts_in_delta": self.ts_in_delta,
             }
         )
 
@@ -142,68 +294,134 @@ def run_canonicalize(
     req_hash = request_spec_hash(spec)
     ohlcv_data_version = _data_version("ohlcv", manifest.manifest_hash, req_hash)
     bbo_data_version = _data_version("bbo", manifest.manifest_hash, req_hash)
+    tbbo_data_version = _data_version("tbbo", manifest.manifest_hash, req_hash)
     rows_by_schema = _load_rows_by_schema(manifest, spec, record_source=record_source)
+    requested_schemas = frozenset(spec.schemas)
 
-    ohlcv_bars, ohlcv_duplicates, ohlcv_quarantine = _canonicalize_ohlcv(
-        rows_by_schema.get(OHLCV_SCHEMA, ()),
-        settings_by_symbol=settings_by_symbol,
-        calendar=calendar,
-        data_version=ohlcv_data_version,
-        source_request_id=source_request_id,
-        latency=validation_config.available_latency,
-        ingested_at=ingested_at,
-    )
-    if not ohlcv_bars:
-        msg = "Databento canonicalization produced no OHLCV bars"
+    needs_ohlcv = OHLCV_SCHEMA in requested_schemas or BBO_SCHEMA in requested_schemas
+    if needs_ohlcv:
+        ohlcv_bars, ohlcv_duplicates, ohlcv_quarantine = _canonicalize_ohlcv(
+            rows_by_schema.get(OHLCV_SCHEMA, ()),
+            settings_by_symbol=settings_by_symbol,
+            calendar=calendar,
+            data_version=ohlcv_data_version,
+            source_request_id=source_request_id,
+            latency=validation_config.available_latency,
+            ingested_at=ingested_at,
+        )
+        if not ohlcv_bars:
+            msg = "Databento canonicalization produced no OHLCV bars"
+            raise DataFoundationValidationError(msg)
+    else:
+        ohlcv_bars = ()
+        ohlcv_duplicates = 0
+        ohlcv_quarantine = 0
+
+    if BBO_SCHEMA in requested_schemas:
+        bbo_records, bbo_duplicates, bbo_quarantine, missing_bbo_count = _canonicalize_bbo(
+            rows_by_schema.get(BBO_SCHEMA, ()),
+            ohlcv_bars=ohlcv_bars,
+            settings_by_symbol=settings_by_symbol,
+            calendar=calendar,
+            data_version=bbo_data_version,
+            source_request_id=source_request_id,
+            latency=validation_config.available_latency,
+            ingested_at=ingested_at,
+        )
+        if not bbo_records:
+            msg = "Databento canonicalization produced no BBO records"
+            raise DataFoundationValidationError(msg)
+    else:
+        bbo_records = ()
+        bbo_duplicates = 0
+        bbo_quarantine = 0
+        missing_bbo_count = 0
+
+    if TBBO_SCHEMA in requested_schemas:
+        tbbo_records, tbbo_duplicates, tbbo_quarantine = _canonicalize_tbbo(
+            rows_by_schema.get(TBBO_SCHEMA, ()),
+            settings_by_symbol=settings_by_symbol,
+            calendar=calendar,
+            data_version=tbbo_data_version,
+            source_request_id=source_request_id,
+            latency=validation_config.available_latency,
+            ingested_at=ingested_at,
+        )
+        if not tbbo_records:
+            msg = "Databento canonicalization produced no TBBO records"
+            raise DataFoundationValidationError(msg)
+    else:
+        tbbo_records = ()
+        tbbo_duplicates = 0
+        tbbo_quarantine = 0
+
+    output_paths: dict[str, tuple[str, ...]] = {}
+    storage_formats: list[str] = []
+
+    if OHLCV_SCHEMA in requested_schemas:
+        ohlcv_paths, ohlcv_format = _write_schema_records(
+            canonical_root=canonical_root,
+            data_version=ohlcv_data_version,
+            partition_schema=OHLCV_PARTITION_SCHEMA,
+            records=ohlcv_bars,
+        )
+        storage_formats.append(ohlcv_format)
+        output_paths[OHLCV_PARTITION_SCHEMA] = tuple(path.as_posix() for path in ohlcv_paths)
+        _write_dataset_manifest(
+            canonical_root=canonical_root,
+            data_version=ohlcv_data_version,
+            partition_schema=OHLCV_PARTITION_SCHEMA,
+            paths=ohlcv_paths,
+            row_count=len(ohlcv_bars),
+            storage_format=ohlcv_format,
+            source_manifest_hash=manifest.manifest_hash,
+            request_hash=req_hash,
+        )
+
+    if BBO_SCHEMA in requested_schemas:
+        bbo_paths, bbo_format = _write_schema_records(
+            canonical_root=canonical_root,
+            data_version=bbo_data_version,
+            partition_schema=BBO_PARTITION_SCHEMA,
+            records=bbo_records,
+        )
+        storage_formats.append(bbo_format)
+        output_paths[BBO_PARTITION_SCHEMA] = tuple(path.as_posix() for path in bbo_paths)
+        _write_dataset_manifest(
+            canonical_root=canonical_root,
+            data_version=bbo_data_version,
+            partition_schema=BBO_PARTITION_SCHEMA,
+            paths=bbo_paths,
+            row_count=len(bbo_records),
+            storage_format=bbo_format,
+            source_manifest_hash=manifest.manifest_hash,
+            request_hash=req_hash,
+        )
+
+    if TBBO_SCHEMA in requested_schemas:
+        tbbo_paths, tbbo_format = _write_schema_records(
+            canonical_root=canonical_root,
+            data_version=tbbo_data_version,
+            partition_schema=TBBO_PARTITION_SCHEMA,
+            records=tbbo_records,
+        )
+        storage_formats.append(tbbo_format)
+        output_paths[TBBO_PARTITION_SCHEMA] = tuple(path.as_posix() for path in tbbo_paths)
+        _write_dataset_manifest(
+            canonical_root=canonical_root,
+            data_version=tbbo_data_version,
+            partition_schema=TBBO_PARTITION_SCHEMA,
+            paths=tbbo_paths,
+            row_count=len(tbbo_records),
+            storage_format=tbbo_format,
+            source_manifest_hash=manifest.manifest_hash,
+            request_hash=req_hash,
+        )
+
+    if not output_paths:
+        supported_text = ", ".join(sorted(CANONICALIZE_SUPPORTED_SCHEMAS))
+        msg = f"Databento canonicalization requires at least one schema in {supported_text}"
         raise DataFoundationValidationError(msg)
-
-    bbo_records, bbo_duplicates, bbo_quarantine, missing_bbo_count = _canonicalize_bbo(
-        rows_by_schema.get(BBO_SCHEMA, ()),
-        ohlcv_bars=ohlcv_bars,
-        settings_by_symbol=settings_by_symbol,
-        calendar=calendar,
-        data_version=bbo_data_version,
-        source_request_id=source_request_id,
-        latency=validation_config.available_latency,
-        ingested_at=ingested_at,
-    )
-    if not bbo_records:
-        msg = "Databento canonicalization produced no BBO records"
-        raise DataFoundationValidationError(msg)
-
-    ohlcv_paths, ohlcv_format = _write_schema_records(
-        canonical_root=canonical_root,
-        data_version=ohlcv_data_version,
-        partition_schema=OHLCV_PARTITION_SCHEMA,
-        records=ohlcv_bars,
-    )
-    bbo_paths, bbo_format = _write_schema_records(
-        canonical_root=canonical_root,
-        data_version=bbo_data_version,
-        partition_schema=BBO_PARTITION_SCHEMA,
-        records=bbo_records,
-    )
-    storage_format = ohlcv_format if ohlcv_format == bbo_format else "mixed"
-    _write_dataset_manifest(
-        canonical_root=canonical_root,
-        data_version=ohlcv_data_version,
-        partition_schema=OHLCV_PARTITION_SCHEMA,
-        paths=ohlcv_paths,
-        row_count=len(ohlcv_bars),
-        storage_format=ohlcv_format,
-        source_manifest_hash=manifest.manifest_hash,
-        request_hash=req_hash,
-    )
-    _write_dataset_manifest(
-        canonical_root=canonical_root,
-        data_version=bbo_data_version,
-        partition_schema=BBO_PARTITION_SCHEMA,
-        paths=bbo_paths,
-        row_count=len(bbo_records),
-        storage_format=bbo_format,
-        source_manifest_hash=manifest.manifest_hash,
-        request_hash=req_hash,
-    )
 
     return CanonicalizeSummary(
         canonical_root=canonical_root.as_posix(),
@@ -213,17 +431,14 @@ def run_canonicalize(
         ohlcv_row_count=len(ohlcv_bars),
         bbo_row_count=len(bbo_records),
         missing_bbo_row_count=missing_bbo_count,
-        duplicate_rows_dropped=ohlcv_duplicates + bbo_duplicates,
-        quarantined_row_count=ohlcv_quarantine + bbo_quarantine,
-        output_paths=MappingProxyType(
-            {
-                OHLCV_PARTITION_SCHEMA: tuple(path.as_posix() for path in ohlcv_paths),
-                BBO_PARTITION_SCHEMA: tuple(path.as_posix() for path in bbo_paths),
-            }
-        ),
-        storage_format=storage_format,
+        duplicate_rows_dropped=ohlcv_duplicates + bbo_duplicates + tbbo_duplicates,
+        quarantined_row_count=ohlcv_quarantine + bbo_quarantine + tbbo_quarantine,
+        output_paths=MappingProxyType(output_paths),
+        storage_format=_combined_storage_format(storage_formats),
         source_manifest_hash=manifest.manifest_hash,
         request_spec_hash=req_hash,
+        tbbo_data_version=tbbo_data_version if TBBO_SCHEMA in requested_schemas else None,
+        tbbo_row_count=len(tbbo_records),
     )
 
 
@@ -318,7 +533,7 @@ def _load_rows_by_schema(
         normalized_schema = schema.lower()
         if normalized_schema not in allowed:
             continue
-        if normalized_schema not in {OHLCV_SCHEMA, BBO_SCHEMA}:
+        if normalized_schema not in CANONICALIZE_SUPPORTED_SCHEMAS:
             continue
         if not isinstance(row, Mapping):
             msg = "Databento record_source rows must be mappings"
@@ -351,7 +566,7 @@ def _load_real_dbn_rows(
     raw_root = Path(manifest.raw_root).expanduser().resolve(strict=False)
     _validate_data_root(raw_root, _repo_root())
     for file_record in manifest.files:
-        if file_record.schema not in {OHLCV_SCHEMA, BBO_SCHEMA}:
+        if file_record.schema not in CANONICALIZE_SUPPORTED_SCHEMAS:
             continue
         path = (raw_root / file_record.relative_path).resolve(strict=False)
         if not _is_relative_to(path, raw_root):
@@ -594,6 +809,165 @@ def _canonicalize_bbo(
     return tuple(output), duplicate_count, quarantine_count, missing_count
 
 
+def _canonicalize_tbbo(
+    rows: Iterable[Mapping[str, object]],
+    *,
+    settings_by_symbol: Mapping[str, object],
+    calendar: object,
+    data_version: str,
+    source_request_id: str,
+    latency: timedelta,
+    ingested_at: datetime,
+) -> tuple[tuple[CanonicalTBBORecord, ...], int, int]:
+    deduped: dict[
+        tuple[str, datetime, object, str, str, str, str, str],
+        tuple[str, datetime, Mapping[str, object]],
+    ] = {}
+    duplicate_count = 0
+    quarantine_count = 0
+    for row in rows:
+        try:
+            root = _root_from_symbol(_require_row_text(row, "symbol"))
+            event_ts = _row_timestamp(row, "ts_event", "pretty_ts_event", "event_ts")
+        except DataFoundationValidationError:
+            quarantine_count += 1
+            continue
+        key = _tbbo_dedupe_key(row, root=root, event_ts=event_ts)
+        if key in deduped:
+            duplicate_count += 1
+            continue
+        deduped[key] = (root, event_ts, row)
+
+    session_inputs = []
+    for key, (root, event_ts, _row) in sorted(deduped.items(), key=lambda item: item[0]):
+        settings = settings_by_symbol[root]
+        bar_start = _minute_start(event_ts)
+        session_inputs.append(
+            {
+                "_tbbo_key": key,
+                "instrument_id": settings.instrument_id,
+                "session_id": "",
+                "bar_index": -1,
+                "bar_start_ts": bar_start,
+                "bar_end_ts": bar_start + timedelta(minutes=1),
+                "quality_flags": (),
+            }
+        )
+    sessionized = {
+        row["_tbbo_key"]: row
+        for row in sessionize_bars(
+            session_inputs,
+            calendar,
+            available_latency=latency,
+            validate_existing_keys=False,
+        )
+    }
+
+    output = []
+    for key, (root, event_ts, row) in sorted(deduped.items(), key=lambda item: item[0]):
+        session_row = sessionized[key]
+        if OUT_OF_SESSION_FLAG in normalize_quality_flags(session_row.get("quality_flags")):
+            quarantine_count += 1
+            continue
+        try:
+            output.append(
+                _tbbo_record_from_row(
+                    row,
+                    root=root,
+                    event_ts=event_ts,
+                    session_row=session_row,
+                    settings_by_symbol=settings_by_symbol,
+                    data_version=data_version,
+                    source_request_id=source_request_id,
+                    latency=latency,
+                    ingested_at=ingested_at,
+                )
+            )
+        except DataFoundationValidationError:
+            quarantine_count += 1
+    return tuple(output), duplicate_count, quarantine_count
+
+
+def _tbbo_record_from_row(
+    row: Mapping[str, object],
+    *,
+    root: str,
+    event_ts: datetime,
+    session_row: Mapping[str, object],
+    settings_by_symbol: Mapping[str, object],
+    data_version: str,
+    source_request_id: str,
+    latency: timedelta,
+    ingested_at: datetime,
+) -> CanonicalTBBORecord:
+    settings = settings_by_symbol[root]
+    bid = _price_decimal(row.get("bid_px_00", row.get("bid")), "bid_px_00")
+    ask = _price_decimal(row.get("ask_px_00", row.get("ask")), "ask_px_00")
+    if ask < bid:
+        msg = "Databento TBBO crossed quote quarantined"
+        raise DataFoundationValidationError(msg)
+    bid_size = _decimal_value(row.get("bid_sz_00", row.get("bid_size")), "bid_sz_00")
+    ask_size = _decimal_value(row.get("ask_sz_00", row.get("ask_size")), "ask_sz_00")
+    trade_price = _price_decimal(row.get("price", row.get("trade_price")), "price")
+    trade_size = _decimal_value(row.get("size", row.get("trade_size")), "size")
+    bar_start = session_row["bar_start_ts"]
+    bar_end = session_row["bar_end_ts"]
+    return CanonicalTBBORecord(
+        instrument_id=settings.instrument_id,
+        contract_id=getattr(
+            settings,
+            "contract_id",
+            f"contract_databento_{root.lower()}_v_0_front",
+        ),
+        series_id=settings.series_id,
+        bar_start_ts=bar_start,
+        bar_end_ts=bar_end,
+        event_ts=event_ts,
+        available_ts=event_ts + latency,
+        ingested_at=ingested_at,
+        trade_price=trade_price,
+        trade_size=trade_size,
+        aggressor_side=row.get("side", row.get("aggressor_side")),
+        bid=bid,
+        ask=ask,
+        bid_size=bid_size,
+        ask_size=ask_size,
+        mid=(bid + ask) / Decimal("2"),
+        spread=ask - bid,
+        source=SOURCE_ID,
+        source_request_id=source_request_id,
+        data_version=data_version,
+        quality_flags=normalize_quality_flags(session_row.get("quality_flags")),
+        session_label=settings.session_label,
+        bid_order_count=_optional_int(row.get("bid_ct_00", row.get("bid_order_count"))),
+        ask_order_count=_optional_int(row.get("ask_ct_00", row.get("ask_order_count"))),
+        sequence=_optional_int(row.get("sequence")),
+        ts_in_delta=_optional_int(row.get("ts_in_delta")),
+    )
+
+
+def _tbbo_dedupe_key(
+    row: Mapping[str, object],
+    *,
+    root: str,
+    event_ts: datetime,
+) -> tuple[str, datetime, object, str, str, str, str, str]:
+    return (
+        root,
+        event_ts,
+        row.get("sequence"),
+        str(row.get("price", row.get("trade_price"))),
+        str(row.get("size", row.get("trade_size"))),
+        str(row.get("side", row.get("aggressor_side"))),
+        str(row.get("bid_px_00", row.get("bid"))),
+        str(row.get("ask_px_00", row.get("ask"))),
+    )
+
+
+def _minute_start(value: datetime) -> datetime:
+    return value.replace(second=0, microsecond=0)
+
+
 def _bbo_record_from_row(
     row: Mapping[str, object],
     *,
@@ -746,6 +1120,17 @@ def _require_row_text(row: Mapping[str, object], field_name: str) -> str:
     return value.strip()
 
 
+def _require_text_value(value: object, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        msg = f"{field_name} must be a non-empty string"
+        raise DataFoundationValidationError(msg)
+    normalized = value.strip()
+    if "\n" in normalized or "\r" in normalized:
+        msg = f"{field_name} must be a single-line string"
+        raise DataFoundationValidationError(msg)
+    return normalized
+
+
 def _row_timestamp(row: Mapping[str, object], *field_names: str) -> datetime:
     for field_name in field_names:
         value = row.get(field_name)
@@ -816,6 +1201,22 @@ def _decimal_value(value: object, field_name: str) -> Decimal:
     return parsed
 
 
+def _positive_decimal(value: object, field_name: str) -> Decimal:
+    parsed = _decimal_value(value, field_name)
+    if parsed <= 0:
+        msg = f"{field_name} must be positive"
+        raise DataFoundationValidationError(msg)
+    return parsed
+
+
+def _non_negative_decimal(value: object, field_name: str) -> Decimal:
+    parsed = _decimal_value(value, field_name)
+    if parsed < 0:
+        msg = f"{field_name} must be non-negative"
+        raise DataFoundationValidationError(msg)
+    return parsed
+
+
 def _optional_int(value: object) -> int | None:
     if value is None:
         return None
@@ -835,7 +1236,41 @@ def _optional_int(value: object) -> int | None:
     return parsed
 
 
-def _record_root(record: CanonicalBarRecord | CanonicalBBORecord) -> str:
+def _normalize_quality_flag_values(value: object) -> tuple[str, ...]:
+    flags = normalize_quality_flags(value)
+    duplicates = sorted({flag for flag in flags if flags.count(flag) > 1})
+    if duplicates:
+        msg = "quality_flags must not contain duplicate values: "
+        raise DataFoundationValidationError(msg + ", ".join(duplicates))
+    return flags
+
+
+def _normalize_aggressor_side(value: object) -> str:
+    side = _require_text_value(value, "aggressor_side").strip().lower()
+    aliases = {
+        "a": "ask",
+        "ask": "ask",
+        "b": "bid",
+        "bid": "bid",
+        "n": "none",
+        "none": "none",
+        "unknown": "none",
+    }
+    try:
+        return aliases[side]
+    except KeyError as exc:
+        msg = "aggressor_side must be one of A, B, N, ask, bid, or none"
+        raise DataFoundationValidationError(msg) from exc
+
+
+def _combined_storage_format(storage_formats: Sequence[str]) -> str:
+    unique = set(storage_formats)
+    if not unique:
+        return "none"
+    return unique.pop() if len(unique) == 1 else "mixed"
+
+
+def _record_root(record: CanonicalBarRecord | CanonicalBBORecord | CanonicalTBBORecord) -> str:
     if "_es" in record.instrument_id:
         return "ES"
     if "_nq" in record.instrument_id:
@@ -850,11 +1285,14 @@ def _write_schema_records(
     canonical_root: Path,
     data_version: str,
     partition_schema: str,
-    records: Sequence[CanonicalBarRecord | CanonicalBBORecord],
+    records: Sequence[CanonicalBarRecord | CanonicalBBORecord | CanonicalTBBORecord],
 ) -> tuple[tuple[Path, ...], str]:
     paths = []
     formats = set()
-    by_root: dict[str, list[CanonicalBarRecord | CanonicalBBORecord]] = defaultdict(list)
+    by_root: dict[
+        str,
+        list[CanonicalBarRecord | CanonicalBBORecord | CanonicalTBBORecord],
+    ] = defaultdict(list)
     for record in records:
         by_root[_record_root(record)].append(record)
 
@@ -874,7 +1312,7 @@ def _write_schema_records(
 
 def _write_records_file(
     path: Path,
-    records: Sequence[CanonicalBarRecord | CanonicalBBORecord],
+    records: Sequence[CanonicalBarRecord | CanonicalBBORecord | CanonicalTBBORecord],
 ) -> tuple[Path, str]:
     rows = [dict(_json_ready(record.to_mapping())) for record in records]
     pyarrow = _optional_module("pyarrow")
@@ -939,7 +1377,10 @@ def _write_dataset_manifest(
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Canonicalize local Databento DBN files into OHLCV-1m and BBO-1m refs",
+        description=(
+            "Canonicalize local Databento DBN files into OHLCV-1m, BBO-1m, "
+            "and TBBO refs"
+        ),
     )
     parser.add_argument("--file-manifest", type=Path, required=True)
     parser.add_argument("--request-spec", type=Path, required=True)
@@ -974,7 +1415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-__all__ = ["CanonicalizeSummary", "main", "run_canonicalize"]
+__all__ = ["CanonicalTBBORecord", "CanonicalizeSummary", "main", "run_canonicalize"]
 
 
 if __name__ == "__main__":
