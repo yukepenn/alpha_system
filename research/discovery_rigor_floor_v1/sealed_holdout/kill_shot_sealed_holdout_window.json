@@ -1,24 +1,114 @@
 {
-  "declared_at": "2026-06-11T22:36:43Z",
-  "end_date": "2026-06-11",
+  "declared_at": "2026-06-12T00:00:00Z",
+  "end_date": null,
   "partition_spec": {
     "bar_interval": "governed futures research bars",
     "compass_window_doctrine": "2019-2021 discovery / 2022-2024 validation / 2025-latest locked test",
-    "dataset_family": "futures_core_alpha_pilot_v1",
+    "dataset_family": [
+      "futures_core_alpha_pilot_v1",
+      "futures_substrate_scaleout_v1"
+    ],
+    "futsub_campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+    "futsub_locked_test_partitions": [
+      "ES_2025_full_year",
+      "ES_2025_fwd_ret_10m",
+      "ES_2025_fwd_ret_15m",
+      "ES_2025_fwd_ret_30m",
+      "ES_2025_fwd_ret_5m",
+      "ES_2026_full_year",
+      "ES_2026_fwd_ret_10m",
+      "ES_2026_fwd_ret_15m",
+      "ES_2026_fwd_ret_30m",
+      "ES_2026_fwd_ret_5m",
+      "ES_NQ_RTY_2025_full_year",
+      "ES_NQ_RTY_2026_full_year",
+      "NQ_2025_full_year",
+      "NQ_2025_fwd_ret_10m",
+      "NQ_2025_fwd_ret_15m",
+      "NQ_2025_fwd_ret_30m",
+      "NQ_2025_fwd_ret_5m",
+      "NQ_2026_full_year",
+      "NQ_2026_fwd_ret_10m",
+      "NQ_2026_fwd_ret_15m",
+      "NQ_2026_fwd_ret_30m",
+      "NQ_2026_fwd_ret_5m",
+      "RTY_2025_full_year",
+      "RTY_2025_fwd_ret_10m",
+      "RTY_2025_fwd_ret_15m",
+      "RTY_2025_fwd_ret_30m",
+      "RTY_2025_fwd_ret_5m",
+      "RTY_2026_full_year",
+      "RTY_2026_fwd_ret_10m",
+      "RTY_2026_fwd_ret_15m",
+      "RTY_2026_fwd_ret_30m",
+      "RTY_2026_fwd_ret_5m"
+    ],
+    "futsub_relock_phase_id": "P022000_FUTSUB_RELOCK_RERUN",
+    "futsub_schema_ids": [
+      "bbo_1m",
+      "ohlcv_1m",
+      "ohlcv_dense_research_grid"
+    ],
+    "futsub_sources": [
+      "dsrc_databento_historical"
+    ],
+    "futsub_study_families": [
+      "bbo_tradability",
+      "cross_market",
+      "liquidity_pa",
+      "regime",
+      "vwap_session"
+    ],
     "split_role": "locked_test",
     "symbols": [
-      "ES"
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "target_instruments": [
+      "ES",
+      "NQ",
+      "RTY"
     ]
   },
   "provenance": {
     "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
     "compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B sealed holdout doctrine",
+    "derived_from": "research/futures_substrate_scaleout_v1/rerun/study_specs/*.json",
     "futsub_boundary_ref": "handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md",
-    "phase_id": "RIGOR-P03",
+    "locked_test_partition_count": 32,
+    "phase_id": "P033000_HOLDOUT_WINDOW_COVERAGE",
+    "relocked_studyspec_count": 10,
     "value_free": true
   },
+  "redeclaration_reason": "P033000_HOLDOUT_WINDOW_COVERAGE: widen sealed-holdout coverage to the kill-shot ES/NQ/RTY FUTSUB scaleout locked-test inputs and make the 2025-to-latest end policy rolling.",
+  "rolling": true,
   "sealed_by": "research-governance-owner",
   "start_date": "2025-01-01",
   "status": "SEALED",
-  "window_id": "holdwin_d5cba50af19976275ab26f34"
+  "superseded_declaration": {
+    "declared_at": "2026-06-11T22:36:43Z",
+    "end_date": "2026-06-11",
+    "partition_spec": {
+      "bar_interval": "governed futures research bars",
+      "compass_window_doctrine": "2019-2021 discovery / 2022-2024 validation / 2025-latest locked test",
+      "dataset_family": "futures_core_alpha_pilot_v1",
+      "split_role": "locked_test",
+      "symbols": [
+        "ES"
+      ]
+    },
+    "provenance": {
+      "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+      "compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B sealed holdout doctrine",
+      "futsub_boundary_ref": "handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md",
+      "phase_id": "RIGOR-P03",
+      "value_free": true
+    },
+    "sealed_by": "research-governance-owner",
+    "start_date": "2025-01-01",
+    "status": "SEALED",
+    "window_id": "holdwin_d5cba50af19976275ab26f34"
+  },
+  "window_id": "holdwin_bcf16744d03b8546a219fcd1"
 }

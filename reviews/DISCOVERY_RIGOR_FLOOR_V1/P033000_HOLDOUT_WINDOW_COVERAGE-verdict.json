@@ -1,0 +1,72 @@
+{
+  "phase_id": "P033000_HOLDOUT_WINDOW_COVERAGE",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "warning",
+      "summary": "rolling=true silently overrides an explicit end_date in _effective_holdout_end (date.max); widening-only direction and pinned to null for this window by the declaration test, but a future declaration carrying both would treat the end as open. Consider forbidding rolling=true with non-null end_date."
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "summary": "generate_sealed_holdout_window_id now skips absent component fields; legacy IDs unaffected (end_date was previously required) and null-vs-absent canonicalize differently, but the ID component set is no longer fixed-shape."
+    },
+    {
+      "id": "W3",
+      "severity": "warning",
+      "summary": "GATE_INVENTORY.md still cites the superseded window_id holdwin_d5cba50af19976275ab26f34 (live inventory doc drift); RIGOR-P03 handoff is historical and correctly untouched."
+    },
+    {
+      "id": "W4",
+      "severity": "warning",
+      "summary": "Research venv resolves alpha_system to the MAIN repo src, not the worktree; pytest is safe via pyproject pythonpath=['src'] (phase validation genuine), but ad-hoc worktree scripts must set PYTHONPATH=<worktree>/src."
+    },
+    {
+      "id": "W5",
+      "severity": "warning",
+      "summary": "Contract test classifies locked-test locks via string compare start_ts >= '2025-01-01T00:00:00'; verified 0 misclassified across all 136 locks today, but non-zero-padded timestamps would misclassify silently."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "id": "A",
+      "mutation": "re-narrow declaration to symbols=[ES], target_instruments=[ES] with regenerated valid window_id",
+      "expected": "intersection contract test fails",
+      "observed": "FAILED test_kill_shot_window_intersects_every_relocked_locked_test_input (assert False = access_intersects_holdout(..., symbols=['NQ'])); 2 failed, 1 passed",
+      "restored_byte_identical": true
+    },
+    {
+      "id": "B",
+      "mutation": "re-freeze end_date=2026-06-11 and drop rolling (equivalent frozen-end encoding), regenerated valid window_id",
+      "expected": "contract test fails (locked-test must mean latest)",
+      "observed": "FAILED test_kill_shot_window_contract_is_non_vacuous_and_temporally_bounded (assert False on access 2026-06-12..2027-01-01); 2 failed, 1 passed",
+      "restored_byte_identical": true
+    },
+    {
+      "id": "C",
+      "mutation": "weaken _partitions_intersect to always-True",
+      "expected": "negative non-vacuity test fails",
+      "observed": "FAILED test_kill_shot_window_contract_is_non_vacuous_and_temporally_bounded (assert not True on dataset_family='outside_research_family'); 1 failed, 2 passed",
+      "restored_byte_identical": true
+    }
+  ],
+  "validation_counts": {
+    "governance_holdout_sealed": "13 passed, 594 deselected",
+    "discovery_rigor_floor_plus_relock_smoke": "23 passed",
+    "canary_runner": "23 PASS, exit 0",
+    "verify_smoke": "exit 0",
+    "verify_all_executor_reported": "3 failed (known pre-existing env: duckdb/polars/databento-canonicalize), 3306 passed, 1 skipped"
+  },
+  "evidence": {
+    "baseline_git_diff_sha256": "52c9fed27069340a6078ef4500883a1b09534a7ca19b97b45aba0ab138f1543c",
+    "post_restore_git_diff_sha256": "52c9fed27069340a6078ef4500883a1b09534a7ca19b97b45aba0ab138f1543c",
+    "partitions_intersect_modified": false,
+    "relocked_studyspecs_committed": 10,
+    "independent_vocabulary_recompute_matches_declaration": true,
+    "locked_test_unique_partitions": 32,
+    "pre2025_locks_with_2025plus_partitions": 0,
+    "staged_files": 0,
+    "git_ls_files_runs_empty": true
+  }
+}

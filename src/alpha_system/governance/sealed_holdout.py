@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
+from types import NoneType
 from typing import Any
 
 from alpha_system.governance.ids import (
@@ -33,12 +34,17 @@ SEALED_HOLDOUT_WINDOW_REQUIRED_FIELDS = (
     "window_id",
     "partition_spec",
     "start_date",
-    "end_date",
     "status",
     "declared_at",
     "sealed_by",
 )
-SEALED_HOLDOUT_WINDOW_OPTIONAL_FIELDS = ("provenance",)
+SEALED_HOLDOUT_WINDOW_OPTIONAL_FIELDS = (
+    "end_date",
+    "rolling",
+    "provenance",
+    "superseded_declaration",
+    "redeclaration_reason",
+)
 SEALED_HOLDOUT_WINDOW_ALLOWED_FIELDS = (
     SEALED_HOLDOUT_WINDOW_REQUIRED_FIELDS + SEALED_HOLDOUT_WINDOW_OPTIONAL_FIELDS
 )
@@ -46,6 +52,7 @@ SEALED_HOLDOUT_WINDOW_ID_COMPONENT_FIELDS = (
     "partition_spec",
     "start_date",
     "end_date",
+    "rolling",
     "declared_at",
     "sealed_by",
 )
@@ -53,11 +60,14 @@ SEALED_HOLDOUT_WINDOW_FIELD_TYPES: dict[str, ExpectedType] = {
     "window_id": str,
     "partition_spec": dict,
     "start_date": str,
-    "end_date": str,
+    "end_date": (str, NoneType),
+    "rolling": bool,
     "status": str,
     "declared_at": str,
     "sealed_by": str,
     "provenance": dict,
+    "superseded_declaration": dict,
+    "redeclaration_reason": str,
 }
 
 HOLDOUT_ACCESS_LOG_RECORD_REQUIRED_FIELDS = (
@@ -119,11 +129,14 @@ class SealedHoldoutWindow:
     window_id: str
     partition_spec: dict[str, JsonValue]
     start_date: str
-    end_date: str
+    end_date: str | None
     status: SealedHoldoutStatus
     declared_at: str
     sealed_by: str
+    rolling: bool = False
     provenance: dict[str, JsonValue] | None = None
+    superseded_declaration: dict[str, JsonValue] | None = None
+    redeclaration_reason: str | None = None
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> SealedHoldoutWindow:
@@ -157,8 +170,14 @@ class SealedHoldoutWindow:
             "declared_at": self.declared_at,
             "sealed_by": self.sealed_by,
         }
+        if self.rolling:
+            payload["rolling"] = self.rolling
         if self.provenance is not None:
             payload["provenance"] = dict(self.provenance)
+        if self.superseded_declaration is not None:
+            payload["superseded_declaration"] = dict(self.superseded_declaration)
+        if self.redeclaration_reason is not None:
+            payload["redeclaration_reason"] = self.redeclaration_reason
         return payload
 
     def to_canonical_json(self) -> str:
@@ -427,11 +446,14 @@ def create_sealed_holdout_window(
     *,
     partition_spec: dict[str, JsonValue],
     start_date: str,
-    end_date: str,
+    end_date: str | None,
     status: SealedHoldoutStatus | str,
     declared_at: str,
     sealed_by: str,
+    rolling: bool = False,
     provenance: dict[str, JsonValue] | None = None,
+    superseded_declaration: dict[str, JsonValue] | None = None,
+    redeclaration_reason: str | None = None,
 ) -> SealedHoldoutWindow:
     """Create a validated sealed holdout declaration with a stable ID."""
 
@@ -443,8 +465,14 @@ def create_sealed_holdout_window(
         "declared_at": declared_at,
         "sealed_by": sealed_by,
     }
+    if rolling:
+        payload["rolling"] = rolling
     if provenance is not None:
         payload["provenance"] = dict(provenance)
+    if superseded_declaration is not None:
+        payload["superseded_declaration"] = dict(superseded_declaration)
+    if redeclaration_reason is not None:
+        payload["redeclaration_reason"] = redeclaration_reason
     payload["window_id"] = generate_sealed_holdout_window_id(payload)
     return validate_sealed_holdout_window(payload)
 
@@ -454,7 +482,9 @@ def generate_sealed_holdout_window_id(payload: Mapping[str, Any]) -> str:
 
     mapping = require_mapping(payload, object_name="SealedHoldoutWindow")
     components = {
-        field: mapping[field] for field in SEALED_HOLDOUT_WINDOW_ID_COMPONENT_FIELDS
+        field: mapping[field]
+        for field in SEALED_HOLDOUT_WINDOW_ID_COMPONENT_FIELDS
+        if field in mapping
     }
     return generate_governance_id(GovernanceIdKind.SEALED_HOLDOUT_WINDOW, components)
 
@@ -480,7 +510,24 @@ def validate_sealed_holdout_window(payload: Mapping[str, Any]) -> SealedHoldoutW
         issues.append(_id_issue("window_id", exc, GovernanceIdKind.SEALED_HOLDOUT_WINDOW))
     status = _parse_holdout_status(mapping["status"], issues)
     start = _parse_date(mapping["start_date"], field="start_date", issues=issues)
-    end = _parse_date(mapping["end_date"], field="end_date", issues=issues)
+    rolling = mapping.get("rolling", False)
+    end = None
+    if mapping.get("end_date") is None:
+        if rolling is not True:
+            issues.append(
+                ValidationIssue(
+                    field="end_date",
+                    code="missing_non_rolling_holdout_end_date",
+                    message=(
+                        "SealedHoldoutWindow.end_date is required unless rolling "
+                        "open-ended coverage is explicitly declared"
+                    ),
+                    expected="YYYY-MM-DD or rolling=true",
+                    actual="missing/null end_date with rolling=false",
+                )
+            )
+    else:
+        end = _parse_date(mapping["end_date"], field="end_date", issues=issues)
     if start is not None and end is not None and start > end:
         issues.append(
             ValidationIssue(
@@ -496,6 +543,17 @@ def validate_sealed_holdout_window(payload: Mapping[str, Any]) -> SealedHoldoutW
     issues.extend(_validate_text_value(mapping["sealed_by"], field="sealed_by"))
     if "provenance" in mapping:
         issues.extend(_validate_metadata_mapping(mapping["provenance"], field="provenance"))
+    if "superseded_declaration" in mapping:
+        issues.extend(
+            _validate_metadata_mapping(
+                mapping["superseded_declaration"],
+                field="superseded_declaration",
+            )
+        )
+    if "redeclaration_reason" in mapping:
+        issues.extend(
+            _validate_text_value(mapping["redeclaration_reason"], field="redeclaration_reason")
+        )
     issues.extend(
         _validate_canonical_serializable(
             mapping,
@@ -525,11 +583,18 @@ def validate_sealed_holdout_window(payload: Mapping[str, Any]) -> SealedHoldoutW
         window_id=mapping["window_id"],
         partition_spec=dict(mapping["partition_spec"]),
         start_date=mapping["start_date"],
-        end_date=mapping["end_date"],
+        end_date=mapping.get("end_date"),
         status=status,
         declared_at=mapping["declared_at"],
         sealed_by=mapping["sealed_by"],
+        rolling=rolling,
         provenance=dict(mapping["provenance"]) if "provenance" in mapping else None,
+        superseded_declaration=(
+            dict(mapping["superseded_declaration"])
+            if "superseded_declaration" in mapping
+            else None
+        ),
+        redeclaration_reason=mapping.get("redeclaration_reason"),
     )
 
 
@@ -844,10 +909,13 @@ def access_intersects_holdout(
         else validate_sealed_holdout_window(window)
     )
     start = access_start_date or active_window.start_date
-    end = access_end_date or active_window.end_date
     issues: list[ValidationIssue] = []
     access_start = _parse_date(start, field="access_start_date", issues=issues)
-    access_end = _parse_date(end, field="access_end_date", issues=issues)
+    access_end = (
+        _parse_date(access_end_date, field="access_end_date", issues=issues)
+        if access_end_date is not None
+        else _effective_holdout_end(active_window)
+    )
     if access_start is not None and access_end is not None and access_start > access_end:
         issues.append(
             ValidationIssue(
@@ -855,7 +923,7 @@ def access_intersects_holdout(
                 code="invalid_access_date_range",
                 message="access_start_date must be on or before access_end_date",
                 expected="access_start_date <= access_end_date",
-                actual=f"{start} > {end}",
+                actual=f"{start} > {access_end_date or 'open-ended'}",
             )
         )
     if access_partition_spec is not None:
@@ -870,7 +938,7 @@ def access_intersects_holdout(
     assert access_start is not None
     assert access_end is not None
     holdout_start = date.fromisoformat(active_window.start_date)
-    holdout_end = date.fromisoformat(active_window.end_date)
+    holdout_end = _effective_holdout_end(active_window)
     date_overlap = access_start <= holdout_end and holdout_start <= access_end
     if not date_overlap:
         return False
@@ -1057,6 +1125,12 @@ def _parse_date(value: object, *, field: str, issues: list[ValidationIssue]) -> 
         )
         return None
     return parsed
+
+
+def _effective_holdout_end(window: SealedHoldoutWindow) -> date:
+    if window.rolling or window.end_date is None:
+        return date.max
+    return date.fromisoformat(window.end_date)
 
 
 def _validate_utc_timestamp(value: object, *, field: str) -> list[ValidationIssue]:
