@@ -28,6 +28,7 @@ from alpha_system.data.foundation.datasets import (
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import resolve_dataset_version
+from alpha_system.features.pack_integrity import reconcile_registered_feature_pack_path
 from alpha_system.features.store import FeatureStore
 from alpha_system.governance.serialization import canonical_serialize
 
@@ -1122,6 +1123,10 @@ def _materialize_unit_per_feature(
             parquet_path=parquet_path,
             content_hash=content_hash,
             value_schema_version=handle.schema_version,
+        )
+        reconcile_registered_feature_pack_path(
+            alpha_data_root=alpha_data_root,
+            parquet_path=parquet_path,
         )
         feature_version_ids.append(record.feature_version_id)
         parquet_paths.append(parquet_path)
@@ -3012,6 +3017,7 @@ def _register_v1_worker_output(
                     feature_requests=fresh.feature_request_payloads,
                     store=store,
                     registry_metadata=fresh.registry_metadata,
+                    reconcile_after_register=False,
                 )
             )
     feature_version_ids = tuple(record.feature_version_id for record in records)
@@ -3022,6 +3028,10 @@ def _register_v1_worker_output(
         parquet_path=parquet_path,
         content_hash=content_hash,
         value_schema_version=handle.schema_version,
+    )
+    reconcile_registered_feature_pack_path(
+        alpha_data_root=alpha_data_root,
+        parquet_path=parquet_path,
     )
     return MaterializedUnitEvidence(
         parquet_path=parquet_path,
