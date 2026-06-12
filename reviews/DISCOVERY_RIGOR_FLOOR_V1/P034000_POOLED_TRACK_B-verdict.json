@@ -1,0 +1,146 @@
+{
+  "phase_id": "P034000_POOLED_TRACK_B",
+  "verdict": "PASS_WITH_WARNINGS",
+  "rework_resolution": {
+    "resolved_at": "2026-06-11",
+    "re_reviewer": "fresh adversarial Claude re-review (independent re-verification, not executor)",
+    "worktree": "/home/yuke_zhang/projects/alpha_system-wf1-session-reset @ feat/pooled-track-b (819c153, uncommitted diff)",
+    "repaired_pooled_hypothesis_sha256": "938fae481db7666f4aa9974ae6f5d713c4cab233578bbedeb0fdb96a045671eb",
+    "findings_resolved": {
+      "F1": "RESOLVED. register() now calls _refuse_new_registration_when_metrics_started() on the NEW-registration path (pooled_hypothesis.py:340): marker file EXISTS => refuse outright with pooled_registration_window_closed, no timestamp comparison; the existing-identical-record resume path retains ensure_registration_precedes_metrics() timestamp semantics (line 331). Reviewer re-ran the ORIGINAL backdating probe (fresh registry, marker=2026-06-12T12:00:00Z on disk, new payload registered_at=2026-06-12T11:00:00Z): REFUSED, code=pooled_registration_window_closed, registry and VariantLedger files both 0 bytes (guard fires before the ledger append, so no orphan row). Regression test test_registry_refuses_backdated_new_registration_after_metrics_marker_exists pins refusal code + zero writes.",
+      "F2": "RESOLVED. test_pooled_hypothesis_id_changes_for_each_contract_component asserts set(POOLED_HYPOTHESIS_ID_COMPONENT_FIELDS) == set(POOLED_HYPOTHESIS_REQUIRED_FIELDS) - {pooled_hypothesis_id} AND runs a per-field poolhyp_ id-perturbation loop over mechanism_rationale, members, horizons, sessions, symbols, aggregation_rule (monkeypatched extended enum to perturb the rule). Reviewer independently flipped sessions rth->eth: id poolhyp_51e971b83c28d029... -> poolhyp_d52333902ea0f018..., different.",
+      "F3": "RESOLVED. test_track_b_draft_templates_are_unregistrable_as_is feeds BOTH templates' wrapper payloads (asserts missing_required_field + unknown_field) and inner registration_payload_template (asserts invalid_field_type) to validate_pooled_hypothesis_record."
+    },
+    "mutation_check": {
+      "mutation": "removed the _refuse_new_registration_when_metrics_started() call from register(), restoring the old timestamp-comparison-only behavior",
+      "observed": "test_registry_refuses_backdated_new_registration_after_metrics_marker_exists FAILED (Failed: DID NOT RAISE at test line 214); 1 failed",
+      "restored_byte_identical": true,
+      "sha256_before_and_after": "938fae481db7666f4aa9974ae6f5d713c4cab233578bbedeb0fdb96a045671eb"
+    },
+    "revalidation_counts": {
+      "governance_unit": "616 passed in 2.91s (was 614; +2: F1 regression + F2 coverage)",
+      "discovery_rigor_floor_unit": "18 passed in 0.10s (was 17; +1: F3 template unregistrability)",
+      "combined": "634 passed in 2.96s",
+      "canary_runner": "23 PASS, 'All Frontier canaries passed.'",
+      "verify_smoke": "exit 0",
+      "staged_files": 0,
+      "git_ls_files_runs_empty": true
+    },
+    "remaining_warnings": "O1 observations stand (caller-supplied registry/ledger paths fixed by gate-time tooling; VariantLedger-before-registry append order now mitigated for the marker-closed path since the window guard fires before any write; cosmetic items unchanged). Optional wall-clock future-registered_at refusal from the F1 fix sketch was not implemented and is not required: marker presence alone now closes the window."
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "summary": "Pre-metric ordering is bypassable by backdating: a NEW registration attempted AFTER the metrics-started marker exists is ACCEPTED when the self-declared registered_at predates the marker timestamp (empirically demonstrated: marker=2026-06-12T12:00:00Z on disk, payload registered_at=2026-06-12T11:00:00Z, register() returned appended=True). registered_at is registrant-chosen and is the only value compared against the marker; no wall-clock/registration-event anchor. Fix: marker file present => refuse all NEW appends regardless of declared registered_at (keep timestamp comparison for idempotent re-validation of already-registered identical payloads); add regression test."
+    },
+    {
+      "id": "F2",
+      "severity": "minor",
+      "summary": "Hash-coverage mutation resistance exists only for members: excluding horizons/sessions/symbols from POOLED_HYPOTHESIS_ID_COMPONENT_FIELDS passes the entire suite (10 passed). Runtime full-payload conflict check still refuses same-id edits today, but the content-address property degrades silently under refactor. Add a test asserting the id-component set equals all required fields minus pooled_hypothesis_id, or a per-field id-perturbation loop."
+    },
+    {
+      "id": "F3",
+      "severity": "minor",
+      "summary": "No test pins DRAFT-template unregistrability. Verified empirically that both templates fail validation (wrapper: missing_required_field + unknown_field; inner registration_payload_template: invalid_field_type from placeholder sentinels), so track_b_minimum_satisfied cannot consume them, but a future template edit could silently become registrable. Add a test feeding both template payloads to validate_pooled_hypothesis_record and asserting rejection."
+    },
+    {
+      "id": "O1",
+      "severity": "observation",
+      "summary": "Registry/ledger paths are caller-supplied (consistent with existing governance CLI pattern); 'exactly one VariantLedger entry' is per-file, canonical paths must be fixed by gate-time tooling. VariantLedger append precedes registry append (orphan ledger row on crash; idempotent retry heals). Cosmetic: unreachable sessions<1 branch, CLI payload-name shadowing, dead registered_before_metrics skip in track_b_minimum_satisfied."
+    }
+  ],
+  "checks": {
+    "structural_2_1": {
+      "id_hash_covers_full_contract": true,
+      "hashed_fields": ["mechanism_rationale", "pool_kind", "members", "aggregation_rule", "horizons", "sessions", "symbols", "registered_at", "registered_before_metrics", "variant_ledger_record"],
+      "extra_fields_rejected_by_allowed_fields": true,
+      "registry_refuses_modified_payload_and_surfaces_diff": true,
+      "append_only_no_rewrite_path": true,
+      "aggregation_rule_closed_enum": "equal_weight_mean only (StrEnum), defensively re-checked in aggregate_pooled_metric"
+    },
+    "pre_metric_ordering": {
+      "absent_marker_allows": true,
+      "comparison_direction_correct": "refuses when registered_at >= marker timestamp",
+      "marker_parse_fail_closed": true,
+      "backdated_new_registration_after_marker_blocked": false
+    },
+    "variant_ledger_linkage": {
+      "composes_with_rigor_p02_api_no_fork": true,
+      "variant_ledger_py_unmodified": true,
+      "exactly_one_linked_entry_per_registration": true,
+      "idempotent_reregistration_appends_zero": true,
+      "linked_record_inside_content_hash": true
+    },
+    "track_b_minimum": {
+      "requires_cross_symbol_and_cross_horizon": true,
+      "members_must_subset_kill_shot_set": true,
+      "draft_templates_cannot_satisfy": "verified empirically (validation rejects wrapper and inner payloads)"
+    },
+    "aggregate_pooled_metric": {
+      "pure_no_io": true,
+      "reports_pooled_and_components": true,
+      "no_pnl_value_computation": true,
+      "component_set_must_exactly_match_membership": true
+    }
+  },
+  "mutation_tests": [
+    {
+      "id": "a",
+      "mutation": "neutralize registry refusal of modified payload under existing id (if False and ...)",
+      "expected": "test fails",
+      "observed": "FAILED test_registry_refuses_modified_payload_under_existing_id (pytest.raises not triggered); 1 failed, 5 passed",
+      "restored_byte_identical": true
+    },
+    {
+      "id": "b",
+      "mutation": "exclude members from POOLED_HYPOTHESIS_ID_COMPONENT_FIELDS",
+      "expected": "test fails",
+      "observed": "FAILED test_pooled_hypothesis_record_round_trips_and_id_changes at id-inequality assertion (line 110); 1 failed, 7 passed",
+      "restored_byte_identical": true
+    },
+    {
+      "id": "b_prime_extra_probe",
+      "mutation": "exclude horizons+sessions+symbols from the id components",
+      "expected": "some test fails",
+      "observed": "NOT CAUGHT - 10 passed (basis for finding F2)",
+      "restored_byte_identical": true
+    },
+    {
+      "id": "c",
+      "mutation": "track_b_minimum_satisfied returns has_cross_symbol OR has_cross_horizon",
+      "expected": "test fails",
+      "observed": "FAILED test_track_b_minimum_requires_cross_symbol_and_cross_horizon (line 249); 1 failed, 7 passed",
+      "restored_byte_identical": true
+    },
+    {
+      "id": "d",
+      "mutation": "disable marker-ordering refusal (if False and registered >= started_at)",
+      "expected": "test fails",
+      "observed": "FAILED test_metrics_started_marker_enforces_pre_metric_ordering AND test_register_pooled_hypothesis_cli_surfaces_marker_ordering; 2 failed, 6 passed",
+      "restored_byte_identical": true
+    }
+  ],
+  "validation_counts": {
+    "governance_unit": "614 passed in 2.88s",
+    "discovery_rigor_floor_unit": "17 passed in 0.10s",
+    "combined_post_restore": "631 passed",
+    "canary_runner": "23 PASS, 'All Frontier canaries passed.' (RIGOR-P04 added canaries; 23 is current main baseline)",
+    "verify_smoke": "exit 0"
+  },
+  "evidence": {
+    "baseline_pooled_hypothesis_sha256": "03eee65e3bcb261dd3a80443d9b8f0f69d0bafc3960d0257cd17908b204497a5",
+    "post_restore_pooled_hypothesis_sha256": "03eee65e3bcb261dd3a80443d9b8f0f69d0bafc3960d0257cd17908b204497a5",
+    "test_file_sha256_unchanged": "aff001480b6613ea82911b4821c8d6694f90f545cf497f513b88921e7177ce6d",
+    "backdating_probe_output": "BACKDATED NEW REGISTRATION AFTER MARKER EXISTS: ACCEPTED, appended = True",
+    "template_rejection_codes": {
+      "wrapper": ["missing_required_field", "unknown_field"],
+      "inner_registration_payload_template": ["invalid_field_type"]
+    },
+    "staged_files": 0,
+    "git_ls_files_runs_empty": true,
+    "diff_scope": "governance module + CLI + tests + 2 DRAFT templates only; no features/labels/runtime/promotion_gate edits",
+    "research_only_language_grep": "no alpha/profitability/tradability/production claims found",
+    "worktree_branch_head": "feat/pooled-track-b @ 819c153"
+  }
+}
