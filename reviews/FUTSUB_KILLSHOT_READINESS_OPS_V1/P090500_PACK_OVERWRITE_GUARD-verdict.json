@@ -1,0 +1,46 @@
+{
+  "phase_id": "P090500_PACK_OVERWRITE_GUARD",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [
+    "W1 (warning, follow-up required): DUAL-mode JSONL twin is written before the superset guard fires, so a refused subset run still shrinks the JSONL tier of the pack; Parquet truth is protected and the scaleout incident vector is closed (PARQUET-only by config validation); fix is hoisting the guard to the top of both writers.",
+    "W2 (warning, follow-up): label pack writers (labels/fast/materializer.py:1450, labels/engine.py:804) remain unguarded for the same structural hazard class; out of this feature-scoped spec, needs its own phase before any label-side force-recompute data-op.",
+    "W3 (minor): reconcile_after_register kwarg on PackMaterializer.register_pack is an internal way to skip reconciliation; its single False caller reconciles at unit level afterward and it is not CLI-exposed, but future callers could silently skip.",
+    "W4 (minor): no explicit deprecate-then-rewrite test; the deprecated-first path is correct by construction (SQL lifecycle filter on REGISTERED rows) but untested."
+  ],
+  "mutation_tests": [
+    {
+      "id": "A",
+      "change": "superset comparison disabled (if missing and False)",
+      "expected": "subset-refusal test fails",
+      "result": "FAILED as required (test_registered_pack_subset_rewrite_is_refused_and_superset_allowed)"
+    },
+    {
+      "id": "B",
+      "change": "reconcile_registered_feature_pack_path made a no-op (return first)",
+      "expected": "tamper test fails",
+      "result": "FAILED as required (test_register_pack_reconciliation_catches_tampered_file)"
+    },
+    {
+      "id": "C",
+      "change": "stale-registry classified as clean",
+      "expected": "classification test fails",
+      "result": "FAILED as required (test_pack_audit_reports_stale_registry_benign_extra_and_clean)"
+    }
+  ],
+  "live_audit": {
+    "source": "~/logs/alpha_pipeline/pack_audit_live.json (alpha scaleout pack-audit --json against live registry, ALPHA_DATA_ROOT=/home/yuke_zhang/alpha_data/alpha_system; CLI rc=2 on detected damage)",
+    "total_path_count": 176,
+    "clean": 81,
+    "stale_registry": 71,
+    "benign_extra": 24,
+    "stale_registry_by_family": {
+      "bbo_tradability_top_book": 23,
+      "regime_volatility_compression": 24,
+      "session_calendar_maintenance": 24
+    },
+    "benign_extra_by_family": {
+      "volume_activity": 24
+    },
+    "caveat": "Audit RACED the live repair operations (deprecate-first of 168 fvers at 10:32Z + full re-materialization 10:33-10:55Z); counts are a mid-repair snapshot that directionally confirms detection of all three damage classes on real damage, not the final state. Post-repair cross-check via tools/futures_substrate_scaleout/pack_restore_audit.py at 10:55Z: bbo 264/264 hash-identical, session 120/120, regime 72/72, stale=0."
+  }
+}

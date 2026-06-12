@@ -59,6 +59,7 @@ from alpha_system.features.input_views import (
     build_bbo_input_view,
     build_canonical_input_views,
 )
+from alpha_system.features.pack_integrity import require_registered_feature_pack_superset
 from alpha_system.features.semantics import is_synthetic_no_trade_bar
 from alpha_system.governance.serialization import JsonValue, canonical_serialize, content_hash
 
@@ -649,6 +650,11 @@ def _write_records_idempotently(
     if store_format in (ValueStoreFormat.PARQUET, ValueStoreFormat.DUAL):
         parquet_path = _feature_parquet_path(plan)
         if not parquet_is_current(parquet_path, content_hash):
+            require_registered_feature_pack_superset(
+                alpha_data_root=plan.alpha_data_root,
+                parquet_path=parquet_path,
+                incoming_feature_version_ids=plan.feature_version_ids,
+            )
             write_parquet_values(
                 record_dicts,
                 parquet_path,
