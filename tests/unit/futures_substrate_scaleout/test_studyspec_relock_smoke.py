@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import defaultdict
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,7 @@ import pytest
 from alpha_system.governance.feature_lock_validation import (
     FeatureLockValidationError,
     extract_feature_version_ids,
+    validate_feature_locks,
 )
 from alpha_system.governance.study_spec import StudySpec
 from alpha_system.runtime.input_resolver import (
@@ -36,6 +39,12 @@ PRIOR_INCONCLUSIVE_IDS = {
     "sspec_02c400a561891171a33c0c66",
     "sspec_9f6f741192a4b534f06e51c0",
 }
+EXPECTED_ORIGINAL_IDS = PRIOR_INCONCLUSIVE_IDS | {
+    "sspec_dde3e64667fe158f9bad527d",
+    "sspec_c671fbeeb143512cbc03bc5b",
+    "sspec_90b28233d828128664588a9a",
+    "sspec_7c8fb13628843890c171b122",
+}
 HELD_FIXED_FIELDS = (
     "alpha_spec_id",
     "label_spec_id",
@@ -52,8 +61,12 @@ HELD_FIXED_FIELDS = (
 def test_relocked_studyspecs_parse_through_governance_contract() -> None:
     specs = _load_relocked_specs()
 
-    assert len(specs) == 8
+    assert len(specs) == 10
     assert all(isinstance(spec, StudySpec) for spec in specs)
+    assert {
+        spec.dataset_scope["relock_provenance"]["original_study_spec_id"]
+        for spec in specs
+    } == EXPECTED_ORIGINAL_IDS
 
 
 def test_relocked_studyspecs_preserve_original_ids_and_parameters() -> None:
@@ -67,7 +80,10 @@ def test_relocked_studyspecs_preserve_original_ids_and_parameters() -> None:
 
         assert spec.study_spec_id != original_id
         assert spec.dataset_scope["relock_provenance"]["original_study_spec_id"] == original_id
-        assert spec.dataset_scope["relock_provenance"]["relock_phase_id"] == "FUTSUB-P27"
+        assert (
+            spec.dataset_scope["relock_provenance"]["relock_phase_id"]
+            == "P022000_FUTSUB_RELOCK_RERUN"
+        )
 
 
 def test_reissued_locks_are_well_formed_value_free_and_accepted() -> None:
@@ -102,15 +118,51 @@ def test_reissued_locks_are_well_formed_value_free_and_accepted() -> None:
             assert int(lock["value_record_count"]) > 0
             assert not PATH_KEYS.intersection(lock)
 
+    assert sum(len(spec.dataset_scope["feature_pack_locks"]) for spec in _load_relocked_specs()) == 4560
+    assert sum(len(spec.dataset_scope["label_pack_locks"]) for spec in _load_relocked_specs()) == 840
+
+
+def test_committed_locks_resolve_against_live_registry_and_feature_validator() -> None:
+    data_root = _alpha_data_root()
+    feature_registry = data_root / "registry/features.sqlite"
+    label_registry = data_root / "registry/labels.sqlite"
+    if not feature_registry.exists():
+        pytest.skip(
+            "live local registry absent (CI environment): "
+            f"{feature_registry} -- lock resolution validated locally; "
+            "see studyspec_relock.md report"
+        )
+    assert label_registry.exists()
+
+    resolver = FeatureLabelPackResolver(alpha_data_root=data_root)
+    all_feature_locks: list[dict[str, Any]] = []
+
+    for spec in _load_relocked_specs():
+        scope = spec.dataset_scope
+        all_feature_locks.extend(scope["feature_pack_locks"])
+        _resolve_feature_locks(resolver, scope)
+        _resolve_label_locks(resolver, scope)
+
+    report = validate_feature_locks(all_feature_locks, registry_path=feature_registry)
+    assert report.ok
+    assert report.to_dict()["lock_count"] == 4560
+    assert report.to_dict()["resolved_count"] == 4560
+    assert report.to_dict()["stale_lock_count"] == 0
+
 
 def test_relock_report_records_smoke_pass_and_all_inconclusive_classifications() -> None:
     report = RELOCK_REPORT.read_text(encoding="utf-8")
 
     assert "StudySpec resolver-smoke: PASS" in report
-    assert "## Resolvable-Study List" in report
+    assert "Prior-INCONCLUSIVE studies re-locked: 6/6" in report
+    assert "Feature locks resolved for committed re-locks: 4560" in report
+    assert "Label locks resolved for committed re-locks: 840" in report
+    assert "## Prior-INCONCLUSIVE Classification" in report
     assert "feature_pack_not_found" in report
+    assert "Named Gaps\n\nNone." in report
     for study_spec_id in PRIOR_INCONCLUSIVE_IDS:
         assert study_spec_id in report
+        assert f"{study_spec_id}` |" in report
 
 
 def test_synthetic_unresolvable_lock_fails_closed_without_fuzzy_fallback() -> None:
@@ -137,6 +189,55 @@ def _load_relocked_specs() -> tuple[StudySpec, ...]:
 
 def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _alpha_data_root() -> Path:
+    return Path(
+        os.environ.get("ALPHA_DATA_ROOT", "~/alpha_data/alpha_system")
+    ).expanduser()
+
+
+def _resolve_feature_locks(
+    resolver: FeatureLabelPackResolver,
+    scope: dict[str, Any],
+) -> None:
+    expected_request_ids = tuple(scope["study_input_pack_refs"]["feature_request_ids"])
+    for (dataset_version_id, partition_id), locks in _locks_by_dataset_partition(
+        scope["feature_pack_locks"]
+    ).items():
+        handles = resolver.resolve_feature_packs(
+            tuple(lock["feature_version_id"] for lock in locks),
+            expected_dataset_version_id=dataset_version_id,
+            expected_feature_request_ids=expected_request_ids,
+            partition_id=partition_id,
+        )
+        assert len(handles) == len(locks)
+
+
+def _resolve_label_locks(
+    resolver: FeatureLabelPackResolver,
+    scope: dict[str, Any],
+) -> None:
+    expected_label_spec_ids = tuple(scope["study_input_pack_refs"]["label_spec_ids"])
+    for (dataset_version_id, partition_id), locks in _locks_by_dataset_partition(
+        scope["label_pack_locks"]
+    ).items():
+        handles = resolver.resolve_label_packs(
+            tuple(lock["label_version_id"] for lock in locks),
+            expected_dataset_version_id=dataset_version_id,
+            expected_label_spec_ids=expected_label_spec_ids,
+            partition_id=partition_id,
+        )
+        assert len(handles) == len(locks)
+
+
+def _locks_by_dataset_partition(
+    locks: list[dict[str, Any]],
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    groups: defaultdict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for lock in locks:
+        groups[(lock["dataset_version_id"], lock["partition"])].append(lock)
+    return dict(groups)
 
 
 class _EmptyFeatureStore:

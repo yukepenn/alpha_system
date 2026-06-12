@@ -1,0 +1,70 @@
+{
+  "schema": "frontier-review-verdict-v1",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "phase_id": "P022000_FUTSUB_RELOCK_RERUN",
+  "verdict": "PASS_WITH_WARNINGS",
+  "rework_resolution": {
+    "resolved_at": "2026-06-12T03:05Z",
+    "repair": "F1 resolved: test_committed_locks_resolve_against_live_registry_and_feature_validator now begins with a condition-driven pytest.skip guard (test file lines 129-134) that fires only when ($ALPHA_DATA_ROOT|~/alpha_data/alpha_system)/registry/features.sqlite is absent; the skip reason is loud and names the missing registry path. No assertion was weakened or removed: report.ok, lock_count==4560, resolved_count==4560, stale_lock_count==0, the resolver loops, and assert label_registry.exists() are all intact, and the other 5 tests remain unguarded.",
+    "scope_evidence": "Only the smoke test changed since the REWORK review: it is the sole worktree file with mtime (2026-06-11T22:35:33-04) after the review artifacts (22:33); all other diff files predate the review (22:20:52 executor batch), and the two mutation-restored JSONs re-hash to the verdict-recorded sha256s (71ebe672bc6e..., 681fbea0c9ff...). Guard occupies exactly the position of the former hard assert at line 129; surrounding test body matches the reviewed version line-for-line (+5 lines net for the guard). Nothing staged; git ls-files runs empty.",
+    "test_evidence": {
+      "live_root_run": "ALPHA_DATA_ROOT=$HOME/alpha_data/alpha_system -> 6 passed, 0 skipped in 21.65s (live resolution executed, not skipped)",
+      "ci_simulation_run": "ALPHA_DATA_ROOT=/tmp/definitely_absent_root -> 5 passed, 1 skipped in 0.63s; SKIPPED reason: 'live local registry absent (CI environment): /tmp/definitely_absent_root/registry/features.sqlite -- lock resolution validated locally; see studyspec_relock.md report'",
+      "guard_mutation_test": "inverted the guard condition (skip when registry EXISTS) -> live-root run skipped the live test (5 passed, 1 skipped), proving the skip is condition-driven on feature_registry.exists(), not unconditional; restored byte-identical (sha256 fc0ca12d98ddffafd4f50caa6ba20ad3fcde776c0c41c0dd37ae788daaea42c4 pre==post) and re-ran live root -> 6 passed in 21.78s"
+    }
+  },
+  "findings": [
+    "F1 BLOCKING: tests/unit/futures_substrate_scaleout/test_studyspec_relock_smoke.py:125-145 (test_committed_locks_resolve_against_live_registry_and_feature_validator) hard-asserts the live registry exists (line 129) and is deterministically red under CI (.github/workflows/frontier-ci.yml:34 runs bare 'python -m pytest' on ubuntu-latest with no ALPHA_DATA_ROOT); reproduced with ALPHA_DATA_ROOT=/tmp/ci_sim_empty -> FAILED AssertionError line 129. No other suite test requires a populated local data root. Guarantees a red PR and failed merge gate.",
+    "VERIFIED: scope exact (10 tracked-file diff + 10 new untracked JSONs, all in research/futures_substrate_scaleout_v1/rerun/** + the smoke test); zero src/** changes; runtime/input_resolver.py blob sha 778fa371e90a8dfb4127a533e35a61eb7f2f8508 identical to origin/main",
+    "VERIFIED: registry read-only — features.sqlite mtime == MAX(registered_at) 2026-06-12T02:03:16Z (prior coordinator re-materialization, before executor work at 02:23Z); MAX(deprecated_at) 2026-06-12T00:29:28Z = sanctioned 496-row session-reset deprecation with existing backup session_reset_repair_20260612T002901Z; labels.sqlite mtime 2026-06-11T16:15Z; affected set = 24 feature_ids, lifecycle DEPRECATED=496 / REGISTERED=400 (exact match), base_ohlcv_rolling_volume 0 REGISTERED (deferred as stated)",
+    "VERIFIED: 0 committed fvers deprecated, 0 non-REGISTERED, 0 absent from registry (1216 unique fvers, 96 unique lvers); per-study lock counts match the report table for all 10 studies",
+    "VERIFIED: contract fidelity on 3 sampled studies (vwap sspec_652fcc23, regime sspec_1d87dfbe, bbo sspec_6088f0ed) — all 9 held-fixed fields byte-equal to the original Core Pilot study_specs.json; only study_spec_id + dataset_scope differ",
+    "VERIFIED: formerly-GAPPED resolution caused by new registry records carrying feature_spec.inputs.input_metadata.field_roles={session_label: SESSION_METADATA} (deprecated counterparts lack field_roles), not by any resolver change",
+    "VERIFIED: value-free artifacts (no values, no path keys, no absolute paths); research-only language; report counts accurate; 8 superseded P27 JSONs removed in-diff",
+    "VERIFIED: smoke 6 passed live; tests/unit/futures_substrate_scaleout 132 passed; verify.py --smoke exit 0; canary_runner all PASS; git ls-files runs empty; nothing staged"
+  ],
+  "required_repairs": [
+    "Add a loud registry-absent skip guard (pytest.mark.skipif or pytest.skip naming the missing registry path) to test_committed_locks_resolve_against_live_registry_and_feature_validator ONLY, so CI (no local data root) skips instead of failing while the local phase validation commands (ALPHA_DATA_ROOT set) still execute the full resolver+validator gate. Do not weaken any assertion; do not guard the other 5 tests."
+  ],
+  "warnings": [
+    "W1: DatasetVersion acceptance states are attested by committed lock fields and structural test, not re-checked live against datasets.sqlite (same posture as FUTSUB-P27; future hardening candidate)",
+    "W2: executor used committed methodology docs because the run-local FUTSUB-P27 spec under runs/ is absent in the worktree — honestly disclosed; outcome matches CORE_PILOT_RELOCK.md discipline"
+  ],
+  "mutation_tests": [
+    {
+      "id": "A_corrupt_fver_hex",
+      "target": "research/futures_substrate_scaleout_v1/rerun/study_specs/sspec_652fcc23a6f725b405612b8e.json",
+      "mutation": "flipped last hex char of fver_be1ce42491daf2a0213fc8043e2ddf41fa511550fe8df29d6e38887e49483094",
+      "result": "FAIL_CLOSED at governance layer: GovernanceValidationError 'StudySpec.study_spec_id must match deterministic StudySpec content' (src/alpha_system/governance/study_spec.py:276) — content-addressed sspec id catches any hand-patched lock before resolution",
+      "restored_byte_identical": true,
+      "sha256": "71ebe672bc6e07172a3dc8bcceb4d91abfb6bd97974743072c351989ba8d0f06"
+    },
+    {
+      "id": "B_deprecated_fver_with_recomputed_id",
+      "target": "research/futures_substrate_scaleout_v1/rerun/study_specs/sspec_1d87dfbe3d24810720f75014.json",
+      "mutation": "pointed liquidity_structure_range_contraction ES_2019 lock at DEPRECATED fver_96c95feb85d852292f8e9452393a626caa40cc9a106e8d110a9a5264912e322f AND recomputed the content-addressed study_spec_id to bypass the governance layer",
+      "result": "FAIL_CLOSED at resolver lifecycle layer: RuntimeInputResolverError feature_pack_deprecated 'lifecycle_state must be REGISTERED for runtime resolution' (src/alpha_system/runtime/input_resolver.py:1353); smoke 1 failed, 5 passed",
+      "restored_byte_identical": true,
+      "sha256": "681fbea0c9ff448beede3c90b31bc9fba5865b55b7194bf580ac5cb5975a0aae"
+    }
+  ],
+  "validation_counts": {
+    "studies_classified": 10,
+    "relocked_study_specs_written": 10,
+    "prior_inconclusive_relocked": 6,
+    "prior_reject_audit_only_relocked": 4,
+    "named_gaps": 0,
+    "feature_locks_committed": 4560,
+    "label_locks_committed": 840,
+    "unique_feature_version_ids": 1216,
+    "unique_label_version_ids": 96,
+    "committed_fvers_deprecated": 0,
+    "committed_fvers_not_registered": 0,
+    "affected_feature_ids": 24,
+    "affected_set_registered_rows": 400,
+    "affected_set_deprecated_rows": 496,
+    "smoke_tests_passed": 6,
+    "futsub_unit_suite_passed": 132,
+    "ci_simulation_new_test": "SKIPPED with loud reason after repair (was FAILED at REWORK review; see rework_resolution)"
+  }
+}
