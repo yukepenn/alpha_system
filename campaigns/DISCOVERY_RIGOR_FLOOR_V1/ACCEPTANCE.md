@@ -34,6 +34,20 @@ DONE when every line is deterministically checkable and true:
    the executable FUTSUB_KILL_SHOT_RESUME.md handoff.
 9. **Artifact policy clean**: no runs/, values, SQLite, or heavy artifacts
    committed; explicit staging only; `git ls-files runs` empty.
+10. **Compass v4.4 readiness preconditions (amendment 2026-06-12,
+    user-approved red-team adoption)**: the kill-shot does not fire until
+    each is green with deterministic evidence — (a) holdout window
+    intersects every committed re-locked StudySpec input (intersection
+    contract test, P033000); (b) variant-ledger reconciliation audit over
+    the kill-shot study set; (c) read-only substrate-invariant audit green;
+    (d) per-study MDE/power memos written pre-metric; (e) Track-B mandatory
+    minimum registered (>=1 cross-symbol + >=1 cross-horizon pooled
+    hypothesis, P034000); (f) substrate-caveat register present (R-037,
+    BBO-proxy); (g) versioned real fee constants live in the base cost
+    profile (P035000). Surrogate-calibration readiness additionally
+    requires declared K (>=60 -> ~5% false-pass bound) and
+    dependence-preserving nulls per compass S7.2 [v4.4]; an
+    iid-shuffle-only or undeclared-K report does not satisfy it.
 
 Failure handling: any open-by-default gate, any historical-evidence
 mutation, or any impossible validation is BLOCKED — never a weakened gate,
