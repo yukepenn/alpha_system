@@ -528,6 +528,119 @@ def test_remaining_non_session_conditioned_identities_ignore_session_template_ch
         )
 
 
+def test_current_production_feature_version_ids_are_pinned() -> None:
+    # These pins are deliberate: they break loudly on any identity-affecting
+    # contract change. An intentional identity rotation must update the pins in
+    # the same reviewed commit that explains and justifies the rotation.
+    registry_reader = _EmptyRegistryReader()
+    dataset_version_ids = ("dsv_identity_pin_fixture_v1",)
+    cases = (
+        (
+            "liquidity_structure_range_contraction",
+            build_structure_feature_definition(
+                StructureFeatureName.RANGE_CONTRACTION,
+                _feature_request(exposure_family="identity_pin_structure_range_contraction"),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=3,
+                reset_on_session=True,
+            ),
+            "fver_a1563521cb4502061b49aa43a7e1a7e214eb28b851e141373afd5ab051d68193",
+        ),
+        (
+            "bbo_tradability_spread_zscore",
+            build_bbo_feature_definition(
+                BBOFeatureName.SPREAD_ZSCORE,
+                _feature_request(exposure_family="identity_pin_bbo_spread_zscore"),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=20,
+                reset_on_session=True,
+                ddof=0,
+            ),
+            "fver_a57f8ed781684175d20e811d2838ce3645e81ce3721727289c088c5f7476fc7c",
+        ),
+        (
+            "base_ohlcv_atr",
+            build_ohlcv_feature_definition(
+                OHLCVFeatureName.ATR,
+                _feature_request(exposure_family="identity_pin_base_ohlcv_atr"),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=20,
+                reset_on_session=True,
+                ddof=0,
+            ),
+            "fver_1cdc51e5e8eb1a63ab5b2962a58ab17877eb0763d7cb718ca1713a55232acbb6",
+        ),
+        (
+            "cross_market_synchronized_returns",
+            build_cross_market_feature_definition(
+                CrossMarketFeatureName.SYNCHRONIZED_RETURNS,
+                _feature_request(
+                    exposure_family="identity_pin_cross_market_synchronized_returns"
+                ),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=3,
+                horizon=1,
+                reset_on_session=True,
+                ddof=0,
+                alignment_policy="strict_intersection",
+            ),
+            "fver_718940f677baf1e341a61981be35a8d8759cb783d31628857cbc3c1d04417f28",
+        ),
+        (
+            "base_ohlcv_opening_range",
+            build_ohlcv_feature_definition(
+                OHLCVFeatureName.OPENING_RANGE,
+                _feature_request(exposure_family="identity_pin_base_ohlcv_opening_range"),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=1,
+                horizon=1,
+                opening_range_minutes=30,
+                reset_on_session=True,
+                ddof=0,
+            ),
+            "fver_63e9a398ac627ab8c753211a6340b1a414dde4a1eac2e89f5f6dab0f1ca646ff",
+        ),
+        (
+            "base_ohlcv_returns",
+            build_ohlcv_feature_definition(
+                OHLCVFeatureName.RETURNS,
+                _feature_request(exposure_family="identity_pin_base_ohlcv_returns"),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=1,
+                horizon=1,
+                reset_on_session=False,
+                ddof=0,
+            ),
+            "fver_e2dd0b72669c8fefc78e8e64251bfa5df8046771dd5364a3af79ced1a1fb02af",
+        ),
+        (
+            "base_ohlcv_volume_zscore",
+            build_ohlcv_feature_definition(
+                OHLCVFeatureName.VOLUME_ZSCORE,
+                _feature_request(exposure_family="identity_pin_base_ohlcv_volume_zscore"),
+                registry_reader,
+                dataset_version_ids=dataset_version_ids,
+                window_length=20,
+                horizon=1,
+                reset_on_session=False,
+                ddof=0,
+            ),
+            "fver_ad8838af64b53590a1869135b1b8cb42380661b035b82d6eed00e46a80bb4d2b",
+        ),
+    )
+
+    assert {
+        case_name: definition.feature_version_id
+        for case_name, definition, _expected in cases
+    } == {case_name: expected for case_name, _definition, expected in cases}
+
+
 def _session_truth_parameters() -> dict[str, str]:
     template = load_session_template_by_id()
     return {
