@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 
 import pytest
 
 from alpha_system.features.contracts import FeatureSetSpec, FeatureValueRecord
-from alpha_system.features.fast import (
-    BBO_TRADABILITY_FEATURE_IDS,
-    PackMaterializer,
-    build_fast_feature_pack,
-)
 from alpha_system.features.families.bbo import (
     BBOFeatureDefinition,
     BBOFeatureName,
     build_bbo_feature_definition,
     compute_bbo_feature,
+)
+from alpha_system.features.fast import (
+    BBO_TRADABILITY_FEATURE_IDS,
+    PackMaterializer,
+    build_fast_feature_pack,
 )
 from alpha_system.features.input_views import build_bbo_input_view
 from tests.fixtures.feature_compute_fast_path.bbo_tradability import (
@@ -82,12 +83,20 @@ def test_bbo_tradability_pack_matches_reference_on_synthetic_fixture() -> None:
     assert tuple(declaration.feature_version_id for declaration in pack.declarations) == tuple(
         definition.feature_version_id for definition in definitions
     )
+    assert any(row["event_ts"] != row["bar_end_ts"] for row in rows)
+    expected_event_ts = tuple(datetime.fromisoformat(str(row["bar_end_ts"])) for row in rows)
     _assert_fixture_coverage(reference_records)
     for definition in definitions:
         tolerance = (
             SPREAD_ZSCORE_TOLERANCE
             if definition.name is BBOFeatureName.SPREAD_ZSCORE
             else FeatureParityTolerance()
+        )
+        assert tuple(record.event_ts for record in reference_records[definition.name]) == (
+            expected_event_ts
+        )
+        assert tuple(record.event_ts for record in fast_records[definition.feature_version_id]) == (
+            expected_event_ts
         )
         assert_feature_records_match(
             reference_records[definition.name],
