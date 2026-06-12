@@ -14,7 +14,6 @@ from alpha_system.governance.ids import (
     validate_governance_id,
 )
 
-
 EXPECTED_PREFIXES = {
     "HypothesisCard": "hyp",
     "AlphaSpec": "aspec",
@@ -29,6 +28,8 @@ EXPECTED_PREFIXES = {
     "NegativeControlResult": "nctrl",
     "AlphaBookRecord": "abook",
     "BudgetAmendmentRecord": "bamend",
+    "SealedHoldoutWindow": "holdwin",
+    "HoldoutAccessLog": "haccess",
 }
 
 

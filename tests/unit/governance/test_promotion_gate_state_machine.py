@@ -38,6 +38,10 @@ from alpha_system.governance.reviewer_verdict import (
     ReviewerVerdictOutcome,
     create_reviewer_verdict,
 )
+from alpha_system.governance.sealed_holdout import (
+    SealedHoldoutStatus,
+    create_sealed_holdout_window,
+)
 from alpha_system.governance.study_spec import (
     StudySpec,
     generate_study_spec_id,
@@ -235,6 +239,29 @@ def trial_ledger_file(tmp_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    return path
+
+
+def sealed_holdout_registry_file(
+    tmp_path: Path,
+    *,
+    status: SealedHoldoutStatus = SealedHoldoutStatus.SEALED,
+) -> Path:
+    path = tmp_path / f"sealed-holdout-{status.value.lower()}.json"
+    window = create_sealed_holdout_window(
+        partition_spec={
+            "dataset_family": "futures_core_alpha_pilot_v1",
+            "symbols": ["ES"],
+            "split_role": "locked_test",
+        },
+        start_date="2025-01-01",
+        end_date="2026-06-11",
+        status=status,
+        declared_at="2026-06-11T22:36:43Z",
+        sealed_by="research-governance-owner",
+        provenance={"compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B"},
+    )
+    path.write_text(json.dumps(window.to_dict(), sort_keys=True, indent=2), encoding="utf-8")
     return path
 
 
@@ -581,6 +608,122 @@ def test_evidence_ready_blocks_variant_budget_overrun_from_recorded_ledger(
         )
 
     assert exc_info.value.issues[0].code == "variant_budget_overrun"
+
+
+def test_evidence_ready_accepts_non_breached_sealed_holdout_window(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    ledger_path = variant_ledger_path_with_records(tmp_path, records, spec=spec)
+
+    transition = validate_governance_transition(
+        "DIAGNOSTICS_RUN",
+        "EVIDENCE_READY",
+        PromotionGateContext(
+            evidence_bundle=bundle,
+            study_spec=spec,
+            trial_ledger_records=records,
+            trial_ledger_path=trial_ledger_file(tmp_path),
+            family_id=FAMILY_ID,
+            variant_ledger_path=ledger_path,
+            sealed_holdout_registry_path=sealed_holdout_registry_file(tmp_path),
+        ),
+    )
+
+    assert transition.next_state is PromotionLifecycleState.EVIDENCE_READY
+
+
+def test_evidence_ready_blocks_locked_test_contamination_without_waiver(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec()
+    records = (
+        trial_record(
+            spec=spec,
+            run_id="diagnostics-run-evidence-contaminated",
+            variant_id="variant-contaminated",
+            locked_test_contamination_flag=True,
+        ),
+    )
+    bundle = evidence_bundle(records)
+    ledger_path = variant_ledger_path_with_records(tmp_path, records, spec=spec)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+                variant_ledger_path=ledger_path,
+                locked_test_contamination_metadata={
+                    "recorded_trial_id": records[0].trial_id,
+                    "summary": "Metadata is not a waiver for EVIDENCE_READY.",
+                },
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "locked_test_contamination_blocks_evidence_ready"
+
+
+def test_evidence_ready_blocks_breached_sealed_holdout_window(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    ledger_path = variant_ledger_path_with_records(tmp_path, records, spec=spec)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+                variant_ledger_path=ledger_path,
+                sealed_holdout_registry_path=sealed_holdout_registry_file(
+                    tmp_path,
+                    status=SealedHoldoutStatus.BREACHED,
+                ),
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "sealed_holdout_window_breached"
+
+
+def test_evidence_ready_blocks_missing_required_holdout_declaration(
+    tmp_path: Path,
+) -> None:
+    spec = study_spec()
+    records = (trial_record(),)
+    bundle = evidence_bundle(records)
+    ledger_path = variant_ledger_path_with_records(tmp_path, records, spec=spec)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_governance_transition(
+            "DIAGNOSTICS_RUN",
+            "EVIDENCE_READY",
+            PromotionGateContext(
+                evidence_bundle=bundle,
+                study_spec=spec,
+                trial_ledger_records=records,
+                trial_ledger_path=trial_ledger_file(tmp_path),
+                family_id=FAMILY_ID,
+                variant_ledger_path=ledger_path,
+                require_sealed_holdout=True,
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "missing_sealed_holdout_registry_path"
 
 
 def test_evidence_ready_to_reviewed_requires_independent_reviewer_verdict() -> None:

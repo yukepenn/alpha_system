@@ -5,6 +5,12 @@ from pathlib import Path
 
 import pytest
 
+from alpha_system.governance.sealed_holdout import (
+    HoldoutAccessLog,
+    HoldoutAccessType,
+    SealedHoldoutStatus,
+    create_sealed_holdout_window,
+)
 from alpha_system.governance.serialization import deserialize
 from alpha_system.governance.study_spec import (
     StudyBudgetStatus,
@@ -138,6 +144,47 @@ def test_variant_ledger_jsonl_persistence_and_summary(tmp_path: Path) -> None:
     assert result.study_budget_check.observed_count == 2
     assert len(ledger.load_records()) == 2
     assert ledger.summary()["families"][FAMILY_ID]["observed_variant_count"] == 2
+
+
+def test_entry_hook_emits_holdout_access_log_when_access_intersects(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "variant-ledger.jsonl"
+    ledger_path.write_text("", encoding="utf-8")
+    access_log_path = tmp_path / "holdout-access.jsonl"
+    access_log_path.write_text("", encoding="utf-8")
+    window = create_sealed_holdout_window(
+        partition_spec={"dataset_family": "futures_core_alpha_pilot_v1", "symbols": ["ES"]},
+        start_date="2025-01-01",
+        end_date="2026-06-11",
+        status=SealedHoldoutStatus.SEALED,
+        declared_at="2026-06-11T22:36:43Z",
+        sealed_by="research-governance-owner",
+        provenance={"compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B"},
+    )
+    registry_path = tmp_path / "sealed-holdout.json"
+    registry_path.write_text(json.dumps(window.to_dict(), sort_keys=True), encoding="utf-8")
+    spec = study_spec()
+    record = trial_record(spec, run_id="diagnostics-run-vl-holdout", variant_id="variant-a")
+
+    validate_variant_and_family_budget(
+        spec,
+        trial_ledger_records=(record,),
+        family_id=FAMILY_ID,
+        variant_ledger_path=ledger_path,
+        created_at=CREATED_AT,
+        sealed_holdout_registry_path=registry_path,
+        holdout_access_log_path=access_log_path,
+        holdout_access_actor="governance.study_execution_entry",
+        holdout_access_type=HoldoutAccessType.TRAINING,
+        holdout_access_rationale="Synthetic study entry intersects the sealed holdout.",
+        holdout_access_start_date="2025-03-01",
+        holdout_access_end_date="2025-03-31",
+        holdout_access_partition_spec={"dataset_family": "futures_core_alpha_pilot_v1"},
+    )
+
+    access_records = HoldoutAccessLog(access_log_path).load_records()
+    assert len(access_records) == 1
+    assert access_records[0].study_spec_id == spec.study_spec_id
+    assert access_records[0].access_type is HoldoutAccessType.TRAINING
 
 
 def test_family_budget_rolls_up_across_studies(tmp_path: Path) -> None:
