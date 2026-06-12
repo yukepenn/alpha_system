@@ -1,0 +1,15 @@
+{
+  "declared_detectable_floor_signal_to_noise": 3.0,
+  "declared_signal_to_noise": 1.0,
+  "detection_threshold_abs_pearson_ic": 0.95,
+  "expected_detection": false,
+  "feature_id": "synthetic_true_signal_feature",
+  "feature_values": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6],
+  "fixture_id": "synthetic_true_signal_detection_weak_v1",
+  "label_id": "synthetic_true_signal_label",
+  "label_noise_values": [1.2, -0.7, 0.9, -1.1, 0.4, -0.8, 0.6, -1.0, 0.5, -0.9, 0.7, -1.2],
+  "label_signal_coefficient": 0.25,
+  "notes": "Synthetic point-in-time clean weak fixture below the declared detectable floor. Labels equal coefficient * feature_t plus deterministic noise; label availability is after the future horizon.",
+  "sample_count": 12,
+  "strength": "weak"
+}
