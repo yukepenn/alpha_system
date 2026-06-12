@@ -1,4 +1,4 @@
-# Alpha System Operating Compass v4.3 — Consolidated Roadmap
+# Alpha System Operating Compass v4.4 — Consolidated Roadmap
 
 Status: canonical. Supersedes Compass v2 / v2.1 / v3 / v3.5 (chat-only). Where
 older routes conflict with this document, this document wins. Live phase status
@@ -8,6 +8,18 @@ file.
 Adopted 2026-06-10; patched to v4.1 same day (user review: power numbers = planning priors; pooled-evaluation hard rules; primary_state + reason_code taxonomy; Stage B parallelism limits; kill-shot Track A/B split; narrowed FactorLibrary trigger; engine policy live-state vs permanent; non-binding ETAs; ambition clause). Inputs: Compass v2.1 (post-Core-Pilot consolidation),
 Compass v3/v3.5 (Trustworthy Verdict First), the LCFP/FUTSUB execution record,
 and the coordinator's statistical power analysis (§2).
+
+Patched to v4.4 on 2026-06-12 after a 16-agent adversarial red-team
+(8-surface repo inspection, 5 perspectives, 3-skeptic triage; user-approved).
+The route A→O is unchanged. v4.4 fixes verified wiring gaps before the
+kill-shot and re-bases ambition honestly: kill-shot readiness hardening
+(§3.C), pooled evaluation made mandatory-minimum (§3.C Track B), surrogate
+statistics sharpened (§3.B item 7, §7.2), detection power added alongside
+false-positive control (§3.B item 4), first-book existence bar vs ramp bar
+(§0.1), backfill-as-accrual + standing weak-edge book (§3.D, §7.1),
+producer-side standardization doctrine (§4), Stage-stage REUSE annotations
+(§3.E/G/H/J/K), and operational-truth requirements (§3.K/O). Changes are
+recorded inline with [v4.4] tags; §8 records the red-team verdict.
 
 ---
 
@@ -52,6 +64,19 @@ Return level:
   order 30-60%/yr; at Sharpe 3, ~60-100%/yr. Small-account capacity
   freedom (intraday micros) is a structural advantage: realized Sharpe
   here can exceed fund-scale benchmarks.
+
+First-book existence bar vs ramp bar [v4.4]:
+  The 2.0 floor governs LEVERAGE AND RAMP, not existence. First-book
+  existence bar: realized net shadow/paper Sharpe >= 1.0 at the declared
+  vol target under the declared cost profile. Honest arithmetic: 2.0 via
+  6-10 edges at input grade SR 0.3-0.8 requires near-zero pairwise
+  correlation; within ES/NQ/RTY (shared equity beta, shared vol regimes,
+  realistically rho ~0.25) the per-edge requirement climbs back to the
+  "rare" grade, and genuinely distinct in-trio mechanism clusters at
+  5-30m from OHLCV+BBO plausibly number 3-5, not 6-10. Therefore treat
+  Stage N (universe expansion) as the DEFAULT-EXPECTED route to the
+  floor, not a remote conditional. Neither bar ever bypasses an evidence
+  gate; both are measured on realized shadow/paper, never on backtests.
 
 Ambition clause (user-set, 2026-06-10):
   All targets above are FLOORS, not ceilings. The factory's standing
@@ -180,6 +205,14 @@ Consequences, baked into every stage below:
 3. **The VariantLedger is the keystone gate.** Deflated-Sharpe math is only as
    honest as the variant count. Tool-boundary auto-increment (every StudySpec
    run logged, no manual reconciliation) is mandatory before the kill-shot.
+   [v4.4] Ledger boundary clarified: variant/holdout enforcement binds at
+   STUDY EXECUTION, not at evidence assembly. A gate that arms only when a
+   caller supplies ledger paths counts declared variants, not executed ones —
+   the exact forking-paths failure the ledger exists to prevent. Until the
+   runtime wiring exists, a kill-shot-scope RECONCILIATION AUDIT (every study
+   invocation provably matched to a ledger entry) is a readiness precondition
+   (§3.C), and runtime wiring is a hard precondition for any agent-driven
+   mining (Stage F/L).
 4. **Portfolio utility is the real unit of account.** A pooled book of eight
    SR-0.4 low-correlation edges ≈ SR 1.1+ portfolio. The factory's economic
    output is the book, not any single factor. This is why the user's goal
@@ -231,6 +264,13 @@ estimates and never override `status_doctor` / live run-state.
      split-shopped).
   4. Planted fake-alpha canary: a synthetic lookahead-contaminated factor must
      be REJECTED by the pipeline end-to-end, or the floor fails closed.
+     [v4.4] DETECTION leg added: a planted TRUE-alpha canary (synthetic
+     genuine signal of known strength) must be DETECTED by the same pipeline,
+     and a clean twin of the contaminated fixture must PASS the same gated
+     path — false-positive control without measured detection power is a
+     pipeline whose stationary output is INCONCLUSIVE forever. The
+     contaminated-fixture handoff must name WHICH gate fired (value-level
+     evidence, not self-declared metadata).
   5. No-leakage promotion blocker; BBO-proxy disclaimer gate; second-PnL-truth
      canary (DONE, PR #332).
   6. Verdict taxonomy upgrade (§2.2) incl. pre-declared pooled-evaluation
@@ -238,7 +278,16 @@ estimates and never override `status_doctor` / live run-state.
   7. Pipeline FDR calibration (§7.2): the full study machinery run on
      label-shuffled/surrogate data; any survivor = measured pipeline leakage;
      must pass before the kill-shot and is a HARD precondition for the early
-     bounded-ML pipeline (§7.8).
+     bounded-ML pipeline (§7.8). [v4.4] Statistical floor for the calibration
+     itself: (a) the surrogate run count K is DECLARED with its implied
+     false-pass bound (zero passes in K runs bounds the rate at ~3/K at 95%;
+     K>=60 → ~5% — K=20 is a useless 15%); (b) nulls must be
+     DEPENDENCE-PRESERVING — iid label shuffling destroys the overlap
+     autocorrelation of 5-30m labels and yields an anti-conservative null;
+     minimum is session/trade-date-block shuffling, and at least one
+     configuration should circular-block-bootstrap returns and regenerate
+     labels through the real engine; (c) configurations are per-family, not
+     one generic pipeline nobody runs.
   8. Evidence-accrual loop (§7.1): INCONCLUSIVE+UNDERPOWERED verdicts
      auto-requeue for retest when newly accepted data materially changes
      their power.
@@ -260,11 +309,33 @@ estimates and never override `status_doctor` / live run-state.
     previously-INCONCLUSIVE Core Pilot studies on trusted substrate + rigor
     floor, pre-declared variant budgets per family. Track A verdicts stand on
     their own and are never rewritten by Track B.
-  - **Track B — Pre-declared pooled supplemental tests (optional):**
-    mechanism-justified pooled hypotheses (cross-symbol, cross-horizon),
-    REGISTERED BEFORE any Track A rerun metric is inspected, logged as
-    separate pooled VariantLedger hypotheses per §2.1 rules.
+  - **Track B — Pre-declared pooled supplemental tests [v4.4: MANDATORY
+    MINIMUM]:** mechanism-justified pooled hypotheses, REGISTERED BEFORE any
+    Track A rerun metric is inspected, logged as separate pooled VariantLedger
+    hypotheses per §2.1 rules. The minimum is no longer optional: at least ONE
+    cross-symbol and ONE cross-horizon pooled hypothesis must be registered,
+    because the compass's own honest prior (§6.1) names pooled weak edges as
+    the most probable positive outcome — an optional Track B makes the most
+    probable win legally skippable.
   - No new alpha batch, no broad mining.
+- READINESS PRECONDITIONS [v4.4 — verified gaps from the 2026-06-12 red-team;
+  the kill-shot does not fire until each is green]:
+  1. Sealed-holdout coverage: the declared window MUST intersect every locked
+     StudySpec input (all symbols, both dataset families, rolling end_date) —
+     proven by a contract test, not by reading the declaration. A window that
+     does not cover the kill-shot's own inputs is rigor theater.
+  2. Variant-ledger reconciliation audit: every kill-shot study invocation
+     provably matched to a ledger entry (§2.3 boundary clause).
+  3. Read-only substrate-invariant audit over the live registries: no
+     constant-valued flag columns, >=2 session values per trading day,
+     role markers present, zero locks referencing DEPRECATED records.
+  4. Per-study power memo: minimum detectable effect on real N_eff, written
+     BEFORE metrics, so UNDERPOWERED outcomes are predicted, not discovered.
+  5. Substrate-caveat register in the kill-shot context: known residuals
+     stated up front (R-037 contract_id caveat, BBO-proxy regime limits) so
+     verdicts inherit caveats instead of rediscovering them.
+  6. Real fee constants (§3.I) in the cost stack — placeholder fees make
+     "net edge" a symbolic quantity.
 - OUTPUT: each study gets primary_state + reason_code (REJECT / INCONCLUSIVE
   [UNDERPOWERED | SUBSTRATE_GAP — must name the gap] / WATCH /
   CANDIDATE_RESEARCH), Track A and Track B reported separately.
@@ -282,7 +353,16 @@ estimates and never override `status_doctor` / live run-state.
         event-calendar conditioning, calendar/flow seasonality, the governed
         overnight family, event-time bars, cross-asset spillover — before any
         data buy;
-    (b) horizon structure: pooled multi-horizon retest of UNDERPOWERED verdicts;
+    (b) horizon structure: pooled multi-horizon retest of UNDERPOWERED
+        verdicts. [v4.4] Two named levers here: BACKFILL-AS-ACCRUAL —
+        extending the accepted window backward (2018←) changes power
+        immediately versus waiting on calendar accrual, and the requeue scan
+        already consumes accrued-data metadata; and the STANDING WEAK-EDGE
+        BOOK HYPOTHESIS — one fixed-rule, equal-weight, mechanism-justified
+        pooled book of ALL underpowered edges, pre-registered as ONE
+        VariantLedger hypothesis and retested once per accrual epoch. This
+        operationalizes §2.4 (the book is the unit of account), which
+        otherwise has no mechanism;
     (c) universe homogeneity: equity-index trio shares one beta → evaluate
         cross-asset expansion (Stage N trigger);
     (d) data tier: if many die only at cost gates → Stage I sample-month
@@ -303,6 +383,9 @@ estimates and never override `status_doctor` / live run-state.
 
 ### Stage E — Earned accelerants  [conditional]
 
+- [v4.4] REUSE: entry/stop/target probes overlap backtest/fast_path.py +
+  management/ + LCFP path labels; the sandbox is mostly a lane policy, not
+  new compute. Build the quarantine boundary, reuse the engines.
 - FEATURE_RESEARCH_FAST_LANE_V1 (ADR-0009 MVP: sandbox registry,
   SandboxFeatureResolver vs TrustedFeatureResolver fail-closed on UNVERIFIED,
   EXPLORATORY stamp, restricted expression spec, TTL/GC, promotion regenerates
@@ -337,6 +420,9 @@ estimates and never override `status_doctor` / live run-state.
   next campaign. Rejected-idea memory ALONE never triggers this stage — that
   function belongs to the Discovery Rigor Floor's TrialLedger/
   RejectedIdeaLedger upgrades (Stage B), not to a full FactorLibrary.
+- [v4.4] REUSE: factors/registry.py, factors/spec.py, factors/validation.py,
+  factors/contracts.py, reports/factor_card.py, and the governance ledgers
+  already exist — this stage is ingestion/query/lifecycle glue, never engine.
 - Operational ingestion/query/memory over EXISTING schemas (FactorCard,
   EvidenceBundle, TrialLedger, PromotionDecision, FactorSpec — do not rebuild):
   EvidenceBundle→FactorCard ingestion, registry, verdict/decision links,
@@ -348,32 +434,69 @@ estimates and never override `status_doctor` / live run-state.
 
 ### Stage H — STRATEGY_REFERENCE_VALIDATION_V1  [survivor-only]
 
+- [v4.4] REUSE: the conservative reference engine semantics largely exist
+  (backtest/ package, management/ grid, cost stack); this stage is a
+  VALIDATION CAMPAIGN over that engine, not an engine build.
 - Conservative Reference 1m truth: next-bar semantics, same-bar ambiguity,
   fees/spread/slippage stress, drawdown/turnover accounting, bounded
   management grid. A factor candidate is not a strategy candidate until here.
 
-### Stage I — Cost Reality Upgrade  [trigger: first CANDIDATE_RESEARCH]
+### Stage I — Cost Reality Upgrade  [trigger split, v4.4]
 
+- [v4.4] PULLED FORWARD, ZERO COST: real fee constants (public CME exchange +
+  clearing + broker schedules; order $0.25-0.85/side all-in micros,
+  $1.5-3 minis) replace Layer-1 placeholders NOW — before the kill-shot —
+  because placeholder fees make every net-edge number symbolic. One day of
+  work, no purchase.
 - TBBO / MBP-1 SAMPLE MONTHS only (external paid data = hard-stop ask to the
   human first): effective spread, markouts, trade-side confirmation,
   thin-liquidity behavior → calibrate the BBO proxy. No full L2/MBO.
+  [v4.4] Trigger WIDENED from "first CANDIDATE_RESEARCH" to "before any
+  survivor verdict is treated as commercially meaningful" — the prior trigger
+  was circular (the uncalibrated gate can prevent the CANDIDATE that triggers
+  calibration). At 5-30m horizons gross edge is 1-3 ticks and a full ES
+  round-trip cross is ~1 tick + slippage; uncalibrated costs both over-kill
+  passively-monetizable edges (false COST_FRAGILE) and under-kill queue-toxic
+  ones. Report cost-sensitive results as a band (aggressive vs mid) until
+  calibrated.
 - Standing rule: no capital-relevant conclusion rests on the uncalibrated
   BBO proxy; cost_fragile (dies at double-cost) never validates.
 
 ### Stage J — PORTFOLIO_ALPHA_BOOK_V1  [trigger: ≥3 low-corr candidates or validated ensemble]
 
+- [v4.4] REUSE: portfolio/ already holds allocation.py, risk.py, sizing.py,
+  targets.py, universe_constraints.py, integration.py — this stage wires and
+  validates, it does not invent.
 - Portfolio-level memory and allocation logic: marginal contribution,
   correlation clusters, capacity, drawdown contribution, regime/session/
   horizon exposure, weight/deweight/retire. Objective = marginal portfolio
   utility, never standalone Sharpe ranking. Weighting shrunk by posterior
   edge × orthogonality × capacity × confidence ÷ risk.
+- [v4.4] FREEZE-BEFORE-SURVIVORS rule: the book acceptance metric (net Sharpe
+  at a declared vol target under a declared cost profile; the marginal-utility
+  formula) is written down BEFORE any survivor exists — otherwise Stage J gets
+  specified while staring at candidate PnL, the classic way targets get
+  fitted to results.
 
 ### Stage K — Shadow + Decay monitoring  [before any ML or paper]
 
+- [v4.4] SEQUENCING: Stage K runs FIRST on the Stage J book subset; a
+  standing sandbox SHADOW LEDGER (live-like predictions, zero orders,
+  EXPLORATORY stamp, never promotion evidence) MAY start for any
+  WATCH-or-better signal immediately after Stage D — calendar time is the
+  scarcest evidence asset and shadow accrual is free. Full Stage K gates and
+  classification are unchanged and still required before ML or paper.
+- [v4.4] REUSE: the diagnostic primitives exist (research/ ic.py,
+  stability.py, buckets.py, regimes.py, correlation.py; reports/
+  factor_card.py); what is genuinely new is the live-like scheduler and decay
+  CLASSIFICATION, not the metrics.
 - Live-like predictions, zero orders: feature/IC drift, bucket monotonicity,
   gross/net gap, cost-proxy drift, regime drift, posterior edge,
   quarantine/deweight/retire triggers. Decay is classified (data/infra vs
   signal vs monetization vs regime), never "lost 10 days → off".
+- [v4.4] DECAY-ALERT SLA: every decay classification names an owner and a
+  response clock (quarantine decision within one trading day of a confirmed
+  signal-decay classification); monitoring that pages nobody is decoration.
 
 ### Stage L — ALPHA_AGENT_RESEARCH_RUNNER_V1  [the continuous factory]
 
@@ -398,7 +521,19 @@ estimates and never override `status_doctor` / live run-state.
 ### Stage N — Universe expansion  [evidence-triggered, any time after D]
 
 - TRIGGER: survivors are homogeneous (one equity-beta exposure), or the
-  AlphaBook cannot reach low-correlation utility within ES/NQ/RTY.
+  AlphaBook cannot reach low-correlation utility within ES/NQ/RTY, or
+  [v4.4] fewer than 4 distinct mechanism clusters are identified within the
+  trio after the first conclusive kill-shot cycle (per §0.1, Stage N is the
+  default-expected route to the book floor).
+- [v4.4] PRECONDITION: the NEW_UNIVERSE_ONBOARDING checklist
+  (docs/sops/NEW_UNIVERSE_ONBOARDING.md, written post-kill-shot) is executed
+  per root: declared session template + calendar, roll policy wired (not
+  audited after), cost/tick/multiplier profile, register-time invariants
+  green on first materialization, resolver smoke, no-lookahead audit,
+  N_eff/coverage matrix. The 2026-06-11 session-truth saga (one undeclared
+  truth source → 6 repair phases, 496 deprecated rows, 4 re-materialized
+  packs, invalidated re-locks — inside an ALREADY-onboarded universe) is the
+  template incident this checklist exists to prevent.
 - Candidates in order of data/mechanism leverage: rates (ZN/ZB), FX (6E/6J),
   commodities (CL/GC), vol (VX, licensing permitting). Each expansion = new
   Databento corpus = external cost = hard-stop ask. Substrate machinery
@@ -411,6 +546,14 @@ estimates and never override `status_doctor` / live run-state.
   account, fill/slippage/reconciliation reality) → ALPHA_LIVE_CANARY_GOVERNANCE_V1
   (micros first: MES/MNQ/M2K; tiny risk; hard kill switch; max daily loss/order
   count/position; human approval; no overnight unless approved) → gradual ramp.
+- [v4.4] KILL-SWITCH CANARY: the hard kill switch is PROVEN to fire (an
+  executable canary in the existing evals/canaries pattern — a guard that
+  cannot be demonstrated to trip has not earned a live order). Same for max
+  daily loss and position caps. Additionally, liveness is a first-class
+  invariant from research onward: a harness that can sit stale-RUNNING
+  undetected in research will, unchanged, sit stale-RUNNING with positions
+  on — heartbeat-staleness detection (status_doctor) is the standing
+  down-payment on this stage.
 - Daily operation runs on four clocks: definitions slow (review-gated),
   calibration weekly/monthly, portfolio weights evidence-driven, execution/
   risk gates intraday. Estimates update fast; definitions change slowly;
@@ -450,6 +593,23 @@ estimates and never override `status_doctor` / live run-state.
   ACTIVE_CAMPAIGN.md; frontier-plan → mock → live parallel; build parallel,
   merge serial; runs/** local-only; explicit staging; REUSE MAP before any new
   mechanism.
+- **Producer-side standardization [v4.4 — doctrine, from the session-truth
+  saga and the Never-Again map]:** (1) ONE DECLARED TRUTH SOURCE per
+  market-structure dimension (sessions, rolls, calendars, halts) — consumers
+  derive from the shared truth module, never from a copied constant or a
+  per-family reimplementation; a single-truth boundary canary enforces it.
+  (2) REGISTER-TIME VALUE-FREE INVARIANTS — a flag column must not be
+  constant, a session dimension must show >=2 values per trading day, role
+  markers must be present where contracts declare session inputs; degenerate
+  substrate is caught at registration, never at study time. (3) FIXTURE
+  HONESTY — a test fixture must never implement the property under test
+  (static labels + real timestamps, not fixture-computed labels). (4) GUARDS
+  ARE WIRED BEFORE TRUSTED — a guard that exists but is not invoked on the
+  consuming path (roll_guard, holdout emission, ledger append) counts as
+  absent; guard-wiring canaries verify invocation, not existence. (5) POLICY
+  LISTS TRACK CONTRACTS — when a campaign contract authorizes a path/file,
+  the global policy allow-lists must be reconciled in the same change, with a
+  drift test.
 
 ---
 
@@ -548,3 +708,27 @@ L2/MBO doctrine (user, 2026-06-10): explicitly LONG-DEFERRED for cost — not
 before sustained live profitability funds it. TBBO/MBP-1 SAMPLE MONTHS remain
 the only microstructure purchase on the route (Stage I / diagnosis branch),
 each an explicit human ask.
+
+---
+
+## 8. v4.4 red-team record (2026-06-12)
+
+A 16-agent adversarial red-team (8 read-only repo inspectors → 5 perspectives:
+statistical reviewer, trader/PM, platform architect, agent designer,
+harness/live operator → 3 independent skeptics triaging 30 recommendations)
+reviewed v4.3 against the live repo. Executive verdict: KEEP THE ROUTE, FIX
+THE WIRING. No missing stage, no wrong order; the verified gaps were wiring
+(holdout window not covering kill-shot inputs; variant counting at
+evidence-assembly instead of study execution; detection power unmeasured;
+pooled channel unimplemented while being the declared most-probable win;
+placeholder fee constants) and honesty of ambition (in-trio Sharpe-2.0
+arithmetic). All fixes are encoded above as [v4.4] tags; the kill-shot
+readiness preconditions (§3.C) are the binding additions. Items deliberately
+DEFERRED by the skeptics' operating-rule triage: machine-validated reviewer
+evidence (pre-mining), holdout authorization artifacts + evaluation budgets
+(pre-mining, before any agent touches the holdout), thin researcher tooling
+MVP (first post-kill-shot campaign), SOP documents (post-kill-shot),
+primitive-grain driver targeting (post-kill-shot), differentiated-substrate
+scheduling (Stage D(a) decision or explicit user pull-forward). Two standing
+user decisions: TBBO sample-month purchase timing; differentiated-substrate
+start timing. Honest priors in §6 stand unchanged and remain scorable.
