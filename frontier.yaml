@@ -330,6 +330,7 @@ git:
 artifacts:
   allow_commit:
     - ".gitignore"
+    - "justfile"
     - "AGENTS.md"
     - "CLAUDE.md"
     - "README.md"
