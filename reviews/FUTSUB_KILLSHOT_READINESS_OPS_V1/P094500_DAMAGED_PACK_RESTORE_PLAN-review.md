@@ -193,3 +193,84 @@ design; the executor's "cannot restore through current CLI" claims are true.
 - Registry re-registration preserves `registered_at` while replacing
   `value_content_hash`; future audits should not use `registered_at` to date
   pack content.
+
+## Post-repair re-verdict
+
+- Re-verdict date: 2026-06-12 (reviewer: fresh post-repair Claude pass)
+- Repair commit re-reviewed: `2a4bec5` ("FUTSUB P094500 bounded repair runbook artifacts") on `wf1/pack-restore-plan`
+- Verdict history: **REWORK -> PASS_WITH_WARNINGS**
+
+All three required repairs are verified resolved on the committed tree:
+
+1. **Tracked CSVs removed — RESOLVED.** `git ls-files '*.csv'` returns only
+   `tests/fixtures/data/synthetic_1min_bars.csv` and
+   `tests/fixtures/data/synthetic_ibkr_raw_bars.csv`. The two repair CSVs were
+   replaced by value-free Markdown tables with IDENTICAL content: a cell-by-cell
+   programmatic diff of `damaged_pack_provenance.md` (408 data rows, same 22
+   columns) and `ES_2019_proof_results.md` (17 data rows, same 14 columns)
+   against the deleted CSVs at `HEAD~2` shows headers equal and ZERO mismatched
+   rows. All references updated: the only remaining `.csv` mention in the
+   runbook/handoff/repair docs is the handoff's truthful statement that no
+   repair `.csv` artifacts are tracked. `pack_restore_audit.py` now dispatches
+   on file suffix (`_read_rows`/`_write_rows` -> `_read_markdown_table`/
+   `_write_markdown_table`, with `|`/`\`/newline escaping), so
+   `--baseline-provenance` consumes the committed `.md` baseline and CSV remains
+   a local-scratch option only; the runbook's verification commands now pass
+   `.md` paths throughout.
+2. **bbo ordering/supersession note — RESOLVED.** The runbook's "Required
+   Execution Order" step 2 reads: "Run full BBO re-materialization only after
+   the executing branch contains the P085901 bar-grid fix from PR #401, which
+   is now merged on `origin/main`." and continues: "The BBO ES_2019 proof in
+   this phase was written before PR #401. It is proof of the sanctioned CLI
+   path and blast radius only; it is superseded by the full BBO
+   re-materialization after the grid fix. The post-PR-401 BBO run is the
+   content that must feed the `sspec_6088f0` re-lock." The bbo full-grid
+   section repeats the ordering with both content hashes.
+3. **Deprecate-first step — RESOLVED.** New "Deprecate-First Step" section is
+   ordered before the session/regime full grids (execution-order step 1),
+   forbids manual SQLite, cites the sanctioned P235500 data-op mechanism
+   (`FeatureStore.deprecate_feature` -> `FeatureRegistry.deprecate_feature`,
+   `feature_deprecation_records` row + lifecycle transition), and gives
+   complete command templates (registry backup, write step, registry-API
+   verification). Reviewer verified the cited API against the repo WITHOUT
+   executing against the live registry: `FeatureStore.deprecate_feature`
+   (`src/alpha_system/features/store.py:260`) and
+   `FeatureRegistry.deprecate_feature` (`src/alpha_system/features/registry.py:646`)
+   exist and accept exactly the kwargs the runbook uses (`reason`,
+   `deprecated_by`, `replacement_feature_version_id` defaulting `""`,
+   `deprecation_metadata`); `FeatureStore(FeatureRegistry(path))`,
+   `resolve_feature(fver, include_deprecated=True)`, `resolve_deprecation`,
+   `FeatureRegistryLifecycleState.DEPRECATED`, and
+   `deprecation.replacement_feature_version_id` all exist with the cited
+   semantics, and the registry path writes the `feature_deprecation_records`
+   row as described. The "deprecate exactly 168 rows" target was re-derived
+   from the committed provenance table: 48 R-036 countdown rows + 72 session
+   identity-migration rows + 48 regime identity-migration rows = 168 (matches).
+
+Gates re-run by reviewer on the repaired tree (`PYTHONPATH=$PWD/src`):
+
+| Gate | Result |
+| --- | --- |
+| `just ci-parity` (CI venv `~/.venvs/alpha_system_ci`) | **PASS** — `3305 passed, 75 skipped in 73.98s`, exit 0 (previously 1 failed) |
+| `tests/integration/test_no_generated_data_committed.py` (focused, CI venv) | PASS — `1 passed` |
+| `python tools/hooks/canary_runner.py` | PASS — all Frontier canaries passed |
+
+The handoff was truthfully updated: the stale pre-repair `ci-parity PASS`
+claim is explicitly marked as superseded, and a Bounded Repair Update section
+documents the conversion, tool change, and repair validation.
+
+Carried-forward warnings (non-blocking, unchanged from the original review):
+
+- Regression test proves serial-path routing only (force helper
+  monkeypatched); the live ES_2019 proof remains the end-to-end evidence.
+- Audit tool family selection via `parquet_path LIKE '%/<family>/%'` is
+  namespace-fragile if a family name ever nests inside another path segment.
+- Registry re-registration preserves `registered_at` while replacing
+  `value_content_hash`; do not date pack content by `registered_at`.
+- New minor observation: the deprecation write step depends on an
+  operator-prepared `/tmp/p094500_deprecate_first_pairs.json` mapping; the
+  runbook correctly requires it to be reviewed, but the 168 concrete fver ids
+  must be extracted from the committed provenance table at execution time
+  (the runbook gives the selection criteria, not the expanded list).
+
+**Final verdict: PASS_WITH_WARNINGS.**

@@ -2,29 +2,31 @@
   "schema_version": "frontier-review-verdict-v1",
   "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
   "phase_id": "P094500_DAMAGED_PACK_RESTORE_PLAN",
-  "verdict": "REWORK",
-  "severity": "blocking",
+  "verdict": "PASS_WITH_WARNINGS",
+  "severity": "advisory",
+  "verdict_history": [
+    {"verdict": "REWORK", "commit_reviewed": "7d2e5f1", "parsed_at": "2026-06-12T14:35:00Z"},
+    {"verdict": "PASS_WITH_WARNINGS", "commit_reviewed": "2a4bec5", "parsed_at": "2026-06-12T15:05:00Z"}
+  ],
   "findings": [
-    "Provenance VERIFIED: 408 rows; family split 240 bbo / 120 session / 48 regime matches spec; 5/5 random spot-checks match the live registry read-only; all 408 fvers still REGISTERED; fresh audit-tool re-run reproduces the committed CSV byte-identically except the 10 ES_2019 bbo rows the proof legitimately restored.",
+    "Provenance VERIFIED: 408 rows; family split 240 bbo / 120 session / 48 regime matches spec; 5/5 random spot-checks match the live registry read-only; all 408 fvers still REGISTERED; fresh audit-tool re-run reproduces the committed baseline byte-identically except the 10 ES_2019 bbo rows the proof legitimately restored.",
     "Session blocking finding GENUINE: union-config dry-run reproduced (exit 2, fail-closed); rejection enforced at driver.py:5487-5494 (explicit bars_to_roll/minutes_to_roll exclusion) AND driver.py:3246-3264 via the family's FUTURE/offline_only window (family.py:339-343, offline_reason=future_roll_transition_countdown) - genuine R-036 policy wired in FUTSUB-P14 (PR #307), not an executor config error.",
-    "Identity drift GENUINE and root-caused: preview fvids reproduced exactly (regime fver_8eadbbf/fver_33907b vs stale fver_082cbb/fver_01471d; session day_of_week fver_fecafaf vs registered fver_8370819); in-process contract diff shows the drifted identity input is transform.parameters - session-truth migration replaced rth_open/close_time_utc (14:30/21:00) with rth_open/close_time_local (08:30/15:00) + session_template_id=session_cme_index_futures_eth + session_timezone=America/Chicago (+ session_truth_source for the regime base_ohlcv input-copy specs) - introduced by commit 6018f1a FUTSUB P210000 (PR #370); bit-identical restore impossible by design.",
-    "BBO proof VERIFIED: 10/10 ES_2019 fvers disk-present under the SAME fver ids with registry-disk hash identity (new sha256:fd92da..., baseline sha256:da3ae4... 0/10 as expected -> re-lock confirmed); sanctioned-CLI evidence (pack_restore checkpoint unit marker mbu_cff63bcd382b1b68cd745ce3, in-place registry upsert preserving registered_at); blast radius = ES_2019 bbo pack only (audit diff + sibling mtimes).",
-    "Driver fix VERIFIED minimal; MUTATION KILLED: reverting driver.py to origin/main makes test_serial_v1_force_recompute_uses_force_helper FAIL (1 failed, 2 passed); restored exactly. Caveat: test proves serial-path routing (helper monkeypatched), the live proof is the end-to-end evidence.",
-    "BLOCKING 1: committed tree FAILS its own CI gate - tests/integration/test_no_generated_data_committed.py forbids tracked .csv outside tests/fixtures/, and the phase committed ES_2019_proof_results.csv + damaged_pack_provenance.csv; reviewer ci-parity re-run = 1 failed, 3304 passed, 75 skipped. Handoff's 'ci-parity PASS 3305+75' can only predate staging the CSVs; validation claim is stale for the final tree (PR will be CI-red).",
-    "BLOCKING 2: runbook omits the spec-required bbo note that the full bbo re-materialization runs AFTER the P085901 grid fix (PR #401, merged 2026-06-12T09:54Z, ~20min after the proof write) and supersedes the proof's ES_2019 content (which embeds the pre-fix grid).",
-    "BLOCKING 3: runbook silent on deprecate-first - the P090500 overwrite guard will refuse rewrites while unrestorable fvers (2 R-036 countdowns + 3 session + 2 regime drifted slots) remain REGISTERED; the next phase needs the explicit deprecation/re-lock step ordered before session/regime full grids.",
-    "Artifact policy otherwise PASS: explicit staging of 14 paths, git ls-files runs empty, no parquet/sqlite/values committed, CSVs value-free (ids/hashes/counts/paths/commands only); reviewer validation: scaleout 133 passed, canaries PASS, verify.py --smoke PASS."
+    "Identity drift GENUINE and root-caused: preview fvids reproduced exactly; in-process contract diff shows the drifted identity input is transform.parameters - session-truth migration replaced rth_open/close_time_utc with rth_open/close_time_local + session_template_id + session_timezone (+ session_truth_source for the regime base_ohlcv input-copy specs) - introduced by commit 6018f1a FUTSUB P210000 (PR #370); bit-identical restore impossible by design.",
+    "BBO proof VERIFIED: 10/10 ES_2019 fvers disk-present under the SAME fver ids with registry-disk hash identity; sanctioned-CLI evidence (pack_restore checkpoint unit marker mbu_cff63bcd382b1b68cd745ce3, in-place registry upsert preserving registered_at); blast radius = ES_2019 bbo pack only.",
+    "Driver fix VERIFIED minimal; MUTATION KILLED: reverting driver.py to origin/main makes test_serial_v1_force_recompute_uses_force_helper FAIL (1 failed, 2 passed); restored exactly.",
+    "REPAIR 1 RESOLVED (commit 2a4bec5): git ls-files '*.csv' empty outside tests/fixtures; damaged_pack_provenance.md (408 data rows, 22 cols) and ES_2019_proof_results.md (17 data rows, 14 cols) are cell-for-cell identical to the deleted CSVs (programmatic diff: 0 mismatches); pack_restore_audit.py dispatches read/write on .md suffix so --baseline-provenance consumes the committed Markdown; runbook/handoff carry no stale .csv references.",
+    "REPAIR 2 RESOLVED: runbook Required Execution Order step 2 + bbo section state full BBO re-materialization runs only after the P085901 bar-grid fix (PR #401, merged on origin/main) is in the executing branch and SUPERSEDES the pre-fix ES_2019 proof content; post-PR-401 run feeds the sspec_6088f0 re-lock.",
+    "REPAIR 3 RESOLVED: Deprecate-First Step section ordered before session/regime full grids; cites sanctioned P235500 mechanism (FeatureStore.deprecate_feature at store.py:260 -> FeatureRegistry.deprecate_feature at registry.py:646) with backup + write + registry-API verification command templates; reviewer verified the API exists and accepts the cited kwargs (reason, deprecated_by, replacement_feature_version_id, deprecation_metadata) WITHOUT executing against the live registry; 168-row target (48 R-036 + 72 session-migration + 48 regime-migration) re-derived from the committed provenance table and matches.",
+    "Gates green on repaired tree: just ci-parity (CI venv) = 3305 passed, 75 skipped, exit 0 (previously 1 failed); focused test_no_generated_data_committed = 1 passed; canary_runner = all PASS.",
+    "Handoff truthfully updated: stale pre-repair ci-parity claim explicitly marked superseded; Bounded Repair Update section documents conversion, tool change, and repair validation."
   ],
-  "required_repairs": [
-    "Replace the two tracked CSVs with value-free Markdown renderings (or keep CSVs local-only) so test_no_generated_data_committed passes; update runbook/audit-tool --baseline-provenance flow for the local-only CSV path; re-run just ci-parity to green on the committed tree.",
-    "Add the bbo ordering/supersession note to PACK_RESTORE_RUNBOOK.md: full bbo grid runs after PR #401 (P085901 grid fix) is in the executing branch, supersedes the ES_2019 proof content, then sspec_6088f0 re-lock.",
-    "Add the deprecate-first step to the runbook for the unrestorable stale fvers (2 session countdowns under R-036; 3 session + 2 regime identity-drifted slots) before session/regime full grids and before/with the P090500 guard."
-  ],
+  "required_repairs": [],
   "warnings": [
     "Regression test monkeypatches the force helper (routing-only proof); a tmp-registry integration test of materialize_v1_feature_unit_force_recompute would close the gap.",
     "Audit tool family selection via parquet_path LIKE '%/<family>/%' is namespace-fragile if family names ever nest.",
-    "Registry re-registration preserves registered_at while replacing value_content_hash; do not date pack content by registered_at."
+    "Registry re-registration preserves registered_at while replacing value_content_hash; do not date pack content by registered_at.",
+    "Deprecation write step depends on an operator-prepared reviewed /tmp pairs mapping; the 168 concrete fver ids must be expanded from the committed provenance table at execution time (runbook gives selection criteria, not the expanded list)."
   ],
   "source": "review",
-  "parsed_at": "2026-06-12T14:35:00Z"
+  "parsed_at": "2026-06-12T15:05:00Z"
 }
