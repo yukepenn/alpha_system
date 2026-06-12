@@ -299,6 +299,26 @@ estimates and never override `status_doctor` / live run-state.
   leakage-clean, holdout-disciplined, fake-alpha-tested, second-truth-clean,
   reviewer-approved. ETA: ~1–2 days of campaign work.
 
+#### Stage B status note — DISCOVERY_RIGOR_FLOOR_V1 closeout
+
+Rigor Floor gate machinery and closeout artifacts are delivered by
+`RIGOR-P07`; the kill-shot remains fail-closed until every
+`research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md` item is `MET`.
+
+- Full gated-path integration audit: `MET` — `tests/unit/discovery_rigor_floor/test_rigor_p07_integration_audit.py::test_full_gated_path_engages_every_rigor_floor_gate_and_blocks_bypasses`.
+- Sealed window exactly one active declaration: `MET` — `research/discovery_rigor_floor_v1/sealed_holdout/kill_shot_sealed_holdout_window.json` and P03 declaration tests.
+- 4/4 negative controls plus planted fake-alpha: `MET` — P04 canary-floor note and `python tools/hooks/canary_runner.py`.
+- TrialLedger and VariantLedger presence/writability gates: `MET` — P07 integration audit plus P01/P02 gate tests.
+- Reason-code validation for INCONCLUSIVE: `MET` — P01 verdict/promotion/evidence tests and P07 audit.
+- Surrogate calibration v4.4 section 7.2 statistical floor: `PENDING-coordinator` — real-data K>=60 dependence-preserving per-family calibration required; synthetic P05 K=2 report is not enough.
+- HOLDOUT COVERAGE: `MET` — P033000 intersection contract test over re-locked inputs.
+- VARIANT RECONCILIATION: `PENDING-coordinator` — six rerun invocations need live VariantLedger reconciliation before STOP removal.
+- SUBSTRATE-INVARIANT AUDIT: `PENDING-coordinator` — live registry audit still required.
+- POWER MEMOS: `MET` — `research/discovery_rigor_floor_v1/power_memos/KILL_SHOT_POWER_MEMOS.md`.
+- TRACK-B MANDATORY MINIMUM: `PENDING-coordinator` — actual cross-symbol and cross-horizon registrations deferred to kill-shot time before Track A metrics.
+- SUBSTRATE-CAVEAT REGISTER: `MET` — R-037 `contract_id` caveat and BBO-proxy limits recorded in the readiness checklist and resume handoff.
+- REAL FEE CONSTANTS: `MET` — P035000 fee schedule tests and review.
+
 ### Stage C — CORE_PILOT_RERUN_V1 (the kill-shot)  [the point of everything above]
 
 - ENTRY: Stage A + B exits green. Named explicitly; realized as FUTSUB P27–P29
