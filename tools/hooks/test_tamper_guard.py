@@ -13,6 +13,10 @@ HARNESS_SELF_TESTS = {
     "tests/test_hooks.py",
     "tests/test_canaries.py",
 }
+AUTHORIZED_LOCAL_DATA_SKIP_PATTERNS = [
+    re.compile(r"\blocal_data_skip\s*\("),
+    re.compile(r"\bskip_unless_local_registry\s*\("),
+]
 FORBIDDEN_PATTERNS = [
     re.compile(r"pytest\.skip\s*\("),
     re.compile(r"@pytest\.mark\.skip"),
@@ -46,6 +50,8 @@ def should_check(path: Path) -> bool:
 
 def file_has_violation(path: Path) -> bool:
     text = path.read_text(encoding="utf-8", errors="ignore")
+    for pattern in AUTHORIZED_LOCAL_DATA_SKIP_PATTERNS:
+        text = pattern.sub("authorized_local_data_call(", text)
     return any(pattern.search(text) for pattern in FORBIDDEN_PATTERNS)
 
 

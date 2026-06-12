@@ -961,10 +961,6 @@ def write_branch_protection_artifacts(phase_dir: Path, result: BranchProtectionR
     (phase_dir / "branch_protection.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
-def _env_flag(name: str) -> bool:
-    return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
-
-
 def _pr_data_from_result(result: GitHubResult) -> dict[str, Any]:
     data = result.metadata.get("pr") if isinstance(result.metadata, dict) else {}
     return data if isinstance(data, dict) else {}
@@ -1015,6 +1011,9 @@ def _merge_metadata(
     status: str,
     classification: str,
     command: list[str],
+    auto_command: list[str] | None = None,
+    auto_result: Any | None = None,
+    auto_view: GitHubResult | None = None,
     direct_result: Any | None = None,
     pre_view: GitHubResult | None = None,
     verify_view: GitHubResult | None = None,
@@ -1041,6 +1040,27 @@ def _merge_metadata(
     }
     if warning:
         metadata["warning"] = warning
+    if auto_command is not None:
+        metadata["auto_command"] = auto_command
+    if auto_result is not None:
+        metadata.update(
+            {
+                "auto_return_code": getattr(auto_result, "return_code", 0),
+                "auto_stdout": getattr(auto_result, "stdout", ""),
+                "auto_stderr": getattr(auto_result, "stderr", ""),
+            }
+        )
+    if auto_view is not None:
+        metadata.update(
+            {
+                "auto_view_command": auto_view.command,
+                "auto_view_return_code": auto_view.return_code,
+                "auto_view_stdout": auto_view.stdout,
+                "auto_view_stderr": auto_view.stderr,
+                "auto_pr": _pr_data_from_result(auto_view),
+                "auto_verified_merged": _pr_is_merged(_pr_data_from_result(auto_view)),
+            }
+        )
     if pre_view is not None:
         metadata.update(
             {
@@ -1270,6 +1290,60 @@ def merge_pr(
             pre_view = post_update_view
             pre_data = _pr_data_from_result(pre_view)
 
+    auto_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}"]
+    auto_result = _run_gh(auto_command, root=root, runner=runner, timeout_seconds=300)
+    auto_view = view_pr(pr, root=root, runner=runner)
+    auto_merged = _pr_is_merged(_pr_data_from_result(auto_view)) if not auto_view.blocked else False
+    if auto_result.return_code == 0:
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            auto_result.return_code,
+            auto_result.stdout,
+            auto_result.stderr,
+            blocked=False,
+            instructions=None if auto_merged else "Auto-merge is armed. Resume after GitHub merges the PR.",
+            metadata=_merge_metadata(
+                status=MERGED if auto_merged else AUTO_MERGE_ARMED,
+                classification="auto_merged" if auto_merged else "auto_armed",
+                command=command,
+                auto_command=auto_command,
+                auto_result=auto_result,
+                auto_view=auto_view,
+                pre_view=pre_view,
+                merged=auto_merged,
+                auto_merge_armed=not auto_merged,
+                update_command=update_command,
+                update_result=update_result,
+                post_update_view=post_update_view,
+            ),
+        )
+    if auto_merged:
+        return GitHubResult(
+            "merge_pr",
+            False,
+            command,
+            0,
+            auto_result.stdout,
+            auto_result.stderr,
+            blocked=False,
+            metadata=_merge_metadata(
+                status=MERGED,
+                classification="auto_failed_pr_merged",
+                command=command,
+                auto_command=auto_command,
+                auto_result=auto_result,
+                auto_view=auto_view,
+                pre_view=pre_view,
+                merged=True,
+                update_command=update_command,
+                update_result=update_result,
+                post_update_view=post_update_view,
+                warning="Auto-merge returned nonzero, but PR is merged.",
+            ),
+        )
+
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
     if result.return_code == 0:
         verify = view_pr(pr, root=root, runner=runner)
@@ -1287,6 +1361,9 @@ def merge_pr(
                 status=MERGED,
                 classification=classification,
                 command=command,
+                auto_command=auto_command,
+                auto_result=auto_result,
+                auto_view=auto_view,
                 direct_result=result,
                 pre_view=pre_view,
                 verify_view=verify,
@@ -1316,6 +1393,9 @@ def merge_pr(
                 status=ALREADY_MERGED if status == ALREADY_MERGED else MERGED,
                 classification="already_merged" if status == ALREADY_MERGED else "direct_failed_pr_merged",
                 command=command,
+                auto_command=auto_command,
+                auto_result=auto_result,
+                auto_view=auto_view,
                 direct_result=result,
                 pre_view=pre_view,
                 verify_view=post_failure_view,
@@ -1327,125 +1407,11 @@ def merge_pr(
         )
 
     retryable_by_policy = classification in {"branch_policy_timing", "not_mergeable"} or status == MERGE_RETRYABLE
-    if retryable_by_policy and _env_flag("FRONTIER_ALLOW_AUTOMERGE"):
-        retry_command = ["gh", "pr", "merge", str(pr), "--auto", f"--{method}"]
-        retry = _run_gh(retry_command, root=root, runner=runner, timeout_seconds=300)
-        retry_view = view_pr(pr, root=root, runner=runner)
-        retry_merged = _pr_is_merged(_pr_data_from_result(retry_view)) if not retry_view.blocked else False
-        if retry.return_code == 0:
-            return GitHubResult(
-                "merge_pr",
-                False,
-                command,
-                retry.return_code,
-                result.stdout,
-                result.stderr,
-                blocked=False,
-                instructions=None
-                if retry_merged
-                else "Auto-merge is armed. Resume after GitHub merges the PR.",
-                metadata=_merge_metadata(
-                    status=MERGED if retry_merged else AUTO_MERGE_ARMED,
-                    classification="branch_policy_auto_merged" if retry_merged else "branch_policy_auto_armed",
-                    command=command,
-                    direct_result=result,
-                    pre_view=pre_view,
-                    retry_command=retry_command,
-                    retry_result=retry,
-                    retry_view=retry_view,
-                    merged=retry_merged,
-                    auto_merge_armed=not retry_merged,
-                ),
-            )
-        if retry_merged:
-            return GitHubResult(
-                "merge_pr",
-                False,
-                command,
-                0,
-                result.stdout,
-                result.stderr,
-                blocked=False,
-                metadata=_merge_metadata(
-                    status=MERGED,
-                    classification="auto_retry_failed_pr_merged",
-                    command=command,
-                    direct_result=result,
-                    pre_view=pre_view,
-                    retry_command=retry_command,
-                    retry_result=retry,
-                    retry_view=retry_view,
-                    merged=True,
-                    warning="Auto-merge retry returned nonzero, but PR is merged.",
-                ),
-            )
-        if not retry_view.blocked and _pr_is_clean(_pr_data_from_result(retry_view)):
-            direct_retry = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
-            direct_retry_view = view_pr(pr, root=root, runner=runner)
-            direct_retry_merged = (
-                _pr_is_merged(_pr_data_from_result(direct_retry_view)) if not direct_retry_view.blocked else False
-            )
-            if direct_retry.return_code == 0 or direct_retry_merged:
-                metadata = _merge_metadata(
-                    status=MERGED,
-                    classification="auto_retry_failed_direct_retry_merged"
-                    if direct_retry_merged
-                    else "auto_retry_failed_direct_retry_success",
-                    command=command,
-                    direct_result=result,
-                    pre_view=pre_view,
-                    retry_command=retry_command,
-                    retry_result=retry,
-                    retry_view=retry_view,
-                    verify_view=direct_retry_view,
-                    merged=True,
-                    direct_merge_performed=True,
-                )
-                metadata.update(
-                    {
-                        "direct_retry_command": command,
-                        "direct_retry_return_code": direct_retry.return_code,
-                        "direct_retry_stdout": direct_retry.stdout,
-                        "direct_retry_stderr": direct_retry.stderr,
-                    }
-                )
-                return GitHubResult(
-                    "merge_pr",
-                    False,
-                    command,
-                    0 if direct_retry_merged else direct_retry.return_code,
-                    direct_retry.stdout,
-                    direct_retry.stderr,
-                    blocked=False,
-                    metadata=metadata,
-                )
-        retry_classification, retry_status = _classify_merge_failure(retry.stdout, retry.stderr)
-        return GitHubResult(
-            "merge_pr",
-            False,
-            command,
-            retry.return_code,
-            result.stdout,
-            result.stderr,
-            blocked=True,
-            instructions="Auto-merge fallback failed. Inspect command diagnostics and resume after the PR is mergeable.",
-            metadata=_merge_metadata(
-                status=retry_status,
-                classification=f"auto_retry_{retry_classification}",
-                command=command,
-                direct_result=result,
-                pre_view=pre_view,
-                retry_command=retry_command,
-                retry_result=retry,
-                retry_view=retry_view,
-            ),
-        )
-
     instructions = "Inspect `gh pr merge` output and resume after the PR is mergeable."
-    if retryable_by_policy and not _env_flag("FRONTIER_ALLOW_AUTOMERGE"):
+    if retryable_by_policy:
         instructions = (
-            "Merge execution hit a retryable branch-policy condition. "
-            "Set FRONTIER_ALLOW_AUTOMERGE=1 to arm GitHub auto-merge on retry, or merge manually after requirements settle."
+            "Auto-merge and direct merge both hit a retryable branch-policy condition. "
+            "Resume after GitHub requirements settle or merge manually."
         )
     return GitHubResult(
         "merge_pr",
@@ -1460,6 +1426,9 @@ def merge_pr(
             status=status,
             classification=classification,
             command=command,
+            auto_command=auto_command,
+            auto_result=auto_result,
+            auto_view=auto_view,
             direct_result=result,
             pre_view=pre_view,
             verify_view=post_failure_view,

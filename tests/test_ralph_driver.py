@@ -560,6 +560,7 @@ def run_merge_gate_resume(run_dir: Path) -> int:
 
 
 def stub_validation(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTIER_SKIP_CI_PARITY", "1")
     monkeypatch.setattr(
         ralph_driver,
         "run_validation_commands",
@@ -753,6 +754,109 @@ def test_provider_wired_env_max_phases_one_runs_exactly_one_mock_phase(tmp_path,
     assert (run_dir / "heartbeat.json").is_file()
 
 
+def test_yellow_phase_runs_ci_parity_check_in_mock_driver(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    stub_validation(monkeypatch)
+    monkeypatch.delenv("FRONTIER_SKIP_CI_PARITY", raising=False)
+    calls: list[list[str]] = []
+
+    def fake_run_local_command(command, *, root=ralph_driver.ROOT):
+        del root
+        calls.append(command)
+        return ralph_driver.CommandResult(tuple(command), 0, "parity passed\n", "")
+
+    monkeypatch.setattr(ralph_driver, "run_local_command", fake_run_local_command)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    assert calls == [["just", "ci-parity"]]
+    assert "CI_PARITY_CHECK" in (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "# CI Parity" in (run_dir / "phases/P00/validation.md").read_text(encoding="utf-8")
+
+
+def test_green_phase_does_not_run_ci_parity_check_in_mock_driver(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "2")
+    stub_validation(monkeypatch)
+    monkeypatch.delenv("FRONTIER_SKIP_CI_PARITY", raising=False)
+    calls: list[list[str]] = []
+
+    def fake_run_local_command(command, *, root=ralph_driver.ROOT):
+        del root
+        calls.append(command)
+        return ralph_driver.CommandResult(tuple(command), 0, "parity passed\n", "")
+
+    monkeypatch.setattr(ralph_driver, "run_local_command", fake_run_local_command)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    assert pass_count(latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)) == 2
+    assert calls == [["just", "ci-parity"]]
+
+
+def test_ci_parity_failure_routes_existing_bounded_repair(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    monkeypatch.setenv("FRONTIER_MAX_REPAIR_ATTEMPTS", "1")
+    stub_validation(monkeypatch)
+    monkeypatch.delenv("FRONTIER_SKIP_CI_PARITY", raising=False)
+    results = iter(
+        [
+            ralph_driver.CommandResult(("just", "ci-parity"), 1, "", "failed\n"),
+            ralph_driver.CommandResult(("just", "ci-parity"), 0, "fixed\n", ""),
+        ]
+    )
+
+    def fake_run_local_command(command, *, root=ralph_driver.ROOT):
+        del command, root
+        return next(results)
+
+    monkeypatch.setattr(ralph_driver, "run_local_command", fake_run_local_command)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    state = state_json(run_dir)
+    assert state["repair_attempts"]["P00"] == 1
+    assert state["phases"][0]["status"] == "PASS"
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "REPAIR_START" in events
+    assert events.count("CI_PARITY_CHECK") == 2
+
+
+def test_ci_parity_skip_escape_emits_loud_event(tmp_path, monkeypatch) -> None:
+    write_sample_campaign(tmp_path)
+    monkeypatch.setattr(ralph_driver, "ROOT", tmp_path)
+    monkeypatch.setenv("FRONTIER_MOCK_PROVIDERS", "1")
+    monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
+    stub_validation(monkeypatch)
+
+    def fail_run_local_command(command, *, root=ralph_driver.ROOT):
+        del root
+        raise AssertionError(command)
+
+    monkeypatch.setattr(ralph_driver, "run_local_command", fail_run_local_command)
+
+    status = ralph_driver.run_campaign(SAMPLE_CAMPAIGN_ID, None, "yellow", provider_wired=True)
+
+    assert status == 0
+    run_dir = latest_run(tmp_path, SAMPLE_CAMPAIGN_ID)
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "CI_PARITY_SKIP_ESCAPE_USED" in events
+    assert "FRONTIER_SKIP_CI_PARITY=1" in (run_dir / "phases/P00/validation.md").read_text(encoding="utf-8")
+
+
 def test_provider_mock_commit_updates_active_campaign_and_leaves_git_clean(tmp_path, monkeypatch) -> None:
     write_sample_campaign(tmp_path)
     (tmp_path / "ACTIVE_CAMPAIGN.md").write_text("# Active Campaign\n\nNo active campaign is selected yet.\n", encoding="utf-8")
@@ -912,6 +1016,7 @@ def test_fresh_provider_run_prepares_phase_branch_before_executor_and_preserves_
     monkeypatch.delenv("FRONTIER_MOCK_PROVIDERS", raising=False)
     monkeypatch.setenv("FRONTIER_MAX_PHASES", "1")
     monkeypatch.setenv("FRONTIER_CREATE_PR", "0")
+    monkeypatch.setenv("FRONTIER_SKIP_CI_PARITY", "1")
     monkeypatch.setattr(ralph_driver, "run_phase_validation", lambda root: (True, "# Validation\n\nPassed.\n"))
     claude_outputs = iter(
         [

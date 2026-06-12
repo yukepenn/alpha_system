@@ -278,6 +278,12 @@ def test_merge_pr_updates_branch_when_behind(monkeypatch) -> None:
             Result(["gh", "pr", "view"], stdout=json.dumps(behind_pr)),
             Result(["gh", "pr", "update-branch"], stdout="updated\n"),
             Result(["gh", "pr", "view"], stdout=json.dumps(clean_pr)),
+            Result(
+                ["gh", "pr", "merge", "--auto"],
+                return_code=1,
+                stderr="GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)",
+            ),
+            Result(["gh", "pr", "view"], stdout=json.dumps(clean_pr)),
             Result(["gh", "pr", "merge"], stdout="Merged pull request #3\n"),
             Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "MERGED"})),
         ]
@@ -287,7 +293,8 @@ def test_merge_pr_updates_branch_when_behind(monkeypatch) -> None:
 
     assert result.ok
     assert runner.commands[2] == ["gh", "pr", "update-branch", "3"]
-    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--squash"]
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
+    assert runner.commands[6] == ["gh", "pr", "merge", "3", "--squash"]
     assert result.metadata["update_branch_command"] == ["gh", "pr", "update-branch", "3"]
 
 
@@ -311,20 +318,13 @@ def test_merge_pr_blocks_when_update_branch_fails(monkeypatch) -> None:
     assert not any(command[:3] == ["gh", "pr", "merge"] for command in runner.commands[3:])
 
 
-def test_merge_pr_arms_auto_merge_for_branch_policy_timing(monkeypatch) -> None:
+def test_merge_pr_arms_auto_merge_before_direct_merge(monkeypatch) -> None:
     monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
     monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
-    monkeypatch.setenv("FRONTIER_ALLOW_AUTOMERGE", "1")
     open_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "CLEAN"}
     runner = FakeRunner(
         [
             Result(["gh", "auth", "status"], stdout="ok"),
-            Result(["gh", "pr", "view"], stdout=json.dumps(open_pr)),
-            Result(
-                ["gh", "pr", "merge"],
-                return_code=1,
-                stderr="base branch policy prohibits the merge. To have the pull request merged after all the requirements have been met, add the `--auto` flag.",
-            ),
             Result(["gh", "pr", "view"], stdout=json.dumps(open_pr)),
             Result(["gh", "pr", "merge", "--auto"], stdout="Auto-merge enabled\n"),
             Result(["gh", "pr", "view"], stdout=json.dumps(open_pr)),
@@ -335,28 +335,19 @@ def test_merge_pr_arms_auto_merge_for_branch_policy_timing(monkeypatch) -> None:
 
     assert result.ok
     assert result.metadata["status"] == AUTO_MERGE_ARMED
-    assert result.metadata["classification"] == "branch_policy_auto_armed"
+    assert result.metadata["classification"] == "auto_armed"
     assert result.metadata["auto_merge_armed"] is True
-    assert runner.commands[2] == ["gh", "pr", "merge", "3", "--squash"]
-    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
+    assert runner.commands[2] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
 
 
-def test_merge_pr_retries_direct_merge_when_auto_merge_disabled_after_checks_clean(monkeypatch) -> None:
+def test_merge_pr_falls_back_to_direct_merge_when_auto_merge_unavailable(monkeypatch) -> None:
     monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
     monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
-    monkeypatch.setenv("FRONTIER_ALLOW_AUTOMERGE", "1")
-    blocked_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "BLOCKED"}
     clean_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "CLEAN"}
     runner = FakeRunner(
         [
             Result(["gh", "auth", "status"], stdout="ok"),
-            Result(["gh", "pr", "view"], stdout=json.dumps(blocked_pr)),
-            Result(
-                ["gh", "pr", "merge"],
-                return_code=1,
-                stderr="base branch policy prohibits the merge. To have the pull request merged after all the requirements have been met, add the `--auto` flag.",
-            ),
-            Result(["gh", "pr", "view"], stdout=json.dumps(blocked_pr)),
+            Result(["gh", "pr", "view"], stdout=json.dumps(clean_pr)),
             Result(
                 ["gh", "pr", "merge", "--auto"],
                 return_code=1,
@@ -372,10 +363,10 @@ def test_merge_pr_retries_direct_merge_when_auto_merge_disabled_after_checks_cle
 
     assert result.ok
     assert result.metadata["status"] == MERGED
-    assert result.metadata["classification"] == "auto_retry_failed_direct_retry_merged"
+    assert result.metadata["classification"] == "direct_merged"
     assert result.metadata["direct_merge_performed"] is True
-    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
-    assert runner.commands[6] == ["gh", "pr", "merge", "3", "--squash"]
+    assert runner.commands[2] == ["gh", "pr", "merge", "3", "--auto", "--squash"]
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--squash"]
 
 
 def test_merge_pr_direct_failure_but_pr_is_merged_succeeds(monkeypatch) -> None:
@@ -385,6 +376,8 @@ def test_merge_pr_direct_failure_but_pr_is_merged_succeeds(monkeypatch) -> None:
         [
             Result(["gh", "auth", "status"], stdout="ok"),
             Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "OPEN", "isDraft": False})),
+            Result(["gh", "pr", "merge", "--auto"], return_code=1, stderr="auto unavailable"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "OPEN"})),
             Result(["gh", "pr", "merge"], return_code=1, stderr="failed to delete branch"),
             Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "MERGED"})),
         ]
