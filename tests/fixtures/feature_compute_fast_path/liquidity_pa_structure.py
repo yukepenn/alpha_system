@@ -24,7 +24,9 @@ RANGE_CONTRACTION_VALID_INDEX = 11
 def liquidity_pa_structure_rows() -> tuple[dict[str, Any], ...]:
     """Return a tiny canonical OHLCV frame for the governed structure pack."""
 
-    start = datetime(2024, 1, 2, 13, 0, tzinfo=UTC)
+    # P235500 provenance: SESSION_RESET_INDEX is the real 08:30
+    # America/Chicago RTH open under the shared timestamp-derived truth.
+    start = datetime(2024, 1, 2, 14, 24, tzinfo=UTC)
     specs = (
         ("ETH", 100.0, 101.0, 99.0, 100.0, 110),
         ("ETH", 100.0, 102.0, 100.0, 101.0, 111),

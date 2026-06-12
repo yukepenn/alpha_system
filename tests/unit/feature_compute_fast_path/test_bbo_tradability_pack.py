@@ -53,7 +53,9 @@ SPREAD_ZSCORE_TOLERANCE = FeatureParityTolerance(
 
 def test_bbo_tradability_pack_matches_reference_on_synthetic_fixture() -> None:
     pytest.importorskip("polars")
-    rows = bbo_tradability_rows()
+    # P235500 repair provenance: canonical session_label can be static metadata;
+    # spread_zscore reset truth must come from bar_start_ts.
+    rows = _static_session_rows(bbo_tradability_rows())
     accepted = accepted_version(DATASET_ID)
     definitions, feature_set = _bbo_pack_contracts()
     reference_view = build_bbo_input_view(
@@ -187,3 +189,7 @@ def _records_by_feature_version(
     for record in records:
         grouped[record.feature_version_id].append(record)
     return {feature_version_id: tuple(values) for feature_version_id, values in grouped.items()}
+
+
+def _static_session_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    return tuple({**row, "session_label": "ETH"} for row in rows)

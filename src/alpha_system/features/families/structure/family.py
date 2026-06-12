@@ -12,6 +12,11 @@ from types import MappingProxyType
 from typing import Any
 
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    SessionTemplate,
+    SessionWindowState,
+    classify_session_timestamp,
+)
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -35,6 +40,10 @@ from alpha_system.features.primitives import PrimitivePoint, rolling_range
 from alpha_system.features.request_gate import (
     FeatureRequestGateDecision,
     require_feature_request_implementation_allowed,
+)
+from alpha_system.features.session_truth import (
+    default_session_template,
+    session_contract_parameters,
 )
 from alpha_system.features.semantics import bbo_quote_semantics, is_real_trade_bar
 from alpha_system.governance.duplicate_exposure import RegistryReader
@@ -245,6 +254,7 @@ _WICK_FEATURES = frozenset(
 )
 _COMPRESSION_FEATURES = frozenset({StructureFeatureName.RANGE_CONTRACTION})
 _ROLLING_PRIOR_FEATURES = _PRIOR_FEATURES | _SWEEP_FEATURES | _COMPRESSION_FEATURES
+_SESSION_TRUTH_FEATURES = _ROLLING_PRIOR_FEATURES | _OPENING_RANGE_FEATURES
 _FIELDS_BY_FEATURE: dict[StructureFeatureName, tuple[str, ...]] = {
     StructureFeatureName.PRIOR_HIGH_DISTANCE: ("high", "low", "close"),
     StructureFeatureName.PRIOR_LOW_DISTANCE: ("high", "low", "close"),
@@ -518,7 +528,17 @@ def _transform_parameters(
     if name in _OPENING_RANGE_FEATURES:
         parameters["opening_range_minutes"] = opening_range_minutes
         parameters["opening_session_label"] = opening_session_label
+    if _requires_session_truth_parameters(name, reset_on_session=reset_on_session):
+        parameters.update(_session_contract_parameters())
     return parameters
+
+
+def _requires_session_truth_parameters(
+    name: StructureFeatureName,
+    *,
+    reset_on_session: bool,
+) -> bool:
+    return name in _OPENING_RANGE_FEATURES or (reset_on_session and name in _SESSION_TRUTH_FEATURES)
 
 
 def _input_fields(name: StructureFeatureName) -> tuple[str, ...]:
@@ -551,6 +571,7 @@ def _input_metadata(*, input_scope: Mapping[str, Any] | None = None) -> dict[str
             "missing_bbo and bbo_quarantined rows are surfaced only at exact "
             "available_ts; quotes are never filled or interpolated"
         ),
+        "field_roles": {"session_label": "SESSION_METADATA"},
     }
     if input_scope:
         metadata["input_scope"] = {str(key): value for key, value in input_scope.items()}
@@ -635,13 +656,23 @@ def _prior_distance_points(
     definition: StructureFeatureDefinition,
     rows: Sequence[OHLCVInputRow],
 ) -> tuple[_FeaturePoint, ...]:
+    session_labels = (
+        _session_segment_labels(rows)
+        if _bool_parameter(definition, "reset_on_session")
+        else ()
+    )
     results: list[_FeaturePoint] = []
     for index, row in enumerate(rows):
         current_gap = _current_trade_gap(row)
         if current_gap is not None:
             results.append(current_gap)
             continue
-        prior_rows, flags = _prior_window(rows, index, definition)
+        prior_rows, flags = _prior_window(
+            rows,
+            index,
+            definition,
+            session_labels=session_labels,
+        )
         if prior_rows is None:
             results.append(_gap_feature_point(row, "input_gap", flags))
             continue
@@ -670,8 +701,9 @@ def _opening_range_distance_points(
     session_start: datetime | None = None
     previous_key: tuple[str, str] | None = None
     results: list[_FeaturePoint] = []
-    for row in rows:
-        key = (row.series_id, row.session_label)
+    states = _session_states(rows)
+    for row, state in zip(rows, states, strict=True):
+        key = (row.series_id, state.segment_label)
         if key != previous_key:
             previous_key = key
             session_start = row.bar_start_ts
@@ -682,7 +714,7 @@ def _opening_range_distance_points(
         if current_gap is not None:
             results.append(current_gap)
             continue
-        if row.session_label.upper() != opening_session:
+        if state.segment_label != opening_session:
             results.append(_gap_feature_point(row, "outside_opening_session"))
             continue
         assert session_start is not None
@@ -707,13 +739,23 @@ def _sweep_points(
     definition: StructureFeatureDefinition,
     rows: Sequence[OHLCVInputRow],
 ) -> tuple[_FeaturePoint, ...]:
+    session_labels = (
+        _session_segment_labels(rows)
+        if _bool_parameter(definition, "reset_on_session")
+        else ()
+    )
     results: list[_FeaturePoint] = []
     for index, row in enumerate(rows):
         current_gap = _current_trade_gap(row)
         if current_gap is not None:
             results.append(current_gap)
             continue
-        prior_rows, flags = _prior_window(rows, index, definition)
+        prior_rows, flags = _prior_window(
+            rows,
+            index,
+            definition,
+            session_labels=session_labels,
+        )
         if prior_rows is None:
             results.append(_gap_feature_point(row, "input_gap", flags))
             continue
@@ -770,19 +812,25 @@ def _range_contraction_points(
     definition: StructureFeatureDefinition,
     rows: Sequence[OHLCVInputRow],
 ) -> tuple[_FeaturePoint, ...]:
+    states = _session_states(rows)
     primitive_ranges = rolling_range(
         (
             PrimitivePoint(
                 available_ts=row.available_ts,
                 event_ts=row.event_ts,
                 value=_bar_range(row) if is_real_trade_bar(row) else None,
-                session_label=row.session_label,
+                session_label=state.segment_label,
                 quality_flags=() if is_real_trade_bar(row) else _no_trade_flags(row),
             )
-            for row in rows
+            for row, state in zip(rows, states, strict=True)
         ),
         definition.spec.window,
         reset_on_session=_bool_parameter(definition, "reset_on_session"),
+    )
+    session_labels = (
+        tuple(state.segment_label for state in states)
+        if _bool_parameter(definition, "reset_on_session")
+        else ()
     )
     results: list[_FeaturePoint] = []
     for index, row in enumerate(rows):
@@ -790,7 +838,12 @@ def _range_contraction_points(
         if current_gap is not None:
             results.append(current_gap)
             continue
-        prior_rows, flags = _prior_window(rows, index, definition)
+        prior_rows, flags = _prior_window(
+            rows,
+            index,
+            definition,
+            session_labels=session_labels,
+        )
         if prior_rows is None:
             results.append(_gap_feature_point(row, "input_gap", flags))
             continue
@@ -818,14 +871,16 @@ def _prior_window(
     rows: Sequence[OHLCVInputRow],
     index: int,
     definition: StructureFeatureDefinition,
+    *,
+    session_labels: Sequence[str],
 ) -> tuple[tuple[OHLCVInputRow, ...], tuple[str, ...]] | tuple[None, tuple[str, ...]]:
     window_length = definition.spec.window.length
     reset_on_session = _bool_parameter(definition, "reset_on_session")
     start = max(0, index - window_length)
     if reset_on_session:
-        current_session = rows[index].session_label
+        current_session = session_labels[index]
         for prior_index in range(index - 1, start - 1, -1):
-            if rows[prior_index].session_label != current_session:
+            if session_labels[prior_index] != current_session:
                 start = prior_index + 1
                 break
     window_rows = tuple(rows[start:index])
@@ -944,6 +999,36 @@ def _require_bar_bounds(row: OHLCVInputRow) -> None:
 
 def _minutes(value: int) -> object:
     return timedelta(minutes=value)
+
+
+def _session_contract_parameters() -> dict[str, object]:
+    try:
+        return session_contract_parameters(_session_template())
+    except DataFoundationValidationError as exc:
+        raise StructureFeatureError(str(exc)) from exc
+
+
+def _session_template() -> SessionTemplate:
+    try:
+        return default_session_template()
+    except DataFoundationValidationError as exc:
+        raise StructureFeatureError(str(exc)) from exc
+
+
+def _session_states(rows: Sequence[OHLCVInputRow]) -> tuple[SessionWindowState, ...]:
+    template = _session_template()
+    return tuple(_session_state(row, template) for row in rows)
+
+
+def _session_segment_labels(rows: Sequence[OHLCVInputRow]) -> tuple[str, ...]:
+    return tuple(state.segment_label for state in _session_states(rows))
+
+
+def _session_state(row: OHLCVInputRow, template: SessionTemplate) -> SessionWindowState:
+    try:
+        return classify_session_timestamp(row.bar_start_ts, template=template)
+    except DataFoundationValidationError as exc:
+        raise StructureFeatureError(str(exc)) from exc
 
 
 def _int_parameter(definition: StructureFeatureDefinition, name: str) -> int:

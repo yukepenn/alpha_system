@@ -1,0 +1,100 @@
+{
+  "phase_id": "P235500_FUTSUB_SESSION_RESET_TRUTH_REPOINT",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewed_at": "2026-06-11",
+  "base": "origin/main 4e7c21e (uncommitted worktree diff, 19 modified + 1 new file)",
+  "worktree_integrity": {
+    "git_diff_sha256": "2e7d590d0f05af17e6e43cd6f9c3d86c861025d6e0ae7603fe6d8f655d15290a",
+    "git_status_sha256": "717a63c81487ff157597779ca1dff0b9299368c64ed43af2d7a140afdb1d6b21",
+    "byte_identical_after_all_mutations": true
+  },
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "warning",
+      "title": "Identity rotation extends beyond session-conditioned contracts",
+      "detail": "Empirical cross-version fvid probe (origin/main src vs worktree src): ALL structure specs (incl. close_location_value reset=False: fver_278ef6b1->fver_2c5cb4e7; prior_high_distance reset=False: fver_7c247e2c->fver_54f44b5f), ALL cross_market specs (synchronized_returns reset=False: fver_9ef3a16f->fver_85cf99bc), and bbo spread_zscore reset=False (fver_655f6c1b->fver_4b45b436) rotate because the field_roles marker is identity-hashed via input_metadata. Spec-sanctioned by scope item 2 (marker required wherever session_label is declared; structure/cross_market declare it for every feature) and functionally required (markerless contracts proved resolver-rejected: RuntimeInputResolverError 'labels must not be exposed as live feature inputs'); value-inert (FeatureValueRecord carries no session_label). Spec's named over-rotation examples hold bit-identical: ohlcv returns fver_643e91dc, volume_zscore fver_c40ed86a, rolling_range fver_f5a9433b, bbo mid fver_19588db5, bbo spread fver_4ce9dc01. CONSEQUENCE: the coordinator data-op phase must treat ALL structure + ALL cross_market + spread_zscore contracts as re-keyed; executor notes understate this blast radius."
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "title": "No pinned-hash identity regression test",
+      "detail": "The in-repo over-rotation guard only asserts session-template-change invariance under the new code; it cannot detect pre/post input_metadata churn (it did not catch W1). Pinned fvid hashes for unconditioned specs are absent; recommend follow-up."
+    },
+    {
+      "id": "W3",
+      "severity": "warning",
+      "title": "No DST test for the polars fast-path session derivation",
+      "detail": "All new tests/fixtures are winter (CST) timestamps. DST correctness rests on convert_time_zone + the shared-truth DST test (tests/unit/data/test_sessions_calendar.py, 14:30Z EST vs 13:30Z EDT both = 08:30 local). Gap pre-exists in the P194500 fast twins; derivation is template-parameter-driven. One summer-boundary parity fixture would close it."
+    },
+    {
+      "id": "I1",
+      "severity": "info",
+      "title": "Session-label polars helpers duplicated across 4 fast twins",
+      "detail": "_template_session_label/_is_rth/_local_seconds repeated per twin; parameter-driven (no second truth) but drift-prone; candidate hoist into features/session_truth.py."
+    },
+    {
+      "id": "I2",
+      "severity": "info",
+      "title": "Resolver acceptance tested via private symbol",
+      "detail": "Tests call runtime.input_resolver._reject_label_as_live_feature directly with SimpleNamespace; adequate and mutation-verified, but couples tests to a private function. input_resolver.py itself untouched."
+    },
+    {
+      "id": "I3",
+      "severity": "info",
+      "title": "Executor skipped validation commands 3-5 per prompt",
+      "detail": "Reviewer ran them: full suite green modulo 3 named pre-existing env failures (reproduced on origin/main code), verify.py --smoke rc=0, all canaries pass. Handoff deviations are truthful."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "name": "A1_boundary_sabotage_rth_open_plus_3600s_in_session_truth",
+      "expected": "fast-vs-reference parity tests fail",
+      "observed": "test_liquidity_pa_structure_pack_matches_reference_on_synthetic_fixture FAILED (1 failed, 51 passed); open-boundary fixture family caught it",
+      "result": "PASS"
+    },
+    {
+      "name": "A1b_boundary_sabotage_rth_close_plus_3600s_in_session_truth",
+      "expected": "close-boundary parity tests fail",
+      "observed": "6 FAILED: bbo_tradability, cross_market strict+asof, regime_vol_compression x2, volume_activity parity tests (6 failed, 46 passed)",
+      "result": "PASS"
+    },
+    {
+      "name": "A2_constant_label_in_structure_reference__session_state",
+      "expected": "boundary/parity tests fail",
+      "observed": "3 FAILED: test_structure_reset_and_opening_range_ignore_static_session_label, test_all_structure_features_are_gated_versioned_causal_and_available, structure pack parity",
+      "result": "PASS"
+    },
+    {
+      "name": "B_remove_session_params_from_bbo_identity_payload",
+      "expected": "rotation test fails",
+      "observed": "3 FAILED: test_remaining_session_conditioned_family_identities_include_template_truth, test_spread_zscore_contract_declares_session_metadata_and_truth, bbo fast pack PackMaterializerError (twin refuses param-less contract)",
+      "result": "PASS"
+    },
+    {
+      "name": "C_remove_field_roles_marker_from_structure",
+      "expected": "resolver-acceptance test fails",
+      "observed": "test_session_conditioned_structure_contract_declares_metadata_and_truth FAILED (KeyError field_roles); direct guard probe REJECTED with RuntimeInputResolverError 'labels must not be exposed as live feature inputs'",
+      "result": "PASS"
+    }
+  ],
+  "validation_counts": {
+    "focused_features_and_fast_path": {"passed": 197, "failed": 0},
+    "full_unit_no_lookahead_integration": {
+      "passed": 2911,
+      "failed": 3,
+      "skipped": 1,
+      "failed_names": [
+        "tests/unit/data/test_databento_canonicalize.py::test_databento_canonicalize_quality_coverage_and_register_offline",
+        "tests/integration/test_duckdb_query_fixture.py::test_duckdb_query_over_tiny_csv_fixture",
+        "tests/integration/test_polars_lazy_fixture.py::test_polars_lazy_transformation_over_tiny_fixture"
+      ],
+      "failed_preexisting": "reproduced identically with PYTHONPATH=origin/main src (3 failed, 4 passed)"
+    },
+    "verify_smoke": {"exit_code": 0},
+    "canary_runner": "all canaries passed",
+    "forbidden_paths_touched": 0,
+    "staged_files": 0,
+    "git_ls_files_runs": 0
+  }
+}

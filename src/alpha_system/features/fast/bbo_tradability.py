@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.quotes import (
     BBO_QUARANTINE_QUALITY_FLAG,
     MISSING_BBO_QUALITY_FLAG,
@@ -23,6 +24,11 @@ from alpha_system.features.fast.materializer import (
     FastFeaturePack,
     PackMaterializerError,
     constant_window_mask,
+)
+from alpha_system.features.session_truth import (
+    SessionTruthClock,
+    session_contract_parameters,
+    session_truth_clock,
 )
 
 BBO_TRADABILITY_WINDOW_LENGTH = 3
@@ -171,6 +177,7 @@ def _validate_bbo_feature(feature: FeatureSpec) -> None:
             feature.feature_id,
         )
         _require_parameter(parameters, "ddof", BBO_TRADABILITY_DDOF, feature.feature_id)
+        _validate_session_contract_parameters(parameters, feature.feature_id)
         _require_parameter(
             feature.normalization.parameters.to_dict(),
             "reset_on_session",
@@ -246,6 +253,18 @@ def _require_quality_tokens(parameters: Mapping[str, object], feature_id: str) -
         raise PackMaterializerError(f"{feature_id} requires governed BBO quality tokens")
 
 
+def _validate_session_contract_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> None:
+    try:
+        expected = session_contract_parameters()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    for name, value in expected.items():
+        _require_parameter(parameters, name, value, feature_id)
+
+
 def _require_rolling_window(feature: FeatureSpec, *, length: int) -> None:
     if feature.window.kind is not WindowKind.ROLLING or feature.window.length != length:
         raise PackMaterializerError(
@@ -280,6 +299,7 @@ def _prepare_frame(frame: Any) -> Any:
             "event_ts",
             "available_ts",
             "bar_end_ts",
+            "bar_start_ts",
             "quality_flags",
             "session_label",
             "bid",
@@ -290,9 +310,10 @@ def _prepare_frame(frame: Any) -> Any:
             "spread",
         ),
     )
+    session_clock = _session_clock()
     prepared = frame.with_columns(
         (
-            pl.col("session_label").cast(pl.Utf8).alias(_SESSION),
+            _template_session_label(pl, session_clock).alias(_SESSION),
             pl.col("event_ts").cast(pl.Datetime("us", "UTC"), strict=False).alias(_EVENT_TS),
             pl.col("available_ts")
             .cast(pl.Datetime("us", "UTC"), strict=False)
@@ -649,6 +670,43 @@ def _input_quality_flags(polars: Any) -> Any:
         .list.eval(pl.element().str.to_lowercase())
         .list.unique(maintain_order=True)
     )
+
+
+def _session_clock() -> SessionTruthClock:
+    try:
+        return session_truth_clock()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+
+
+def _bar_start_ts(polars: Any) -> Any:
+    return polars.col("bar_start_ts").cast(polars.Datetime("us", "UTC"), strict=False)
+
+
+def _local_bar_start(polars: Any, session_clock: SessionTruthClock) -> Any:
+    return _bar_start_ts(polars).dt.convert_time_zone(session_clock.timezone)
+
+
+def _local_seconds(polars: Any, session_clock: SessionTruthClock) -> Any:
+    local = _local_bar_start(polars, session_clock)
+    return (
+        local.dt.hour().cast(polars.Int64) * 3600
+        + local.dt.minute().cast(polars.Int64) * 60
+        + local.dt.second().cast(polars.Int64)
+    )
+
+
+def _is_rth(polars: Any, session_clock: SessionTruthClock) -> Any:
+    seconds = _local_seconds(polars, session_clock)
+    return (seconds >= session_clock.rth_open_seconds) & (
+        seconds < session_clock.rth_close_seconds
+    )
+
+
+def _template_session_label(polars: Any, session_clock: SessionTruthClock) -> Any:
+    return polars.when(_is_rth(polars, session_clock)).then(
+        polars.lit("RTH")
+    ).otherwise(polars.lit("ETH"))
 
 
 def _optional_float_column(polars: Any, frame: Any, column: str) -> Any:

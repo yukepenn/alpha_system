@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -35,6 +36,7 @@ from alpha_system.governance.feature_request import (
     FeatureRequestApprovalStatus,
     create_feature_request,
 )
+from alpha_system.runtime.input_resolver import _reject_label_as_live_feature
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 
@@ -190,6 +192,60 @@ def test_exact_time_missing_bbo_is_flagged_without_forward_fill() -> None:
     assert "missing_bbo" in records[1].quality_flags
     assert "nq_bbo_gap" in records[1].quality_flags
     assert "missing_bbo" not in records[2].quality_flags
+
+
+def test_cross_market_contract_declares_session_metadata_and_truth() -> None:
+    definition = build_cross_market_feature_definition(
+        CrossMarketFeatureName.NQ_MINUS_ES_RETURN_SPREAD,
+        _approved_request(CrossMarketFeatureName.NQ_MINUS_ES_RETURN_SPREAD),
+        EmptyRegistryReader(),
+        reset_on_session=True,
+    )
+
+    metadata = definition.spec.inputs.input_metadata.to_dict()
+    parameters = definition.spec.transform.parameters.to_dict()
+
+    assert metadata["field_roles"]["session_label"] == "SESSION_METADATA"
+    assert parameters["session_template_id"] == "session_cme_index_futures_eth"
+    assert parameters["session_timezone"] == "America/Chicago"
+    assert parameters["rth_open_time_local"] == "08:30"
+    assert parameters["rth_close_time_local"] == "15:00"
+    assert parameters["session_truth_source"] == "alpha_system.data.foundation.sessions"
+
+    _reject_label_as_live_feature(
+        SimpleNamespace(feature_spec=definition.spec.feature_spec),
+        field="feature_pack_refs[0]",
+    )
+
+
+def test_cross_market_return_reset_uses_timestamp_truth_when_session_label_is_static() -> None:
+    start = _dt("2024-01-02T20:58:00+00:00")
+    bundle = CrossMarketInputBundle(
+        {
+            market: OHLCVInputView(
+                (
+                    _ohlcv_row(market, start, close=base),
+                    _ohlcv_row(market, start + timedelta(minutes=1), close=str(int(base) + 1)),
+                    _ohlcv_row(market, start + timedelta(minutes=2), close=str(int(base) + 2)),
+                )
+            )
+            for market, base in {"ES": "100", "NQ": "200", "RTY": "50"}.items()
+        }
+    )
+    definition = build_cross_market_feature_definition(
+        CrossMarketFeatureName.SYNCHRONIZED_RETURNS,
+        _approved_request(CrossMarketFeatureName.SYNCHRONIZED_RETURNS),
+        EmptyRegistryReader(),
+        reset_on_session=True,
+    )
+
+    snapshots = align_cross_market_rows(bundle, reset_on_session=True)
+    records = compute_cross_market_feature(definition, bundle)
+
+    assert [snapshot.session_label for snapshot in snapshots] == ["RTH", "RTH", "ETH"]
+    assert records[1].value is not None
+    assert records[2].value is None
+    assert "session_reset" in records[2].quality_flags
 
 
 def test_mixed_dataset_version_families_fail_closed() -> None:

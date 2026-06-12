@@ -34,7 +34,9 @@ def cross_market_combined_rows() -> tuple[dict[str, Any], ...]:
 def cross_market_ohlcv_rows() -> tuple[dict[str, Any], ...]:
     """Return a deterministic ES/NQ/RTY OHLCV fixture with one missing RTY event."""
 
-    start = datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
+    # P235500 provenance: SESSION_RESET_INDEX is the real 15:00
+    # America/Chicago RTH close under the shared timestamp-derived truth.
+    start = datetime(2024, 1, 2, 20, 54, tzinfo=UTC)
     specs = {
         "ES": (
             ("RTH", "100", ()),
@@ -77,7 +79,7 @@ def cross_market_ohlcv_rows() -> tuple[dict[str, Any], ...]:
     }
     rows: list[dict[str, Any]] = []
     for market, market_specs in specs.items():
-        for index, (session, close, quality_flags) in enumerate(market_specs):
+        for index, (_session, close, quality_flags) in enumerate(market_specs):
             bar_start = start + timedelta(minutes=index)
             available_ts = _available_ts(index, market, bar_start)
             rows.append(
@@ -86,7 +88,7 @@ def cross_market_ohlcv_rows() -> tuple[dict[str, Any], ...]:
                     bar_start,
                     close=close,
                     available_ts=available_ts,
-                    session_label=session,
+                    session_label="ETH",
                     quality_flags=quality_flags,
                 )
             )
@@ -277,7 +279,7 @@ def _available_ts(index: int, market: str, bar_start_ts: datetime) -> datetime:
 
 
 def _event_ts(index: int) -> datetime:
-    start = datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
+    start = datetime(2024, 1, 2, 20, 54, tzinfo=UTC)
     return start + timedelta(minutes=index + 1)
 
 

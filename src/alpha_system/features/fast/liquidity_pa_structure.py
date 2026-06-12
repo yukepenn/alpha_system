@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.storage import require_dependency
 from alpha_system.features.contracts import (
     FeatureFamily,
@@ -19,6 +20,11 @@ from alpha_system.features.fast.materializer import (
     FastFeatureDeclaration,
     FastFeaturePack,
     PackMaterializerError,
+)
+from alpha_system.features.session_truth import (
+    SessionTruthClock,
+    session_contract_parameters,
+    session_truth_clock,
 )
 
 LIQUIDITY_PA_STRUCTURE_FEATURE_IDS: tuple[str, ...] = tuple(
@@ -168,6 +174,9 @@ def _validate_liquidity_pa_structure_feature(feature: FeatureSpec) -> None:
     parameters = feature.transform.parameters.to_dict()
     _require_parameter(parameters, "feature_name", feature_name.value, feature.feature_id)
     _require_bool_parameter(parameters, "reset_on_session", feature.feature_id)
+    reset_on_session = bool(parameters["reset_on_session"])
+    if _requires_session_truth_parameters(feature_name, reset_on_session=reset_on_session):
+        _validate_session_contract_parameters(parameters, feature.feature_id)
     if feature.transform.transform_id != feature_name.value:
         raise PackMaterializerError(
             f"{feature.feature_id} transform must be {feature_name.value}"
@@ -218,6 +227,28 @@ def _require_bool_parameter(
 ) -> None:
     if type(parameters.get(name)) is not bool:
         raise PackMaterializerError(f"{feature_id} requires boolean {name}")
+
+
+def _requires_session_truth_parameters(
+    feature_name: StructureFeatureName,
+    *,
+    reset_on_session: bool,
+) -> bool:
+    return feature_name in _OPENING_RANGE_FEATURES or (
+        reset_on_session and feature_name in _ROLLING_PRIOR_FEATURES
+    )
+
+
+def _validate_session_contract_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> None:
+    try:
+        expected = session_contract_parameters()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    for name, value in expected.items():
+        _require_parameter(parameters, name, value, feature_id)
 
 
 def _require_rolling_window(feature: FeatureSpec) -> None:
@@ -340,11 +371,11 @@ def _prepare_frame(
             "session_label",
         ),
     )
+    session_clock = _session_clock()
     prepared = frame.with_columns(
         (
             pl.col("series_id").cast(pl.Utf8).alias(_SERIES),
-            pl.col("session_label").cast(pl.Utf8).alias(_SESSION),
-            pl.col("session_label").cast(pl.Utf8).str.to_uppercase().alias(_SESSION_UPPER),
+            _template_session_label(pl, session_clock).alias(_SESSION),
             _bar_start_ts(pl).alias(_BAR_START),
             _input_quality_flags(pl).alias(_INPUT_FLAGS),
             pl.col("open").cast(pl.Float64, strict=False).alias(_OPEN),
@@ -353,6 +384,7 @@ def _prepare_frame(
             pl.col("close").cast(pl.Float64, strict=False).alias(_CLOSE),
         )
     )
+    prepared = prepared.with_columns(pl.col(_SESSION).str.to_uppercase().alias(_SESSION_UPPER))
     prepared = prepared.with_columns(
         (
             pl.col(_INPUT_FLAGS).list.contains("no_trade").fill_null(False).alias(_NO_TRADE),
@@ -687,6 +719,39 @@ def _input_quality_flags(polars: Any) -> Any:
 
 def _bar_start_ts(polars: Any) -> Any:
     return polars.col("bar_start_ts").cast(polars.Datetime("us", "UTC"), strict=False)
+
+
+def _session_clock() -> SessionTruthClock:
+    try:
+        return session_truth_clock()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+
+
+def _local_bar_start(polars: Any, session_clock: SessionTruthClock) -> Any:
+    return _bar_start_ts(polars).dt.convert_time_zone(session_clock.timezone)
+
+
+def _local_seconds(polars: Any, session_clock: SessionTruthClock) -> Any:
+    local = _local_bar_start(polars, session_clock)
+    return (
+        local.dt.hour().cast(polars.Int64) * 3600
+        + local.dt.minute().cast(polars.Int64) * 60
+        + local.dt.second().cast(polars.Int64)
+    )
+
+
+def _is_rth(polars: Any, session_clock: SessionTruthClock) -> Any:
+    seconds = _local_seconds(polars, session_clock)
+    return (seconds >= session_clock.rth_open_seconds) & (
+        seconds < session_clock.rth_close_seconds
+    )
+
+
+def _template_session_label(polars: Any, session_clock: SessionTruthClock) -> Any:
+    return polars.when(_is_rth(polars, session_clock)).then(
+        polars.lit("RTH")
+    ).otherwise(polars.lit("ETH"))
 
 
 def _flags(polars: Any, values: Sequence[str]) -> Any:

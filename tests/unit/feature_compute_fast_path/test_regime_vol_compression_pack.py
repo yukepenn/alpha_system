@@ -69,7 +69,9 @@ ROLLING_FLOAT_TOLERANCE = FeatureParityTolerance(
 
 def test_regime_vol_compression_pack_matches_reference_on_synthetic_fixture() -> None:
     pytest.importorskip("polars")
-    rows = regime_vol_compression_rows()
+    # P235500 repair provenance: canonical session_label can be static metadata;
+    # reset-scoped OHLCV/structure truth comes from bar_start_ts.
+    rows = _static_session_rows(regime_vol_compression_rows())
     accepted = accepted_version(DATASET_ID)
     definitions, feature_set = _regime_pack_contracts()
     reference_view = build_ohlcv_input_view(
@@ -110,7 +112,7 @@ def test_regime_vol_compression_pack_matches_reference_on_synthetic_fixture() ->
 
 def test_regime_ohlcv_bindings_match_reference_with_session_reset() -> None:
     pytest.importorskip("polars")
-    rows = regime_vol_compression_rows()
+    rows = _static_session_rows(regime_vol_compression_rows())
     accepted = accepted_version(DATASET_ID)
     definitions, feature_set = _regime_ohlcv_binding_contracts()
     reference_view = build_ohlcv_input_view(
@@ -147,7 +149,7 @@ def test_regime_vol_compression_pack_materialization_records_fast_provenance(
     tmp_path: Path,
 ) -> None:
     pytest.importorskip("polars")
-    rows = regime_vol_compression_rows()
+    rows = _static_session_rows(regime_vol_compression_rows())
     accepted = accepted_version(DATASET_ID)
     definitions, feature_set = _regime_pack_contracts()
     materializer = PackMaterializer()
@@ -343,3 +345,7 @@ def _records_by_feature_version(
     for record in records:
         grouped[record.feature_version_id].append(record)
     return {feature_version_id: tuple(values) for feature_version_id, values in grouped.items()}
+
+
+def _static_session_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    return tuple({**row, "session_label": "ETH"} for row in rows)
