@@ -26,6 +26,7 @@ Executor: Codex
 ## Curated File List For Ralph
 
 - `README.md`
+- `docs/SYSTEM_MAP.md`
 - `evals/canaries/planted_fake_alpha/README.md`
 - `evals/canaries/planted_fake_alpha/synthetic_fixture.json`
 - `evals/canaries/random_target/synthetic_fixture.json`
@@ -43,6 +44,8 @@ Executor: Codex
 - `tests/unit/governance/test_evidence_bundle.py`
 - `tests/unit/governance/test_promotion_gate_state_machine.py`
 - `tests/unit/governance/test_reviewer_independence.py`
+- `tests/integration/governance/test_cli_smoke.py`
+- `tests/integration/governance/test_end_to_end_dry_run.py`
 - `tools/hooks/canary_runner.py`
 
 No files were staged by the executor.
@@ -104,6 +107,55 @@ contamination flag and the existing P03 gate blocks it.
 | `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.db' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.log'` | PASS | Exit 0, no output. |
 | `git ls-files -m -o --exclude-standard` | PASS | Output contained only the curated files listed above before this handoff was written; after handoff, add this handoff path to the same curated set. |
 
+## Repair Attempt 1 - CI Failure 27390580288
+
+Repair scope: only the CI failures shown for `RIGOR-P04`.
+
+Changes:
+
+- Fixed a package import cycle by lazily exporting planted-fake-alpha symbols
+  from `alpha_system.governance.canaries`; direct submodule imports remain
+  unchanged, and package-level imports still work through `__getattr__`.
+- Updated the existing governance CLI smoke fixture to carry four current
+  `NegativeControlResult` PASS records tied to its `StudySpec`, matching the
+  stricter evidence-ready gate instead of the old free-form control metadata.
+- Updated the synthetic governance end-to-end dry run to consume the now-4/4
+  executable `run_required_governance_canaries()` output exactly once, removing
+  the duplicate `random_target` result.
+- Regenerated `docs/SYSTEM_MAP.md` so the generated canary inventory includes
+  `planted_fake_alpha`.
+
+Repair changed files:
+
+- `docs/SYSTEM_MAP.md`
+- `src/alpha_system/governance/canaries/__init__.py`
+- `tests/integration/governance/test_cli_smoke.py`
+- `tests/integration/governance/test_end_to_end_dry_run.py`
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P04.md`
+
+Repair validation:
+
+| Command | Result | Notes |
+|---|---:|---|
+| `PYTHONPATH=src python -m pytest tests/integration/governance/test_cli_smoke.py::test_governance_cli_end_to_end_smoke -q` | PASS | `1 passed in 2.22s`. |
+| `PYTHONPATH=src python -m pytest tests/integration/governance/test_end_to_end_dry_run.py::test_synthetic_end_to_end_governance_dry_run -q` | PASS | `1 passed in 3.34s`. |
+| `PYTHONPATH=src python -m pytest tests/tools/test_system_map.py::test_committed_map_is_current -q` | PASS | `1 passed in 0.02s`. |
+| `PYTHONPATH=src python -m pytest tests/integration/governance -q` | PASS | `8 passed in 7.52s`. |
+| `PYTHONPATH=src python -m pytest tests/unit/governance tests/unit/discovery_rigor_floor -q` | PASS | `621 passed in 2.91s`. |
+| `PYTHONPATH=src python -m pytest tests/tools/test_system_map.py -q` | PASS | `2 passed in 0.02s`. |
+| `python tools/hooks/canary_runner.py` | PASS | All Frontier canaries passed. |
+| `PYTHONPATH=src python -m pytest` | FAIL | Local env-only false negative: `3222 passed, 74 skipped, 1 failed`; `tests/unit/runtime/test_cache_policy.py::test_run_artifact_cache_root_is_explicit_local_only` saw `ALPHA_DATA_ROOT` exported and selected `alpha_data_root` instead of `run_artifacts`. |
+| `env -u ALPHA_DATA_ROOT PYTHONPATH=src python -m pytest tests/unit/runtime/test_cache_policy.py::test_run_artifact_cache_root_is_explicit_local_only -q` | PASS | `1 passed in 0.02s`. |
+| `python tools/verify.py --smoke` | PASS | Exit 0; no stdout/stderr. |
+| `python tools/frontier/status_doctor.py` | WARN | No live run dir with `state.json` found for this campaign; hook floor and runtime contract OK. |
+| `env -u ALPHA_DATA_ROOT PYTHONPATH=src python -m pytest` | PASS | `3223 passed, 74 skipped in 54.35s`. |
+| `git diff --check` | PASS | Exit 0. |
+| `git status --short` | PASS | Modified files: `docs/SYSTEM_MAP.md`, `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P04.md`, `src/alpha_system/governance/canaries/__init__.py`, `tests/integration/governance/test_cli_smoke.py`, `tests/integration/governance/test_end_to_end_dry_run.py`. |
+| `git diff --cached --name-only` | PASS | Exit 0, no output; no staged files. |
+| `git ls-files runs` | PASS | Exit 0, no output. |
+| `git ls-files '**/*.parquet' '**/*.sqlite' '**/*.db' '**/*.arrow' '**/*.feather' '**/*.dbn' '**/*.zst' '**/*.log'` | PASS | Exit 0, no output. |
+| `git diff --quiet -- research/futures_core_alpha_pilot_v1/study_specs research/futures_core_alpha_pilot_v1/reviewer_verdicts research/futures_core_alpha_pilot_v1/evidence research/futures_core_alpha_pilot_v1/ledgers` | PASS | Exit 0; historical evidence remains untouched. |
+
 ## Confirmations
 
 - Historical Core Pilot evidence directories under `study_specs/`,
@@ -118,7 +170,9 @@ contamination flag and the existing P03 gate blocks it.
 - No `review.md`, `verdict.json`, or
   `reviews/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P04/**` artifact was created by the
   executor; Yellow-lane review is Ralph-owned.
-- No `git add`, `git commit`, `git push`, `git status`, or `git diff` was run.
+- No `git add`, `git commit`, or `git push` was run. Repair audit did run
+  `git status`, `git diff`, `git diff --cached`, and `git ls-files` checks
+  listed above; no files are staged.
 - No PR, merge, reviewer call, live trading, paper trading, broker operation,
   order routing, deployment, destructive cleanup, FUTSUB run-state change,
   market-data materialization, registry mutation, or value computation was

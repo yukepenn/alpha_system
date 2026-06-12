@@ -35,13 +35,23 @@ from alpha_system.governance.canaries.negative_control_result import (
     validate_negative_control_result,
     validate_negative_control_result_id,
 )
-from alpha_system.governance.canaries.planted_fake_alpha import (
-    DEFAULT_PLANTED_FAKE_ALPHA_FIXTURE_PATH,
-    EXPECTED_BLOCK_CODE,
-    PlantedFakeAlphaStudyCanaryResult,
-    load_default_planted_fake_alpha_fixture,
-    run_planted_fake_alpha_canary,
-)
+_PLANTED_FAKE_ALPHA_EXPORTS = {
+    "DEFAULT_PLANTED_FAKE_ALPHA_FIXTURE_PATH",
+    "EXPECTED_BLOCK_CODE",
+    "PlantedFakeAlphaStudyCanaryResult",
+    "load_default_planted_fake_alpha_fixture",
+    "run_planted_fake_alpha_canary",
+}
+
+
+def __getattr__(name: str):
+    """Lazily expose the planted canary without creating import cycles."""
+
+    if name in _PLANTED_FAKE_ALPHA_EXPORTS:
+        from alpha_system.governance.canaries import planted_fake_alpha
+
+        return getattr(planted_fake_alpha, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "DEFAULT_CANARY_FIXTURE_PATHS",

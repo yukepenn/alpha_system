@@ -13,11 +13,9 @@ import pytest
 from alpha_system.governance.alpha_spec import AlphaSpec, generate_alpha_spec_id
 from alpha_system.governance.canaries.catalog import (
     NegativeControlType,
-    expected_failure_for_canary_type,
 )
 from alpha_system.governance.canaries.harness import run_required_governance_canaries
 from alpha_system.governance.canaries.negative_control_result import (
-    NegativeControlPassFail,
     NegativeControlResult,
     create_negative_control_result,
 )
@@ -411,19 +409,11 @@ def _assert_required_blocking_paths(objects: DryRunObjects) -> None:
 
 
 def _assert_negative_controls_fail_closed(study_spec_id: str) -> None:
-    random_target = create_negative_control_result(
-        canary_type=NegativeControlType.RANDOM_TARGET,
-        expected_failure=expected_failure_for_canary_type(NegativeControlType.RANDOM_TARGET),
-        observed_result=expected_failure_for_canary_type(NegativeControlType.RANDOM_TARGET),
-        pass_fail=NegativeControlPassFail.PASS,
-        related_study_or_evidence=study_spec_id,
-        notes="Synthetic random-target catalog assertion for guard behavior only.",
-    )
     executable_results = run_required_governance_canaries()
     observed_types = {result.canary_type for result in executable_results}
 
-    assert random_target.guard_caught_injected_fault is True
     assert observed_types == {
+        NegativeControlType.RANDOM_TARGET,
         NegativeControlType.FUTURE_SHIFT,
         NegativeControlType.PERMUTED_LABELS,
         NegativeControlType.OPTIMISTIC_FILL,
@@ -613,15 +603,7 @@ def _trial_records(
 
 
 def _negative_control_results(study_spec_id: str) -> tuple[NegativeControlResult, ...]:
-    random_target = create_negative_control_result(
-        canary_type=NegativeControlType.RANDOM_TARGET,
-        expected_failure=expected_failure_for_canary_type(NegativeControlType.RANDOM_TARGET),
-        observed_result=expected_failure_for_canary_type(NegativeControlType.RANDOM_TARGET),
-        pass_fail=NegativeControlPassFail.PASS,
-        related_study_or_evidence=study_spec_id,
-        notes="Synthetic random-target catalog assertion for guard behavior only.",
-    )
-    executable = tuple(
+    return tuple(
         create_negative_control_result(
             canary_type=result.canary_type,
             expected_failure=result.expected_failure,
@@ -632,7 +614,6 @@ def _negative_control_results(study_spec_id: str) -> tuple[NegativeControlResult
         )
         for result in run_required_governance_canaries()
     )
-    return (random_target, *executable)
 
 
 def _reviewer_verdict(fixture: dict[str, Any]) -> ReviewerVerdict:
