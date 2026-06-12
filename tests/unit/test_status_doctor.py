@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 from tools.frontier import status_doctor as sd
 
 
@@ -87,3 +89,12 @@ def test_hooks_floor_ok_when_githooks_configured(monkeypatch) -> None:
     report = sd.Report()
     sd.check_hooks_floor(report)
     assert not report.has_warn and not report.has_fail
+
+
+def test_core_bare_true_is_hard_failure_in_temp_repo(tmp_path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "core.bare", "true"], cwd=tmp_path, check=True)
+    report = sd.Report()
+    sd.check_core_bare(report, root=tmp_path)
+    assert report.has_fail
+    assert any("git -C" in f.message and "config core.bare false" in f.message for f in report.findings)

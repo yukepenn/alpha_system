@@ -25,6 +25,7 @@ from tools.frontier.git_utils import GIT_SERIAL_LOCK, current_branch, git, remot
 
 
 GITHUB_RE = re.compile(r"(?:github\.com[:/])([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
+GITHUB_ACTIONS_RUN_RE = re.compile(r"/actions/runs/(\d+)")
 CI_SUCCESS = "SUCCESS"
 CI_FAILURE = "FAILURE"
 CI_PENDING = "PENDING"
@@ -49,6 +50,8 @@ MERGE_RETRYABLE = "MERGE_RETRYABLE"
 MERGE_CONFLICT = "MERGE_CONFLICT"
 MERGE_PERMISSION_BLOCKED = "MERGE_PERMISSION_BLOCKED"
 MERGE_DRAFT_BLOCKED = "MERGE_DRAFT_BLOCKED"
+MERGE_BRANCH_UPDATE_BLOCKED = "MERGE_BRANCH_UPDATE_BLOCKED"
+CI_LOG_BYTE_BUDGET = 120_000
 
 
 @dataclass(frozen=True)
@@ -679,6 +682,90 @@ def wait_for_ci(
     return classify_ci_checks(last_checks, required_checks=required_checks, timed_out=True)
 
 
+def _truncate_bytes(text: str, byte_limit: int) -> str:
+    encoded = text.encode("utf-8")
+    if len(encoded) <= byte_limit:
+        return text
+    return encoded[:byte_limit].decode("utf-8", errors="ignore") + f"\n...[truncated to {byte_limit} bytes]\n"
+
+
+def _ci_run_ids(checks: list[dict[str, Any]]) -> list[str]:
+    ids: list[str] = []
+    seen: set[str] = set()
+    for check in checks:
+        for key in ("workflowRunDatabaseId", "workflow_run_id", "run_id", "runId"):
+            value = str(check.get(key) or "").strip()
+            if value.isdigit() and value not in seen:
+                seen.add(value)
+                ids.append(value)
+        for key in ("link", "url", "detailsUrl"):
+            match = GITHUB_ACTIONS_RUN_RE.search(str(check.get(key) or ""))
+            if match and match.group(1) not in seen:
+                seen.add(match.group(1))
+                ids.append(match.group(1))
+    return ids
+
+
+def collect_failed_ci_logs(
+    result: CIStatusResult,
+    *,
+    root: Path = ROOT,
+    runner: CommandRunner | None = None,
+    byte_limit: int = CI_LOG_BYTE_BUDGET,
+) -> GitHubResult:
+    run_ids = _ci_run_ids(result.checks)
+    command = ["gh", "run", "view", "<run-id>", "--log-failed"]
+    if not run_ids:
+        summary = {
+            "state": result.state,
+            "message": result.message,
+            "blocking_checks": result.blocking_checks,
+            "missing_required": result.missing_required,
+            "checks": result.checks,
+        }
+        return GitHubResult(
+            "ci_failed_logs",
+            False,
+            command,
+            0,
+            _truncate_bytes(json.dumps(summary, indent=2, sort_keys=True), byte_limit),
+            "",
+            metadata={"run_ids": []},
+        )
+
+    remaining = byte_limit
+    sections: list[str] = []
+    commands: list[list[str]] = []
+    return_code = 0
+    stderr_parts: list[str] = []
+    for run_id in run_ids:
+        run_command = ["gh", "run", "view", run_id, "--log-failed"]
+        commands.append(run_command)
+        gh_result = _run_gh(run_command, root=root, runner=runner, timeout_seconds=300)
+        if gh_result.return_code != 0 and return_code == 0:
+            return_code = gh_result.return_code
+        if gh_result.stderr:
+            stderr_parts.append(gh_result.stderr)
+        section = f"## gh run view {run_id} --log-failed\n\n{gh_result.stdout}"
+        if gh_result.stderr:
+            section += f"\n\nstderr:\n{gh_result.stderr}"
+        clipped = _truncate_bytes(section, max(0, remaining))
+        sections.append(clipped)
+        remaining -= len(clipped.encode("utf-8"))
+        if remaining <= 0:
+            break
+    return GitHubResult(
+        "ci_failed_logs",
+        False,
+        ["gh", "run", "view", ",".join(run_ids), "--log-failed"],
+        return_code,
+        "\n\n".join(sections),
+        "\n".join(stderr_parts),
+        blocked=False,
+        metadata={"run_ids": run_ids, "commands": commands, "byte_limit": byte_limit},
+    )
+
+
 def wait_pr_mergeable(
     pr: str | int,
     *,
@@ -892,6 +979,10 @@ def _pr_is_clean(data: Mapping[str, Any]) -> bool:
     return str(data.get("mergeStateStatus") or "").upper() == "CLEAN"
 
 
+def _pr_is_behind(data: Mapping[str, Any]) -> bool:
+    return str(data.get("mergeStateStatus") or "").upper() == "BEHIND"
+
+
 def _merge_text(stdout: str, stderr: str) -> str:
     return f"{stdout}\n{stderr}".lower()
 
@@ -935,6 +1026,9 @@ def _merge_metadata(
     already_merged: bool = False,
     auto_merge_armed: bool = False,
     direct_merge_performed: bool = False,
+    update_command: list[str] | None = None,
+    update_result: Any | None = None,
+    post_update_view: GitHubResult | None = None,
     warning: str | None = None,
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {
@@ -965,6 +1059,26 @@ def _merge_metadata(
                 "direct_return_code": getattr(direct_result, "return_code", 0),
                 "direct_stdout": getattr(direct_result, "stdout", ""),
                 "direct_stderr": getattr(direct_result, "stderr", ""),
+            }
+        )
+    if update_command is not None:
+        metadata["update_branch_command"] = update_command
+    if update_result is not None:
+        metadata.update(
+            {
+                "update_branch_return_code": getattr(update_result, "return_code", 0),
+                "update_branch_stdout": getattr(update_result, "stdout", ""),
+                "update_branch_stderr": getattr(update_result, "stderr", ""),
+            }
+        )
+    if post_update_view is not None:
+        metadata.update(
+            {
+                "post_update_view_command": post_update_view.command,
+                "post_update_view_return_code": post_update_view.return_code,
+                "post_update_view_stdout": post_update_view.stdout,
+                "post_update_view_stderr": post_update_view.stderr,
+                "post_update_pr": _pr_data_from_result(post_update_view),
             }
         )
     if verify_view is not None:
@@ -1126,6 +1240,36 @@ def merge_pr(
                 pre_view=pre_view,
             ),
         )
+    update_command = None
+    update_result = None
+    post_update_view = None
+    if _pr_is_behind(pre_data):
+        update_command = ["gh", "pr", "update-branch", str(pr)]
+        update_result = _run_gh(update_command, root=root, runner=runner, timeout_seconds=300)
+        post_update_view = view_pr(pr, root=root, runner=runner)
+        if update_result.return_code != 0:
+            return GitHubResult(
+                "merge_pr",
+                False,
+                command,
+                update_result.return_code,
+                update_result.stdout,
+                update_result.stderr,
+                blocked=True,
+                instructions="Update the PR branch, wait for CI, then retry the safe merge wrapper.",
+                metadata=_merge_metadata(
+                    status=MERGE_BRANCH_UPDATE_BLOCKED,
+                    classification="branch_update_blocked",
+                    command=command,
+                    pre_view=pre_view,
+                    update_command=update_command,
+                    update_result=update_result,
+                    post_update_view=post_update_view,
+                ),
+            )
+        if not post_update_view.blocked:
+            pre_view = post_update_view
+            pre_data = _pr_data_from_result(pre_view)
 
     result = _run_gh(command, root=root, runner=runner, timeout_seconds=300)
     if result.return_code == 0:
@@ -1149,6 +1293,9 @@ def merge_pr(
                 verify_view=verify,
                 merged=True,
                 direct_merge_performed=True,
+                update_command=update_command,
+                update_result=update_result,
+                post_update_view=post_update_view,
             ),
         )
 

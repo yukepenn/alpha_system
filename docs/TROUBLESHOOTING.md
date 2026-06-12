@@ -107,6 +107,50 @@ Codex must not ignore an active STOP file when acting inside a Workflow 2 run.
 Resume only after the STOP condition is removed or resolved and recorded state
 is used.
 
+## `core.bare` Flips
+
+Symptom:
+
+```text
+fatal: this operation must be run in a work tree
+```
+
+Check:
+
+```bash
+python tools/frontier/status_doctor.py
+git config --get --bool core.bare
+git rev-parse --is-bare-repository
+```
+
+Fix:
+
+```bash
+git config core.bare false
+```
+
+Use the safe coordinator merge wrapper instead of raw `gh pr merge`:
+
+```bash
+just pr-merge <number>
+```
+
+Workflow 2 also restores `core.bare=false` during RUN_INIT/resume preflight
+and emits `CORE_BARE_RESTORED` when it has to repair the local repo.
+
+Scratch investigation for `P234500_WF2_CI_SELF_REPAIR_AND_BARE_GUARD` used
+`/tmp/wf2_core_bare_investigation.wUbrXz` and did not run `git worktree`.
+Findings: enabling `extensions.worktreeConfig=true` plus a
+`.git/config.worktree` sparse-checkout setting left `git rev-parse
+--is-bare-repository` at `false`; setting `core.bare=true` immediately made
+`git status` fail with the work-tree fatal; restoring `core.bare=false` fixed
+it. Removing `extensions.worktreeConfig` after that left the repo non-bare and
+usable, while Git stopped reading the leftover `config.worktree` sparse
+setting. Recommendation: do not remove the canonical repo's extension in this
+phase; after linked worktrees are pruned, it is reasonable to remove it only if
+the repo no longer depends on per-worktree sparse settings, and only with a
+separate explicit coordinator action.
+
 ## Hidden Failed Runs
 
 Symptom: a command fails, then a later successful rerun is the only evidence

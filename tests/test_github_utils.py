@@ -12,6 +12,7 @@ from tools.frontier.github_utils import (
     CI_PENDING,
     CI_SUCCESS,
     MERGE_DRAFT_BLOCKED,
+    MERGE_BRANCH_UPDATE_BLOCKED,
     MERGED,
     checks_green,
     classify_ci_checks,
@@ -264,6 +265,50 @@ def test_merge_pr_draft_blocks_before_merge(monkeypatch) -> None:
     assert result.blocked
     assert result.metadata["status"] == MERGE_DRAFT_BLOCKED
     assert result.metadata["classification"] == "draft"
+
+
+def test_merge_pr_updates_branch_when_behind(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    behind_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "BEHIND"}
+    clean_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "CLEAN"}
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(behind_pr)),
+            Result(["gh", "pr", "update-branch"], stdout="updated\n"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(clean_pr)),
+            Result(["gh", "pr", "merge"], stdout="Merged pull request #3\n"),
+            Result(["gh", "pr", "view"], stdout=json.dumps({"number": 3, "state": "MERGED"})),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.ok
+    assert runner.commands[2] == ["gh", "pr", "update-branch", "3"]
+    assert runner.commands[4] == ["gh", "pr", "merge", "3", "--squash"]
+    assert result.metadata["update_branch_command"] == ["gh", "pr", "update-branch", "3"]
+
+
+def test_merge_pr_blocks_when_update_branch_fails(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTIER_DISABLE_AUTOMERGE", raising=False)
+    monkeypatch.delenv("FRONTIER_MERGE_DRY_RUN", raising=False)
+    behind_pr = {"number": 3, "state": "OPEN", "isDraft": False, "mergeStateStatus": "BEHIND"}
+    runner = FakeRunner(
+        [
+            Result(["gh", "auth", "status"], stdout="ok"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(behind_pr)),
+            Result(["gh", "pr", "update-branch"], return_code=1, stderr="cannot update\n"),
+            Result(["gh", "pr", "view"], stdout=json.dumps(behind_pr)),
+        ]
+    )
+
+    result = merge_pr("3", dry_run=False, runner=runner)
+
+    assert result.blocked
+    assert result.metadata["status"] == MERGE_BRANCH_UPDATE_BLOCKED
+    assert not any(command[:3] == ["gh", "pr", "merge"] for command in runner.commands[3:])
 
 
 def test_merge_pr_arms_auto_merge_for_branch_policy_timing(monkeypatch) -> None:
