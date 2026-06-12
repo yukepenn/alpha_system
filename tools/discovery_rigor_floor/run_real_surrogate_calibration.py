@@ -57,6 +57,8 @@ SUPPORTED_FORWARD_HORIZONS: dict[str, tuple[int, str]] = {
 }
 PARTITION_RE = re.compile(r"^(?P<symbol>[A-Z0-9]+)_(?P<year>\d{4})_")
 SUPPORT_FEATURE_FAMILIES = frozenset({"base_ohlcv", "session_calendar_maintenance"})
+STAGING_MANIFEST_SCHEMA = "real_surrogate_calibration_staging_manifest_v1"
+STAGING_MANIFEST_NAME = "staging_manifest.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +70,23 @@ class _MaterializedPack:
     total_rows: int
     staged_rows: int
     off_grid_event_ts_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _ExcludedFactor:
+    factor_id: str
+    feature_version_id: str
+    reason: str
+    partition: str
+    total_rows: int
+    null_rows: int
+    numeric_rows: int
+
+
+@dataclass(frozen=True, slots=True)
+class _FactorStagingResult:
+    pack: _MaterializedPack | None = None
+    exclusion: _ExcludedFactor | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +105,12 @@ class _StagingProvenance:
     off_grid_label_event_ts_count: int
     feature_source_path: str
     label_source_path: str
+
+
+@dataclass(frozen=True, slots=True)
+class _StagingManifest:
+    included_sub_config_count: int
+    excluded_factors: tuple[_ExcludedFactor, ...]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -177,12 +202,25 @@ def run_real_surrogate_calibration(
         declared_feature_family=declared_feature_family,
     )
     if rescore_existing:
+        staging_manifest = _load_staging_manifest(active_namespace, study_spec)
+        rescore_sub_config_count = (
+            staging_manifest.included_sub_config_count
+            if staging_manifest is not None
+            else expected_sub_config_count
+        )
+        excluded_factors = (
+            staging_manifest.excluded_factors if staging_manifest is not None else ()
+        )
+        _raise_if_no_numeric_declared_factors(
+            included_sub_config_count=rescore_sub_config_count,
+            excluded_factors=excluded_factors,
+        )
         report = _rescore_existing_report(
             active_namespace,
             study_spec=study_spec,
             runs_per_config=active_runs_per_config,
             base_seed=active_base_seed,
-            surrogate_spec_count=expected_sub_config_count,
+            surrogate_spec_count=rescore_sub_config_count,
         )
         _write_real_report(
             report,
@@ -195,6 +233,7 @@ def run_real_surrogate_calibration(
             declared_factor_ids=declared_factor_ids,
             label_locks=label_locks,
             staging_provenance=(),
+            excluded_factors=excluded_factors,
             namespace=active_namespace,
         )
         return _result_payload(
@@ -209,6 +248,7 @@ def run_real_surrogate_calibration(
             alpha_data_root=alpha_data_root,
             declared_factor_ids=declared_factor_ids,
             staged_label_pack_count=len(label_locks),
+            excluded_factors=excluded_factors,
         )
 
     active_resolver = resolver or FeatureLabelPackResolver(alpha_data_root=alpha_data_root)
@@ -216,6 +256,7 @@ def run_real_surrogate_calibration(
     input_root.mkdir(parents=True, exist_ok=True)
     surrogate_specs: list[StudySpec] = []
     staging_provenance: list[_StagingProvenance] = []
+    excluded_factors: list[_ExcludedFactor] = []
     for label_lock in label_locks:
         feature_locks = _declared_feature_locks_for_label(
             scope,
@@ -243,6 +284,11 @@ def run_real_surrogate_calibration(
                 data_version=data_version,
                 feature_lock=feature_lock,
             )
+            if factor_values.exclusion is not None:
+                excluded_factors.append(factor_values.exclusion)
+                continue
+            if factor_values.pack is None:
+                raise AssertionError("factor staging result must include pack or exclusion")
             labels = _materialize_label_jsonl(
                 resolved["label_record"],
                 input_dir / "labels.jsonl",
@@ -255,7 +301,7 @@ def run_real_surrogate_calibration(
                 study_spec,
                 feature_record=resolved["feature_record"],
                 label_record=resolved["label_record"],
-                factor_values_path=factor_values.path,
+                factor_values_path=factor_values.pack.path,
                 labels_path=labels.path,
                 data_version=data_version,
                 horizon_seconds=horizon_seconds,
@@ -299,24 +345,25 @@ def run_real_surrogate_calibration(
                     ),
                     feature_partition=_lock_text(feature_lock, "partition", "feature lock"),
                     label_partition=_lock_text(label_lock, "partition", "label lock"),
-                    feature_rows_total=factor_values.total_rows,
-                    feature_rows_staged=factor_values.staged_rows,
+                    feature_rows_total=factor_values.pack.total_rows,
+                    feature_rows_staged=factor_values.pack.staged_rows,
                     label_rows_total=labels.total_rows,
                     label_rows_staged=labels.staged_rows,
                     off_grid_label_event_ts_count=labels.off_grid_event_ts_count,
-                    feature_source_path=factor_values.source_path,
+                    feature_source_path=factor_values.pack.source_path,
                     label_source_path=labels.source_path,
                 )
             )
+    _write_staging_manifest(
+        input_root,
+        staging_provenance=tuple(staging_provenance),
+        excluded_factors=tuple(excluded_factors),
+        study_spec=study_spec,
+    )
     if not surrogate_specs:
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="dataset_scope.feature_pack_locks",
-                code="no_declared_factor_sub_configs",
-                message="declared factor derivation produced no surrogate sub-configs",
-                expected="one or more declared factor locks matching label partitions",
-                actual="0",
-            )
+        _raise_if_no_numeric_declared_factors(
+            included_sub_config_count=0,
+            excluded_factors=tuple(excluded_factors),
         )
 
     reports: list[SurrogateCalibrationReport] = []
@@ -343,6 +390,7 @@ def run_real_surrogate_calibration(
         declared_factor_ids=declared_factor_ids,
         label_locks=label_locks,
         staging_provenance=tuple(staging_provenance),
+        excluded_factors=tuple(excluded_factors),
         namespace=active_namespace,
     )
     return _result_payload(
@@ -355,6 +403,7 @@ def run_real_surrogate_calibration(
         surrogate_study_spec_ids=tuple(spec.study_spec_id for spec in surrogate_specs),
         declared_factor_ids=declared_factor_ids,
         staged_label_pack_count=len(label_locks),
+        excluded_factors=tuple(excluded_factors),
     )
 
 
@@ -618,7 +667,7 @@ def _materialize_factor_jsonl(
     *,
     data_version: str,
     feature_lock: Mapping[str, Any],
-) -> _MaterializedPack:
+) -> _FactorStagingResult:
     rows, verification = _load_value_rows(
         record,
         pack_kind="feature",
@@ -633,6 +682,7 @@ def _materialize_factor_jsonl(
     converted: list[dict[str, Any]] = []
     counters: dict[tuple[str, str], int] = {}
     numeric_count = 0
+    null_count = 0
     for row in staged_rows:
         event_ts = _iso_text(row.get("event_ts"), "event_ts")
         entity_id = _text(row.get("entity_id"), "entity_id")
@@ -641,6 +691,8 @@ def _materialize_factor_jsonl(
         bar_index = counters.get(key, 0)
         counters[key] = bar_index + 1
         value = row.get("value")
+        if value is None:
+            null_count += 1
         numeric_value = value if _is_number(value) else None
         if numeric_value is not None:
             numeric_count += 1
@@ -665,6 +717,24 @@ def _materialize_factor_jsonl(
             }
         )
     if numeric_count == 0:
+        if null_count == len(staged_rows):
+            if path.exists():
+                path.unlink()
+            return _FactorStagingResult(
+                exclusion=_ExcludedFactor(
+                    factor_id=_lock_text(feature_lock, "feature_id", "feature lock"),
+                    feature_version_id=_lock_text(
+                        feature_lock,
+                        "feature_version_id",
+                        "feature lock",
+                    ),
+                    reason="all_null_values",
+                    partition=_lock_text(feature_lock, "partition", "feature lock"),
+                    total_rows=len(staged_rows),
+                    null_rows=null_count,
+                    numeric_rows=numeric_count,
+                )
+            )
         raise GovernanceValidationError(
             ValidationIssue(
                 field="feature_pack",
@@ -675,13 +745,15 @@ def _materialize_factor_jsonl(
             )
         )
     output = _write_jsonl(path, converted)
-    return _MaterializedPack(
-        path=output,
-        source_path=verification.path,
-        expected_content_hash=verification.expected_content_hash,
-        actual_content_hash=verification.actual_content_hash,
-        total_rows=len(rows),
-        staged_rows=len(staged_rows),
+    return _FactorStagingResult(
+        pack=_MaterializedPack(
+            path=output,
+            source_path=verification.path,
+            expected_content_hash=verification.expected_content_hash,
+            actual_content_hash=verification.actual_content_hash,
+            total_rows=len(rows),
+            staged_rows=len(staged_rows),
+        )
     )
 
 
@@ -953,6 +1025,7 @@ def _write_real_report(
     declared_factor_ids: Sequence[str],
     label_locks: Sequence[Mapping[str, Any]],
     staging_provenance: Sequence[_StagingProvenance],
+    excluded_factors: Sequence[_ExcludedFactor],
     namespace: Path,
 ) -> Path:
     output = Path(report_out).expanduser().resolve(strict=False)
@@ -968,6 +1041,7 @@ def _write_real_report(
             declared_factor_ids=declared_factor_ids,
             label_locks=label_locks,
             staging_provenance=staging_provenance,
+            excluded_factors=excluded_factors,
             namespace=namespace,
         ),
         encoding="utf-8",
@@ -986,6 +1060,7 @@ def _result_payload(
     surrogate_study_spec_ids: Sequence[str] = (),
     declared_factor_ids: Sequence[str] = (),
     staged_label_pack_count: int = 0,
+    excluded_factors: Sequence[_ExcludedFactor] = (),
 ) -> dict[str, Any]:
     output = Path(report_out).expanduser().resolve(strict=False)
     _reject_production_registry_report_path(output, Path(alpha_data_root).expanduser())
@@ -999,6 +1074,8 @@ def _result_payload(
         "surrogate_study_spec_count": len(surrogate_ids),
         "declared_factor_ids": list(declared_factor_ids),
         "declared_factor_count": len(declared_factor_ids),
+        "excluded_factor_count": len(excluded_factors),
+        "excluded_factors": [_excluded_factor_to_dict(item) for item in excluded_factors],
         "staged_label_pack_count": staged_label_pack_count,
         "declared_runs_per_config": runs_per_config,
         "perturbation_configs": [item.value for item in PERTURBATION_CONFIGS],
@@ -1022,6 +1099,7 @@ def _render_real_report(
     declared_factor_ids: Sequence[str],
     label_locks: Sequence[Mapping[str, Any]],
     staging_provenance: Sequence[_StagingProvenance],
+    excluded_factors: Sequence[_ExcludedFactor],
     namespace: Path,
 ) -> str:
     label_versions = _unique_in_order(
@@ -1047,6 +1125,7 @@ def _render_real_report(
         f"- Declared feature family: `{declared_feature_family}`.",
         f"- Declared factor count: {len(declared_factor_ids)}.",
         f"- Declared factors: {_inline_code_list(declared_factor_ids)}.",
+        f"- Excluded all-null factor partitions: {len(excluded_factors)}.",
         f"- Declared label pack count: {len(label_locks)}.",
         f"- Declared label versions: {_inline_code_list(label_versions)}.",
         f"- Staged surrogate sub-config count: {len(staging_provenance)}.",
@@ -1088,11 +1167,219 @@ def _render_real_report(
     else:
         header.append("- No values were staged; `--rescore-existing` mode only rescored outputs.")
     header.append("")
+    header.extend(
+        [
+            "## excluded_factors",
+            "",
+        ]
+    )
+    if excluded_factors:
+        header.extend(
+            [
+                "| Factor | Feature Version | Partition | Reason | Rows | Null Rows | "
+                "Numeric Rows |",
+                "|---|---|---|---|---:|---:|---:|",
+            ]
+        )
+        for item in excluded_factors:
+            header.append(
+                "| `{factor_id}` | `{feature_version_id}` | `{partition}` | `{reason}` | "
+                "{total_rows} | {null_rows} | {numeric_rows} |".format(
+                    factor_id=item.factor_id,
+                    feature_version_id=item.feature_version_id,
+                    partition=item.partition,
+                    reason=item.reason,
+                    total_rows=item.total_rows,
+                    null_rows=item.null_rows,
+                    numeric_rows=item.numeric_rows,
+                )
+            )
+    else:
+        header.append("- None.")
+    header.append("")
     rendered = render_value_free_calibration_report(
         report,
         title=f"Surrogate Calibration Counts: {study_spec.study_spec_id}",
     )
     return "\n".join(header) + rendered.split("\n", 1)[1]
+
+
+def _write_staging_manifest(
+    input_root: Path,
+    *,
+    staging_provenance: Sequence[_StagingProvenance],
+    excluded_factors: Sequence[_ExcludedFactor],
+    study_spec: StudySpec,
+) -> Path:
+    payload = {
+        "schema": STAGING_MANIFEST_SCHEMA,
+        "study_spec_id": study_spec.study_spec_id,
+        "included_sub_config_count": len(staging_provenance),
+        "included_factors": [
+            {
+                "factor_id": item.factor_id,
+                "feature_version_id": item.feature_version_id,
+                "partition": item.feature_partition,
+                "staged_rows": item.feature_rows_staged,
+                "total_rows": item.feature_rows_total,
+            }
+            for item in staging_provenance
+        ],
+        "excluded_factors": [
+            _excluded_factor_to_dict(item) for item in excluded_factors
+        ],
+    }
+    path = input_root / STAGING_MANIFEST_NAME
+    path.write_text(
+        json.dumps(payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _load_staging_manifest(
+    namespace: Path,
+    study_spec: StudySpec,
+) -> _StagingManifest | None:
+    path = (
+        namespace
+        / "real_surrogate_inputs"
+        / study_spec.study_spec_id
+        / STAGING_MANIFEST_NAME
+    )
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, Mapping):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="staging_manifest",
+                code="invalid_staging_manifest",
+                message="staging manifest root must be a JSON object",
+                expected="mapping",
+                actual=type(payload).__name__,
+            )
+        )
+    if payload.get("schema") != STAGING_MANIFEST_SCHEMA:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="staging_manifest.schema",
+                code="invalid_staging_manifest_schema",
+                message="staging manifest schema is not supported",
+                expected=STAGING_MANIFEST_SCHEMA,
+                actual=str(payload.get("schema")),
+            )
+        )
+    if payload.get("study_spec_id") != study_spec.study_spec_id:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="staging_manifest.study_spec_id",
+                code="staging_manifest_study_spec_mismatch",
+                message="staging manifest must match the StudySpec being rescored",
+                expected=study_spec.study_spec_id,
+                actual=str(payload.get("study_spec_id")),
+            )
+        )
+    excluded_payload = payload.get("excluded_factors", [])
+    if not isinstance(excluded_payload, Sequence) or isinstance(excluded_payload, str):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="staging_manifest.excluded_factors",
+                code="invalid_staging_manifest_exclusions",
+                message="staging manifest exclusions must be a list",
+                expected="list",
+                actual=type(excluded_payload).__name__,
+            )
+        )
+    return _StagingManifest(
+        included_sub_config_count=_non_negative_int(
+            payload.get("included_sub_config_count"),
+            "staging_manifest.included_sub_config_count",
+        ),
+        excluded_factors=tuple(
+            _excluded_factor_from_mapping(item, index=index)
+            for index, item in enumerate(excluded_payload)
+        ),
+    )
+
+
+def _excluded_factor_to_dict(item: _ExcludedFactor) -> dict[str, Any]:
+    return {
+        "factor_id": item.factor_id,
+        "feature_version_id": item.feature_version_id,
+        "reason": item.reason,
+        "partition": item.partition,
+        "total_rows": item.total_rows,
+        "null_rows": item.null_rows,
+        "numeric_rows": item.numeric_rows,
+    }
+
+
+def _excluded_factor_from_mapping(value: Any, *, index: int) -> _ExcludedFactor:
+    if not isinstance(value, Mapping):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"staging_manifest.excluded_factors[{index}]",
+                code="invalid_excluded_factor_record",
+                message="excluded factor manifest record must be a mapping",
+                expected="mapping",
+                actual=type(value).__name__,
+            )
+        )
+    return _ExcludedFactor(
+        factor_id=_manifest_text(value, "factor_id", index),
+        feature_version_id=_manifest_text(value, "feature_version_id", index),
+        reason=_manifest_text(value, "reason", index),
+        partition=_manifest_text(value, "partition", index),
+        total_rows=_non_negative_int(
+            value.get("total_rows"),
+            f"staging_manifest.excluded_factors[{index}].total_rows",
+        ),
+        null_rows=_non_negative_int(
+            value.get("null_rows"),
+            f"staging_manifest.excluded_factors[{index}].null_rows",
+        ),
+        numeric_rows=_non_negative_int(
+            value.get("numeric_rows"),
+            f"staging_manifest.excluded_factors[{index}].numeric_rows",
+        ),
+    )
+
+
+def _manifest_text(value: Mapping[str, Any], key: str, index: int) -> str:
+    text = value.get(key)
+    if not isinstance(text, str) or not text.strip():
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"staging_manifest.excluded_factors[{index}].{key}",
+                code="invalid_excluded_factor_record",
+                message="excluded factor manifest field must be non-empty text",
+                expected=key,
+                actual=type(text).__name__ if text is not None else "missing",
+            )
+        )
+    return text.strip()
+
+
+def _raise_if_no_numeric_declared_factors(
+    *,
+    included_sub_config_count: int,
+    excluded_factors: Sequence[_ExcludedFactor],
+) -> None:
+    if included_sub_config_count > 0:
+        return
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="dataset_scope.feature_pack_locks",
+            code="no_numeric_declared_factors_for_surrogate",
+            message=(
+                "real surrogate calibration has no declared factor with numeric "
+                "content after recorded all-null exclusions"
+            ),
+            expected="at least one declared factor partition with numeric values",
+            actual=f"{len(excluded_factors)} all-null factor partition exclusions",
+        )
+    )
 
 
 def _load_value_rows(

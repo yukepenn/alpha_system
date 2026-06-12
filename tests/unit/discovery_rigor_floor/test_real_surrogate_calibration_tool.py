@@ -5,11 +5,12 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 
 from alpha_system.core.value_store import compute_value_content_hash, write_parquet_values
+from alpha_system.governance.feature_lock_validation import FeatureLockValidationError
 from alpha_system.governance.study_spec import generate_study_spec_id, validate_study_spec
 from alpha_system.governance.surrogate_run import CALIBRATION_BLOCKED
 from alpha_system.governance.validation import GovernanceValidationError
@@ -380,6 +381,323 @@ def test_real_surrogate_calibration_filters_locked_versions_from_parquet(
     assert f"{len(label_rows)}/{len(mixed_label_rows)}" in rendered
 
 
+def test_real_surrogate_calibration_records_all_null_factor_exclusion(
+    tmp_path: Path,
+) -> None:
+    numeric_feature_version_id = "fver_" + "1" * 64
+    null_feature_version_id = "fver_" + "3" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="fixture_all_null_signal",
+                feature_family="fixture_signal_family",
+                feature_version_id=null_feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="fixture_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id=numeric_feature_version_id,
+            ),
+        ),
+    )
+    numeric_feature_rows, label_rows = _value_rows(
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    null_feature_rows = _all_null_feature_rows(
+        feature_version_id=null_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_rows = null_feature_rows + numeric_feature_rows
+    feature_hash = compute_value_content_hash(feature_rows)
+    label_hash = compute_value_content_hash(label_rows)
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    resolver = _FakeResolver(
+        feature_record={
+            null_feature_version_id: _FeatureRecord(
+                feature_version_id=null_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="fixture_all_null_signal"),
+            ),
+            numeric_feature_version_id: _FeatureRecord(
+                feature_version_id=numeric_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="fixture_close_delta"),
+            ),
+        },
+        label_record=_LabelRecord(
+            label_version_id=label_version_id,
+            materialization_output_path=label_path.as_posix(),
+            value_content_hash=label_hash,
+        ),
+    )
+    namespace = tmp_path / "rigor_p05_surrogate_all_null_exclusion"
+    namespace.mkdir()
+    report_path = tmp_path / "report.md"
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=report_path,
+        resolver=resolver,
+    )
+
+    assert result["accepted"] is True
+    assert result["declared_factor_count"] == 2
+    assert result["surrogate_study_spec_count"] == 1
+    assert result["run_count"] == 2
+    assert result["excluded_factor_count"] == 1
+    assert result["excluded_factors"] == [
+        {
+            "factor_id": "fixture_all_null_signal",
+            "feature_version_id": null_feature_version_id,
+            "reason": "all_null_values",
+            "partition": "SYNTH_2026_full_year",
+            "total_rows": len(null_feature_rows),
+            "null_rows": len(null_feature_rows),
+            "numeric_rows": 0,
+        }
+    ]
+    rendered = report_path.read_text(encoding="utf-8")
+    assert "## excluded_factors" in rendered
+    assert "`fixture_all_null_signal`" in rendered
+    assert "`all_null_values`" in rendered
+    staged_factor_paths = tuple(
+        (namespace / "real_surrogate_inputs" / result["study_spec_id"]).glob(
+            "**/factor-values.jsonl"
+        )
+    )
+    assert len(staged_factor_paths) == 1
+    assert {
+        row["factor_id"]
+        for row in _read_jsonl(staged_factor_paths[0])
+    } == {"fixture_close_delta"}
+
+    rescored = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=tmp_path / "rescored.md",
+        rescore_existing=True,
+    )
+
+    assert rescored["accepted"] is True
+    assert rescored["run_count"] == result["run_count"]
+    assert rescored["excluded_factors"] == result["excluded_factors"]
+
+
+def test_real_surrogate_calibration_refuses_when_all_declared_factors_all_null(
+    tmp_path: Path,
+) -> None:
+    feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_rows = _all_null_feature_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    _, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_all_null_refusal"
+    namespace.mkdir()
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        run_real_surrogate_calibration(
+            study_spec_path=spec_path,
+            alpha_data_root=tmp_path / "alpha_data",
+            runs_per_config=1,
+            base_seed=1,
+            namespace=namespace,
+            report_out=tmp_path / "report.md",
+            resolver=_FakeResolver(
+                feature_record=_FeatureRecord(
+                    feature_version_id=feature_version_id,
+                    materialization_output_path=feature_path.as_posix(),
+                    value_content_hash=compute_value_content_hash(feature_rows),
+                ),
+                label_record=_LabelRecord(
+                    label_version_id=label_version_id,
+                    materialization_output_path=label_path.as_posix(),
+                    value_content_hash=compute_value_content_hash(label_rows),
+                ),
+            ),
+        )
+
+    assert exc_info.value.issues[0].code == "no_numeric_declared_factors_for_surrogate"
+
+
+def test_real_surrogate_calibration_refuses_jsonl_hash_mismatch_with_sibling(
+    tmp_path: Path,
+) -> None:
+    healthy_feature_version_id = "fver_" + "1" * 64
+    corrupted_feature_version_id = "fver_" + "3" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=healthy_feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="fixture_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id=healthy_feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="fixture_hash_corrupted_null_signal",
+                feature_family="fixture_signal_family",
+                feature_version_id=corrupted_feature_version_id,
+            ),
+        ),
+    )
+    healthy_feature_rows, label_rows = _value_rows(
+        feature_version_id=healthy_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    corrupted_feature_rows = _all_null_feature_rows(
+        feature_version_id=corrupted_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    healthy_feature_path = _write_jsonl(
+        tmp_path / "healthy-feature-values.jsonl",
+        healthy_feature_rows,
+    )
+    corrupted_feature_path = _write_jsonl(
+        tmp_path / "corrupted-feature-values.jsonl",
+        corrupted_feature_rows,
+    )
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_jsonl_hash_mismatch_with_sibling"
+    namespace.mkdir()
+
+    with pytest.raises(
+        FeatureLockValidationError,
+        match="feature value content hash mismatch",
+    ):
+        run_real_surrogate_calibration(
+            study_spec_path=spec_path,
+            alpha_data_root=tmp_path / "alpha_data",
+            runs_per_config=1,
+            base_seed=_base_seed_without_bootstrap_identity(label_rows),
+            namespace=namespace,
+            report_out=tmp_path / "report.md",
+            resolver=_FakeResolver(
+                feature_record={
+                    healthy_feature_version_id: _FeatureRecord(
+                        feature_version_id=healthy_feature_version_id,
+                        materialization_output_path=healthy_feature_path.as_posix(),
+                        value_content_hash=compute_value_content_hash(
+                            healthy_feature_rows
+                        ),
+                        feature_spec=_FeatureSpec(feature_id="fixture_close_delta"),
+                    ),
+                    corrupted_feature_version_id: _FeatureRecord(
+                        feature_version_id=corrupted_feature_version_id,
+                        materialization_output_path=corrupted_feature_path.as_posix(),
+                        value_content_hash=compute_value_content_hash(
+                            healthy_feature_rows
+                        ),
+                        feature_spec=_FeatureSpec(
+                            feature_id="fixture_hash_corrupted_null_signal"
+                        ),
+                    ),
+                },
+                label_record=_LabelRecord(
+                    label_version_id=label_version_id,
+                    materialization_output_path=label_path.as_posix(),
+                    value_content_hash=compute_value_content_hash(label_rows),
+                ),
+            ),
+        )
+
+
+def test_real_surrogate_calibration_includes_partial_null_factor(
+    tmp_path: Path,
+) -> None:
+    feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    numeric_feature_rows, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    partial_null_indexes = {0, 1, 3}
+    partial_null_feature_rows = [
+        {**row, "value": None} if index in partial_null_indexes else row
+        for index, row in enumerate(numeric_feature_rows)
+    ]
+    feature_path = _write_jsonl(
+        tmp_path / "partial-null-feature-values.jsonl",
+        partial_null_feature_rows,
+    )
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_partial_null_inclusion"
+    namespace.mkdir()
+    report_path = tmp_path / "report.md"
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=report_path,
+        resolver=_FakeResolver(
+            feature_record=_FeatureRecord(
+                feature_version_id=feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=compute_value_content_hash(partial_null_feature_rows),
+            ),
+            label_record=_LabelRecord(
+                label_version_id=label_version_id,
+                materialization_output_path=label_path.as_posix(),
+                value_content_hash=compute_value_content_hash(label_rows),
+            ),
+        ),
+    )
+
+    assert result["accepted"] is True
+    assert result["surrogate_study_spec_count"] == 1
+    assert result["run_count"] == 2
+    assert result["excluded_factor_count"] == 0
+    assert result["excluded_factors"] == []
+    staged_factor_paths = tuple(
+        (namespace / "real_surrogate_inputs" / result["study_spec_id"]).glob(
+            "**/factor-values.jsonl"
+        )
+    )
+    assert len(staged_factor_paths) == 1
+    staged_rows = _read_jsonl(staged_factor_paths[0])
+    assert sum(row["value"] is None for row in staged_rows) == 3
+    assert sum(row["normalized_value"] is not None for row in staged_rows) == 3
+    rendered = report_path.read_text(encoding="utf-8")
+    assert "Excluded all-null factor partitions: 0" in rendered
+    assert "## excluded_factors\n\n- None." in rendered
+
+
 def test_real_surrogate_calibration_refuses_value_hash_mismatch(
     tmp_path: Path,
 ) -> None:
@@ -638,19 +956,30 @@ class _LabelRecord:
 
 
 class _FakeFeatureStore:
-    def __init__(self, record: _FeatureRecord) -> None:
-        self.record = record
+    def __init__(self, record: _FeatureRecord | Mapping[str, _FeatureRecord]) -> None:
+        if isinstance(record, Mapping):
+            self.records = dict(record)
+        else:
+            self.records = {record.feature_version_id: record}
 
-    def resolve_registered_feature(self, feature_version_id: str) -> _FeatureRecord:
+    def resolve_registered_feature(self, feature_version_id: str) -> _FeatureRecord | None:
+        if feature_version_id in self.records:
+            record = self.records[feature_version_id]
+            active_feature_version_id = record.feature_version_id
+        elif len(self.records) == 1:
+            record = next(iter(self.records.values()))
+            active_feature_version_id = feature_version_id
+        else:
+            return None
         return _FeatureRecord(
-            feature_version_id=feature_version_id,
-            materialization_output_path=self.record.materialization_output_path,
-            value_content_hash=self.record.value_content_hash,
-            dataset_version_id=self.record.dataset_version_id,
-            partition_id=self.record.partition_id,
-            value_store_format=self.record.value_store_format,
-            parquet_path=self.record.parquet_path,
-            feature_spec=self.record.feature_spec,
+            feature_version_id=active_feature_version_id,
+            materialization_output_path=record.materialization_output_path,
+            value_content_hash=record.value_content_hash,
+            dataset_version_id=record.dataset_version_id,
+            partition_id=record.partition_id,
+            value_store_format=record.value_store_format,
+            parquet_path=record.parquet_path,
+            feature_spec=record.feature_spec,
         )
 
 
@@ -671,7 +1000,12 @@ class _FakeLabelRegistry:
 
 
 class _FakeResolver:
-    def __init__(self, *, feature_record: _FeatureRecord, label_record: _LabelRecord) -> None:
+    def __init__(
+        self,
+        *,
+        feature_record: _FeatureRecord | Mapping[str, _FeatureRecord],
+        label_record: _LabelRecord,
+    ) -> None:
         self.feature_store = _FakeFeatureStore(feature_record)
         self.label_registry = _FakeLabelRegistry(label_record)
         self.feature_calls: list[dict[str, Any]] = []
@@ -748,6 +1082,18 @@ def _value_rows(
             }
         )
     return feature_rows, label_rows
+
+
+def _all_null_feature_rows(
+    *,
+    feature_version_id: str,
+    label_version_id: str,
+) -> list[dict[str, object]]:
+    feature_rows, _ = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    return [{**row, "value": None} for row in feature_rows]
 
 
 def _base_seed_without_bootstrap_identity(label_rows: list[dict[str, object]]) -> int:
