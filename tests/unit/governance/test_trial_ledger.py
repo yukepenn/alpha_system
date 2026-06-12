@@ -37,6 +37,7 @@ def valid_trial_payload(
     failure_reason: str | None = None,
     oos_touched_flag: bool = False,
     locked_test_contamination_flag: bool = False,
+    surrogate_flag: bool = False,
 ) -> dict[str, object]:
     active_parameters = {"threshold": 0.25, "window": 20} if parameters is None else parameters
     active_metrics = {"coverage": 0.75} if metrics_summary is None else metrics_summary
@@ -53,6 +54,7 @@ def valid_trial_payload(
         locked_test_contamination_flag=locked_test_contamination_flag,
         code_hash=CODE_HASH,
         config_hash=CONFIG_HASH,
+        surrogate_flag=surrogate_flag,
     )
     return record.to_dict()
 
@@ -201,6 +203,43 @@ def test_create_trial_ledger_record_generates_content_bound_id() -> None:
     assert record.trial_id.startswith("trial_")
 
 
+def test_surrogate_flag_is_additive_and_distinguishes_surrogate_records() -> None:
+    production = create_trial_ledger_record(
+        alpha_spec_id=ALPHA_SPEC_ID,
+        study_spec_id=STUDY_SPEC_ID,
+        run_id="diagnostics-run-surrogate-compat",
+        variant_id="variant-surrogate-compat",
+        status=TrialStatus.COMPLETED,
+        parameters={"threshold": 0.25, "window": 20},
+        metrics_summary={"coverage": 0.75},
+        failure_reason=None,
+        oos_touched_flag=False,
+        locked_test_contamination_flag=False,
+        code_hash=CODE_HASH,
+        config_hash=CONFIG_HASH,
+    )
+    surrogate = create_trial_ledger_record(
+        alpha_spec_id=ALPHA_SPEC_ID,
+        study_spec_id=STUDY_SPEC_ID,
+        run_id="diagnostics-run-surrogate-compat",
+        variant_id="variant-surrogate-compat",
+        status=TrialStatus.COMPLETED,
+        parameters={"threshold": 0.25, "window": 20},
+        metrics_summary={"coverage": 0.75},
+        failure_reason=None,
+        oos_touched_flag=False,
+        locked_test_contamination_flag=False,
+        code_hash=CODE_HASH,
+        config_hash=CONFIG_HASH,
+        surrogate_flag=True,
+    )
+
+    assert "surrogate_flag" not in production.to_dict()
+    assert surrogate.to_dict()["surrogate_flag"] is True
+    assert surrogate.surrogate_flag is True
+    assert surrogate.trial_id != production.trial_id
+
+
 def test_trial_status_enum_is_closed_and_marks_failed_outcomes() -> None:
     assert {status.value for status in TrialStatus} == {
         "PLANNED",
@@ -343,6 +382,58 @@ def test_trial_ledger_accounting_surfaces_oos_and_contamination_flags() -> None:
     assert accounting.any_locked_test_contamination is True
     assert accounting.to_dict()["oos_touched_count"] == 1
     assert accounting.to_dict()["locked_test_contamination_count"] == 1
+
+
+def test_trial_ledger_accounting_excludes_surrogates_from_production_budget() -> None:
+    production = validate_trial_ledger_record(
+        valid_trial_payload(
+            run_id="diagnostics-run-production-budget",
+            variant_id="variant-production",
+        )
+    )
+    surrogate = validate_trial_ledger_record(
+        valid_trial_payload(
+            run_id="diagnostics-run-surrogate-budget",
+            variant_id="variant-surrogate",
+            surrogate_flag=True,
+        )
+    )
+
+    accounting = account_trial_ledger(
+        [production, surrogate],
+        study_spec_id=STUDY_SPEC_ID,
+        variant_budget=1,
+    )
+
+    assert accounting.attempt_count == 2
+    assert accounting.production_attempt_count == 1
+    assert accounting.surrogate_count == 1
+    assert accounting.variant_attempt_count == 1
+    assert accounting.observed_variant_count == 1
+    assert accounting.variant_ids == ("variant-production",)
+    assert accounting.budget_check.status is StudyBudgetStatus.RESPECTED
+
+
+def test_surrogate_only_trial_ledger_is_first_class_but_budget_neutral() -> None:
+    surrogate = validate_trial_ledger_record(
+        valid_trial_payload(
+            run_id="diagnostics-run-surrogate-only",
+            variant_id="variant-surrogate-only",
+            surrogate_flag=True,
+        )
+    )
+
+    accounting = account_trial_ledger(
+        [surrogate],
+        study_spec_id=STUDY_SPEC_ID,
+        variant_budget=1,
+    )
+
+    assert accounting.attempt_count == 1
+    assert accounting.production_attempt_count == 0
+    assert accounting.surrogate_count == 1
+    assert accounting.observed_variant_count == 0
+    assert accounting.variant_ids == ()
 
 
 def test_trial_ledger_accounting_blocks_missing_ledger_for_study() -> None:

@@ -15,6 +15,7 @@ __all__ = [
     "serialization",
     "sealed_holdout",
     "study_spec",
+    "surrogate_run",
     "validation",
     "verdict_reason_code",
     "variant_ledger",

@@ -48,6 +48,10 @@ from alpha_system.governance.serialization import (
     deserialize,
 )
 from alpha_system.governance.study_spec import StudySpec, validate_study_spec
+from alpha_system.governance.surrogate_run import (
+    calibrate_surrogate_fdr,
+    write_value_free_calibration_report,
+)
 from alpha_system.governance.trial_ledger import TrialLedgerRecord, validate_trial_ledger_record
 from alpha_system.governance.validation import (
     GovernanceValidationError,
@@ -516,6 +520,53 @@ def run_requeue_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_surrogate_calibrate(args: argparse.Namespace) -> int:
+    """Run ``alpha governance surrogate-calibrate``."""
+
+    try:
+        study_specs = tuple(
+            validate_study_spec(
+                load_governance_mapping(
+                    path,
+                    object_name=GovernanceIdKind.STUDY_SPEC.value,
+                )
+            )
+            for path in args.study_spec
+        )
+        report = calibrate_surrogate_fdr(
+            study_specs,
+            run_budget=args.runs,
+            base_seed=args.base_seed,
+            namespace=args.namespace,
+        )
+        payload: dict[str, object] = {
+            "status": "ok" if report.accepted else "blocked",
+            "command": "surrogate-calibrate",
+            **report.to_dict(),
+        }
+        if args.report_out:
+            report_path = write_value_free_calibration_report(args.report_out, report)
+            payload["report_path"] = report_path.as_posix()
+    except (
+        GovernanceValidationError,
+        GovernanceSerializationError,
+        GovernanceIdError,
+        OSError,
+        ValueError,
+    ) as exc:
+        print(
+            json.dumps(
+                governance_exception_payload("surrogate-calibrate", exc),
+                sort_keys=True,
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(json.dumps(payload, sort_keys=True, indent=2))
+    return 0 if report.accepted else 2
+
+
 def _load_feature_pack_locks(path: str | Path) -> list[Mapping[str, Any] | str]:
     """Load a generic feature-pack-locks JSON document.
 
@@ -645,6 +696,39 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Optional family budget used with --family-id for status output.",
     )
     ledger_summary_parser.set_defaults(handler=run_variant_ledger_summary)
+
+    surrogate_parser = governance_subparsers.add_parser(
+        "surrogate-calibrate",
+        help="Run seeded label-shuffled surrogate-FDR calibration in an isolated namespace.",
+    )
+    surrogate_parser.add_argument(
+        "--study-spec",
+        action="append",
+        required=True,
+        help="Path to a StudySpec JSON file declaring dataset_scope.surrogate_fdr inputs.",
+    )
+    surrogate_parser.add_argument(
+        "--runs",
+        type=int,
+        required=True,
+        help="Number of seeded label-shuffled runs to execute per StudySpec.",
+    )
+    surrogate_parser.add_argument(
+        "--base-seed",
+        type=int,
+        required=True,
+        help="Base non-negative seed; subsequent runs increment deterministically.",
+    )
+    surrogate_parser.add_argument(
+        "--namespace",
+        required=True,
+        help="Existing isolated output namespace, usually pytest tmp or ALPHA_DATA_ROOT scratch.",
+    )
+    surrogate_parser.add_argument(
+        "--report-out",
+        help="Optional value-free Markdown calibration report output path.",
+    )
+    surrogate_parser.set_defaults(handler=run_surrogate_calibrate)
 
     review_parser = governance_subparsers.add_parser(
         "review",
