@@ -1,0 +1,71 @@
+{
+  "phase_id": "P043653_TBBO_SCHEMA_SUPPORT",
+  "campaign_id": "TBBO_COST_CALIBRATION_V1",
+  "branch": "wf1/tbbo-schema-support",
+  "commit": "bf0c5be9ff2a27906e3abe2971258a386ff27598",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "warning",
+      "file": "src/alpha_system/data/databento/canonicalize.py",
+      "lines": "298-424",
+      "summary": "run_canonicalize restructured from unconditional ohlcv+bbo to per-requested-schema conditionals; schema-subset requests that previously failed now succeed. Required for tbbo-only routing; two-schema behavior verified identical; no consumers outside module CLI and tests."
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "file": "src/alpha_system/data/databento/canonicalize.py",
+      "lines": "840,866,1099",
+      "summary": "_tbbo_dedupe_key places raw row.get('sequence') in a sorted tuple; mixed None/int sequences at identical (root, event_ts) raise an uncaught TypeError. Loud crash, not silent corruption; real DBN decode always supplies int sequence. Suggest str() in the key."
+    },
+    {
+      "id": "N1",
+      "severity": "note",
+      "file": "src/alpha_system/data/databento/canonicalize.py",
+      "lines": "91-92,110-111",
+      "summary": "CanonicalizeSummary.to_mapping gained tbbo_data_version/tbbo_row_count keys; no external hash/strict-key consumer exists."
+    },
+    {
+      "id": "N2",
+      "severity": "note",
+      "file": "src/alpha_system/data/databento/canonicalize.py",
+      "lines": "1249-1264",
+      "summary": "_normalize_aggressor_side accepts an 'unknown' alias beyond the DBN A/B/N domain; local and harmless (maps to 'none')."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "mutation": "remove 'tbbo' from DATABENTO_ALLOWED_SCHEMAS in request_spec.py",
+      "expected": "fail",
+      "observed": "4 failed, 436 passed (tbbo round-trip, real-DBN loader routing, request-spec acceptance, manifest schema inference)"
+    },
+    {
+      "mutation": "skip writing tbbo rows (records=() in the tbbo _write_schema_records call)",
+      "expected": "fail",
+      "observed": "1 failed, 439 passed (test_databento_tbbo_canonicalize_partition_manifest_and_fields_round_trip)"
+    },
+    {
+      "mutation": "corrupt normalized field name aggressor_side -> aggr_side in CanonicalTBBORecord.to_mapping",
+      "expected": "fail",
+      "observed": "1 failed, 439 passed (test_databento_tbbo_canonicalize_partition_manifest_and_fields_round_trip)"
+    }
+  ],
+  "validation_reproduced": {
+    "pytest_tests_unit_data": {"claimed": "440 passed", "observed": "440 passed in 4.97s", "match": true},
+    "canary_runner": {"claimed": "25 PASS lines; All Frontier canaries passed.", "observed": "25 PASS lines; All Frontier canaries passed.; exit 0", "match": true},
+    "verify_smoke": {"claimed": "exit 0", "observed": "exit 0", "match": true},
+    "ci_parity": {"claimed": "3288 passed, 75 skipped", "observed": "not re-run by reviewer; deferred to CI on PR", "match": null}
+  },
+  "scope": {
+    "cost_check_touched": false,
+    "max_cost_cap_changed": false,
+    "features_labels_runtime_governance_touched": false,
+    "offline_discipline_holds": true,
+    "negative_allowlist_test_present": true,
+    "manifest_parity_with_ohlcv_bbo": true,
+    "artifact_policy_clean": true
+  },
+  "worktree_restored_clean": true,
+  "reviewed_at": "2026-06-12"
+}
