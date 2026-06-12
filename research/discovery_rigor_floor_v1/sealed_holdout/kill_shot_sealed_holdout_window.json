@@ -43,7 +43,7 @@
       "RTY_2026_fwd_ret_30m",
       "RTY_2026_fwd_ret_5m"
     ],
-    "futsub_relock_phase_id": "P022000_FUTSUB_RELOCK_RERUN",
+    "futsub_relock_phase_id": "P110000_RELOCK_V2",
     "futsub_schema_ids": [
       "bbo_1m",
       "ohlcv_1m",
@@ -78,6 +78,8 @@
     "futsub_boundary_ref": "handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md",
     "locked_test_partition_count": 32,
     "phase_id": "P033000_HOLDOUT_WINDOW_COVERAGE",
+    "relock_supersession_phase_id": "P110000_RELOCK_V2",
+    "relock_supersession_reason": "P110000_RELOCK_V2 re-issued the same kill-shot locked-test corpus against current REGISTERED registry successors after pack repair; sealed holdout start/end and partition coverage are unchanged.",
     "relocked_studyspec_count": 10,
     "value_free": true
   },
@@ -110,5 +112,5 @@
     "status": "SEALED",
     "window_id": "holdwin_d5cba50af19976275ab26f34"
   },
-  "window_id": "holdwin_bcf16744d03b8546a219fcd1"
+  "window_id": "holdwin_3ed860d2e163f8c6e4cbeb66"
 }

@@ -13,16 +13,44 @@
   - `$ALPHA_DATA_ROOT/registry/features.sqlite` (2072 `feature_registry_records` rows)
   - `$ALPHA_DATA_ROOT/registry/labels.sqlite` (2373 `label_registry_records` rows)
   - `$ALPHA_DATA_ROOT/registry/datasets.sqlite` (29 `dataset_versions` rows)
-- Lock corpus: all 10 committed re-locked StudySpecs under
+- Original audited lock corpus before P110000_RELOCK_V2: all 10 P022000
+  re-locked StudySpecs under
   `research/futures_substrate_scaleout_v1/rerun/study_specs/*.json`
   (4560 feature pack locks, 840 label pack locks, 24 distinct locked
-  DatasetVersions). The 6 kill-shot rerun candidates are
+  DatasetVersions). The 6 kill-shot rerun candidates were
   `sspec_652fcc23a6f725b405612b8e`, `sspec_676a012a4a4cdf3d169cd981`,
   `sspec_1d87dfbe3d24810720f75014`, `sspec_c2114a3c6c90595350151af0`,
   `sspec_950ad6bb7063928d9ff8ea4f`, `sspec_6088f0ed5b02b161bfb54943`.
+- Current P110000_RELOCK_V2 lock corpus: all 10 committed V2 StudySpecs under
+  the same directory (4112 feature pack locks, 840 label pack locks, 24
+  distinct locked DatasetVersions). The 6 kill-shot rerun successors are
+  `sspec_f6cbd88caa0445f0f56d81fd`, `sspec_1604b063f3a3401208ee0239`,
+  `sspec_dec89a327a9c50957adca780`, `sspec_840e8342564226f2c3257903`,
+  `sspec_c237c6a8ce40c2585836fae0`, `sspec_533f665ec4ac063dbb664a54`.
 - This file is value-free: statuses, counts, ids, schema/column names, issue
   codes, commands, and code citations only. No feature, label, return, market,
   signal, or cost values appear here.
+
+## P110000_RELOCK_V2 Supersession Addendum
+
+P110000_RELOCK_V2 supersedes the P022000 lock corpus audited below. The V2
+bundle resolves every committed lock through the P022000 resolver path against
+current registries and validates with `validate_feature_locks`.
+
+| P022000 re-lock anchor | P110000_RELOCK_V2 successor | V2 feature locks | V2 label locks | R-036 no-replacement locks retired |
+| --- | --- | ---: | ---: | ---: |
+| `sspec_652fcc23a6f725b405612b8e` | `sspec_f6cbd88caa0445f0f56d81fd` | 480 | 96 | 48 |
+| `sspec_676a012a4a4cdf3d169cd981` | `sspec_1604b063f3a3401208ee0239` | 480 | 96 | 48 |
+| `sspec_1d87dfbe3d24810720f75014` | `sspec_dec89a327a9c50957adca780` | 456 | 96 | 48 |
+| `sspec_c2114a3c6c90595350151af0` | `sspec_840e8342564226f2c3257903` | 552 | 96 | 48 |
+| `sspec_950ad6bb7063928d9ff8ea4f` | `sspec_c237c6a8ce40c2585836fae0` | 552 | 96 | 48 |
+| `sspec_6088f0ed5b02b161bfb54943` | `sspec_533f665ec4ac063dbb664a54` | 600 | 96 | 48 |
+
+Across all 10 V2 StudySpecs: 4112 feature locks and 840 label locks resolve to
+`REGISTERED` records; zero V2 locks reference `DEPRECATED` records. The 448
+retired R-036 locks are the reviewed no-replacement
+`session_calendar_roll_bars_to_roll` / `session_calendar_roll_minutes_to_roll`
+features, removed rather than substituted.
 
 ## Predicate 1 — No constant-valued flag columns: PASS
 

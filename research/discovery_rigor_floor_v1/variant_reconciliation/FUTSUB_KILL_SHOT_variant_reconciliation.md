@@ -144,6 +144,28 @@ pre-registered governance object with its own alpha spec identity; the linkage
 is internally consistent across all three Track-B files. Issue code (recorded
 for traceability only): `pooled_alpha_spec_id_distinct_from_member_sspec`.
 
+## P110000_RELOCK_V2 Supersession Addendum
+
+The reconciliation above is the pre-invocation audit for the P022000 re-lock
+anchors. P110000_RELOCK_V2 supersedes those StudySpecs with fresh locks against
+current `REGISTERED` successors. For any post-P110000 Track-A or Track-B
+operation, use the successor ids below.
+
+| P022000 re-lock anchor | P110000_RELOCK_V2 successor |
+| --- | --- |
+| `sspec_652fcc23a6f725b405612b8e` | `sspec_f6cbd88caa0445f0f56d81fd` |
+| `sspec_676a012a4a4cdf3d169cd981` | `sspec_1604b063f3a3401208ee0239` |
+| `sspec_1d87dfbe3d24810720f75014` | `sspec_dec89a327a9c50957adca780` |
+| `sspec_c2114a3c6c90595350151af0` | `sspec_840e8342564226f2c3257903` |
+| `sspec_950ad6bb7063928d9ff8ea4f` | `sspec_c237c6a8ce40c2585836fae0` |
+| `sspec_6088f0ed5b02b161bfb54943` | `sspec_533f665ec4ac063dbb664a54` |
+
+The two Track-B pooled records registered at `2026-06-12T05:06:10Z` are now
+historical P022000-anchor records. They must not be reused as post-P110000
+evidence contracts. The coordinator must register replacement Track-B pooled
+hypotheses against the P110000 successor ids before any Track-A metric is
+computed; the Track-A marker remained absent at relock time.
+
 ## Roll-Up
 
 - Six rerun candidate invocations: 0 `matched` (expected pre-invocation),
