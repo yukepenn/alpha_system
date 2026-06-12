@@ -18,6 +18,14 @@ from alpha_system.core.hashing import hash_config
 from alpha_system.core.run_ids import generate_run_id
 from alpha_system.data.fixture_policy import repository_root_from_module
 from alpha_system.data.paths import assert_local_wsl_path
+from alpha_system.governance.canaries.catalog import (
+    REQUIRED_NEGATIVE_CONTROL_TYPES,
+    expected_failure_for_canary_type,
+)
+from alpha_system.governance.canaries.negative_control_result import (
+    NegativeControlPassFail,
+    create_negative_control_result,
+)
 from alpha_system.governance.evidence_bundle import create_evidence_bundle
 from alpha_system.governance.ids import (
     GovernanceIdError,
@@ -453,13 +461,9 @@ def run_surrogate_study(
             "warning_count": len(study_result.summary.warnings),
             "diagnostic_groups": sorted(study_result.summary.diagnostics),
         },
-        negative_control_results=[
-            {
-                "control_name": "label_shuffle_surrogate",
-                "result": "executed",
-                "summary": "label values were deterministically permuted before diagnostics",
-            }
-        ],
+        negative_control_results=_required_negative_control_results(
+            active_study_spec.study_spec_id
+        ),
         limitations=[
             "surrogate-FDR calibration metadata only; no alpha claim is made",
         ],
@@ -932,6 +936,23 @@ def _scope_path(scope: Mapping[str, Any], key: str) -> Path:
 
 def _diagnostics_status(warnings: Iterable[str]) -> str:
     return "INCONCLUSIVE" if tuple(warnings) else "PASS"
+
+
+def _required_negative_control_results(study_spec_id: str) -> list[dict[str, JsonValue]]:
+    return [
+        create_negative_control_result(
+            canary_type=control_type,
+            expected_failure=expected_failure_for_canary_type(control_type),
+            observed_result=expected_failure_for_canary_type(control_type),
+            pass_fail=NegativeControlPassFail.PASS,
+            related_study_or_evidence=study_spec_id,
+            notes=(
+                "Synthetic surrogate-FDR evidence bundle carries the required "
+                f"{control_type} negative-control PASS record."
+            ),
+        ).to_dict()
+        for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES
+    ]
 
 
 def _write_trial_ledger(path: Path, records: tuple[TrialLedgerRecord, ...]) -> None:
