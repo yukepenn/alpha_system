@@ -100,6 +100,35 @@ def planted_fake_alpha_canary() -> Canary:
     )
 
 
+def true_alpha_detection_canary(strength: str, *, expected_detection: bool) -> Canary:
+    expectation = "detect" if expected_detection else "no_detect"
+    snippet = (
+        "import sys, tempfile; "
+        "from pathlib import Path; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.true_alpha_detection import "
+        "run_true_alpha_detection_canary; "
+        "\ntry:\n"
+        "    with tempfile.TemporaryDirectory(prefix='frontier-true-alpha-detection-') as raw_tmp:\n"
+        f"        result = run_true_alpha_detection_canary({strength!r}, workspace=Path(raw_tmp))\n"
+        "except Exception as exc:\n"
+        "    print(f'ERROR true_alpha_detection {type(exc).__name__}: {exc}', file=sys.stderr)\n"
+        "    raise SystemExit(1)\n"
+        "print(\n"
+        "    f'{result.strength} {result.detection_outcome} '\n"
+        "    f'{result.measured_abs_pearson_ic:.6f} '\n"
+        "    f'{result.detection_threshold_abs_pearson_ic:.6f}'\n"
+        ")\n"
+        f"raise SystemExit(0 if result.detected is {expected_detection!r} and result.expectation_met else 1)\n"
+    )
+    return Canary(
+        f"true_alpha_detection_{expectation}_{strength}",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -286,6 +315,8 @@ def scenarios() -> list[Canary]:
         governance_canary("permuted_labels"),
         governance_canary("optimistic_fill"),
         planted_fake_alpha_canary(),
+        true_alpha_detection_canary("strong", expected_detection=True),
+        true_alpha_detection_canary("weak", expected_detection=False),
     ]
 
 

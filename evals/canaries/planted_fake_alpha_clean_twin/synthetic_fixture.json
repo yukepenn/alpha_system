@@ -1,0 +1,48 @@
+{
+  "bars": [
+    {
+      "bar_id": "bar-000",
+      "close": "100.00",
+      "timestamp": "2026-01-02T00:00:00Z"
+    },
+    {
+      "bar_id": "bar-001",
+      "close": "101.00",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    {
+      "bar_id": "bar-002",
+      "close": "99.50",
+      "timestamp": "2026-01-04T00:00:00Z"
+    },
+    {
+      "bar_id": "bar-003",
+      "close": "102.25",
+      "timestamp": "2026-01-05T00:00:00Z"
+    }
+  ],
+  "declared_signal": "not_planted",
+  "fixture_id": "synthetic_planted_fake_alpha_clean_twin_v1",
+  "labels": [
+    {
+      "bar_id": "bar-000",
+      "construction": "label_at_t_uses_current_bar_noise_only",
+      "lookahead_k": 0,
+      "source_bar_id": "bar-000"
+    },
+    {
+      "bar_id": "bar-001",
+      "construction": "label_at_t_uses_current_bar_noise_only",
+      "lookahead_k": 0,
+      "source_bar_id": "bar-001"
+    },
+    {
+      "bar_id": "bar-002",
+      "construction": "label_at_t_uses_current_bar_noise_only",
+      "lookahead_k": 0,
+      "source_bar_id": "bar-002"
+    }
+  ],
+  "lookahead_k": 0,
+  "notes": "Synthetic clean twin of the planted-fake-alpha fixture; same bar and label shape, no future source bar, no planted signal."
+}
