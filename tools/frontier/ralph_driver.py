@@ -55,6 +55,7 @@ from tools.frontier.github_utils import (
     MERGE_EXECUTION_BLOCKED,
     MERGED,
     classify_ci_checks,
+    collect_failed_ci_logs,
     create_pr,
     detect_default_branch,
     inspect_branch_protection,
@@ -632,6 +633,20 @@ def elapsed_minutes_since(value: str | None) -> float:
 
 def stop_requested(run_dir: Path) -> bool:
     return (run_dir / "STOP").exists()
+
+
+def ensure_core_bare_false(run_dir: Path, state: dict[str, Any], *, source: str) -> None:
+    probe = git(ROOT, "rev-parse", "--is-bare-repository")
+    if probe.returncode == 0 and probe.stdout.strip() == "true":
+        restore = git(ROOT, "config", "core.bare", "false")
+        append_event(
+            run_dir,
+            state,
+            "CORE_BARE_RESTORED",
+            source=source,
+            ok=restore.returncode == 0,
+            stderr=restore.stderr.strip(),
+        )
 
 
 def check_run_budget(run_dir: Path, state: dict[str, Any]) -> str | None:
@@ -1260,6 +1275,7 @@ def initialize_provider_wired_run(
     }
 
     append_event(run_dir, state, "RUN_INIT", campaign_id=campaign_id, driver=PROVIDER_WIRED_DRIVER)
+    ensure_core_bare_false(run_dir, state, source="run_init")
     append_event(
         run_dir,
         state,
@@ -2354,6 +2370,145 @@ Validation output:
 """
 
 
+def ci_repair_prompt(phase: dict[str, Any], spec_text: str, ci_failure_text: str, validation_text: str) -> str:
+    prompt = repair_prompt(
+        phase,
+        spec_text,
+        "CI failed after PR creation. Repair only the CI failure shown below.\n\n" + ci_failure_text,
+        validation_text,
+    )
+    return prompt + """
+
+CI repair constraints:
+- Repair ONLY the in-scope CI failure evidence above.
+- Do not weaken gates, tests, artifact policy, review policy, merge policy, or STOP semantics.
+- Do not run any `git worktree` command.
+- Do not edit `.git` config or any repository git configuration.
+"""
+
+
+def ci_failure_summary(result: Any) -> str:
+    if hasattr(result, "to_dict"):
+        data = result.to_dict()
+    else:
+        data = result
+    return json.dumps(data, indent=2, sort_keys=True)
+
+
+def run_ci_repair_attempt(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    ci_result: Any,
+    *,
+    verdict: str,
+    execution_root: Path,
+    defer_merge: bool,
+    pr_number: str | int | None,
+) -> str:
+    phase_id = phase["phase_id"]
+    phase_dir = provider_phase_dir(run_dir, phase)
+    max_attempts = max_repair_attempts_for_phase(state, phase)
+    state.setdefault("repair_attempts", {})
+    start_attempt = int(state["repair_attempts"].get(phase_id, 0))
+    if pr_number is None or start_attempt >= max_attempts:
+        return "BLOCKED"
+    if stop_requested(run_dir):
+        append_event(run_dir, state, "CI_REPAIR_SKIPPED_STOP", phase_id=phase_id, attempt=start_attempt + 1)
+        return "BLOCKED"
+
+    attempt = start_attempt + 1
+    state["repair_attempts"][phase_id] = attempt
+    state["current_micro_attempt"] = attempt + 1
+    set_provider_phase_status(phase, "REWORK")
+    attempt_dir = phase_dir / "repair_attempts" / f"ci_attempt_{attempt}"
+    attempt_dir.mkdir(parents=True, exist_ok=True)
+
+    if stop_requested(run_dir):
+        append_event(run_dir, state, "CI_REPAIR_SKIPPED_STOP", phase_id=phase_id, attempt=attempt)
+        return "BLOCKED"
+    log_result = collect_failed_ci_logs(ci_result, root=execution_root)
+    log_text = log_result.stdout or ci_failure_summary(ci_result)
+    (attempt_dir / "ci_failure.log").write_text(log_text, encoding="utf-8")
+    write_json(attempt_dir / "ci_failure_log_result.json", log_result.to_dict())
+    append_event(
+        run_dir,
+        state,
+        "CI_REPAIR_ROUTED",
+        phase_id=phase_id,
+        attempt=attempt,
+        pr_number=pr_number,
+        ci_status=getattr(ci_result, "state", None),
+    )
+    write_state(run_dir, state)
+
+    if stop_requested(run_dir):
+        append_event(run_dir, state, "CI_REPAIR_SKIPPED_STOP", phase_id=phase_id, attempt=attempt)
+        return "BLOCKED"
+    prompt_text = ci_repair_prompt(
+        phase,
+        _read_phase_text(phase_dir / "spec.md"),
+        log_text,
+        _read_phase_text(phase_dir / "validation.md"),
+    )
+    (attempt_dir / "ci_repair_prompt.md").write_text(prompt_text, encoding="utf-8")
+    (phase_dir / "repair_prompt.md").write_text(prompt_text, encoding="utf-8")
+
+    if bool(state.get("mock_providers")):
+        repair_text = f"# Mock CI Repair Output: {phase_id}\n\nMock CI repair attempt {attempt} completed.\n"
+        append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_codex_ci_repair")
+    else:
+        state["codex_called_by_driver"] = True
+        state["external_providers_called"] = True
+        state["network_used"] = True
+        result = codex_noninteractive(prompt_text, root=execution_root)
+        append_cost_record(
+            run_dir, state, provider="codex", model=None, phase_id=phase_id, note="ci_repair_execution",
+            duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
+        )
+        repair_text = command_block(result)
+        if result.returncode != 0:
+            (attempt_dir / "ci_repair_output.md").write_text(repair_text, encoding="utf-8")
+            (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+            if handle_provider_nonzero(
+                run_dir,
+                state,
+                phase,
+                provider="codex",
+                stage="ci_repair",
+                result=result,
+            ):
+                return str(phase.get("status") or WAITING_PROVIDER_LIMIT)
+            write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="ci_repair_error")
+            return "BLOCKED"
+    (attempt_dir / "ci_repair_output.md").write_text(repair_text, encoding="utf-8")
+    (phase_dir / "repair_output.md").write_text(repair_text, encoding="utf-8")
+
+    if stop_requested(run_dir):
+        append_event(run_dir, state, "CI_REPAIR_SKIPPED_STOP", phase_id=phase_id, attempt=attempt)
+        return "BLOCKED"
+    validation_ok, validation_text = run_phase_validation(execution_root)
+    (attempt_dir / "ci_repair_validation.md").write_text(validation_text, encoding="utf-8")
+    (phase_dir / "repair_validation.md").write_text(validation_text, encoding="utf-8")
+    if not validation_ok:
+        append_event(run_dir, state, "CI_REPAIR_VALIDATION_REWORK", phase_id=phase_id, attempt=attempt)
+        write_provider_verdict(phase_dir, state, phase, "REWORK", source="ci_repair_validation")
+        write_state(run_dir, state)
+        return "BLOCKED"
+
+    if stop_requested(run_dir):
+        append_event(run_dir, state, "CI_REPAIR_SKIPPED_STOP", phase_id=phase_id, attempt=attempt)
+        return "BLOCKED"
+    set_provider_phase_status(phase, "REVIEWED")
+    append_event(run_dir, state, "CI_REPAIR_VALIDATED", phase_id=phase_id, attempt=attempt)
+    write_state(run_dir, state)
+    if post_phase_git_github(
+        run_dir, state, phase, verdict, execution_root=execution_root, defer_merge=defer_merge
+    ):
+        return "REPAIRED"
+    return str(state.get("status") or "BLOCKED")
+
+
 def mock_spec_text(phase: dict[str, Any]) -> str:
     dependencies = ", ".join(phase.get("dependencies") or []) or "none"
     return f"""# Mock Spec: {phase_label(phase)}
@@ -3327,6 +3482,20 @@ def post_phase_git_github(
     if ci_status == CI_SUCCESS:
         record_stage_checkpoint(run_dir, state, phase, "ci", details={"pr_number": pr_number})
     if github_config.get("require_ci", True) and ci_status != CI_SUCCESS:
+        repair_status = run_ci_repair_attempt(
+            run_dir,
+            state,
+            phase,
+            ci_result,
+            verdict=verdict,
+            execution_root=execution_root,
+            defer_merge=defer_merge,
+            pr_number=pr_number,
+        )
+        if repair_status == "REPAIRED":
+            return True
+        if repair_status != "BLOCKED":
+            return False
         reason = f"CI_BLOCKED: CI status was {ci_status}."
         block_provider_gate(
             run_dir,
@@ -4070,6 +4239,20 @@ def run_deterministic_resume_gates(
                 pr_number=pr_number,
             )
             return True
+        repair_status = run_ci_repair_attempt(
+            run_dir,
+            state,
+            phase,
+            ci_result,
+            verdict=verdict,
+            execution_root=execution_root,
+            defer_merge=False,
+            pr_number=pr_number,
+        )
+        if repair_status == "REPAIRED":
+            return True
+        if repair_status != "BLOCKED":
+            return False
         block_provider_gate(
             run_dir,
             state,
@@ -5837,6 +6020,7 @@ def resume_provider_wired_run(
     max_phases: int | None,
     worktree_mode: bool | None = None,
 ) -> int:
+    ensure_core_bare_false(run_dir, state, source="resume")
     if state.get("status") == "COMPLETED":
         print(f"Run {state['run_id']} is already completed.")
         return 0
@@ -5918,6 +6102,7 @@ def resume_provider_wired_stage(
     no_provider_replay: bool,
     worktree_mode: bool | None = None,
 ) -> int:
+    ensure_core_bare_false(run_dir, state, source="resume_stage")
     try:
         stage_index(from_stage)
     except ValueError as error:

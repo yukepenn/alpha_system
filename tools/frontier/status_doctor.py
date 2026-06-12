@@ -172,6 +172,34 @@ def git_hooks_path() -> str | None:
     return value or None
 
 
+def git_core_bare(root: Path | None = None) -> str | None:
+    """Return configured ``core.bare`` for this checkout, or None when unset."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "--bool", "core.bare"],
+            cwd=root or ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    value = result.stdout.strip().lower()
+    return value or None
+
+
+def check_core_bare(report: Report, root: Path | None = None) -> None:
+    value = git_core_bare(root)
+    if value == "true":
+        report.fail(
+            f"core.bare is true for {root or ROOT}. Fix: git -C {root or ROOT} config core.bare false"
+        )
+    elif value in {None, "false"}:
+        report.ok("core.bare is false (or unset, which is non-bare for this checkout).")
+    else:
+        report.warn(f"core.bare has unexpected value {value!r}; inspect `git config --get --bool core.bare`.")
+
+
 def check_hooks_floor(report: Report) -> None:
     """WARN (not FAIL) when the deterministic hook floor is not armed locally.
 
@@ -208,6 +236,7 @@ def check_stale_pointers(report: Report, live_phase: str | None) -> None:
 
 def build_report(strict: bool) -> Report:
     report = Report()
+    check_core_bare(report)
     check_hooks_floor(report)
     campaign_id = active_campaign_id()
     if not campaign_id:

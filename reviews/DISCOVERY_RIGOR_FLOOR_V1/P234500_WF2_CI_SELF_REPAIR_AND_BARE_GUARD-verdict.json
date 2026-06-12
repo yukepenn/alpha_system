@@ -1,0 +1,76 @@
+{
+  "phase_id": "P234500_WF2_CI_SELF_REPAIR_AND_BARE_GUARD",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewed_worktree": "/home/yuke_zhang/projects/alpha_system-wf1-ci-selfheal",
+  "diff_sha256_start": "58b981a5c75fcba8ed0c7cc164eff137f5f0613a1c63136cb3eab3730908e82d",
+  "diff_sha256_end": "58b981a5c75fcba8ed0c7cc164eff137f5f0613a1c63136cb3eab3730908e82d",
+  "findings": [
+    {
+      "id": "W1",
+      "severity": "warning",
+      "summary": "STOP coverage is aggregate, not per-checkpoint: bypassing only the entry STOP check in run_ci_repair_attempt leaves all 3 driver tests green (the 4 downstream STOP checks compensate before any Codex/evidence/push step). Under that single-check bypass the repair_attempts slot is consumed and phase set REWORK despite active STOP. Full STOP-bypass (all 5 checks) IS caught by test_stop_file_prevents_ci_repair_routing. Non-blocking; suggest a follow-up test asserting repair_attempts is not consumed when STOP is present at entry."
+    },
+    {
+      "id": "W2",
+      "severity": "observation",
+      "summary": "CI repairs draw from the same repair_attempts budget as checks/review repairs; matches the spec's 'SAME bounded repair budget' wording, recorded so it is not later mistaken for a bug."
+    },
+    {
+      "id": "W3",
+      "severity": "observation",
+      "summary": "test_stop_file_prevents_ci_repair_routing does not assert the CI_REPAIR_SKIPPED_STOP event; it relies on absence of CI_REPAIR_ROUTED and zero codex calls."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "name": "remove repair-budget check (start_attempt >= max_attempts dropped)",
+      "expected": "at least one test fails",
+      "observed": "test_ci_failure_with_exhausted_budget_stops_with_ci_blocked FAILED (IndexError: CI-wait queue exhausted because repair routed past budget)",
+      "result": "CAUGHT"
+    },
+    {
+      "name": "bypass entry STOP check only (if False and stop_requested)",
+      "expected": "at least one test fails",
+      "observed": "3 passed; downstream STOP checks compensate before CI_REPAIR_ROUTED/codex",
+      "result": "NOT_CAUGHT_W1"
+    },
+    {
+      "name": "bypass ALL 5 STOP checks in run_ci_repair_attempt",
+      "expected": "at least one test fails",
+      "observed": "test_stop_file_prevents_ci_repair_routing FAILED",
+      "result": "CAUGHT"
+    },
+    {
+      "name": "status_doctor core.bare=true FAIL downgraded to WARN",
+      "expected": "status_doctor test fails",
+      "observed": "test_core_bare_true_is_hard_failure_in_temp_repo FAILED (1 failed, 8 passed)",
+      "result": "CAUGHT"
+    }
+  ],
+  "validation_counts": {
+    "tests_unit_frontier": 14,
+    "tests_unit_test_status_doctor": 9,
+    "tests_test_github_utils": 28,
+    "combined_three_suites": 51,
+    "verify_smoke_exit": 0,
+    "canary_runner_exit": 0,
+    "canary_result": "All Frontier canaries passed",
+    "status_doctor_exit": 0,
+    "status_doctor_verdict": "WARN (no live run state in worktree; pre-existing, not diff-caused)",
+    "git_ls_files_runs": 0,
+    "ralph_driver_deleted_lines": 0
+  },
+  "scope": {
+    "changed_files_match_authorized_set": true,
+    "src_alpha_system_changes": 0,
+    "state_order_changed": false,
+    "git_add_dot_or_A_in_new_code": false,
+    "ci_failure_log_location": "runs/<run_id>/phases/<phase_id>/repair_attempts/ci_attempt_<n>/ci_failure.log (runs/** commit-forbidden, untracked)"
+  },
+  "troubleshooting_doc": {
+    "claims_independently_reproduced": true,
+    "worktreeConfig_sufficient_alone": false,
+    "core_bare_true_direct_break": true,
+    "canonical_extensions_config_changed": false
+  }
+}
