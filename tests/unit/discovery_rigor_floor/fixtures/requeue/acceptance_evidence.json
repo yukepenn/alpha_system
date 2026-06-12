@@ -1,0 +1,15 @@
+{
+  "accepted_data": [
+    {
+      "accepted_data_months": 30,
+      "n_eff": 600,
+      "observation_count": 600,
+      "study_spec_id": "sspec_requeue_eligible"
+    },
+    {
+      "accepted_data_months": 15,
+      "study_spec_id": "sspec_requeue_not_eligible"
+    }
+  ],
+  "schema": "discovery_rigor_floor.dataset_acceptance_evidence.v1"
+}

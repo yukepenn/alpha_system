@@ -1,0 +1,13 @@
+{
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "classification_statement": "Synthetic UNDERPOWERED annotation below the materiality rule.",
+  "original_statistical_reviewer_judgement": "INCONCLUSIVE",
+  "original_verdict_path": "synthetic/reviewer_verdicts/reviewer_verdict_sspec_requeue_not_eligible.json",
+  "reason_code": "UNDERPOWERED",
+  "requeue_scan": {
+    "accepted_data_months_at_verdict": 12,
+    "sr_prior": 0.3
+  },
+  "schema": "discovery_rigor_floor.verdict_annotation.v1",
+  "study_spec_id": "sspec_requeue_not_eligible"
+}

@@ -30,6 +30,9 @@ audit:
 validate-artifacts:
     python tools/verify.py --artifacts
 
+requeue-scan:
+    alpha governance requeue-scan --verdicts "${REQUEUE_VERDICTS:-research/futures_core_alpha_pilot_v1/reviewer_verdicts}" --annotations "${REQUEUE_ANNOTATIONS:-research/futures_core_alpha_pilot_v1/verdict_annotations}" --acceptance-evidence "${REQUEUE_ACCEPTANCE_EVIDENCE:?set REQUEUE_ACCEPTANCE_EVIDENCE}" ${REQUEUE_OUT:+--out "$REQUEUE_OUT"}
+
 frontier-status:
     python tools/frontier/phase.py status
 

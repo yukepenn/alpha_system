@@ -1,0 +1,9 @@
+{
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "classification_statement": "Synthetic non-UNDERPOWERED annotation ignored by requeue-scan.",
+  "original_statistical_reviewer_judgement": "INCONCLUSIVE",
+  "original_verdict_path": "synthetic/reviewer_verdicts/reviewer_verdict_sspec_requeue_substrate_gap.json",
+  "reason_code": "SUBSTRATE_GAP",
+  "schema": "discovery_rigor_floor.verdict_annotation.v1",
+  "study_spec_id": "sspec_requeue_substrate_gap"
+}

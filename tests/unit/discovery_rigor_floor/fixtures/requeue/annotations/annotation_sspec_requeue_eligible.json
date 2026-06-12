@@ -1,0 +1,15 @@
+{
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "classification_statement": "Synthetic UNDERPOWERED annotation for requeue-scan tests only.",
+  "original_statistical_reviewer_judgement": "INCONCLUSIVE",
+  "original_verdict_path": "synthetic/reviewer_verdicts/reviewer_verdict_sspec_requeue_eligible.json",
+  "reason_code": "UNDERPOWERED",
+  "requeue_scan": {
+    "accepted_data_months_at_verdict": 12,
+    "n_eff_at_verdict": 120,
+    "observation_count_at_verdict": 240,
+    "sr_prior": 0.5
+  },
+  "schema": "discovery_rigor_floor.verdict_annotation.v1",
+  "study_spec_id": "sspec_requeue_eligible"
+}
