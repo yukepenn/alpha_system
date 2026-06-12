@@ -1,0 +1,47 @@
+{
+  "bars": [
+    {
+      "bar_id": "bar-000",
+      "close": "100.00",
+      "timestamp": "2026-01-02T00:00:00Z"
+    },
+    {
+      "bar_id": "bar-001",
+      "close": "101.00",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    {
+      "bar_id": "bar-002",
+      "close": "99.50",
+      "timestamp": "2026-01-04T00:00:00Z"
+    },
+    {
+      "bar_id": "bar-003",
+      "close": "102.25",
+      "timestamp": "2026-01-05T00:00:00Z"
+    }
+  ],
+  "fixture_id": "synthetic_planted_fake_alpha_lookahead_v1",
+  "labels": [
+    {
+      "bar_id": "bar-000",
+      "construction": "label_at_t_uses_future_bar_t_plus_1_close_direction",
+      "lookahead_k": 1,
+      "source_bar_id": "bar-001"
+    },
+    {
+      "bar_id": "bar-001",
+      "construction": "label_at_t_uses_future_bar_t_plus_1_close_direction",
+      "lookahead_k": 1,
+      "source_bar_id": "bar-002"
+    },
+    {
+      "bar_id": "bar-002",
+      "construction": "label_at_t_uses_future_bar_t_plus_1_close_direction",
+      "lookahead_k": 1,
+      "source_bar_id": "bar-003"
+    }
+  ],
+  "lookahead_k": 1,
+  "notes": "Synthetic planted-fake-alpha fixture; label at bar t is computed from future bar t+1 information. Values are tiny synthetic metadata only and are not market data or research evidence."
+}

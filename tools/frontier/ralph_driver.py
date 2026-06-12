@@ -129,6 +129,14 @@ GATE_BLOCKED_STATUSES = {
 }
 MERGE_PENDING_STATUSES = {AUTO_MERGE_ARMED, MERGE_PENDING, MERGE_READY}
 PROVIDER_WAITING_STATUSES = {WAITING_PROVIDER_LIMIT, WAITING_CLAUDE_LIMIT, WAITING_CODEX_LIMIT}
+PROVIDER_MIDPIPELINE_STATUSES = {
+    "SPEC_READY",
+    "EXECUTED",
+    "VALIDATED",
+    "REVIEWED",
+    "REWORK",
+    "REPAIRED",
+}
 ACTIVE_CAMPAIGN_FILE = "ACTIVE_CAMPAIGN.md"
 SCHEDULER_MODES = {"sequential", "dag_wave"}
 PROVIDER_RESUME_STATUS_BY_STAGE = {
@@ -1406,9 +1414,22 @@ def ready_wave_phases(
     """Pick the next conflict-free, parallel-safe wave of PENDING phases.
 
     Returns the run-state phase dicts (preserving identity) for the first wave of
-    a freshly-computed plan over the current state. Empty when no PENDING phase
-    is dependency-ready.
+    a freshly-computed plan over the current state, or the current mid-pipeline
+    provider phase that must finish before new scheduling. Empty when no PENDING
+    phase is dependency-ready.
     """
+
+    current = state.get("current_phase_id")
+    if current:
+        for phase in state.get("phases", []):
+            if (
+                phase.get("phase_id") == current
+                and phase.get("status") in PROVIDER_MIDPIPELINE_STATUSES
+            ):
+                return [phase]
+    for phase in state.get("phases", []):
+        if phase.get("status") in PROVIDER_MIDPIPELINE_STATUSES:
+            return [phase]
 
     plan = dag_scheduler.compute_waves(
         state.get("phases", []),
@@ -2748,6 +2769,20 @@ def max_repair_attempts_for_phase(state: dict[str, Any], phase: dict[str, Any]) 
     if isinstance(policy, dict) and policy.get("max_repair_attempts") is not None:
         return parse_positive_int(policy["max_repair_attempts"], f"lanes.{lane}.max_repair_attempts")
     return parse_positive_int(state.get("max_repair_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS), "max_repair_attempts")
+
+
+def parse_final_repair_review(phase_dir: Path, attempt: int) -> ReviewVerdict | None:
+    if attempt > 0:
+        attempt_review = phase_dir / "repair_attempts" / f"{attempt:03d}" / "repair_review.md"
+        if attempt_review.is_file():
+            return parse_review_text(attempt_review.read_text(encoding="utf-8"), attempt_review)
+        attempt_dir = attempt_review.parent
+        if attempt_dir.exists():
+            return None
+    review_path = phase_dir / "review.md"
+    if review_path.is_file():
+        return parse_review_text(review_path.read_text(encoding="utf-8"), review_path)
+    return None
 
 
 def pr_body_text(
@@ -4942,6 +4977,32 @@ def run_provider_repair_loop(
         if verdict in PASSING_VERDICTS:
             set_provider_phase_status(phase, "REVIEWED")
             return verdict
+
+    final_review = parse_final_repair_review(
+        phase_dir,
+        int(state["repair_attempts"].get(phase_id, 0)),
+    )
+    if final_review and final_review.verdict in PASSING_VERDICTS and not final_review.required_repairs:
+        write_provider_verdict(
+            phase_dir,
+            state,
+            phase,
+            final_review.verdict,
+            source="repair_exhausted_final_review",
+            parsed=final_review,
+        )
+        set_provider_phase_status(phase, "REVIEWED")
+        append_event(
+            run_dir,
+            state,
+            "REPAIR_EXHAUSTED",
+            phase_id=phase_id,
+            max_attempts=max_attempts,
+            source="repair_exhausted_final_review",
+            verdict=final_review.verdict,
+        )
+        write_state(run_dir, state)
+        return final_review.verdict
 
     write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="repair_exhausted")
     append_event(run_dir, state, "REPAIR_EXHAUSTED", phase_id=phase_id, max_attempts=max_attempts)

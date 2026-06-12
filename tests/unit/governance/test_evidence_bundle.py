@@ -17,6 +17,12 @@ from alpha_system.governance.evidence_bundle import (
     validate_evidence_bundle,
     validate_evidence_ready_gate,
 )
+from alpha_system.governance.canaries import (
+    REQUIRED_NEGATIVE_CONTROL_TYPES,
+    NegativeControlPassFail,
+    create_negative_control_result,
+    expected_failure_for_canary_type,
+)
 from alpha_system.governance.serialization import canonical_serialize, deserialize
 from alpha_system.governance.validation import GovernanceValidationError
 from alpha_system.governance.verdict_reason_code import VerdictReasonCode
@@ -28,6 +34,7 @@ SECOND_TRIAL_ID = "trial_4c82b590a90a7d4971ac48c6"
 CODE_HASH = "a" * 64
 CONFIG_HASH = "b" * 64
 MANIFEST_HASH = "c" * 64
+STALE_STUDY_SPEC_ID = "sspec_000000000000000000000000"
 
 
 def valid_manifest_entry() -> dict[str, object]:
@@ -37,6 +44,39 @@ def valid_manifest_entry() -> dict[str, object]:
         "reference": "local/evidence/diagnostics-summary.json",
         "content_hash": MANIFEST_HASH,
     }
+
+
+def valid_negative_control_results(
+    *,
+    related_study_or_evidence: str = STUDY_SPEC_ID,
+    failed_controls: tuple[str, ...] = (),
+    omitted_controls: tuple[str, ...] = (),
+) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES:
+        if control_type in omitted_controls:
+            continue
+        expected_failure = expected_failure_for_canary_type(control_type)
+        failed = control_type in failed_controls
+        results.append(
+            create_negative_control_result(
+                canary_type=control_type,
+                expected_failure=expected_failure,
+                observed_result=(
+                    f"guard_accepted_known_bad_{control_type}"
+                    if failed
+                    else expected_failure
+                ),
+                pass_fail=(
+                    NegativeControlPassFail.FAIL
+                    if failed
+                    else NegativeControlPassFail.PASS
+                ),
+                related_study_or_evidence=related_study_or_evidence,
+                notes=f"Synthetic {control_type} control result for evidence gate tests.",
+            ).to_dict()
+        )
+    return results
 
 
 def valid_bundle_payload() -> dict[str, object]:
@@ -54,13 +94,7 @@ def valid_bundle_payload() -> dict[str, object]:
             "sample_count": 120,
             "metric_set": "synthetic governance smoke metrics",
         },
-        "negative_control_results": [
-            {
-                "control_name": "permuted labels control",
-                "result": "failed closed",
-                "summary": "synthetic control did not create admissible evidence",
-            }
-        ],
+        "negative_control_results": valid_negative_control_results(),
         "limitations": [
             "synthetic metadata fixture only",
             "reviewer verdict is referenced but not resolved in this phase",
@@ -334,6 +368,57 @@ def test_evidence_ready_gate_blocks_incomplete_bundle(
 
     assert exc_info.value.issues[0].code == code
     assert exc_info.value.issues[0].field == field
+
+
+def test_evidence_ready_gate_requires_all_required_negative_controls() -> None:
+    payload = valid_bundle_payload()
+    payload["negative_control_results"] = valid_negative_control_results(
+        omitted_controls=("random_target",)
+    )
+    payload["evidence_bundle_id"] = generate_evidence_bundle_id(payload)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_evidence_ready_gate(payload)
+
+    assert any(
+        issue.code == "missing_required_negative_control_result"
+        and issue.expected == "random_target"
+        for issue in exc_info.value.issues
+    )
+
+
+def test_evidence_ready_gate_blocks_failed_negative_control_result() -> None:
+    payload = valid_bundle_payload()
+    payload["negative_control_results"] = valid_negative_control_results(
+        failed_controls=("random_target",)
+    )
+    payload["evidence_bundle_id"] = generate_evidence_bundle_id(payload)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_evidence_ready_gate(payload)
+
+    assert any(
+        issue.code == "failed_required_negative_control_result"
+        and issue.actual == "random_target:FAIL"
+        for issue in exc_info.value.issues
+    )
+
+
+def test_evidence_ready_gate_blocks_stale_negative_control_result() -> None:
+    payload = valid_bundle_payload()
+    payload["negative_control_results"] = valid_negative_control_results(
+        related_study_or_evidence=STALE_STUDY_SPEC_ID
+    )
+    payload["evidence_bundle_id"] = generate_evidence_bundle_id(payload)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        validate_evidence_ready_gate(payload)
+
+    assert any(
+        issue.code == "stale_required_negative_control_result"
+        and issue.actual == STALE_STUDY_SPEC_ID
+        for issue in exc_info.value.issues
+    )
 
 
 def test_evidence_ready_gate_rejects_other_transitions() -> None:

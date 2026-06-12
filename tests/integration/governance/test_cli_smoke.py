@@ -7,6 +7,12 @@ import sys
 from pathlib import Path
 
 from alpha_system.governance.alpha_spec import generate_alpha_spec_id
+from alpha_system.governance.canaries import (
+    REQUIRED_NEGATIVE_CONTROL_TYPES,
+    NegativeControlPassFail,
+    create_negative_control_result,
+    expected_failure_for_canary_type,
+)
 from alpha_system.governance.evidence_bundle import EvidenceBundle, create_evidence_bundle
 from alpha_system.governance.promotion import (
     PromotionDecisionOutcome,
@@ -154,13 +160,7 @@ def _evidence_bundle(
             "diagnostics_run_ref": "diagnostics-run-cli-smoke",
             "metric_set": "synthetic governance smoke metrics",
         },
-        negative_control_results=[
-            {
-                "control_name": "permuted labels control",
-                "result": "failed closed",
-                "summary": "synthetic control did not create admissible evidence",
-            }
-        ],
+        negative_control_results=_negative_control_results(STUDY_SPEC_ID),
         limitations=["synthetic metadata fixture only"],
         artifact_manifest=[
             {
@@ -172,6 +172,23 @@ def _evidence_bundle(
         ],
         reviewer_verdict_reference=verdict.reviewer_verdict_id,
     )
+
+
+def _negative_control_results(study_spec_id: str) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES:
+        expected_failure = expected_failure_for_canary_type(control_type)
+        results.append(
+            create_negative_control_result(
+                canary_type=control_type,
+                expected_failure=expected_failure,
+                observed_result=expected_failure,
+                pass_fail=NegativeControlPassFail.PASS,
+                related_study_or_evidence=study_spec_id,
+                notes=f"Synthetic {control_type} control result for CLI smoke tests.",
+            ).to_dict()
+        )
+    return results
 
 
 def test_governance_cli_end_to_end_smoke(tmp_path: Path) -> None:

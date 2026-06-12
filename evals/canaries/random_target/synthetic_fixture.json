@@ -1,0 +1,17 @@
+{
+  "fixture_id": "synthetic_random_target_known_bad_v1",
+  "notes": "Synthetic random-target fixture replaces the study target with a seeded random target digest; no real data, labels, factor values, scores, or study values are present.",
+  "pipeline_outcome": {
+    "decision": "REJECTED",
+    "reason": "seeded_random_target_no_surviving_signal",
+    "surviving_signal": false
+  },
+  "random_target_digest": "86dc356712133ab898b2fae1768615626f47f8dabf8df9ba2a258c63a1fe3c33",
+  "related_study_or_evidence": "sspec_438ceffd40855205de5497f0",
+  "sample_count": 12,
+  "seed": 20260611,
+  "target_replacement": {
+    "mode": "seeded_random_target",
+    "replaces": "synthetic_forward_label_target"
+  }
+}

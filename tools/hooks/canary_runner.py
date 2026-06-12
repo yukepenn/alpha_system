@@ -76,6 +76,30 @@ def governance_canary(canary_type: str) -> Canary:
     )
 
 
+def planted_fake_alpha_canary() -> Canary:
+    snippet = (
+        "import sys, tempfile; "
+        "from pathlib import Path; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.planted_fake_alpha import "
+        "run_planted_fake_alpha_canary; "
+        "\ntry:\n"
+        "    with tempfile.TemporaryDirectory(prefix='frontier-planted-fake-alpha-') as raw_tmp:\n"
+        "        result = run_planted_fake_alpha_canary(workspace=Path(raw_tmp))\n"
+        "except Exception as exc:\n"
+        "    print(f'ERROR planted_fake_alpha {type(exc).__name__}: {exc}', file=sys.stderr)\n"
+        "    raise SystemExit(0)\n"
+        "print(f'{result.promotion_outcome} {result.blocked_gate} {result.blocked_issue_code}')\n"
+        "raise SystemExit(1 if result.rejected else 0)\n"
+    )
+    return Canary(
+        "planted_fake_alpha",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=True,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -257,9 +281,11 @@ def scenarios() -> list[Canary]:
             },
             expect_block=False,
         ),
+        governance_canary("random_target"),
         governance_canary("future_shift"),
         governance_canary("permuted_labels"),
         governance_canary("optimistic_fill"),
+        planted_fake_alpha_canary(),
     ]
 
 

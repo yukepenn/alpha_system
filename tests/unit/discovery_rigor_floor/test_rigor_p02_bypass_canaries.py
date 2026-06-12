@@ -5,6 +5,12 @@ from pathlib import Path
 
 import pytest
 
+from alpha_system.governance.canaries import (
+    REQUIRED_NEGATIVE_CONTROL_TYPES,
+    NegativeControlPassFail,
+    create_negative_control_result,
+    expected_failure_for_canary_type,
+)
 from alpha_system.governance.evidence_bundle import create_evidence_bundle
 from alpha_system.governance.promotion_gate import (
     PromotionGateContext,
@@ -57,9 +63,10 @@ def trial_record(spec: StudySpec, *, run_id: str, variant_id: str) -> TrialLedge
 
 
 def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> dict[str, object]:
+    study_spec_id = records[0].study_spec_id
     return create_evidence_bundle(
         alpha_spec_id=records[0].alpha_spec_id,
-        study_spec_id=records[0].study_spec_id,
+        study_spec_id=study_spec_id,
         trial_ids=[record.trial_id for record in records],
         data_version="synthetic-data-v1",
         factor_version="synthetic-factor-v1",
@@ -70,13 +77,7 @@ def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> dict[str, object]
             "diagnostics_run_ref": "diagnostics-run-rigor-p02-canary",
             "metric_set": "synthetic governance smoke metrics",
         },
-        negative_control_results=[
-            {
-                "control_name": "permuted labels control",
-                "result": "failed closed",
-                "summary": "synthetic control did not create admissible evidence",
-            }
-        ],
+        negative_control_results=negative_control_results(study_spec_id),
         limitations=["synthetic metadata fixture only"],
         artifact_manifest=[
             {
@@ -88,6 +89,23 @@ def evidence_bundle(records: tuple[TrialLedgerRecord, ...]) -> dict[str, object]
         ],
         reviewer_verdict_reference="rver_0123456789abcdef01234567",
     ).to_dict()
+
+
+def negative_control_results(study_spec_id: str) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    for control_type in REQUIRED_NEGATIVE_CONTROL_TYPES:
+        expected_failure = expected_failure_for_canary_type(control_type)
+        results.append(
+            create_negative_control_result(
+                canary_type=control_type,
+                expected_failure=expected_failure,
+                observed_result=expected_failure,
+                pass_fail=NegativeControlPassFail.PASS,
+                related_study_or_evidence=study_spec_id,
+                notes=f"Synthetic {control_type} control result for P02 canaries.",
+            ).to_dict()
+        )
+    return results
 
 
 def trial_ledger_file(tmp_path: Path) -> Path:
