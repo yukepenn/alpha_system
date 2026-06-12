@@ -254,8 +254,48 @@ ES_2019 proof.
 
 ### Regime Volatility Compression
 
-Blocked. Current dry-run preview for ES_2019 emits these two replacement fvers
-for the stale slots:
+P113000 update: unblocked after the deprecate-first data operation. The
+`coordinator/P094500_deprecate_first` records written at `2026-06-12T10:32Z`
+deprecated the `48` identity-migrated regime pack-local input-copy rows:
+`base_ohlcv_rolling_range` and `base_ohlcv_returns`, 24 partitions each. Every
+replacement pointer now equals the v2 dry-run preview for the same
+family/partition/feature id. The current regime scaleout code still regenerates
+those pack-local base OHLCV copies through the governed names:
+`range_expansion` binds to `base_ohlcv_rolling_range`, and
+`momentum_reversion_state` binds to `base_ohlcv_returns`; the expected
+post-deprecation regime set remains the 5 governed names. Run from a branch
+containing the P113000 force-recompute repair, which allows full-pack
+re-materialization to reuse already-registered active specs and build only the
+missing replacement specs against the live duplicate-exposure registry.
+
+Write-free validation:
+
+```bash
+PYTHONPATH=src \
+~/.venvs/alpha_system_research/bin/python -m alpha_system.cli scaleout feature-pack \
+  --config configs/features/scaleout/repair/regime_volatility_compression_union_restore_v2.json \
+  --rollout full-window \
+  --json
+```
+
+Coordinator execution command:
+
+```bash
+ALPHA_DATA_ROOT=/home/yuke_zhang/alpha_data/alpha_system \
+PYTHONPATH=src \
+~/.venvs/alpha_system_research/bin/python -m alpha_system.cli scaleout feature-pack \
+  --config configs/features/scaleout/repair/regime_volatility_compression_union_restore_v2.json \
+  --rollout full-window \
+  --execute \
+  --force-recompute \
+  --alpha-data-root "$ALPHA_DATA_ROOT" \
+  --dataset-registry "$ALPHA_DATA_ROOT/registry/datasets.sqlite" \
+  --json
+```
+
+Superseded P094500 blocker history: Current dry-run preview for ES_2019 emitted
+these two replacement fvers for the stale slots before the deprecate-first
+decision was applied:
 
 - `range_expansion` / `base_ohlcv_rolling_range`: current preview
   `fver_8eadbbf78450fc563380dad80469abc3cff4cc5446c0d022cdc8129cb0c96cea`;
@@ -266,14 +306,40 @@ for the stale slots:
   baseline stale fver
   `fver_01471d627567885984a20a18a7291e2cbeaf5e6f525cfd76cfe5d89b496b3533`.
 
-Do not run this until the stale fvers are again the dry-run preview target or a
-reviewed migration/re-lock plan replaces them.
+The old `regime_volatility_compression_union_restore.json` command is
+superseded by the v2 command above.
+
+### Session Calendar Maintenance
+
+P113000 update: unblocked after the deprecate-first data operation. The
+`coordinator/P094500_deprecate_first` records written at `2026-06-12T10:32Z`
+deprecated `72` session identity-migrated rows
+(`day_of_week`, `minutes_to_expiration`, `halt_status_flag`, 24 partitions
+each) with replacement pointers to the current v2 preview fvids. The same
+operation deprecated the `48` R-036 countdown rows (`bars_to_roll`,
+`minutes_to_roll`) with no replacement; they stay excluded from the v2
+post-deprecation scope. Run from a branch containing the P113000
+force-recompute repair, which allows full-pack re-materialization to reuse
+already-registered active specs and build only the missing replacement specs
+against the live duplicate-exposure registry.
+
+Write-free validation:
+
+```bash
+PYTHONPATH=src \
+~/.venvs/alpha_system_research/bin/python -m alpha_system.cli scaleout feature-pack \
+  --config configs/features/scaleout/repair/session_calendar_maintenance_union_restore_v2.json \
+  --rollout full-window \
+  --json
+```
+
+Coordinator execution command:
 
 ```bash
 ALPHA_DATA_ROOT=/home/yuke_zhang/alpha_data/alpha_system \
 PYTHONPATH=src \
 ~/.venvs/alpha_system_research/bin/python -m alpha_system.cli scaleout feature-pack \
-  --config configs/features/scaleout/repair/regime_volatility_compression_union_restore.json \
+  --config configs/features/scaleout/repair/session_calendar_maintenance_union_restore_v2.json \
   --rollout full-window \
   --execute \
   --force-recompute \
@@ -282,32 +348,12 @@ PYTHONPATH=src \
   --json
 ```
 
-Expected duration: not measured because execute is intentionally blocked by
-identity drift.
-
-### Session Calendar Maintenance
-
-Blocked. The 10-name union config fails dry-run with:
+Superseded P094500 blocker history: The 10-name union config failed dry-run with
 `session_calendar_maintenance scaleout excludes offline/non-causal features:
 bars_to_roll, minutes_to_roll`.
 
 The current 8-name committed config also does not target the three stale
 non-countdown ES_2019 fvers (`day_of_week`, `minutes_to_expiration`,
-`halt_status_flag`); it previews replacement fvers instead. Do not run a full
-grid until the offline-countdown and identity-drift decisions are reviewed.
-
-```bash
-ALPHA_DATA_ROOT=/home/yuke_zhang/alpha_data/alpha_system \
-PYTHONPATH=src \
-~/.venvs/alpha_system_research/bin/python -m alpha_system.cli scaleout feature-pack \
-  --config configs/features/scaleout/repair/session_calendar_maintenance_union_restore.json \
-  --rollout full-window \
-  --execute \
-  --force-recompute \
-  --alpha-data-root "$ALPHA_DATA_ROOT" \
-  --dataset-registry "$ALPHA_DATA_ROOT/registry/datasets.sqlite" \
-  --json
-```
-
-Expected duration: not measured because execute is blocked by the current
-offline-feature guard and identity drift.
+`halt_status_flag`); it previewed replacement fvers instead. The old
+`session_calendar_maintenance_union_restore.json` command is superseded by the
+v2 command above.

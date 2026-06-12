@@ -1,0 +1,50 @@
+{
+  "schema": "frontier-review-verdict-v1",
+  "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
+  "phase_id": "P113000_RESTORE_EXEC_CONFIGS",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [],
+  "required_repairs": [],
+  "warnings": [
+    "W1: no committed spec file for P113000 under specs/FUTSUB_KILLSHOT_READINESS_OPS_V1/ (prompt-spec lives only in handoff context; prior phases each committed one).",
+    "W2: superseded v1 union-restore configs remain committed beside v2; nothing mechanical prevents running the stale commands — mitigated by explicit runbook supersession; consider removal in RELOCK_V2 cleanup.",
+    "W3: handoff cites request_gate.py:223 for the coordinator error literal; the message text is at :230-:232 in the same reject block (cosmetic).",
+    "W4: reuse path bypasses the duplicate gate by design using stored checked payloads — acceptable (originally gate-checked, trusted-spec guard and duplicate-feature-id fail-close retained on the reuse path).",
+    "W5: targeting.feature_groups blocks are validated against governed_scope but do not affect the full-window restore execution (informational/targeting affordance only).",
+    "W6: branch unpushed, so no GitHub CI run exists for bef0fbb yet; the sanctioned skip_unless_local_registry guard on the only failing test is what will keep CI green."
+  ],
+  "mutation_tests": [
+    {
+      "id": "M1",
+      "mutation": "full revert of driver.py force-recompute fix to origin/main",
+      "result": "KILLED",
+      "failing_test": "test_force_recompute_context_allows_mixed_existing_and_missing_fvids"
+    },
+    {
+      "id": "M2",
+      "mutation": "surgical behavior revert: keep new signature, re-insert 'if existing is None: return None' in _existing_v1_feature_context_for_force_recompute",
+      "result": "KILLED",
+      "failing_test": "test_force_recompute_context_allows_mixed_existing_and_missing_fvids"
+    }
+  ],
+  "root_cause_confirmation": {
+    "mechanism_confirmed": true,
+    "v2_pass_reason": "driver fix, not configs: registered preview fvids reuse stored gate-checked payloads (never re-enter the guard, which only sees REGISTERED rows per registry.py:747 and would self-match); missing replacement fvids rebuild against the live registry where the P094500-deprecated rows are invisible to _duplicate_finding (duplicate_exposure.py:361)",
+    "mixed_set_premise": "live registry: session preview 120 REGISTERED + 72 missing; regime 72 REGISTERED + 48 missing",
+    "prepare_probe_reproduced": "session 24 units / 8 features (reused 120, fresh 72); regime 24 units / 5 features (reused 72, fresh 48); zero gate rejections, zero writes"
+  },
+  "validation_reproduced": {
+    "session_v2_dryrun": "dry_run=true 24/24 accepted/planned, 0 failed, 8 features per unit (matches handoff)",
+    "regime_v2_dryrun": "dry_run=true 24/24 accepted/planned, 0 failed, 5 features per unit (matches handoff)",
+    "replacement_pointer_mismatches": "0 of 120 (72 session + 48 regime); 48 R-036 countdown deprecations have empty pointers as claimed",
+    "scope_superset_check": "session v2 (8) superset of REGISTERED (5); regime v2 (5 governed names) superset of REGISTERED (3 mapped ids); value namespaces identical to live pack paths",
+    "unit_suite": "1 failed, 133 passed (matches handoff; single failure = relock smoke deprecated-fvid class)",
+    "relock_failure_on_origin_main": "identical failure in scratch worktree at 0c2fce4 — pre-existing data-state, not a diff regression",
+    "ci_parity": "1 failed, 3312 passed, 77 skipped (matches handoff; same single relock failure)",
+    "canary_runner": "All Frontier canaries passed",
+    "verify_smoke": "exit 0",
+    "regression_test_file": "4 passed",
+    "git_ls_files_runs": "empty",
+    "worktree_clean_after_mutations": true
+  }
+}

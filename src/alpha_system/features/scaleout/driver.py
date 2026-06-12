@@ -3210,7 +3210,12 @@ def _prepare_v1_worker_job(
 
     store = FeatureStore.from_alpha_data_root(alpha_data_root)
     existing_context = (
-        _existing_v1_feature_context_for_force_recompute(config, unit, store)
+        _existing_v1_feature_context_for_force_recompute(
+            config,
+            unit,
+            store,
+            alpha_data_root=alpha_data_root,
+        )
         if force_recompute
         else None
     )
@@ -3291,8 +3296,17 @@ def _existing_v1_feature_context_for_force_recompute(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
     store: Any,
+    *,
+    alpha_data_root: Path,
 ) -> tuple[tuple[Any, ...], dict[str, Mapping[str, Any]]] | None:
-    """Return existing V1 specs/request payloads for exact force-recompute ids."""
+    """Return V1 specs/request payloads for force-recompute preview ids.
+
+    Force-recompute needs to write the complete pack at the established value
+    path. Some repair packs intentionally contain a mix of already-registered
+    fvids and newly-previewed replacement fvids. Reuse existing request
+    provenance for registered fvids so they do not re-enter the duplicate gate,
+    and build only missing fvids against the live registry.
+    """
 
     feature_version_ids = _preview_feature_version_ids(config, unit)
     if not feature_version_ids:
@@ -3301,15 +3315,29 @@ def _existing_v1_feature_context_for_force_recompute(
     feature_requests: dict[str, Mapping[str, Any]] = {}
     for feature_version_id in feature_version_ids:
         existing = store.resolve_feature(feature_version_id)
-        if existing is None:
-            return None
-        _require_existing_v1_materialization(existing, feature_version_id)
-        feature_spec = existing.feature_spec
+        if existing is not None:
+            _require_existing_v1_materialization(existing, feature_version_id)
+            feature_spec = existing.feature_spec
+            request_payload = existing.feature_request_payload
+        else:
+            fresh, _, fresh_declaration = _fresh_v1_declaration_for_version(
+                config,
+                unit,
+                expected_version_id=feature_version_id,
+                alpha_data_root=alpha_data_root,
+            )
+            feature_spec = fresh_declaration.feature_spec
+            request_payload = fresh.feature_request_payloads.get(feature_spec.feature_id)
+            if request_payload is None:
+                raise ScaleoutError(
+                    "fresh V1 declaration rebuild did not return a FeatureRequest "
+                    f"payload for {feature_spec.feature_id}"
+                )
         feature_id = _require_text(feature_spec.feature_id, "feature_spec.feature_id")
         if feature_id in feature_requests:
             raise ScaleoutError(f"duplicate V1 feature selection for {feature_id}")
         feature_specs.append(feature_spec)
-        feature_requests[feature_id] = existing.feature_request_payload
+        feature_requests[feature_id] = request_payload
     return tuple(feature_specs), feature_requests
 
 
