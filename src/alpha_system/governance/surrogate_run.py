@@ -7,6 +7,7 @@ import random
 import re
 import stat
 import tempfile
+from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -71,6 +72,8 @@ class SurrogatePerturbationType(StrEnum):
     """Declared surrogate perturbations for calibration runs."""
 
     LABEL_SHUFFLE = "label_shuffle"
+    TRADE_DATE_BLOCK_SHUFFLE = "trade_date_block_shuffle"
+    TRADE_DATE_BLOCK_BOOTSTRAP = "trade_date_block_bootstrap"
     RANDOM_TARGET = "random_target"
 
 
@@ -108,6 +111,7 @@ SURROGATE_STUDY_RUN_ID_COMPONENT_FIELDS = tuple(
 )
 SURROGATE_SCOPE_KEY = "surrogate_fdr"
 DEFAULT_SURROGATE_FAMILY_ID = "family-rigor-p05-surrogate-fdr"
+LABEL_BLOCK_TIMESTAMP_FIELD = "event_ts"
 _UTC_SECOND_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _HEAVY_SUFFIXES = {
     ".arrow",
@@ -254,6 +258,44 @@ class SurrogateCalibrationReport:
 
         return self.threshold_verdict == ZERO_PASS_MET
 
+    @property
+    def perturbation_type_counts(self) -> dict[str, dict[str, JsonValue]]:
+        """Return value-free counts grouped by perturbation type."""
+
+        grouped: dict[str, dict[str, JsonValue]] = {}
+        for row in self.per_run:
+            perturbation_type = str(
+                row.get("perturbation_type") or SurrogatePerturbationType.LABEL_SHUFFLE.value
+            )
+            bucket = grouped.setdefault(
+                perturbation_type,
+                {
+                    "run_count": 0,
+                    "error_count": 0,
+                    "gate_pass_count": 0,
+                    "gate_pass_rate": 0.0,
+                    "threshold_verdict": ZERO_PASS_MET,
+                },
+            )
+            bucket["run_count"] = int(bucket["run_count"]) + 1
+            if row["gate_status"] == SurrogateGateStatus.ERROR.value:
+                bucket["error_count"] = int(bucket["error_count"]) + 1
+            if row.get("passed") is True:
+                bucket["gate_pass_count"] = int(bucket["gate_pass_count"]) + 1
+
+        for bucket in grouped.values():
+            run_count = int(bucket["run_count"])
+            error_count = int(bucket["error_count"])
+            pass_count = int(bucket["gate_pass_count"])
+            bucket["gate_pass_rate"] = 0.0 if run_count == 0 else pass_count / run_count
+            if pass_count > 0:
+                bucket["threshold_verdict"] = LEAKAGE_BLOCKED
+            elif error_count > 0:
+                bucket["threshold_verdict"] = CALIBRATION_BLOCKED
+            else:
+                bucket["threshold_verdict"] = ZERO_PASS_MET
+        return grouped
+
     def to_dict(self) -> dict[str, JsonValue]:
         """Return a value-free JSON-compatible report."""
 
@@ -263,8 +305,16 @@ class SurrogateCalibrationReport:
             "gate_pass_count": self.gate_pass_count,
             "gate_pass_rate": self.gate_pass_rate,
             "threshold_verdict": self.threshold_verdict,
+            "perturbation_type_counts": self.perturbation_type_counts,
             "per_run": [dict(row) for row in self.per_run],
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _DateBlock:
+    group_key: tuple[str, str, str]
+    trade_date: str
+    indices: tuple[int, ...]
 
 
 def create_surrogate_study_run(
@@ -360,16 +410,23 @@ def run_surrogate_study(
     family_id: str = DEFAULT_SURROGATE_FAMILY_ID,
     created_at: str | None = None,
 ) -> SurrogateRunResult:
-    """Execute one seeded label-shuffled study through the real governance gates."""
+    """Execute one seeded surrogate study through the real governance gates."""
 
     active_type = SurrogatePerturbationType(perturbation_type)
-    if active_type is not SurrogatePerturbationType.LABEL_SHUFFLE:
+    if active_type is SurrogatePerturbationType.RANDOM_TARGET:
         raise GovernanceValidationError(
             ValidationIssue(
                 field="perturbation_type",
                 code="unsupported_surrogate_execution",
-                message="RIGOR-P05 executes only label_shuffle surrogate runs",
-                expected=SurrogatePerturbationType.LABEL_SHUFFLE.value,
+                message="surrogate runner does not execute random_target perturbations",
+                expected=" | ".join(
+                    item.value
+                    for item in (
+                        SurrogatePerturbationType.LABEL_SHUFFLE,
+                        SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE,
+                        SurrogatePerturbationType.TRADE_DATE_BLOCK_BOOTSTRAP,
+                    )
+                ),
                 actual=active_type.value,
             )
         )
@@ -389,8 +446,9 @@ def run_surrogate_study(
 
     scope = _surrogate_scope(active_study_spec)
     original_labels_path = _scope_path(scope, "labels_path")
-    shuffled_labels_path = labels_dir / "label_shuffle.jsonl"
-    shuffle_summary = write_label_shuffled_copy(
+    shuffled_labels_path = labels_dir / _perturbation_output_name(active_type)
+    perturbation_summary = _write_perturbation_copy(
+        active_type,
         original_labels_path,
         shuffled_labels_path,
         seed=active_seed,
@@ -422,12 +480,11 @@ def run_surrogate_study(
         run_id=study_result.summary.run_id,
         variant_id=f"surrogate-seed-{active_seed}",
         status=TrialStatus.COMPLETED,
-        parameters={
-            "perturbation_type": active_type.value,
-            "seed": active_seed,
-            "shuffle_group_count": shuffle_summary["group_count"],
-            "shuffled_record_count": shuffle_summary["record_count"],
-        },
+        parameters=_trial_parameters_for_perturbation(
+            active_type,
+            seed=active_seed,
+            summary=perturbation_summary,
+        ),
         metrics_summary={
             "diagnostics_status": diagnostics_status,
             "sample_size": study_result.summary.sample_size,
@@ -451,7 +508,7 @@ def run_surrogate_study(
         trial_ids=[trial_record.trial_id],
         data_version=study_result.summary.data_version,
         factor_version=study_result.summary.factor_version,
-        label_version=f"surrogate-label-shuffle-seed-{active_seed}",
+        label_version=_surrogate_label_version_text(active_type, seed=active_seed),
         code_hash=code_hash,
         config_hash=config_hash,
         diagnostics_summary={
@@ -539,12 +596,14 @@ def calibrate_surrogate_fdr(
     base_seed: int,
     namespace: str | Path,
     family_id: str = DEFAULT_SURROGATE_FAMILY_ID,
+    perturbation_type: SurrogatePerturbationType | str = SurrogatePerturbationType.LABEL_SHUFFLE,
 ) -> SurrogateCalibrationReport:
-    """Run N seeded label-shuffled studies and aggregate a zero-pass verdict."""
+    """Run N seeded surrogate studies and aggregate a zero-pass verdict."""
 
     active_namespace = require_isolated_namespace(namespace)
     active_run_budget = _validate_run_budget(run_budget)
     active_base_seed = _validate_seed(base_seed)
+    active_perturbation_type = SurrogatePerturbationType(perturbation_type)
     validated_specs = tuple(_coerce_study_spec(spec) for spec in study_specs)
     if not validated_specs:
         raise GovernanceValidationError(
@@ -567,6 +626,7 @@ def calibrate_surrogate_fdr(
                     seed=seed,
                     namespace=active_namespace,
                     family_id=family_id,
+                    perturbation_type=active_perturbation_type,
                 )
             except (
                 DiagnosticsError,
@@ -577,11 +637,19 @@ def calibrate_surrogate_fdr(
                 StudyOutputError,
                 ValueError,
             ) as exc:
-                rows.append(_error_row(study_spec, seed=seed, exc=exc))
+                rows.append(
+                    _error_row(
+                        study_spec,
+                        perturbation_type=active_perturbation_type,
+                        seed=seed,
+                        exc=exc,
+                    )
+                )
                 continue
             rows.append(
                 {
                     "study_spec_id": study_spec.study_spec_id,
+                    "perturbation_type": result.run.perturbation_type.value,
                     "seed": seed,
                     "surrogate_id": result.run.surrogate_id,
                     "gate_status": str(result.run.gate_outcome["status"]),
@@ -631,6 +699,8 @@ def render_value_free_calibration_report(
         "- Any shuffled pass is `LEAKAGE_BLOCKED` and requires diagnosis before "
         "the kill-shot resumes.",
         "- Errored runs block calibration success and are not counted as non-passes.",
+        "- Bound statement: zero passes in K bounds false-pass rate at about 3/K "
+        "at 95%.",
         "",
         "## Synthetic Calibration Summary",
         "",
@@ -639,15 +709,38 @@ def render_value_free_calibration_report(
         f"- Gate pass count: {report.gate_pass_count}",
         f"- Gate pass rate: {report.gate_pass_rate:.6f}",
         "",
-        "## Per-Run Seeds And Outcomes",
+        "## Per-Perturbation Counts",
         "",
-        "| StudySpec | Seed | Outcome | Surrogate ID | Reason |",
-        "|---|---:|---|---|---|",
+        "| Perturbation | Runs | Errors | Passes | Pass Rate | Verdict |",
+        "|---|---:|---:|---:|---:|---|",
     ]
+    for perturbation_type, counts in sorted(report.perturbation_type_counts.items()):
+        lines.append(
+            "| {perturbation_type} | {run_count} | {error_count} | {gate_pass_count} | "
+            "{gate_pass_rate:.6f} | {threshold_verdict} |".format(
+                perturbation_type=perturbation_type,
+                run_count=counts["run_count"],
+                error_count=counts["error_count"],
+                gate_pass_count=counts["gate_pass_count"],
+                gate_pass_rate=float(counts["gate_pass_rate"]),
+                threshold_verdict=counts["threshold_verdict"],
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Per-Run Seeds And Outcomes",
+            "",
+            "| StudySpec | Perturbation | Seed | Outcome | Surrogate ID | Reason |",
+            "|---|---|---:|---|---|---|",
+        ]
+    )
     for row in report.per_run:
         lines.append(
-            "| {study_spec_id} | {seed} | {gate_status} | {surrogate_id} | {reason} |".format(
+            "| {study_spec_id} | {perturbation_type} | {seed} | {gate_status} | "
+            "{surrogate_id} | {reason} |".format(
                 study_spec_id=row.get("study_spec_id", ""),
+                perturbation_type=row.get("perturbation_type", ""),
                 seed=row.get("seed", ""),
                 gate_status=row.get("gate_status", ""),
                 surrogate_id=row.get("surrogate_id", ""),
@@ -663,7 +756,7 @@ def render_value_free_calibration_report(
             "`src/alpha_system/governance/surrogate_run.py`.",
             "- `surrogate_flag` is threaded through `TrialLedgerRecord`; true "
             "surrogate trials are excluded from production variant/family counts.",
-            "- `alpha governance surrogate-calibrate` runs seeded label-shuffled "
+            "- `alpha governance surrogate-calibrate` runs seeded surrogate "
             "calibrations in caller-supplied isolated namespaces.",
             "- Real-data calibration over the kill-shot StudySpec remains a "
             "coordinator runbook step before FUTSUB-P28 kill-shot resume.",
@@ -751,6 +844,182 @@ def write_label_shuffled_copy(
         "record_count": len(labels),
         "group_count": len(groups),
         "moved_count": moved_count,
+    }
+
+
+def write_trade_date_block_shuffled_copy(
+    labels_path: str | Path,
+    output_path: str | Path,
+    *,
+    seed: int,
+) -> dict[str, JsonValue]:
+    """Write a deterministic equal-length trade-date block shuffle."""
+
+    active_seed = _validate_seed(seed)
+    source = assert_local_wsl_path(labels_path)
+    output = assert_local_wsl_path(output_path)
+    labels = _read_required_label_rows(
+        source,
+        missing_message="trade-date block shuffle requires an existing label JSONL file",
+        empty_message="trade-date block shuffle requires at least one label row",
+    )
+    shuffled = [dict(label) for label in labels]
+    groups = _label_groups(labels)
+    moved_count = 0
+    date_block_count = 0
+    shuffled_block_count = 0
+    unmatched_block_count = 0
+    unmatched_record_count = 0
+    eligible_block_count = 0
+
+    for group_key, indices in groups.items():
+        blocks = _date_blocks_for_group(labels, group_key, indices)
+        date_block_count += len(blocks)
+        for block_length, same_length_blocks in _blocks_by_length(blocks).items():
+            if len(same_length_blocks) < 2:
+                unmatched_block_count += len(same_length_blocks)
+                unmatched_record_count += block_length * len(same_length_blocks)
+                continue
+            eligible_block_count += len(same_length_blocks)
+            permutation = _deranged_block_indices(
+                len(same_length_blocks),
+                seed=(
+                    active_seed
+                    + _stable_group_offset(group_key)
+                    + _stable_length_offset(block_length)
+                ),
+            )
+            for target_position, source_position in enumerate(permutation):
+                target_block = same_length_blocks[target_position]
+                source_block = same_length_blocks[source_position]
+                _copy_block_values(
+                    labels,
+                    shuffled,
+                    target_indices=target_block.indices,
+                    source_indices=source_block.indices,
+                )
+                shuffled_block_count += 1
+                moved_count += len(target_block.indices)
+
+    if eligible_block_count < 2 or moved_count == 0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="insufficient_label_rows_for_shuffle",
+                message=(
+                    "trade-date block shuffle must move at least one equal-length "
+                    "date block"
+                ),
+                expected="at least two equal-length date blocks in one label group",
+                actual=f"{len(labels)} label rows across {len(groups)} groups",
+            )
+        )
+    _write_jsonl_rows(output, shuffled)
+    return {
+        "record_count": len(labels),
+        "group_count": len(groups),
+        "date_block_count": date_block_count,
+        "shuffled_block_count": shuffled_block_count,
+        "moved_count": moved_count,
+        "unmatched_block_count": unmatched_block_count,
+        "unmatched_record_count": unmatched_record_count,
+        "timestamp_field": LABEL_BLOCK_TIMESTAMP_FIELD,
+    }
+
+
+def write_trade_date_block_bootstrap_copy(
+    labels_path: str | Path,
+    output_path: str | Path,
+    *,
+    seed: int,
+) -> dict[str, JsonValue]:
+    """Write a deterministic equal-length trade-date block bootstrap copy."""
+
+    active_seed = _validate_seed(seed)
+    source = assert_local_wsl_path(labels_path)
+    output = assert_local_wsl_path(output_path)
+    labels = _read_required_label_rows(
+        source,
+        missing_message="trade-date block bootstrap requires an existing label JSONL file",
+        empty_message="trade-date block bootstrap requires at least one label row",
+    )
+    bootstrapped = [dict(label) for label in labels]
+    groups = _label_groups(labels)
+    moved_count = 0
+    date_block_count = 0
+    sampled_block_count = 0
+    identity_block_count = 0
+    duplicate_source_block_count = 0
+    eligible_block_count = 0
+
+    for group_key, indices in groups.items():
+        blocks = _date_blocks_for_group(labels, group_key, indices)
+        date_block_count += len(blocks)
+        for block_length, same_length_blocks in _blocks_by_length(blocks).items():
+            if len(same_length_blocks) < 2:
+                identity_block_count += len(same_length_blocks)
+                continue
+            eligible_block_count += len(same_length_blocks)
+            rng = random.Random(
+                active_seed
+                + _stable_group_offset(group_key)
+                + _stable_length_offset(block_length)
+                + 104729
+            )
+            sampled_positions = [
+                rng.randrange(len(same_length_blocks)) for _ in same_length_blocks
+            ]
+            duplicate_source_block_count += len(sampled_positions) - len(
+                set(sampled_positions)
+            )
+            for target_position, source_position in enumerate(sampled_positions):
+                target_block = same_length_blocks[target_position]
+                source_block = same_length_blocks[source_position]
+                _copy_block_values(
+                    labels,
+                    bootstrapped,
+                    target_indices=target_block.indices,
+                    source_indices=source_block.indices,
+                )
+                sampled_block_count += 1
+                if target_position == source_position:
+                    identity_block_count += 1
+                else:
+                    moved_count += len(target_block.indices)
+
+    if eligible_block_count < 2:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="insufficient_label_rows_for_shuffle",
+                message=(
+                    "trade-date block bootstrap requires at least two equal-length "
+                    "date blocks"
+                ),
+                expected="at least two equal-length date blocks in one label group",
+                actual=f"{len(labels)} label rows across {len(groups)} groups",
+            )
+        )
+    if moved_count == 0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="identity_trade_date_block_bootstrap",
+                message="trade-date block bootstrap sampled the identity arrangement",
+                expected="at least one date block sampled from a different source block",
+                actual=f"{date_block_count} date blocks",
+            )
+        )
+    _write_jsonl_rows(output, bootstrapped)
+    return {
+        "record_count": len(labels),
+        "group_count": len(groups),
+        "date_block_count": date_block_count,
+        "sampled_block_count": sampled_block_count,
+        "moved_count": moved_count,
+        "identity_block_count": identity_block_count,
+        "duplicate_source_block_count": duplicate_source_block_count,
+        "timestamp_field": LABEL_BLOCK_TIMESTAMP_FIELD,
     }
 
 
@@ -968,6 +1237,44 @@ def _write_canonical_json(path: Path, payload: Mapping[str, JsonValue]) -> None:
     path.write_text(canonical_serialize(dict(payload)) + "\n", encoding="utf-8")
 
 
+def _write_jsonl_rows(path: Path, rows: Iterable[Mapping[str, JsonValue]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(dict(row), sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
+def _read_required_label_rows(
+    source: Path,
+    *,
+    missing_message: str,
+    empty_message: str,
+) -> list[dict[str, JsonValue]]:
+    if not source.is_file():
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="missing_label_values",
+                message=missing_message,
+                expected="existing local label JSONL file",
+                actual=source.as_posix(),
+            )
+        )
+    labels = _read_jsonl_mappings(source)
+    if not labels:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="empty_label_values",
+                message=empty_message,
+                expected="non-empty label JSONL file",
+                actual=source.as_posix(),
+            )
+        )
+    return labels
+
+
 def _read_jsonl_mappings(path: Path) -> list[dict[str, JsonValue]]:
     rows: list[dict[str, JsonValue]] = []
     try:
@@ -1021,6 +1328,71 @@ def _label_groups(labels: list[dict[str, JsonValue]]) -> dict[tuple[str, str, st
     return groups
 
 
+def _date_blocks_for_group(
+    labels: list[dict[str, JsonValue]],
+    group_key: tuple[str, str, str],
+    indices: list[int],
+) -> tuple[_DateBlock, ...]:
+    by_date: dict[str, list[int]] = {}
+    for index in indices:
+        trade_date = _label_trade_date(labels[index], row_number=index + 1)
+        by_date.setdefault(trade_date, []).append(index)
+    return tuple(
+        _DateBlock(group_key=group_key, trade_date=trade_date, indices=tuple(block_indices))
+        for trade_date, block_indices in by_date.items()
+    )
+
+
+def _blocks_by_length(blocks: tuple[_DateBlock, ...]) -> dict[int, tuple[_DateBlock, ...]]:
+    grouped: defaultdict[int, list[_DateBlock]] = defaultdict(list)
+    for block in blocks:
+        grouped[len(block.indices)].append(block)
+    return {block_length: tuple(items) for block_length, items in sorted(grouped.items())}
+
+
+def _label_trade_date(row: Mapping[str, JsonValue], *, row_number: int) -> str:
+    # Real value-store LabelValueRecord.to_dict() rows use `event_ts` as the
+    # label event/decision alignment timestamp; `label_available_ts` is the
+    # post-horizon availability guard and must not define the trading-date block.
+    value = row.get(LABEL_BLOCK_TIMESTAMP_FIELD)
+    if not isinstance(value, str) or not value.strip():
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"labels_path:{row_number}.{LABEL_BLOCK_TIMESTAMP_FIELD}",
+                code="missing_label_block_timestamp",
+                message="trade-date block surrogate requires label event_ts",
+                expected="ISO-8601 event_ts on every label row",
+                actual=type(value).__name__ if value is not None else "missing",
+            )
+        )
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"labels_path:{row_number}.{LABEL_BLOCK_TIMESTAMP_FIELD}",
+                code="invalid_label_block_timestamp",
+                message="label event_ts must be ISO-8601 text for trade-date blocking",
+                expected="ISO-8601 event_ts",
+                actual=value,
+            )
+        ) from exc
+    return parsed.date().isoformat()
+
+
+def _copy_block_values(
+    labels: list[dict[str, JsonValue]],
+    output_rows: list[dict[str, JsonValue]],
+    *,
+    target_indices: tuple[int, ...],
+    source_indices: tuple[int, ...],
+) -> None:
+    if len(target_indices) != len(source_indices):
+        raise AssertionError("date block value copies require equal-length blocks")
+    for offset, target_index in enumerate(target_indices):
+        output_rows[target_index]["value"] = labels[source_indices[offset]].get("value")
+
+
 def _deranged_indices(length: int, *, seed: int) -> list[int]:
     indices = list(range(length))
     rng = random.Random(seed)
@@ -1030,8 +1402,98 @@ def _deranged_indices(length: int, *, seed: int) -> list[int]:
     return indices
 
 
+def _deranged_block_indices(length: int, *, seed: int) -> list[int]:
+    if length < 2:
+        return list(range(length))
+    indices = list(range(length))
+    rng = random.Random(seed)
+    for _ in range(128):
+        rng.shuffle(indices)
+        if all(position != value for position, value in enumerate(indices)):
+            return list(indices)
+    return indices[1:] + indices[:1]
+
+
 def _stable_group_offset(group_key: tuple[str, str, str]) -> int:
     return int(content_hash({"group_key": list(group_key)})[:8], 16)
+
+
+def _stable_length_offset(block_length: int) -> int:
+    return int(content_hash({"block_length": block_length})[:8], 16)
+
+
+def _write_perturbation_copy(
+    perturbation_type: SurrogatePerturbationType,
+    labels_path: str | Path,
+    output_path: str | Path,
+    *,
+    seed: int,
+) -> dict[str, JsonValue]:
+    if perturbation_type is SurrogatePerturbationType.LABEL_SHUFFLE:
+        return write_label_shuffled_copy(labels_path, output_path, seed=seed)
+    if perturbation_type is SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE:
+        return write_trade_date_block_shuffled_copy(labels_path, output_path, seed=seed)
+    if perturbation_type is SurrogatePerturbationType.TRADE_DATE_BLOCK_BOOTSTRAP:
+        return write_trade_date_block_bootstrap_copy(labels_path, output_path, seed=seed)
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="perturbation_type",
+            code="unsupported_surrogate_execution",
+            message="surrogate runner does not execute random_target perturbations",
+            expected="supported label-value perturbation",
+            actual=perturbation_type.value,
+        )
+    )
+
+
+def _perturbation_output_name(perturbation_type: SurrogatePerturbationType) -> str:
+    if perturbation_type is SurrogatePerturbationType.LABEL_SHUFFLE:
+        return "label_shuffle.jsonl"
+    return f"{perturbation_type.value}.jsonl"
+
+
+def _trial_parameters_for_perturbation(
+    perturbation_type: SurrogatePerturbationType,
+    *,
+    seed: int,
+    summary: Mapping[str, JsonValue],
+) -> dict[str, JsonValue]:
+    if perturbation_type is SurrogatePerturbationType.LABEL_SHUFFLE:
+        return {
+            "perturbation_type": perturbation_type.value,
+            "seed": seed,
+            "shuffle_group_count": summary["group_count"],
+            "shuffled_record_count": summary["record_count"],
+        }
+    parameters: dict[str, JsonValue] = {
+        "perturbation_type": perturbation_type.value,
+        "seed": seed,
+        "perturbation_group_count": summary["group_count"],
+        "perturbed_record_count": summary["record_count"],
+        "date_block_count": summary["date_block_count"],
+        "moved_count": summary["moved_count"],
+        "timestamp_field": summary["timestamp_field"],
+    }
+    for key in (
+        "unmatched_block_count",
+        "unmatched_record_count",
+        "sampled_block_count",
+        "identity_block_count",
+        "duplicate_source_block_count",
+    ):
+        if key in summary:
+            parameters[key] = summary[key]
+    return parameters
+
+
+def _surrogate_label_version_text(
+    perturbation_type: SurrogatePerturbationType,
+    *,
+    seed: int,
+) -> str:
+    if perturbation_type is SurrogatePerturbationType.LABEL_SHUFFLE:
+        return f"surrogate-label-shuffle-seed-{seed}"
+    return f"surrogate-{perturbation_type.value}-seed-{seed}"
 
 
 def _coerce_study_spec(value: StudySpec | Mapping[str, Any]) -> StudySpec:
@@ -1050,9 +1512,16 @@ def _coerce_study_spec(value: StudySpec | Mapping[str, Any]) -> StudySpec:
     )
 
 
-def _error_row(study_spec: StudySpec, *, seed: int, exc: BaseException) -> dict[str, JsonValue]:
+def _error_row(
+    study_spec: StudySpec,
+    *,
+    perturbation_type: SurrogatePerturbationType,
+    seed: int,
+    exc: BaseException,
+) -> dict[str, JsonValue]:
     return {
         "study_spec_id": study_spec.study_spec_id,
+        "perturbation_type": perturbation_type.value,
         "seed": seed,
         "surrogate_id": "",
         "gate_status": SurrogateGateStatus.ERROR.value,
@@ -1331,5 +1800,7 @@ __all__ = [
     "run_surrogate_study",
     "validate_surrogate_study_run",
     "write_label_shuffled_copy",
+    "write_trade_date_block_bootstrap_copy",
+    "write_trade_date_block_shuffled_copy",
     "write_value_free_calibration_report",
 ]
