@@ -123,33 +123,44 @@ git config --get --bool core.bare
 git rev-parse --is-bare-repository
 ```
 
-Fix:
+Root cause, proven in a scratch reproduction on 2026-06-12: a push from a
+linked worktree runs `.githooks/pre-push` with `GIT_DIR` exported to the
+linked-worktree gitdir (`<main>/.git/worktrees/<wt>`). The hook then launches
+the smoke and canary checks. If that hook Git context is inherited,
+`tools/hooks/canary_runner.py` can run its scratch `git init` against the real
+linked-worktree gitdir instead of the scratch directory, rewriting the shared
+`<main>/.git/config` with `core.bare=true`.
+
+Minimal reproduction shape, using only a disposable repo:
+
+```bash
+GIT_DIR=/tmp/main/.git/worktrees/wt git -C "$(mktemp -d)" init
+```
+
+Pushes from the canonical repo are immune to this specific failure because the
+hook-exported `GIT_DIR` is relative (`.git`), so the canary scratch cwd resolves
+it inside the scratch directory instead of the shared repo gitdir.
+
+Current prevention: `pre_push.py` scrubs `GIT_*` from the environment passed to
+its smoke/canary subprocesses, and `canary_runner.py` scrubs `GIT_*` before its
+own subprocesses. If an older checkout or interrupted run still leaves the repo
+bare, restore it explicitly:
 
 ```bash
 git config core.bare false
 ```
 
-Use the safe coordinator merge wrapper instead of raw `gh pr merge`:
+Defense-in-depth layers remain:
+
+- `python tools/frontier/status_doctor.py` fails closed when `core.bare=true`.
+- Workflow 2 restores `core.bare=false` during RUN_INIT/resume preflight and
+  emits `CORE_BARE_RESTORED` when it repairs the local repo.
+- The safe coordinator merge wrapper serializes GitHub/Git operations and
+  restores `core.bare=false` before releasing its lock:
 
 ```bash
 just pr-merge <number>
 ```
-
-Workflow 2 also restores `core.bare=false` during RUN_INIT/resume preflight
-and emits `CORE_BARE_RESTORED` when it has to repair the local repo.
-
-Scratch investigation for `P234500_WF2_CI_SELF_REPAIR_AND_BARE_GUARD` used
-`/tmp/wf2_core_bare_investigation.wUbrXz` and did not run `git worktree`.
-Findings: enabling `extensions.worktreeConfig=true` plus a
-`.git/config.worktree` sparse-checkout setting left `git rev-parse
---is-bare-repository` at `false`; setting `core.bare=true` immediately made
-`git status` fail with the work-tree fatal; restoring `core.bare=false` fixed
-it. Removing `extensions.worktreeConfig` after that left the repo non-bare and
-usable, while Git stopped reading the leftover `config.worktree` sparse
-setting. Recommendation: do not remove the canonical repo's extension in this
-phase; after linked worktrees are pruned, it is reasonable to remove it only if
-the repo no longer depends on per-worktree sparse settings, and only with a
-separate explicit coordinator action.
 
 ## Hidden Failed Runs
 

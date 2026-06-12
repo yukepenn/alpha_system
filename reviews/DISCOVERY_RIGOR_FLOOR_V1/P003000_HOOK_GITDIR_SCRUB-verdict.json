@@ -1,0 +1,45 @@
+{
+  "phase_id": "P003000_HOOK_GITDIR_SCRUB",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [
+    {
+      "severity": "info",
+      "title": "Branch base one commit behind origin/main",
+      "detail": "origin/main moved to 2811c7b (PR #376) after the branch was cut from 6b398ff; raw `git diff origin/main` shows ~1481 lines of reverse-noise not part of this phase. No file overlap between the phase diff and PR #376. Rebase before PR."
+    },
+    {
+      "severity": "low",
+      "title": "Multi-line docstring annotation vs spec 'single-line comment touch-ups only'",
+      "detail": "ralph_driver.py restore_local_repo_after_merge docstring edit spans ~5 lines. Proven comment/docstring-only via AST comparison (AST-identical to HEAD with docstrings normalized); no state-machine or gate behavior change."
+    },
+    {
+      "severity": "low",
+      "title": "TROUBLESHOOTING removed P234500 worktreeConfig investigation notes",
+      "detail": "The deleted paragraph carried a standing recommendation about extensions.worktreeConfig removal. Defensible deletion (superseded misdiagnosis log) but the recommendation is now undocumented."
+    },
+    {
+      "severity": "low",
+      "title": "pre_push defense layer verified only at plumbing level",
+      "detail": "Mutation B is caught by a mocked-subprocess test (KeyError 'env'), not an end-to-end leak test. End-to-end guarantee rests on the canary_runner scrub, which is tested unmocked with a real temp-repo flip reproduction."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "name": "A: remove env=clean_env from both run_canary subprocess calls",
+      "result": "CAUGHT",
+      "detail": "test_canary_runner_git_init_ignores_leaked_linked_worktree_gitdir FAILED (1 failed, 2 passed in file); direct probe with mutated code reproduced core.bare=true in the temp main repo via git config --get --bool core.bare. Restored; git diff HEAD sha256 byte-identical to baseline faf59fb3b778c879cc6e1bb29751716bc54534d8722e2a034bc05c3cd413e8a0."
+    },
+    {
+      "name": "B: remove env=clean_env from pre_push.py check-subprocess loop only",
+      "result": "CAUGHT",
+      "detail": "test_pre_push_check_subprocesses_receive_scrubbed_git_env FAILED with KeyError 'env'; exactly 1 failed, 27 passed in tests/unit -k 'hook or canary'. Restored; sha256 byte-identical to baseline."
+    }
+  ],
+  "validation_counts": {
+    "pytest_hook_or_canary": {"passed": 28, "failed": 0, "deselected": 2644, "exit_code": 0},
+    "canary_runner": {"pass": 21, "fail": 0, "exit_code": 0},
+    "verify_smoke": {"exit_code": 0},
+    "status_doctor": {"exit_code": 0, "verdict": "WARN", "warn_reason": "no live run dir with state.json for DISCOVERY_RIGOR_FLOOR_V1 (expected for WF1 phase)", "core_bare": "false"},
+    "artifact_policy": {"staged": "empty", "git_ls_files_runs": "empty", "runs_paths_in_status": 0}
+  }
+}

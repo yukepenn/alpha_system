@@ -149,9 +149,8 @@ def _run_gh(
     timeout_seconds: int = 120,
 ) -> Any:
     # Serialize gh against every other git/gh op (parallel build threads share one
-    # repo) and restore core.bare before releasing the lock: some gh subcommands
-    # (notably `pr merge`) transiently flip the shared repo to core.bare=true via
-    # their internal git, and a concurrent phase's commit must never observe it.
+    # repo) and restore core.bare before releasing the lock. The recurring flip was
+    # root-caused to hook-leaked GIT_DIR; keep this as defense in depth.
     with GIT_SERIAL_LOCK:
         result = _runner(root, runner).run(command, timeout_seconds=timeout_seconds)
         try:
@@ -1145,8 +1144,8 @@ def merge_pr(
     runner: CommandRunner | None = None,
 ) -> GitHubResult:
     # NOTE: no `--delete-branch`. In a worktree the merged branch is checked out,
-    # and gh's branch-deletion path can flip the shared repo to core.bare=true,
-    # which breaks sibling phases committing concurrently in a parallel wave.
+    # so keep branch cleanup outside gh while the hook env scrub and core.bare
+    # restore guard protect sibling phases committing concurrently in a wave.
     # Branch deletion is instead performed by the driver after the merge, in BOTH
     # modes: worktree mode via WorktreeManager.cleanup_after_merge (removes the
     # worktree + deletes the local and remote branch); in-tree mode via

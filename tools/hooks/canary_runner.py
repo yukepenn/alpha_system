@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,12 +29,19 @@ def write_files(base: Path, paths: dict[str, str]) -> None:
         path.write_text(text, encoding="utf-8")
 
 
+def _scrub_git_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    source = os.environ if env is None else env
+    return {key: value for key, value in source.items() if not key.startswith("GIT_")}
+
+
 def run_canary(canary: Canary) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory(prefix=f"frontier-canary-{canary.name}-") as raw_tmp:
         tmp = Path(raw_tmp)
+        clean_env = _scrub_git_env()
         subprocess.run(
             ["git", "init"],
             cwd=tmp,
+            env=clean_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
@@ -41,6 +50,7 @@ def run_canary(canary: Canary) -> tuple[bool, str]:
         result = subprocess.run(
             canary.command,
             cwd=tmp,
+            env=clean_env,
             text=True,
             capture_output=True,
             check=False,
