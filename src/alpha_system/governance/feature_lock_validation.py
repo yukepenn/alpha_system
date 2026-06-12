@@ -22,6 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from alpha_system.core.value_store import (
+    ValueStoreFormat,
+    compute_value_content_hash,
+    read_parquet_manifest,
+)
 from alpha_system.features.contracts import FEATURE_VERSION_PATTERN
 from alpha_system.features.registry import FeatureRegistry
 
@@ -78,6 +83,33 @@ class FeatureLockValidationReport:
             "stale_lock_ids": list(self.stale_lock_ids),
             "ok": self.ok,
             "resolutions": [resolution.to_dict() for resolution in self.resolutions],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ValueStoreContentHashVerification:
+    """Content-hash verification outcome for a registered value store."""
+
+    pack_kind: str
+    value_store_format: str
+    path: str
+    expected_content_hash: str
+    actual_content_hash: str
+
+    @property
+    def ok(self) -> bool:
+        """Return whether the registered hash matched the concrete value store."""
+
+        return self.expected_content_hash == self.actual_content_hash
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "pack_kind": self.pack_kind,
+            "value_store_format": self.value_store_format,
+            "path": self.path,
+            "expected_content_hash": self.expected_content_hash,
+            "actual_content_hash": self.actual_content_hash,
+            "ok": self.ok,
         }
 
 
@@ -156,10 +188,103 @@ def validate_feature_locks(
     return report
 
 
+def verify_registered_value_store_content_hash(
+    record: Any,
+    *,
+    pack_kind: str,
+    version_id: str,
+) -> ValueStoreContentHashVerification:
+    """Fail closed unless a registry record's value-store hash matches storage.
+
+    The helper intentionally uses the shared value-store primitives rather than
+    reading manifests or hashing rows ad hoc.
+    """
+
+    expected_hash = _required_text(
+        getattr(record, "value_content_hash", None),
+        f"{pack_kind} registry value_content_hash",
+    )
+    value_format = ValueStoreFormat(
+        _required_text(
+            getattr(record, "value_store_format", None),
+            f"{pack_kind} registry value_store_format",
+        )
+    )
+    path, path_format = _value_store_path(
+        record,
+        value_format=value_format,
+        pack_kind=pack_kind,
+    )
+    if path_format is ValueStoreFormat.PARQUET:
+        actual_hash = _required_text(
+            read_parquet_manifest(path).get("content_hash"),
+            f"{pack_kind} parquet manifest content_hash",
+        )
+    else:
+        actual_hash = compute_value_content_hash(_read_jsonl_mappings(path))
+
+    verification = ValueStoreContentHashVerification(
+        pack_kind=pack_kind,
+        value_store_format=value_format.value,
+        path=path.as_posix(),
+        expected_content_hash=expected_hash,
+        actual_content_hash=actual_hash,
+    )
+    if not verification.ok:
+        raise FeatureLockValidationError(
+            f"{pack_kind} value content hash mismatch for {version_id}: "
+            f"path={verification.path} expected={verification.expected_content_hash} "
+            f"actual={verification.actual_content_hash}"
+        )
+    return verification
+
+
+def _value_store_path(
+    record: Any,
+    *,
+    value_format: ValueStoreFormat,
+    pack_kind: str,
+) -> tuple[Path, ValueStoreFormat]:
+    parquet_path = getattr(record, "parquet_path", None)
+    if value_format in (ValueStoreFormat.PARQUET, ValueStoreFormat.DUAL) and parquet_path:
+        return Path(str(parquet_path)).expanduser().resolve(strict=False), ValueStoreFormat.PARQUET
+    jsonl_path = getattr(record, "materialization_output_path", None)
+    if value_format in (ValueStoreFormat.JSONL, ValueStoreFormat.DUAL) and jsonl_path:
+        return Path(str(jsonl_path)).expanduser().resolve(strict=False), ValueStoreFormat.JSONL
+    raise FeatureLockValidationError(
+        f"{pack_kind} registered value store is missing a usable path "
+        f"for format {value_format.value}"
+    )
+
+
+def _read_jsonl_mappings(path: Path) -> list[dict[str, Any]]:
+    import json
+
+    rows: list[dict[str, Any]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        value = json.loads(line)
+        if not isinstance(value, Mapping):
+            raise FeatureLockValidationError(
+                f"JSONL value store row must be a mapping: path={path} line={line_number}"
+            )
+        rows.append(dict(value))
+    return rows
+
+
+def _required_text(value: Any, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise FeatureLockValidationError(f"{field_name} is required")
+    return value.strip()
+
+
 __all__ = [
     "FeatureLockResolution",
     "FeatureLockValidationError",
     "FeatureLockValidationReport",
+    "ValueStoreContentHashVerification",
     "extract_feature_version_ids",
     "validate_feature_locks",
+    "verify_registered_value_store_content_hash",
 ]

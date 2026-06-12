@@ -1,0 +1,57 @@
+{
+  "campaign_id": "FUTSUB_KILLSHOT_READINESS_OPS_V1",
+  "phase_id": "P085900_CALIBRATION_STAGING_INTEGRITY",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewer": "claude-fresh-adversarial-wf1",
+  "reviewed_commit": "f7869a1",
+  "branch": "wf1/staging-integrity",
+  "reviewed_at": "2026-06-12T00:00:00Z",
+  "must_checks": {
+    "one_truth_runtime_factor_derivation": "PASS",
+    "declared_family_rule_fail_closed": "PASS_WITH_WARNINGS",
+    "content_hash_verified_before_use": "PASS_WITH_WARNINGS",
+    "fver_lver_row_filtering": "PASS",
+    "mutation_tests": "PASS",
+    "rescore_mode": "PASS",
+    "scope_artifact_policy_handoff_truthfulness": "PASS"
+  },
+  "mutation_results": [
+    {
+      "id": "A",
+      "mutation": "_declared_feature_family returns sorted(candidate_families)[0] on ambiguity",
+      "killed_by": "test_real_surrogate_calibration_refuses_ambiguous_declared_factor_family",
+      "killed": true
+    },
+    {
+      "id": "B",
+      "mutation": "verify_registered_value_store_content_hash mismatch raise disabled",
+      "killed_by": "test_real_surrogate_calibration_refuses_value_hash_mismatch",
+      "killed": true
+    },
+    {
+      "id": "C",
+      "mutation": "_filter_rows_by_version returns all rows unfiltered",
+      "killed_by": "test_real_surrogate_calibration_filters_locked_versions_from_parquet",
+      "killed": true
+    }
+  ],
+  "warnings": [
+    "W1: runtime factor probe is partially self-referential (surrogate_fdr.factor_id is tool-written from the lock-pinned record); integrity guarantee is structural (stage-all declared factors + fail-closed ambiguity), probe pins only the runtime constructor",
+    "W2: tool derives the under-test family from the unique non-support lock family and never cross-checks the sspec's explicit dataset_scope.family; a future sspec whose true family is in the hardcoded support set could be silently mis-resolved (six committed sspecs pinned by test)",
+    "W3: six-rerun-sspec factor-resolution test is skip-gated on a local registry it does not use; it silently skips in CI (passed locally during review) — remove the gate so CI pins the factor sets",
+    "W4: Parquet hash verification compares registry hash to the sidecar manifest, not a recomputation over parquet rows; parquet-swapped-without-manifest passes vacuously (fver row filter and record-lock assertions are independent nets for the cross-factor clobber class); recommend recomputing compute_value_content_hash over loaded rows",
+    "W5: pre-fix namespaces cannot be rescored under the new multi-spec seed grid (fail closed via missing-seed error rows) — acceptable, those runs are the invalid wrong-factor runs"
+  ],
+  "validation_verified": {
+    "focused_tool_tests": "8 passed",
+    "governance_plus_discovery_rigor_floor": "681 passed",
+    "research_tests": "6 passed",
+    "canaries": "25 PASS",
+    "verify_smoke_exit": 0,
+    "ci_parity": "3306 passed, 77 skipped",
+    "git_ls_files_runs": "empty",
+    "git_status_after_mutations": "clean"
+  },
+  "handoff_truthful": true,
+  "blocking_findings": []
+}
