@@ -11,7 +11,10 @@ from datetime import UTC, datetime, time
 
 import pytest
 
+import alpha_system.features.families.bbo.family as bbo_family
+import alpha_system.features.families.cross_market.family as cross_market_family
 import alpha_system.features.families.ohlcv.family as ohlcv_family
+import alpha_system.features.families.structure.family as structure_family
 from alpha_system.data.foundation.sessions import (
     SessionTemplate,
     load_session_template_by_id,
@@ -29,9 +32,20 @@ from alpha_system.features.contracts import (
     WindowSpec,
 )
 from alpha_system.features.families.ohlcv import (
-    OHLCVFeatureDefinition,
     OHLCVFeatureName,
     build_ohlcv_feature_definition,
+)
+from alpha_system.features.families.bbo import (
+    BBOFeatureName,
+    build_bbo_feature_definition,
+)
+from alpha_system.features.families.cross_market import (
+    CrossMarketFeatureName,
+    build_cross_market_feature_definition,
+)
+from alpha_system.features.families.structure import (
+    StructureFeatureName,
+    build_structure_feature_definition,
 )
 from alpha_system.features.request_gate import evaluate_feature_request_gate
 from alpha_system.governance.duplicate_exposure import (
@@ -314,12 +328,23 @@ def test_session_conditioned_ohlcv_identity_includes_template_truth(
     )
 
 
+@pytest.mark.parametrize(
+    "feature_name",
+    (
+        OHLCVFeatureName.RETURNS,
+        OHLCVFeatureName.VOLUME_ZSCORE,
+        OHLCVFeatureName.ROLLING_RANGE,
+    ),
+)
 def test_non_session_conditioned_ohlcv_identity_ignores_session_template_changes(
     monkeypatch: pytest.MonkeyPatch,
+    feature_name: OHLCVFeatureName,
 ) -> None:
-    base_request = _feature_request(exposure_family="non_session_conditioned_return")
+    base_request = _feature_request(
+        exposure_family=f"non_session_conditioned_{feature_name.value}"
+    )
     base = build_ohlcv_feature_definition(
-        OHLCVFeatureName.RETURNS,
+        feature_name,
         base_request,
         _EmptyRegistryReader(),
         dataset_version_ids=("dsv_fixture",),
@@ -345,7 +370,7 @@ def test_non_session_conditioned_ohlcv_identity_ignores_session_template_changes
 
     monkeypatch.setattr(ohlcv_family, "load_session_template_by_id", _alternate_template)
     variant = build_ohlcv_feature_definition(
-        OHLCVFeatureName.RETURNS,
+        feature_name,
         base_request,
         _EmptyRegistryReader(),
         dataset_version_ids=("dsv_fixture",),
@@ -362,6 +387,147 @@ def test_non_session_conditioned_ohlcv_identity_ignores_session_template_changes
     )
 
 
+def test_remaining_session_conditioned_family_identities_include_template_truth() -> None:
+    definitions = (
+        build_structure_feature_definition(
+            StructureFeatureName.PRIOR_HIGH_DISTANCE,
+            _feature_request(exposure_family="session_truth_structure_prior_high"),
+            _EmptyRegistryReader(),
+            dataset_version_ids=("dsv_fixture",),
+            window_length=2,
+            reset_on_session=True,
+        ),
+        build_bbo_feature_definition(
+            BBOFeatureName.SPREAD_ZSCORE,
+            _feature_request(exposure_family="session_truth_bbo_spread_zscore"),
+            _EmptyRegistryReader(),
+            dataset_version_ids=("dsv_fixture",),
+            window_length=2,
+            reset_on_session=True,
+        ),
+        build_cross_market_feature_definition(
+            CrossMarketFeatureName.SYNCHRONIZED_RETURNS,
+            _feature_request(exposure_family="session_truth_cross_market_returns"),
+            _EmptyRegistryReader(),
+            dataset_version_ids=("dsv_fixture",),
+            window_length=2,
+            reset_on_session=True,
+        ),
+    )
+
+    for definition in definitions:
+        spec = _feature_spec_from_definition(definition)
+        parameters = spec.to_identity_dict()["transform"]["parameters"]
+        expected = _session_truth_parameters()
+
+        for key, value in expected.items():
+            assert parameters[key] == value
+
+        legacy_parameters = {
+            key: value
+            for key, value in parameters.items()
+            if key not in SESSION_TRUTH_KEYS
+        }
+        legacy_spec = _copy_spec_with_transform_parameters(definition, legacy_parameters)
+
+        assert (
+            spec.derive_feature_version().feature_version_id
+            != legacy_spec.derive_feature_version().feature_version_id
+        )
+
+
+def test_remaining_non_session_conditioned_identities_ignore_session_template_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    structure_request = _feature_request(
+        exposure_family="non_session_conditioned_structure_prior_high"
+    )
+    bbo_request = _feature_request(exposure_family="non_session_conditioned_bbo_mid")
+    cross_request = _feature_request(
+        exposure_family="non_session_conditioned_cross_market_returns"
+    )
+    base_structure = build_structure_feature_definition(
+        StructureFeatureName.PRIOR_HIGH_DISTANCE,
+        structure_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=False,
+    )
+    base_bbo = build_bbo_feature_definition(
+        BBOFeatureName.MID,
+        bbo_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        reset_on_session=False,
+    )
+    base_cross = build_cross_market_feature_definition(
+        CrossMarketFeatureName.SYNCHRONIZED_RETURNS,
+        cross_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=False,
+    )
+
+    def _alternate_template(
+        template_id: str = "session_cme_index_futures_eth",
+        path: object | None = None,
+    ) -> SessionTemplate:
+        del template_id, path
+        return SessionTemplate(
+            template_id="session_cme_index_futures_eth",
+            timezone="America/Chicago",
+            rth_start=time(9, 0),
+            rth_end=time(15, 0),
+            eth_start=time(17, 0),
+            eth_end=time(16, 0),
+            maintenance_breaks=(),
+            source="synthetic unit test",
+        )
+
+    monkeypatch.setattr(structure_family, "default_session_template", _alternate_template)
+    monkeypatch.setattr(bbo_family, "default_session_template", _alternate_template)
+    monkeypatch.setattr(cross_market_family, "default_session_template", _alternate_template)
+
+    variant_structure = build_structure_feature_definition(
+        StructureFeatureName.PRIOR_HIGH_DISTANCE,
+        structure_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=False,
+    )
+    variant_bbo = build_bbo_feature_definition(
+        BBOFeatureName.MID,
+        bbo_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        reset_on_session=False,
+    )
+    variant_cross = build_cross_market_feature_definition(
+        CrossMarketFeatureName.SYNCHRONIZED_RETURNS,
+        cross_request,
+        _EmptyRegistryReader(),
+        dataset_version_ids=("dsv_fixture",),
+        window_length=2,
+        reset_on_session=False,
+    )
+
+    for base, variant in (
+        (base_structure, variant_structure),
+        (base_bbo, variant_bbo),
+        (base_cross, variant_cross),
+    ):
+        assert (
+            _feature_spec_from_definition(base).derive_feature_version().feature_version_id
+            == _feature_spec_from_definition(variant).derive_feature_version().feature_version_id
+        )
+        assert SESSION_TRUTH_KEYS.isdisjoint(
+            _feature_spec_from_definition(variant).to_identity_dict()["transform"]["parameters"]
+        )
+
+
 def _session_truth_parameters() -> dict[str, str]:
     template = load_session_template_by_id()
     return {
@@ -374,10 +540,10 @@ def _session_truth_parameters() -> dict[str, str]:
 
 
 def _copy_spec_with_transform_parameters(
-    definition: OHLCVFeatureDefinition,
+    definition: object,
     parameters: dict[str, object],
 ) -> FeatureSpec:
-    spec = definition.spec
+    spec = _feature_spec_from_definition(definition)
     return FeatureSpec(
         feature_id=spec.feature_id,
         family=spec.family,
@@ -394,8 +560,15 @@ def _copy_spec_with_transform_parameters(
         live=spec.live,
         implementation_eligible=spec.implementation_eligible,
         contract_metadata=spec.contract_metadata,
-        request_gate_decision=definition.request_gate_decision,
+        request_gate_decision=getattr(definition, "request_gate_decision"),
     )
+
+
+def _feature_spec_from_definition(definition: object) -> FeatureSpec:
+    bound_spec = getattr(definition, "spec")
+    spec = getattr(bound_spec, "feature_spec", bound_spec)
+    assert isinstance(spec, FeatureSpec)
+    return spec
 
 
 def _dt(value: str) -> datetime:

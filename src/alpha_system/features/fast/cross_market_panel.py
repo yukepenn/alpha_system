@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.quotes import (
     BBO_QUARANTINE_QUALITY_FLAG,
     MISSING_BBO_QUALITY_FLAG,
@@ -24,6 +25,11 @@ from alpha_system.features.fast.materializer import (
     FastFeaturePack,
     PackMaterializerError,
     constant_window_mask,
+)
+from alpha_system.features.session_truth import (
+    SessionTruthClock,
+    session_contract_parameters,
+    session_truth_clock,
 )
 
 _MARKETS: tuple[str, str, str] = ("ES", "NQ", "RTY")
@@ -230,6 +236,8 @@ def _validate_cross_market_feature(feature: FeatureSpec) -> _CrossMarketPackConf
     _require_parameter(parameters, "markets", list(_MARKETS), feature.feature_id)
     horizon = _positive_int_parameter(parameters, "horizon", feature.feature_id)
     reset_on_session = _bool_parameter(parameters, "reset_on_session", feature.feature_id)
+    if reset_on_session:
+        _validate_session_contract_parameters(parameters, feature.feature_id)
     alignment_policy = _alignment_policy(parameters.get("alignment_policy", "asof"))
     expected_transform = _EXPECTED_TRANSFORM_IDS[feature_name]
     if feature.transform.transform_id != expected_transform:
@@ -288,6 +296,18 @@ def _require_parameter(
         raise PackMaterializerError(f"{feature_id} requires {name}={expected!r}")
 
 
+def _validate_session_contract_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> None:
+    try:
+        expected = session_contract_parameters()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    for name, value in expected.items():
+        _require_parameter(parameters, name, value, feature_id)
+
+
 def _positive_int_parameter(
     parameters: Mapping[str, object],
     name: str,
@@ -336,18 +356,24 @@ def _prepare_frame(frame: Any, config: _CrossMarketPackConfig) -> Any:
             "series_id",
             "event_ts",
             "available_ts",
+            "bar_start_ts",
             "close",
             "quality_flags",
             "session_label",
         ),
     )
+    session_clock = _session_clock()
     working = frame.with_row_index(_ROW_INDEX).with_columns(
         (
             _market_expr(pl).alias(_MARKET),
             _datetime_expr(frame, "event_ts", polars=pl).alias(_ROW_EVENT_TS),
             _datetime_expr(frame, "available_ts", polars=pl).alias(_ROW_AVAILABLE_TS),
             pl.col("close").cast(pl.Float64, strict=False).alias(_CLOSE),
-            pl.col("session_label").cast(pl.Utf8, strict=False).fill_null("").alias(_SESSION),
+            _template_session_label(
+                pl,
+                _datetime_expr(frame, "bar_start_ts", polars=pl),
+                session_clock,
+            ).alias(_SESSION),
             _input_quality_flags(pl).alias(_ROW_FLAGS),
         )
     )
@@ -1043,6 +1069,43 @@ def _datetime_expr(frame: Any, column: str, *, polars: Any) -> Any:
     if dtype in (polars.Utf8, polars.String):
         return polars.col(column).str.to_datetime(time_zone="UTC", strict=True)
     return polars.col(column).cast(polars.Datetime(time_zone="UTC"), strict=False)
+
+
+def _session_clock() -> SessionTruthClock:
+    try:
+        return session_truth_clock()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+
+
+def _local_seconds(
+    polars: Any,
+    timestamp_expr: Any,
+    session_clock: SessionTruthClock,
+) -> Any:
+    local = timestamp_expr.dt.convert_time_zone(session_clock.timezone)
+    return (
+        local.dt.hour().cast(polars.Int64) * 3600
+        + local.dt.minute().cast(polars.Int64) * 60
+        + local.dt.second().cast(polars.Int64)
+    )
+
+
+def _is_rth(polars: Any, timestamp_expr: Any, session_clock: SessionTruthClock) -> Any:
+    seconds = _local_seconds(polars, timestamp_expr, session_clock)
+    return (seconds >= session_clock.rth_open_seconds) & (
+        seconds < session_clock.rth_close_seconds
+    )
+
+
+def _template_session_label(
+    polars: Any,
+    timestamp_expr: Any,
+    session_clock: SessionTruthClock,
+) -> Any:
+    return polars.when(_is_rth(polars, timestamp_expr, session_clock)).then(
+        polars.lit("RTH")
+    ).otherwise(polars.lit("ETH"))
 
 
 def _input_quality_flags(polars: Any) -> Any:

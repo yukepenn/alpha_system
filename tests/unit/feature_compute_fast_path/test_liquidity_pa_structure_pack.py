@@ -62,7 +62,9 @@ RATIO_TOLERANCE = FeatureParityTolerance(
 
 def test_liquidity_pa_structure_pack_matches_reference_on_synthetic_fixture() -> None:
     pytest.importorskip("polars")
-    rows = liquidity_pa_structure_rows()
+    # P235500 repair provenance: canonical session_label can be static metadata;
+    # both engines must derive reset/opening-session truth from bar_start_ts.
+    rows = _static_session_rows(liquidity_pa_structure_rows())
     accepted = accepted_version(DATASET_ID)
     definitions, feature_set = _structure_pack_contracts()
     reference_view = build_ohlcv_input_view(
@@ -113,7 +115,7 @@ def test_liquidity_pa_structure_pack_materialization_records_fast_provenance(
     tmp_path: Path,
 ) -> None:
     pytest.importorskip("polars")
-    rows = liquidity_pa_structure_rows()
+    rows = _static_session_rows(liquidity_pa_structure_rows())
     accepted = accepted_version(DATASET_ID)
     definitions, feature_set = _structure_pack_contracts()
     materializer = PackMaterializer()
@@ -253,3 +255,7 @@ def _records_by_feature_version(
     for record in records:
         grouped[record.feature_version_id].append(record)
     return {feature_version_id: tuple(values) for feature_version_id, values in grouped.items()}
+
+
+def _static_session_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    return tuple({**row, "session_label": "ETH"} for row in rows)

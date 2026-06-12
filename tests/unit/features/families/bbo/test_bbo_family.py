@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,6 +33,7 @@ from alpha_system.governance.feature_request import (
     FeatureRequestApprovalStatus,
     create_feature_request,
 )
+from alpha_system.runtime.input_resolver import _reject_label_as_live_feature
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 
@@ -197,6 +199,71 @@ def test_microprice_requires_valid_bid_and_ask_sizes() -> None:
     assert "invalid_bbo_size" in records[5].quality_flags
 
 
+def test_spread_zscore_contract_declares_session_metadata_and_truth() -> None:
+    definition = build_bbo_feature_definition(
+        BBOFeatureName.SPREAD_ZSCORE,
+        _approved_request(BBOFeatureName.SPREAD_ZSCORE),
+        EmptyRegistryReader(),
+        window_length=2,
+        reset_on_session=True,
+    )
+
+    metadata = definition.spec.inputs.input_metadata.to_dict()
+    parameters = definition.spec.transform.parameters.to_dict()
+
+    assert metadata["field_roles"]["session_label"] == "SESSION_METADATA"
+    assert parameters["session_template_id"] == "session_cme_index_futures_eth"
+    assert parameters["session_timezone"] == "America/Chicago"
+    assert parameters["rth_open_time_local"] == "08:30"
+    assert parameters["rth_close_time_local"] == "15:00"
+    assert parameters["session_truth_source"] == "alpha_system.data.foundation.sessions"
+
+    _reject_label_as_live_feature(
+        SimpleNamespace(feature_spec=definition.spec.feature_spec),
+        field="feature_pack_refs[0]",
+    )
+
+
+def test_spread_zscore_reset_uses_timestamp_truth_when_session_label_is_static() -> None:
+    rows = (
+        _row(
+            _dt("2024-01-02T20:58:00+00:00"),
+            bid="99",
+            ask="101",
+            bid_size="10",
+            ask_size="10",
+        ),
+        _row(
+            _dt("2024-01-02T20:59:00+00:00"),
+            bid="98",
+            ask="102",
+            bid_size="10",
+            ask_size="10",
+        ),
+        _row(
+            _dt("2024-01-02T21:00:00+00:00"),
+            bid="97",
+            ask="103",
+            bid_size="10",
+            ask_size="10",
+        ),
+    )
+    view = BBOInputView(tuple(_replace_session_label(row, "RTH") for row in rows))
+    definition = build_bbo_feature_definition(
+        BBOFeatureName.SPREAD_ZSCORE,
+        _approved_request(BBOFeatureName.SPREAD_ZSCORE),
+        EmptyRegistryReader(),
+        window_length=2,
+        reset_on_session=True,
+    )
+
+    records = compute_bbo_feature(definition, view)
+
+    assert records[1].value is not None
+    assert records[2].value is None
+    assert records[2].quality_flags == ("insufficient_window", "primitive_gap")
+
+
 def test_missing_available_ts_fails_closed() -> None:
     view = _fixture_view()
     corrupt_row = view.rows[0]
@@ -352,6 +419,32 @@ def _row(
         session_label="RTH",
         spread_ticks=Decimal(spread_ticks) if spread_ticks is not None else None,
         microprice=microprice,
+    )
+
+
+def _replace_session_label(row: BBOInputRow, session_label: str) -> BBOInputRow:
+    return BBOInputRow(
+        instrument_id=row.instrument_id,
+        contract_id=row.contract_id,
+        series_id=row.series_id,
+        bar_start_ts=row.bar_start_ts,
+        bar_end_ts=row.bar_end_ts,
+        event_ts=row.event_ts,
+        available_ts=row.available_ts,
+        ingested_at=row.ingested_at,
+        bid=row.bid,
+        ask=row.ask,
+        bid_size=row.bid_size,
+        ask_size=row.ask_size,
+        mid=row.mid,
+        spread=row.spread,
+        data_version=row.data_version,
+        quality_flags=row.quality_flags,
+        session_label=session_label,
+        spread_ticks=row.spread_ticks,
+        microprice=row.microprice,
+        bid_order_count=row.bid_order_count,
+        ask_order_count=row.ask_order_count,
     )
 
 

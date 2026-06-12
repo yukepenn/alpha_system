@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -39,6 +40,7 @@ from alpha_system.governance.feature_request import (
     FeatureRequestApprovalStatus,
     create_feature_request,
 )
+from alpha_system.runtime.input_resolver import _reject_label_as_live_feature
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
 
@@ -184,6 +186,71 @@ def test_exact_time_bbo_missingness_is_flagged_without_forward_fill() -> None:
     assert "bbo_gap" not in records[5].quality_flags
     assert "missing_bbo" not in records[5].quality_flags
     assert "bbo_quarantined" not in records[5].quality_flags
+
+
+def test_session_conditioned_structure_contract_declares_metadata_and_truth() -> None:
+    definition = build_structure_feature_definition(
+        StructureFeatureName.PRIOR_HIGH_DISTANCE,
+        _approved_request(StructureFeatureName.PRIOR_HIGH_DISTANCE),
+        EmptyRegistryReader(),
+        window_length=2,
+        reset_on_session=True,
+    )
+
+    metadata = definition.spec.inputs.input_metadata.to_dict()
+    parameters = definition.spec.transform.parameters.to_dict()
+
+    assert metadata["field_roles"]["session_label"] == "SESSION_METADATA"
+    assert parameters["session_template_id"] == "session_cme_index_futures_eth"
+    assert parameters["session_timezone"] == "America/Chicago"
+    assert parameters["rth_open_time_local"] == "08:30"
+    assert parameters["rth_close_time_local"] == "15:00"
+    assert parameters["session_truth_source"] == "alpha_system.data.foundation.sessions"
+
+    _reject_label_as_live_feature(
+        SimpleNamespace(feature_spec=definition.spec.feature_spec),
+        field="feature_pack_refs[0]",
+    )
+
+
+def test_structure_reset_and_opening_range_ignore_static_session_label() -> None:
+    # P235500 repair provenance: canonical session_label is input metadata only;
+    # reset/opening-session truth comes from bar_start_ts through the shared template.
+    rows = (
+        _ohlcv_row(_dt("2024-01-02T14:28:00+00:00"), high="101", low="99", close="100"),
+        _ohlcv_row(_dt("2024-01-02T14:29:00+00:00"), high="102", low="100", close="101"),
+        _ohlcv_row(_dt("2024-01-02T14:30:00+00:00"), high="103", low="101", close="102"),
+        _ohlcv_row(_dt("2024-01-02T14:31:00+00:00"), high="104", low="102", close="103"),
+    )
+    view = OHLCVInputView(tuple(_replace_session_label(row, "ETH") for row in rows))
+    prior_definition = build_structure_feature_definition(
+        StructureFeatureName.PRIOR_HIGH_DISTANCE,
+        _approved_request(StructureFeatureName.PRIOR_HIGH_DISTANCE),
+        EmptyRegistryReader(),
+        window_length=2,
+        reset_on_session=True,
+    )
+    opening_definition = build_structure_feature_definition(
+        StructureFeatureName.OPENING_RANGE_HIGH_DISTANCE,
+        _approved_request(StructureFeatureName.OPENING_RANGE_HIGH_DISTANCE),
+        EmptyRegistryReader(),
+        opening_range_minutes=2,
+        reset_on_session=False,
+    )
+
+    prior = compute_structure_feature(prior_definition, view)
+    opening = compute_structure_feature(opening_definition, view)
+
+    assert prior[2].value is None
+    assert prior[2].quality_flags == (
+        "input_gap",
+        "insufficient_window",
+        "structure_gap",
+    )
+    assert opening[0].value is None
+    assert "outside_opening_session" in opening[0].quality_flags
+    assert opening[2].value == pytest.approx(-1.0)
+    assert opening[3].value == pytest.approx(-1.0)
 
 
 def test_missing_available_ts_fails_closed() -> None:
@@ -391,6 +458,27 @@ def _bbo_row(
         session_label="RTH",
         spread_ticks=None,
         microprice=None,
+    )
+
+
+def _replace_session_label(row: OHLCVInputRow, session_label: str) -> OHLCVInputRow:
+    return OHLCVInputRow(
+        instrument_id=row.instrument_id,
+        contract_id=row.contract_id,
+        series_id=row.series_id,
+        bar_start_ts=row.bar_start_ts,
+        bar_end_ts=row.bar_end_ts,
+        event_ts=row.event_ts,
+        available_ts=row.available_ts,
+        ingested_at=row.ingested_at,
+        open=row.open,
+        high=row.high,
+        low=row.low,
+        close=row.close,
+        volume=row.volume,
+        data_version=row.data_version,
+        quality_flags=row.quality_flags,
+        session_label=session_label,
     )
 
 

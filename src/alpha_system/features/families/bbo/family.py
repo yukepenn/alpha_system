@@ -15,6 +15,11 @@ from alpha_system.data.foundation.quotes import (
     MISSING_BBO_QUALITY_FLAG,
 )
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    SessionTemplate,
+    SessionWindowState,
+    classify_session_timestamp,
+)
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -32,6 +37,10 @@ from alpha_system.features.primitives import PrimitivePoint, PrimitiveResult, ca
 from alpha_system.features.request_gate import (
     FeatureRequestGateDecision,
     require_feature_request_implementation_allowed,
+)
+from alpha_system.features.session_truth import (
+    default_session_template,
+    session_contract_parameters,
 )
 from alpha_system.features.semantics import BBOQuoteSemantics, bbo_quote_semantics
 from alpha_system.governance.duplicate_exposure import RegistryReader
@@ -394,7 +403,7 @@ def _feature_spec(
             input_views=("canonical_bbo",),
             fields=_input_fields(name),
             dataset_version_ids=tuple(dataset_version_ids),
-            input_metadata=_input_metadata(input_scope=input_scope),
+            input_metadata=_input_metadata(name, input_scope=input_scope),
         ),
         transform=TransformSpec(
             transform_id=_transform_id(name),
@@ -499,6 +508,8 @@ def _transform_parameters(
         parameters["window_length"] = window_length
         parameters["reset_on_session"] = reset_on_session
         parameters["ddof"] = ddof
+        if reset_on_session:
+            parameters.update(_session_contract_parameters())
     if name is BBOFeatureName.WIDE_SPREAD_FLAG:
         parameters["wide_spread_bps_threshold"] = wide_spread_bps_threshold
     if name is BBOFeatureName.LOW_DEPTH_FLAG:
@@ -517,6 +528,7 @@ def _input_fields(name: BBOFeatureName) -> tuple[str, ...]:
 
 
 def _input_metadata(
+    name: BBOFeatureName,
     *,
     input_scope: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
@@ -531,6 +543,8 @@ def _input_metadata(
             "quote-derived values"
         ),
     }
+    if "session_label" in _input_fields(name):
+        metadata["field_roles"] = {"session_label": "SESSION_METADATA"}
     if input_scope:
         metadata["input_scope"] = {str(key): value for key, value in input_scope.items()}
     return metadata
@@ -677,15 +691,16 @@ def _points_from_valid_bbo_rows(
     field: str,
 ) -> tuple[PrimitivePoint, ...]:
     field_name = _require_field_name(field)
+    states = _session_states(rows)
     points: list[PrimitivePoint] = []
-    for row in rows:
+    for row, state in zip(rows, states, strict=True):
         if not _is_valid_quote(row):
             points.append(
                 PrimitivePoint(
                     available_ts=row.available_ts,
                     event_ts=row.event_ts,
                     value=None,
-                    session_label=row.session_label,
+                    session_label=state.segment_label,
                     quality_flags=_bbo_gap_flags(row),
                 )
             )
@@ -695,7 +710,7 @@ def _points_from_valid_bbo_rows(
                 available_ts=row.available_ts,
                 event_ts=row.event_ts,
                 value=_to_float(getattr(row, field_name), field_name),
-                session_label=row.session_label,
+                session_label=state.segment_label,
                 quality_flags=(),
             )
         )
@@ -832,6 +847,32 @@ def _bbo_gap_flags(row: BBOInputRow) -> tuple[str, ...]:
     if not semantics.invariants_hold:
         flags.add("bbo_invariant_violation")
     return tuple(sorted(flags))
+
+
+def _session_contract_parameters() -> dict[str, object]:
+    try:
+        return session_contract_parameters(_session_template())
+    except DataFoundationValidationError as exc:
+        raise BBOFeatureError(str(exc)) from exc
+
+
+def _session_template() -> SessionTemplate:
+    try:
+        return default_session_template()
+    except DataFoundationValidationError as exc:
+        raise BBOFeatureError(str(exc)) from exc
+
+
+def _session_states(rows: Sequence[BBOInputRow]) -> tuple[SessionWindowState, ...]:
+    template = _session_template()
+    return tuple(_session_state(row, template) for row in rows)
+
+
+def _session_state(row: BBOInputRow, template: SessionTemplate) -> SessionWindowState:
+    try:
+        return classify_session_timestamp(row.bar_start_ts, template=template)
+    except DataFoundationValidationError as exc:
+        raise BBOFeatureError(str(exc)) from exc
 
 
 def _int_parameter(definition: BBOFeatureDefinition, name: str) -> int:

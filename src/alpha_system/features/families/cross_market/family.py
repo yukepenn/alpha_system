@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -12,6 +12,11 @@ from types import MappingProxyType
 from typing import Any
 
 from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.sessions import (
+    SessionTemplate,
+    SessionWindowState,
+    classify_session_timestamp,
+)
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -32,6 +37,7 @@ from alpha_system.features.input_views import (
     OHLCVInputView,
 )
 from alpha_system.features.primitives import (
+    PrimitivePoint,
     PrimitiveResult,
     points_from_trade_rows,
     simple_returns,
@@ -39,6 +45,10 @@ from alpha_system.features.primitives import (
 from alpha_system.features.request_gate import (
     FeatureRequestGateDecision,
     require_feature_request_implementation_allowed,
+)
+from alpha_system.features.session_truth import (
+    default_session_template,
+    session_contract_parameters,
 )
 from alpha_system.features.semantics import bbo_quote_semantics
 from alpha_system.governance.duplicate_exposure import RegistryReader
@@ -430,7 +440,7 @@ def align_cross_market_rows(
     }
     returns_by_market = {
         market: simple_returns(
-            points_from_trade_rows(rows, "close"),
+            _primitive_points_from_trade_rows(rows, "close"),
             horizon,
             reset_on_session=reset_on_session,
         )
@@ -595,6 +605,7 @@ def _feature_spec(
             "they are never filled or interpolated"
         ),
         "trade_semantics": "FLF-P04 no_trade rows are gaps for return logic",
+        "field_roles": {"session_label": "SESSION_METADATA"},
     }
     if input_scope:
         input_metadata["input_scope"] = dict(input_scope)
@@ -716,6 +727,8 @@ def _transform_parameters(
         target, benchmark = _spread_pair(name)
         parameters["target_market"] = target
         parameters["benchmark_market"] = benchmark
+    if reset_on_session:
+        parameters.update(_session_contract_parameters())
     return parameters
 
 
@@ -1071,15 +1084,56 @@ def _bbo_quality_flags_at(
 
 def _snapshot_session_label(rows_at_t: Mapping[str, OHLCVInputRow | None]) -> str:
     labels = {
-        _optional_text(row.session_label).upper()
+        _session_segment_label(row)
         for row in rows_at_t.values()
-        if row is not None and _optional_text(row.session_label)
+        if row is not None
     }
     if not labels:
         return ""
     if len(labels) == 1:
         return next(iter(labels))
     return "MIXED"
+
+
+def _primitive_points_from_trade_rows(
+    rows: Sequence[OHLCVInputRow],
+    field: str,
+) -> tuple[PrimitivePoint, ...]:
+    points = points_from_trade_rows(rows, field)
+    return tuple(
+        replace(point, session_label=state.segment_label)
+        for point, state in zip(points, _session_states(rows), strict=True)
+    )
+
+
+def _session_contract_parameters() -> dict[str, object]:
+    try:
+        return session_contract_parameters(_session_template())
+    except DataFoundationValidationError as exc:
+        raise CrossMarketFeatureError(str(exc)) from exc
+
+
+def _session_template() -> SessionTemplate:
+    try:
+        return default_session_template()
+    except DataFoundationValidationError as exc:
+        raise CrossMarketFeatureError(str(exc)) from exc
+
+
+def _session_states(rows: Sequence[OHLCVInputRow]) -> tuple[SessionWindowState, ...]:
+    template = _session_template()
+    return tuple(_session_state(row, template) for row in rows)
+
+
+def _session_segment_label(row: OHLCVInputRow) -> str:
+    return _session_state(row, _session_template()).segment_label
+
+
+def _session_state(row: OHLCVInputRow, template: SessionTemplate) -> SessionWindowState:
+    try:
+        return classify_session_timestamp(row.bar_start_ts, template=template)
+    except DataFoundationValidationError as exc:
+        raise CrossMarketFeatureError(str(exc)) from exc
 
 
 def _require_definition(

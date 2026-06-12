@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.storage import require_dependency
 from alpha_system.features.contracts import (
     FeatureFamily,
@@ -20,6 +21,11 @@ from alpha_system.features.fast.materializer import (
     FastFeaturePack,
     PackMaterializerError,
     constant_window_mask,
+)
+from alpha_system.features.session_truth import (
+    SessionTruthClock,
+    session_contract_parameters,
+    session_truth_clock,
 )
 
 VOLUME_ACTIVITY_WINDOW_LENGTH = 20
@@ -166,6 +172,7 @@ def _validate_ohlcv_feature(feature: FeatureSpec) -> None:
         VOLUME_ACTIVITY_RESET_ON_SESSION,
         feature.feature_id,
     )
+    _validate_session_contract_parameters(parameters, feature.feature_id)
     if feature_name in _ROLLING_OHLCV_FEATURES:
         _require_rolling_window(feature, length=VOLUME_ACTIVITY_WINDOW_LENGTH)
         _require_parameter(
@@ -254,6 +261,18 @@ def _require_point_in_time_window(feature: FeatureSpec) -> None:
         raise PackMaterializerError(f"{feature.feature_id} requires a live-compatible window")
 
 
+def _validate_session_contract_parameters(
+    parameters: Mapping[str, object],
+    feature_id: str,
+) -> None:
+    try:
+        expected = session_contract_parameters()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    for name, value in expected.items():
+        _require_parameter(parameters, name, value, feature_id)
+
+
 def _volume_activity_expressions(
     polars: Any,
     features: Sequence[FeatureSpec],
@@ -289,10 +308,11 @@ def _prepare_frame(frame: Any) -> Any:
             "volume",
         ),
     )
+    session_clock = _session_clock()
     prepared = frame.with_columns(
         (
             pl.col("series_id").cast(pl.Utf8).alias(_SERIES),
-            pl.col("session_label").cast(pl.Utf8).alias(_SESSION),
+            _template_session_label(pl, session_clock).alias(_SESSION),
             _bar_start_ts(pl).alias(_BAR_START),
             _input_quality_flags(pl).alias(_INPUT_FLAGS),
             pl.col("open").cast(pl.Float64, strict=False).alias(_OPEN),
@@ -698,6 +718,39 @@ def _input_quality_flags(polars: Any) -> Any:
 
 def _bar_start_ts(polars: Any) -> Any:
     return polars.col("bar_start_ts").cast(polars.Datetime("us", "UTC"), strict=False)
+
+
+def _session_clock() -> SessionTruthClock:
+    try:
+        return session_truth_clock()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+
+
+def _local_bar_start(polars: Any, session_clock: SessionTruthClock) -> Any:
+    return _bar_start_ts(polars).dt.convert_time_zone(session_clock.timezone)
+
+
+def _local_seconds(polars: Any, session_clock: SessionTruthClock) -> Any:
+    local = _local_bar_start(polars, session_clock)
+    return (
+        local.dt.hour().cast(polars.Int64) * 3600
+        + local.dt.minute().cast(polars.Int64) * 60
+        + local.dt.second().cast(polars.Int64)
+    )
+
+
+def _is_rth(polars: Any, session_clock: SessionTruthClock) -> Any:
+    seconds = _local_seconds(polars, session_clock)
+    return (seconds >= session_clock.rth_open_seconds) & (
+        seconds < session_clock.rth_close_seconds
+    )
+
+
+def _template_session_label(polars: Any, session_clock: SessionTruthClock) -> Any:
+    return polars.when(_is_rth(polars, session_clock)).then(
+        polars.lit("RTH")
+    ).otherwise(polars.lit("ETH"))
 
 
 def _flags(polars: Any, values: Sequence[str]) -> Any:

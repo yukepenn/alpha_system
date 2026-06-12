@@ -24,7 +24,9 @@ _MID = Decimal("128")
 def bbo_tradability_rows() -> tuple[dict[str, Any], ...]:
     """Return a tiny synthetic canonical BBO frame for the governed BBO pack."""
 
-    start = datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
+    # P235500 provenance: SESSION_RESET_INDEX is the real 15:00
+    # America/Chicago RTH close under the shared timestamp-derived truth.
+    start = datetime(2024, 1, 2, 20, 54, tzinfo=UTC)
     row_specs = (
         {"session": "RTH", "spread": "0.25", "bid_size": "8", "ask_size": "24"},
         {"session": "RTH", "spread": "0.50", "bid_size": "8", "ask_size": "24"},
