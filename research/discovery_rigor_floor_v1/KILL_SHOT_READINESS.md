@@ -12,8 +12,11 @@ only.
 
 ## Status Roll-Up
 
-- `MET`: 9
-- `PENDING-coordinator`: 4
+- `MET`: 12
+- `PENDING-coordinator`: 1
+- Coordinator closure record: rows 8, 9, 11 closed 2026-06-12 per the resume
+  handoff steps 4/6/7; deterministic evidence cited in-row. Row 6 remains open
+  pending the real-data calibration run (machinery merged via PR #397).
 - Kill-shot fire condition: all 13 rows `MET`.
 
 ## Checklist
@@ -27,10 +30,10 @@ only.
 | 5 | Reason-code validation is live for INCONCLUSIVE verdicts | `MET` | `tests/unit/governance/test_reviewer_verdict.py::test_reviewer_verdict_inconclusive_requires_reason_code`; `tests/unit/governance/test_promotion.py::test_promotion_decision_inconclusive_requires_reason_code`; integration audit issue code `missing_reason_code_for_inconclusive` | n/a |
 | 6 | Surrogate calibration satisfies compass v4.4 section 7.2 statistical floor | `PENDING-coordinator` | P05 machinery and synthetic report exist at `src/alpha_system/governance/surrogate_run.py` and `research/discovery_rigor_floor_v1/surrogate_fdr/RIGOR-P05_synthetic_calibration.md`, but that report is `K=2` synthetic CI evidence and does not satisfy the kill-shot floor. Acceptance requires declared real-data K, zero passes, bound statement `zero passes in K bounds false-pass rate at about 3/K at 95%`, `K>=60` for about 5%, session/trade-date-block shuffling minimum, at least one block-bootstrap configuration, and per-family configurations. | `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md` step 5 |
 | 7 | HOLDOUT COVERAGE: declared window intersects every committed re-locked StudySpec input | `MET` | P033000 contract test `tests/unit/discovery_rigor_floor/test_rigor_p03_sealed_holdout_declaration.py::test_kill_shot_window_intersects_every_relocked_locked_test_input`; review `reviews/DISCOVERY_RIGOR_FLOOR_V1/P033000_HOLDOUT_WINDOW_COVERAGE-review.md`; declaration provenance cites 10 re-locked specs and 32 locked-test partitions | n/a |
-| 8 | VARIANT RECONCILIATION: every kill-shot study invocation matched to a VariantLedger entry | `PENDING-coordinator` | RIGOR-P02/P07 prove the hook and gate, but the live six-rerun invocation reconciliation audit has not been produced in this phase because FUTSUB-P28 remains stopped. | `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md` step 6 |
-| 9 | SUBSTRATE-INVARIANT AUDIT: live registries green | `PENDING-coordinator` | No committed live-registry audit artifact in this phase proves all required predicates: no constant-valued flag columns, >=2 session values per trading day, role-marker WARN documented, and zero locks referencing `DEPRECATED` records. | `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md` step 7 |
+| 8 | VARIANT RECONCILIATION: every kill-shot study invocation matched to a VariantLedger entry | `MET` | Coordinator audit 2026-06-12: `research/discovery_rigor_floor_v1/variant_reconciliation/FUTSUB_KILL_SHOT_variant_reconciliation.md` — six rerun invocations `pending_creation_enforced` with fail-closed citations (`promotion_gate.py:208-243`, `variant_ledger.py:731-745`), zero `unmatched_gap`; Track-B pooled entries 2/2 matched (`poolhyp_67427c04adfc2dc97fd42bc5`, `poolhyp_797417343726708a0d2d9939`). | n/a |
+| 9 | SUBSTRATE-INVARIANT AUDIT: live registries green | `MET` | Coordinator audit 2026-06-12: `research/discovery_rigor_floor_v1/substrate_invariant/FUTSUB_KILL_SHOT_substrate_invariant_audit.md` — predicates 1/2/4 PASS (0 constant flag columns; 17,055/17,073 trading-day cells with 2 session values, 18 exceptions are 3 exchange-closure dates; 4560+840 locks all `REGISTERED`, 24/24 DatasetVersions accepted), predicate 3 the known 648-row role-marker WARN re-verified and tolerated via `input_resolver.py:1824-1828`. | n/a |
 | 10 | POWER MEMOS: per-study MDE memos on real N_eff written before Track A metrics | `MET` | `research/discovery_rigor_floor_v1/power_memos/KILL_SHOT_POWER_MEMOS.md` covers the six re-locked rerun candidates and states it was written before Track A rerun metrics; review PR #394 cited by the phase spec | n/a |
-| 11 | TRACK-B MANDATORY MINIMUM: >=1 cross-symbol and >=1 cross-horizon pooled hypothesis registered pre-metric | `PENDING-coordinator` | Helper and draft templates are present: `src/alpha_system/governance/pooled_hypothesis.py::track_b_minimum_satisfied`; `tests/unit/discovery_rigor_floor/test_pooled_track_b_readiness.py::test_track_b_minimum_helper_is_callable_from_readiness_checklist`; draft JSON templates under `research/discovery_rigor_floor_v1/track_b/`. Actual registration is intentionally deferred until kill-shot time before any Track A metric. | `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_KILL_SHOT_RESUME.md` step 4 |
+| 11 | TRACK-B MANDATORY MINIMUM: >=1 cross-symbol and >=1 cross-horizon pooled hypothesis registered pre-metric | `MET` | Registered 2026-06-12T05:06:10Z with metrics marker verified absent: `poolhyp_67427c04adfc2dc97fd42bc5` (cross_symbol) + `poolhyp_797417343726708a0d2d9939` (cross_horizon); `track_b_minimum_satisfied()` returned `True` over the kill-shot set; value-free record `research/discovery_rigor_floor_v1/track_b/REGISTERED_RECORD.md`. | n/a |
 | 12 | SUBSTRATE-CAVEAT REGISTER: residuals stated before kill-shot context | `MET` | This checklist and resume handoff state the required caveats: R-037 `contract_id` caveat and BBO-proxy regime limits. FUTSUB resume step 3 requires copying them into the kill-shot run context before STOP removal. | n/a |
 | 13 | REAL FEE CONSTANTS: versioned sourced fee schedule live in base cost profile | `MET` | `src/alpha_system/backtest/futures_fees.py` exposes `fee_schedule_cme_equity_index_retail_discount_v2_2026_06_11`; `tests/unit/runtime/cost/test_real_fee_schedule.py::test_real_fee_schedule_pins_symbol_all_in_totals_and_keeps_history`; `tests/unit/runtime/cost/test_real_fee_schedule.py::test_default_base_profile_consumes_real_fee_version_and_zero_cost_stays_zero`; review `reviews/DISCOVERY_RIGOR_FLOOR_V1/P035000_REAL_FEE_CONSTANTS-review.md` | n/a |
 
@@ -40,15 +43,12 @@ The coordinator must close these before removing the FUTSUB boundary STOP:
 
 1. `PENDING-coordinator` surrogate section 7.2 calibration: run and record the
    qualifying real-data, dependence-preserving, per-family calibration. Any
-   shuffled pass is a `LEAKAGE_BLOCKED` diagnosis first.
-2. `PENDING-coordinator` Track-B registration: fill and register at least one
-   cross-symbol and one cross-horizon pooled hypothesis before any Track A
-   metric marker exists.
-3. `PENDING-coordinator` VariantLedger reconciliation: emit a value-free audit
-   over the six rerun candidate invocations showing each invocation has the
-   intended ledger entry.
-4. `PENDING-coordinator` substrate-invariant audit: emit a value-free live
-   registry audit proving the four required predicates.
+   shuffled pass is a `LEAKAGE_BLOCKED` diagnosis first. (Machinery merged via
+   PR #397: `trade_date_block_shuffle` + `trade_date_block_bootstrap` +
+   `tools/discovery_rigor_floor/run_real_surrogate_calibration.py`.)
+
+Closed 2026-06-12 (evidence cited in rows 8, 9, 11): Track-B registration,
+VariantLedger reconciliation, substrate-invariant audit.
 
 ## Caveat Register
 
