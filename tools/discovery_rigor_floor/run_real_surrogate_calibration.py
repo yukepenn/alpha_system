@@ -365,15 +365,6 @@ def run_real_surrogate_calibration(
             included_sub_config_count=0,
             excluded_factors=tuple(excluded_factors),
         )
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="dataset_scope.feature_pack_locks",
-                code="no_declared_factor_sub_configs",
-                message="declared factor derivation produced no surrogate sub-configs",
-                expected="one or more declared factor locks matching label partitions",
-                actual="0",
-            )
-        )
 
     reports: list[SurrogateCalibrationReport] = []
     seed_block_size = len(surrogate_specs) * active_runs_per_config
