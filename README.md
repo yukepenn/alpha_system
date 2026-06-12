@@ -10,10 +10,11 @@ The repository-level campaign pointer targets
 `DISCOVERY_RIGOR_FLOOR_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress after the `RIGOR-P01` merge: `RIGOR-P01` completes
-the verdict reason-code taxonomy, fail-closed trial-ledger presence gate, and
-six additive Core Pilot verdict annotations. The active / next phase is
-`RIGOR-P02`, First-Class VariantLedger + Family Budgets.
+Current campaign progress after the `RIGOR-P06` merge:
+`DISCOVERY_RIGOR_FLOOR_V1` includes the evidence-accrual requeue scan for
+UNDERPOWERED verdicts. The active / next phase is `RIGOR-P07`, Integration
+Audit + Kill-Shot Readiness + Resume Handoff, after `RIGOR-P04`, `RIGOR-P05`,
+and `RIGOR-P06` all merge.
 
 New durable surfaces through `RIGOR-P01`:
 
@@ -29,10 +30,19 @@ New durable surfaces through `RIGOR-P01`:
   additive annotations for historical Core Pilot inconclusive verdicts.
 - `research/discovery_rigor_floor_v1/RIGOR_P01_REASON_CODE_AND_LEDGER_GATES.md`
   records the value-free gate/test/annotation evidence for this phase.
+- `src/alpha_system/governance/requeue.py` defines
+  `RequeuedVerdictRecord`, the planning-prior power estimator, and the
+  deterministic evidence-accrual scan logic.
+- `alpha governance requeue-scan` and `just requeue-scan` expose the manual,
+  deterministic UNDERPOWERED retest-eligibility scan.
+- `research/discovery_rigor_floor_v1/requeue/REQUEUE_SCAN.md` documents the
+  declared materiality rule, input contract, and coordinator cadence.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
   FUTSUB boundary state at the P27/P28 gate.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01.md` records the executor
   verification and handoff for this phase.
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P06.md` records the executor
+  verification and handoff for the requeue scan phase.
 
 The gated FUTSUB run
 `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` remains
@@ -72,6 +82,7 @@ only. `runs/**` is local-only and never committed. Raw or canonical data,
 feature or label values, provider responses, heavy artifacts, local databases,
 logs, caches, secrets, and credentials are never committed.
 
-This campaign makes no alpha, profitability, tradability, execution-quality, or
+The requeue power estimator is planning-only and never a promotion gate. This
+campaign makes no alpha, profitability, tradability, execution-quality, or
 production-trading claim. Workflow 2 orchestration, validation routing, review,
 staging, commit, PR, CI, merge, and done-check actions are owned by Ralph.

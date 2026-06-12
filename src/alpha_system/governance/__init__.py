@@ -10,6 +10,7 @@ __all__ = [
     "ids",
     "label_leakage_guard",
     "label_spec",
+    "requeue",
     "reviewer_verdict",
     "serialization",
     "study_spec",

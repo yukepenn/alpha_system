@@ -37,6 +37,10 @@ from alpha_system.governance.promotion_gate import (
 )
 from alpha_system.governance.registry import GovernanceRegistry, GovernanceRegistryEntry
 from alpha_system.governance.rejected_idea import validate_rejected_idea_record
+from alpha_system.governance.requeue import (
+    scan_requeue_candidates,
+    write_requeue_records,
+)
 from alpha_system.governance.reviewer_verdict import ReviewerVerdict, validate_reviewer_verdict
 from alpha_system.governance.serialization import (
     GovernanceSerializationError,
@@ -415,6 +419,42 @@ def run_validate_feature_locks(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_requeue_scan(args: argparse.Namespace) -> int:
+    """Run ``alpha governance requeue-scan``."""
+
+    def _execute():
+        result = scan_requeue_candidates(
+            verdict_paths=args.verdicts,
+            annotation_paths=args.annotations,
+            acceptance_evidence_path=args.acceptance_evidence,
+            created_at=args.created_at,
+        )
+        if args.out:
+            write_requeue_records(args.out, result)
+        return result
+
+    try:
+        result = _execute()
+    except (
+        GovernanceValidationError,
+        GovernanceSerializationError,
+        GovernanceIdError,
+        OSError,
+        ValueError,
+    ) as exc:
+        print(
+            json.dumps(
+                governance_exception_payload("requeue-scan", exc),
+                sort_keys=True,
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(result.render_text())
+    return 0
+
+
 def _load_feature_pack_locks(path: str | Path) -> list[Mapping[str, Any] | str]:
     """Load a generic feature-pack-locks JSON document.
 
@@ -553,6 +593,40 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Path to the sanctioned local feature registry SQLite file.",
     )
     locks_parser.set_defaults(handler=run_validate_feature_locks)
+
+    requeue_parser = governance_subparsers.add_parser(
+        "requeue-scan",
+        help=(
+            "Deterministically scan UNDERPOWERED verdicts for evidence-accrual "
+            "retest eligibility."
+        ),
+    )
+    requeue_parser.add_argument(
+        "--verdicts",
+        nargs="*",
+        default=(),
+        help="Reviewer verdict JSON files or directories to scan read-only.",
+    )
+    requeue_parser.add_argument(
+        "--annotations",
+        nargs="*",
+        default=(),
+        help="Verdict annotation JSON files or directories to scan read-only.",
+    )
+    requeue_parser.add_argument(
+        "--acceptance-evidence",
+        required=True,
+        help="JSON file declaring current accepted data months for UNDERPOWERED candidates.",
+    )
+    requeue_parser.add_argument(
+        "--created-at",
+        help="Optional UTC seconds timestamp for deterministic test output.",
+    )
+    requeue_parser.add_argument(
+        "--out",
+        help="Optional output path for RequeuedVerdictRecords JSON; stdout still prints the table.",
+    )
+    requeue_parser.set_defaults(handler=run_requeue_scan)
 
 
 def _run_json_command(command: str, execute: Callable[[], dict[str, object]]) -> int:
