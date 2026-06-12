@@ -25,6 +25,13 @@ wd = (d.get("workspace") or {}).get("current_dir") or d.get("cwd") or "."
 
 seg = model + ("-" + str(effort) if effort else "")
 
+cw = d.get("context_window") or {}
+rem = cw.get("remaining_percentage")
+if rem is not None:
+    r = float(rem)
+    ctx_icon = "\U0001F7E2" if r > 35 else ("\U0001F7E1" if r > 15 else "\U0001F534")
+    seg += " | ctx %s%.0f%% left" % (ctx_icon, r)
+
 parts = []
 if fh_used is not None:
     parts.append("5h %.0f%%" % (100.0 - float(fh_used)))
