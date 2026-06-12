@@ -10,65 +10,52 @@ The repository-level campaign pointer targets
 `DISCOVERY_RIGOR_FLOOR_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress after the `RIGOR-P06` merge:
-`DISCOVERY_RIGOR_FLOOR_V1` includes the evidence-accrual requeue scan for
-UNDERPOWERED verdicts. The active / next phase is `RIGOR-P07`, Integration
-Audit + Kill-Shot Readiness + Resume Handoff, after `RIGOR-P04`, `RIGOR-P05`,
-and `RIGOR-P06` all merge.
+Current campaign progress after the `RIGOR-P03` merge:
+`RIGOR-P00` through `RIGOR-P03` are complete, and `RIGOR-P06` has also landed
+per the current campaign snapshot. The active / next phases are `RIGOR-P04`
+(executable RANDOM_TARGET + planted-fake-alpha canary) and `RIGOR-P05`
+(surrogate-FDR calibration), which are parallel-eligible after the sealed
+holdout gate.
 
-New durable surfaces through `RIGOR-P01`:
-Current campaign progress after the `RIGOR-P02` merge: `RIGOR-P00` through
-`RIGOR-P02` are complete; the active / next phase is `RIGOR-P03`, Sealed
-Holdout + Access Log + Contamination Gating.
-
-New durable surfaces through `RIGOR-P02`:
+New durable surfaces through `RIGOR-P03`:
 
 - `research/discovery_rigor_floor_v1/` defines the value-free evidence root for
   gate inventories, canary pass/fail tables, calibration statistics, and
   readiness records.
 - `src/alpha_system/governance/verdict_reason_code.py` defines the closed
-  `VerdictReasonCode` taxonomy used by reason-coded inconclusive verdicts.
-- `src/alpha_system/governance/promotion_gate.py` exposes
-  `require_trial_ledger_present()` and invokes it on the
-  `DIAGNOSTICS_RUN -> EVIDENCE_READY` path.
+  `VerdictReasonCode` taxonomy; `promotion_gate.py` requires a present,
+  parseable, non-destructively writable trial ledger before `EVIDENCE_READY`.
 - `research/futures_core_alpha_pilot_v1/verdict_annotations/` contains the six
   additive annotations for historical Core Pilot inconclusive verdicts.
 - `research/discovery_rigor_floor_v1/RIGOR_P01_REASON_CODE_AND_LEDGER_GATES.md`
   records the value-free gate/test/annotation evidence for this phase.
-- `src/alpha_system/governance/requeue.py` defines
-  `RequeuedVerdictRecord`, the planning-prior power estimator, and the
-  deterministic evidence-accrual scan logic.
-- `alpha governance requeue-scan` and `just requeue-scan` expose the manual,
-  deterministic UNDERPOWERED retest-eligibility scan.
-- `research/discovery_rigor_floor_v1/requeue/REQUEUE_SCAN.md` documents the
-  declared materiality rule, input contract, and coordinator cadence.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
-  FUTSUB boundary state at the P27/P28 gate.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01.md` records the executor
-  verification and handoff for this phase.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P06.md` records the executor
-  verification and handoff for the requeue scan phase.
-  reason-code taxonomy for inconclusive governance verdict evidence.
-- The governance `EVIDENCE_READY` transition requires a present, parseable, and
-  non-destructively writable trial-ledger path before evidence can be accepted.
 - `src/alpha_system/governance/variant_ledger.py` defines first-class
   `VariantLedgerRecord` JSONL persistence, family budget roll-ups, and
   provenance-carrying budget amendments.
-- `StudySpec.family_budget` is optional and validated when declared; legacy
-  StudySpec payloads remain valid without it.
-- The governance promotion gate now enforces variant-ledger budget status at
-  study entry and composes that check with the trial-ledger presence gate before
-  `EVIDENCE_READY`.
 - `alpha governance variant-ledger-summary` provides a read-only ledger scan and
-  optional family-budget status summary.
+  optional family-budget status summary; `StudySpec.family_budget` remains
+  optional for legacy StudySpec payloads.
 - `research/discovery_rigor_floor_v1/RIGOR_P02_GATE_INVENTORY.md` records the
   value-free gate and bypass-test inventory.
+- `src/alpha_system/governance/requeue.py`, `alpha governance requeue-scan`,
+  and `research/discovery_rigor_floor_v1/requeue/REQUEUE_SCAN.md` provide the
+  landed evidence-accrual requeue scan from `RIGOR-P06`.
+- `src/alpha_system/governance/sealed_holdout.py` defines
+  `SealedHoldoutWindow`, exactly-one-active declaration enforcement,
+  terminal `BREACHED` transitions, and append-only `HoldoutAccessLog`
+  persistence.
+- The label leakage guard and study-entry budget hook can emit sealed-holdout
+  access log records; missing or unwritable logs fail closed when those
+  surfaces are armed.
+- The governance `EVIDENCE_READY` transition now blocks locked-test
+  contamination and BREACHED sealed-holdout declarations with no waiver path.
+- `research/discovery_rigor_floor_v1/sealed_holdout/` contains the value-free
+  initial kill-shot sealed-window declaration and RIGOR-P03 gate inventory.
 - `handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md` records the
   FUTSUB boundary state at the P27/P28 gate.
-- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md`,
-  `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P01.md`, and
-  `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P02.md` record executor verification
-  and handoffs for completed phases.
+- `handoffs/DISCOVERY_RIGOR_FLOOR_V1/RIGOR-P00.md` through `RIGOR-P03.md` and
+  `RIGOR-P06.md` record executor verification and handoffs for completed
+  landed phases.
 
 The gated FUTSUB run
 `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` remains
@@ -105,6 +92,9 @@ worktrees remain untouched.
 RIGOR-P02 is governance-only: no historical Core Pilot artifacts, FUTSUB
 research artifacts, run state, registries, values, broker surfaces, execution
 engines, or worktrees are changed by this phase.
+RIGOR-P03 is also governance-only: it declares and gates the sealed holdout
+regime with value-free metadata and does not run, inspect, or mutate study
+values, registries, FUTSUB run state, broker surfaces, or execution engines.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,

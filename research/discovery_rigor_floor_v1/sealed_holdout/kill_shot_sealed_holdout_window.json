@@ -1,0 +1,24 @@
+{
+  "declared_at": "2026-06-11T22:36:43Z",
+  "end_date": "2026-06-11",
+  "partition_spec": {
+    "bar_interval": "governed futures research bars",
+    "compass_window_doctrine": "2019-2021 discovery / 2022-2024 validation / 2025-latest locked test",
+    "dataset_family": "futures_core_alpha_pilot_v1",
+    "split_role": "locked_test",
+    "symbols": [
+      "ES"
+    ]
+  },
+  "provenance": {
+    "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+    "compass_ref": "docs/OPERATING_COMPASS_V4.md Stage B sealed holdout doctrine",
+    "futsub_boundary_ref": "handoffs/DISCOVERY_RIGOR_FLOOR_V1/FUTSUB_BOUNDARY_STATE.md",
+    "phase_id": "RIGOR-P03",
+    "value_free": true
+  },
+  "sealed_by": "research-governance-owner",
+  "start_date": "2025-01-01",
+  "status": "SEALED",
+  "window_id": "holdwin_d5cba50af19976275ab26f34"
+}

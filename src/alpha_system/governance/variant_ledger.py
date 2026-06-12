@@ -15,6 +15,10 @@ from alpha_system.governance.ids import (
     generate_governance_id,
     validate_governance_id,
 )
+from alpha_system.governance.sealed_holdout import (
+    HoldoutAccessType,
+    emit_holdout_access_if_intersects,
+)
 from alpha_system.governance.serialization import (
     GovernanceSerializationError,
     JsonValue,
@@ -325,7 +329,10 @@ class VariantLedger:
         _require_existing_file(self.path)
         _require_writable_file(self.path)
 
-    def append_records(self, records: Iterable[VariantLedgerRecord]) -> tuple[VariantLedgerRecord, ...]:
+    def append_records(
+        self,
+        records: Iterable[VariantLedgerRecord],
+    ) -> tuple[VariantLedgerRecord, ...]:
         """Append records not already represented by variant/study/trial key."""
 
         existing = self.load_records()
@@ -684,6 +691,15 @@ def validate_variant_and_family_budget(
     created_at: str | None = None,
     persist: bool = True,
     require_recorded: bool = False,
+    sealed_holdout_registry_path: str | Path | None = None,
+    holdout_access_log_path: str | Path | None = None,
+    holdout_access_actor: str | None = None,
+    holdout_access_type: HoldoutAccessType | str = HoldoutAccessType.TRAINING,
+    holdout_access_rationale: str | None = None,
+    holdout_access_start_date: str | None = None,
+    holdout_access_end_date: str | None = None,
+    holdout_access_partition_spec: Mapping[str, Any] | None = None,
+    holdout_authorized_evaluation_context: bool = False,
 ) -> VariantBudgetValidationResult:
     """Fail closed unless variant and optional family budgets are enforceable."""
 
@@ -692,6 +708,18 @@ def validate_variant_and_family_budget(
     ledger = VariantLedger(variant_ledger_path)
     existing_records = ledger.load_records()
     ledger.require_writable()
+    _emit_study_execution_holdout_access(
+        active_study_spec,
+        sealed_holdout_registry_path=sealed_holdout_registry_path,
+        holdout_access_log_path=holdout_access_log_path,
+        holdout_access_actor=holdout_access_actor,
+        holdout_access_type=holdout_access_type,
+        holdout_access_rationale=holdout_access_rationale,
+        holdout_access_start_date=holdout_access_start_date,
+        holdout_access_end_date=holdout_access_end_date,
+        holdout_access_partition_spec=holdout_access_partition_spec,
+        holdout_authorized_evaluation_context=holdout_authorized_evaluation_context,
+    )
     amendment_records = _coerce_amendments(amendments)
     study_budget_check, variant_records = variant_ledger_records_from_trial_ledger(
         trial_ledger_records,
@@ -699,7 +727,6 @@ def validate_variant_and_family_budget(
         family_id=active_family_id,
         created_at=created_at,
     )
-
     issues: list[ValidationIssue] = []
     if require_recorded:
         existing_keys = {_record_key(record) for record in existing_records}
@@ -793,6 +820,39 @@ def validate_variant_and_family_budget(
         family_budget_check=family_budget_check,
         variant_records=variant_records,
         amendments_applied=tuple(dict.fromkeys(amendments_applied)),
+    )
+
+
+def _emit_study_execution_holdout_access(
+    study_spec: StudySpec,
+    *,
+    sealed_holdout_registry_path: str | Path | None,
+    holdout_access_log_path: str | Path | None,
+    holdout_access_actor: str | None,
+    holdout_access_type: HoldoutAccessType | str,
+    holdout_access_rationale: str | None,
+    holdout_access_start_date: str | None,
+    holdout_access_end_date: str | None,
+    holdout_access_partition_spec: Mapping[str, Any] | None,
+    holdout_authorized_evaluation_context: bool,
+) -> None:
+    if sealed_holdout_registry_path is None and holdout_access_log_path is None:
+        return
+    emit_holdout_access_if_intersects(
+        sealed_holdout_registry_path=sealed_holdout_registry_path,
+        holdout_access_log_path=holdout_access_log_path,
+        study_spec_id=study_spec.study_spec_id,
+        actor=holdout_access_actor or "",
+        access_type=holdout_access_type,
+        rationale=(
+            holdout_access_rationale
+            or "Study execution entry evaluated sealed holdout access."
+        ),
+        access_start_date=holdout_access_start_date,
+        access_end_date=holdout_access_end_date,
+        access_partition_spec=holdout_access_partition_spec,
+        authorized_evaluation_context=holdout_authorized_evaluation_context,
+        fail_on_unauthorized_locked_test=True,
     )
 
 
@@ -956,7 +1016,10 @@ def _validate_positive_budget(value: int, *, field: str) -> list[ValidationIssue
     return []
 
 
-def _parse_variant_status(value: object, issues: list[ValidationIssue]) -> VariantLedgerStatus | None:
+def _parse_variant_status(
+    value: object,
+    issues: list[ValidationIssue],
+) -> VariantLedgerStatus | None:
     try:
         return VariantLedgerStatus(value)
     except ValueError:
