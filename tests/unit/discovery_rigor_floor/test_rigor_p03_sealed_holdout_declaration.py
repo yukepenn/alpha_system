@@ -25,7 +25,7 @@ def test_kill_shot_sealed_holdout_declaration_validates_value_free() -> None:
 
     window = registry.active_window()
 
-    assert window.window_id == "holdwin_bcf16744d03b8546a219fcd1"
+    assert window.window_id == "holdwin_3ed860d2e163f8c6e4cbeb66"
     assert window.status is SealedHoldoutStatus.SEALED
     assert window.start_date == LOCKED_TEST_START
     assert window.end_date is None
@@ -33,6 +33,7 @@ def test_kill_shot_sealed_holdout_declaration_validates_value_free() -> None:
     assert window.provenance is not None
     assert window.provenance["value_free"] is True
     assert window.provenance["phase_id"] == "P033000_HOLDOUT_WINDOW_COVERAGE"
+    assert window.provenance["relock_supersession_phase_id"] == "P110000_RELOCK_V2"
     assert window.provenance["relocked_studyspec_count"] == 10
     assert window.provenance["locked_test_partition_count"] == 32
     assert "docs/OPERATING_COMPASS_V4.md" in str(window.provenance["compass_ref"])

@@ -10,9 +10,9 @@ from alpha_system.governance.trial_ledger import create_trial_ledger_record
 from alpha_system.governance.variant_ledger import validate_variant_ledger_record
 
 RERUN_STUDY_IDS = (
-    "sspec_652fcc23a6f725b405612b8e",
-    "sspec_676a012a4a4cdf3d169cd981",
-    "sspec_1d87dfbe3d24810720f75014",
+    "sspec_f6cbd88caa0445f0f56d81fd",
+    "sspec_1604b063f3a3401208ee0239",
+    "sspec_dec89a327a9c50957adca780",
 )
 ALPHA_SPEC_ID = generate_governance_id(
     GovernanceIdKind.ALPHA_SPEC,

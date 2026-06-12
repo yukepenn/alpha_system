@@ -14,6 +14,20 @@ tradability, or capital-allocation statement. No market, return, signal, cost,
 or diagnostic values appear here — only lock metadata counts, contract
 formulas, and pre-declared expectations.
 
+P110000_RELOCK_V2 addendum (2026-06-12): the memo content remains the
+pre-metric planning prior for the P022000 re-lock anchors. For execution after
+P110000_RELOCK_V2, use the successor StudySpec ids below; the prior ids remain
+historical anchors only.
+
+| P022000 re-lock anchor | P110000_RELOCK_V2 successor |
+| --- | --- |
+| `sspec_652fcc23a6f725b405612b8e` | `sspec_f6cbd88caa0445f0f56d81fd` |
+| `sspec_676a012a4a4cdf3d169cd981` | `sspec_1604b063f3a3401208ee0239` |
+| `sspec_1d87dfbe3d24810720f75014` | `sspec_dec89a327a9c50957adca780` |
+| `sspec_c2114a3c6c90595350151af0` | `sspec_840e8342564226f2c3257903` |
+| `sspec_950ad6bb7063928d9ff8ea4f` | `sspec_c237c6a8ce40c2585836fae0` |
+| `sspec_6088f0ed5b02b161bfb54943` | `sspec_533f665ec4ac063dbb664a54` |
+
 ---
 
 ## 1. Shared dataset scope and N_eff basis
@@ -111,6 +125,7 @@ why pre-declared pooled evaluation exists.
 
 ### 3.1 `sspec_652fcc23a6f725b405612b8e` — vwap_session (RTH running-VWAP reclaim)
 
+- P110000 successor: `sspec_f6cbd88caa0445f0f56d81fd`.
 - Scope: ES/NQ/RTY, 2019–2026 (7.4 yr), 5m/10m/15m/30m, variant budget 4
   (opening_window × reclaim_distance_band).
 - N_eff basis: shared table above (approximation per §1); realized power is
@@ -126,6 +141,7 @@ why pre-declared pooled evaluation exists.
 
 ### 3.2 `sspec_676a012a4a4cdf3d169cd981` — vwap_session (RTH open vs completed-ETH context)
 
+- P110000 successor: `sspec_1604b063f3a3401208ee0239`.
 - Scope: identical label substrate; variant budget 4
   (completed_eth_context × first_RTH_window).
 - N_eff basis: shared table; strongest sparsity of the vwap pair — the
@@ -140,6 +156,7 @@ why pre-declared pooled evaluation exists.
 
 ### 3.3 `sspec_1d87dfbe3d24810720f75014` — regime (trendiness/vol/range-compression gate)
 
+- P110000 successor: `sspec_dec89a327a9c50957adca780`.
 - Scope: identical label substrate; variant budget 4 (gate_mode × gate_window).
 - N_eff basis: shared table; the mechanism is an **activation gate**, so the
   evaluable sample is the gated-active subset, smaller than the row basis by
@@ -155,6 +172,7 @@ why pre-declared pooled evaluation exists.
 
 ### 3.4 `sspec_c2114a3c6c90595350151af0` — liquidity_pa (sweep close-back-inside)
 
+- P110000 successor: `sspec_840e8342564226f2c3257903`.
 - Scope: identical label substrate; variant budget 4
   (close_back_inside_deadline × reference_level_window).
 - N_eff basis: shared table; sweep-and-reclaim events are sparse by
@@ -171,6 +189,7 @@ why pre-declared pooled evaluation exists.
 
 ### 3.5 `sspec_950ad6bb7063928d9ff8ea4f` — liquidity_pa (failed-breakout reversal)
 
+- P110000 successor: `sspec_c237c6a8ce40c2585836fae0`.
 - Scope: identical label substrate; variant budget 4
   (boundary_type × failure_deadline).
 - N_eff basis: shared table; same sparse-event discount as 3.4.
@@ -184,6 +203,7 @@ why pre-declared pooled evaluation exists.
 
 ### 3.6 `sspec_6088f0ed5b02b161bfb54943` — bbo_tradability (spread-zscore + depth confirmation)
 
+- P110000 successor: `sspec_533f665ec4ac063dbb664a54`.
 - Scope: identical label substrate; variant budget 4
   (depth_gate × spread_zscore_window).
 - N_eff basis: shared table; additionally constrained by BBO coverage and the
@@ -203,6 +223,10 @@ why pre-declared pooled evaluation exists.
 ---
 
 ## 4. Summary table
+
+The `Re-lock sspec` column names the P022000 anchors retained by the
+pre-registration memo. P110000_RELOCK_V2 execution must use the successor map
+above.
 
 | Re-lock sspec | Family | Scope | N_eff basis | MDE 2σ solo / pooled-symbols | MDE multiplicity bar | Prior edge grade | Pre-declared expectation |
 | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -83,7 +83,7 @@ def test_relocked_studyspecs_preserve_original_ids_and_parameters() -> None:
         assert spec.dataset_scope["relock_provenance"]["original_study_spec_id"] == original_id
         assert (
             spec.dataset_scope["relock_provenance"]["relock_phase_id"]
-            == "P022000_FUTSUB_RELOCK_RERUN"
+            == "P110000_RELOCK_V2"
         )
 
 
@@ -119,7 +119,7 @@ def test_reissued_locks_are_well_formed_value_free_and_accepted() -> None:
             assert int(lock["value_record_count"]) > 0
             assert not PATH_KEYS.intersection(lock)
 
-    assert sum(len(spec.dataset_scope["feature_pack_locks"]) for spec in _load_relocked_specs()) == 4560
+    assert sum(len(spec.dataset_scope["feature_pack_locks"]) for spec in _load_relocked_specs()) == 4112
     assert sum(len(spec.dataset_scope["label_pack_locks"]) for spec in _load_relocked_specs()) == 840
 
 
@@ -143,8 +143,8 @@ def test_committed_locks_resolve_against_live_registry_and_feature_validator() -
 
     report = validate_feature_locks(all_feature_locks, registry_path=feature_registry)
     assert report.ok
-    assert report.to_dict()["lock_count"] == 4560
-    assert report.to_dict()["resolved_count"] == 4560
+    assert report.to_dict()["lock_count"] == 4112
+    assert report.to_dict()["resolved_count"] == 4112
     assert report.to_dict()["stale_lock_count"] == 0
 
 
@@ -153,8 +153,9 @@ def test_relock_report_records_smoke_pass_and_all_inconclusive_classifications()
 
     assert "StudySpec resolver-smoke: PASS" in report
     assert "Prior-INCONCLUSIVE studies re-locked: 6/6" in report
-    assert "Feature locks resolved for committed re-locks: 4560" in report
-    assert "Label locks resolved for committed re-locks: 840" in report
+    assert "Feature locks resolved for committed V2 re-locks: 4112" in report
+    assert "Label locks resolved for committed V2 re-locks: 840" in report
+    assert "Deprecated R-036 session countdown locks retired without replacement: 448" in report
     assert "## Prior-INCONCLUSIVE Classification" in report
     assert "feature_pack_not_found" in report
     assert "Named Gaps\n\nNone." in report

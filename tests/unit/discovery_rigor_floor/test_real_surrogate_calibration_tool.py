@@ -28,10 +28,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 COMMITTED_STUDY_SPEC = (
     REPO_ROOT
     / "research/futures_substrate_scaleout_v1/rerun/study_specs/"
-    "sspec_da1bba367710c983b2ca644f.json"
+    "sspec_19cbe3c2c973ef68130b6224.json"
 )
 KILL_SHOT_RERUN_SPECS = {
-    "sspec_652fcc23a6f725b405612b8e": (
+    "sspec_f6cbd88caa0445f0f56d81fd": (
         "base_ohlcv_vwap",
         "base_ohlcv_anchored_vwap",
         "base_ohlcv_distance_to_vwap",
@@ -39,7 +39,7 @@ KILL_SHOT_RERUN_SPECS = {
         "base_ohlcv_overnight_range",
         "base_ohlcv_session_minute",
     ),
-    "sspec_676a012a4a4cdf3d169cd981": (
+    "sspec_1604b063f3a3401208ee0239": (
         "base_ohlcv_vwap",
         "base_ohlcv_anchored_vwap",
         "base_ohlcv_distance_to_vwap",
@@ -47,14 +47,14 @@ KILL_SHOT_RERUN_SPECS = {
         "base_ohlcv_overnight_range",
         "base_ohlcv_session_minute",
     ),
-    "sspec_1d87dfbe3d24810720f75014": (
+    "sspec_dec89a327a9c50957adca780": (
         "base_ohlcv_trendiness",
         "base_ohlcv_atr",
         "liquidity_structure_range_contraction",
         "base_ohlcv_rolling_range",
         "base_ohlcv_returns",
     ),
-    "sspec_c2114a3c6c90595350151af0": (
+    "sspec_840e8342564226f2c3257903": (
         "liquidity_structure_prior_high_distance",
         "liquidity_structure_prior_low_distance",
         "liquidity_structure_sweep_high_flag",
@@ -65,7 +65,7 @@ KILL_SHOT_RERUN_SPECS = {
         "liquidity_structure_wick_rejection_score",
         "liquidity_structure_range_contraction",
     ),
-    "sspec_950ad6bb7063928d9ff8ea4f": (
+    "sspec_c237c6a8ce40c2585836fae0": (
         "liquidity_structure_prior_high_distance",
         "liquidity_structure_prior_low_distance",
         "liquidity_structure_sweep_high_flag",
@@ -76,7 +76,7 @@ KILL_SHOT_RERUN_SPECS = {
         "liquidity_structure_wick_rejection_score",
         "liquidity_structure_range_contraction",
     ),
-    "sspec_6088f0ed5b02b161bfb54943": (
+    "sspec_533f665ec4ac063dbb664a54": (
         "bbo_tradability_mid",
         "bbo_tradability_spread_zscore",
         "bbo_tradability_spread",

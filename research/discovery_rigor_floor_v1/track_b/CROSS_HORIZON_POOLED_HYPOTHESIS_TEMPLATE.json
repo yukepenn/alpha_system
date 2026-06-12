@@ -1,11 +1,11 @@
 {
   "candidate_study_spec_ids": [
-    "sspec_652fcc23a6f725b405612b8e",
-    "sspec_676a012a4a4cdf3d169cd981",
-    "sspec_1d87dfbe3d24810720f75014",
-    "sspec_c2114a3c6c90595350151af0",
-    "sspec_950ad6bb7063928d9ff8ea4f",
-    "sspec_6088f0ed5b02b161bfb54943"
+    "sspec_f6cbd88caa0445f0f56d81fd",
+    "sspec_1604b063f3a3401208ee0239",
+    "sspec_dec89a327a9c50957adca780",
+    "sspec_840e8342564226f2c3257903",
+    "sspec_c237c6a8ce40c2585836fae0",
+    "sspec_533f665ec4ac063dbb664a54"
   ],
   "not_registered": true,
   "registration_payload_template": {
@@ -17,9 +17,9 @@
     ],
     "mechanism_rationale": "Template only: register one mechanism-based cross-horizon Track-B pooled hypothesis before any Track-A metric marker exists, keeping 5m/15m/30m membership fixed.",
     "members": [
-      "sspec_652fcc23a6f725b405612b8e#horizon=5m",
-      "sspec_652fcc23a6f725b405612b8e#horizon=15m",
-      "sspec_652fcc23a6f725b405612b8e#horizon=30m"
+      "sspec_f6cbd88caa0445f0f56d81fd#horizon=5m",
+      "sspec_f6cbd88caa0445f0f56d81fd#horizon=15m",
+      "sspec_f6cbd88caa0445f0f56d81fd#horizon=30m"
     ],
     "pool_kind": "cross_horizon",
     "pooled_hypothesis_id": "GENERATE_WITH_alpha_system.governance.pooled_hypothesis.generate_pooled_hypothesis_id",
@@ -37,7 +37,7 @@
       "created_at": "MATCH_REGISTERED_AT",
       "family_id": "pooled-track-b-cross-horizon",
       "status": "PLANNED",
-      "study_spec_id": "sspec_652fcc23a6f725b405612b8e",
+      "study_spec_id": "sspec_f6cbd88caa0445f0f56d81fd",
       "trial_ids": [
         "SET_TO_PRE_METRIC_POOLED_REGISTRATION_TRIAL_REF"
       ],
