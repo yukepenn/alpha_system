@@ -19,6 +19,7 @@ from alpha_system.runtime.input_resolver import (
     FeatureLabelPackResolver,
     RuntimeInputResolverError,
 )
+from tests._helpers.local_data import skip_unless_local_registry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ORIGINAL_STUDY_SPECS = (
@@ -124,14 +125,11 @@ def test_reissued_locks_are_well_formed_value_free_and_accepted() -> None:
 
 def test_committed_locks_resolve_against_live_registry_and_feature_validator() -> None:
     data_root = _alpha_data_root()
-    feature_registry = data_root / "registry/features.sqlite"
+    feature_registry = skip_unless_local_registry(
+        lambda: data_root / "registry/features.sqlite",
+        reason="live local registry absent (CI environment); lock resolution validated locally; see studyspec_relock.md report",
+    )
     label_registry = data_root / "registry/labels.sqlite"
-    if not feature_registry.exists():
-        pytest.skip(
-            "live local registry absent (CI environment): "
-            f"{feature_registry} -- lock resolution validated locally; "
-            "see studyspec_relock.md report"
-        )
     assert label_registry.exists()
 
     resolver = FeatureLabelPackResolver(alpha_data_root=data_root)

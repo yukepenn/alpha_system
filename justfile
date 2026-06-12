@@ -21,6 +21,12 @@ verify:
 verify-ci:
     python tools/verify.py --ci
 
+ci-parity:
+    python tools/frontier/ci_parity.py
+
+ci-parity-fast *pytest_args:
+    python tools/frontier/ci_parity.py -- {{pytest_args}}
+
 verify-canaries:
     python tools/hooks/canary_runner.py
 

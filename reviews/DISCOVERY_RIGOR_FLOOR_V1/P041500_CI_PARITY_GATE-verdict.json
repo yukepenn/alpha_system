@@ -1,0 +1,116 @@
+{
+  "phase_id": "P041500_CI_PARITY_GATE",
+  "campaign_id": "DISCOVERY_RIGOR_FLOOR_V1",
+  "verdict": "PASS_WITH_WARNINGS",
+  "reviewed_at": "2026-06-12",
+  "worktree": "/home/yuke_zhang/projects/alpha_system-wf1-relock",
+  "branch": "harness/ci-parity-gate",
+  "worktree_head": "e53f4563fc1e5d11e8cd8d853ca31e1087061a07",
+  "origin_main_at_review": "80008c5a4767d743efaf423aff4be50fbed66279",
+  "checks": {
+    "scope_14_listed_files_plus_system_map_only": {
+      "pass": true,
+      "src_alpha_system_changes_in_diff": 0,
+      "unpushed_commits_vs_origin_main": 0,
+      "branch_behind_origin_main_commits": 2
+    },
+    "tamper_guard_fail_closed": {
+      "pass": true,
+      "raw_pytest_skip_mutation_flagged_rc": 1,
+      "pytest_mark_skip_mutation_flagged_rc": 1,
+      "sanctioned_helper_allowed_rc": 0,
+      "helper_import_plus_raw_skip_flagged_rc": 1,
+      "relock_smoke_guard_rc_without_env_escape": 0,
+      "relock_with_data": "6 passed",
+      "relock_without_data": "5 passed, 1 skipped (loud LOCAL DATA SKIP)",
+      "guard_self_tests_both_directions": true
+    },
+    "driver_surgical_yellow_red_before_review_existing_repair_loop": {
+      "pass": true,
+      "diff_lines": "+67, 0 deletions, no reformatting",
+      "lanes": ["yellow", "red"],
+      "runs_before_review_handoff": true,
+      "failure_routes_run_provider_repair_loop": true,
+      "skip_escape_event": "CI_PARITY_SKIP_ESCAPE_USED (test passes)",
+      "green_lane_unaffected_test": true,
+      "stop_semantics_untouched": true
+    },
+    "workflow_drift_test": {
+      "pass": true,
+      "workflow_deps": "pytest pyyaml jinja2",
+      "mutation_pin_polars_result": "1 failed (drift test FAILED)",
+      "restored_sha256_byte_identical": "f5a90c54238f2799e70f36e25917a843646a24e36737d6a66db3a21d0643748e"
+    },
+    "auto_merge_first_safe_fallback": {
+      "pass": true,
+      "auto_first_then_direct_fallback": true,
+      "armed_routes_to_pending_not_merged": "merge_result_auto_armed -> mark_auto_merge_pending, phase not marked merged",
+      "merge_gate_evaluated_before_perform_merge": true,
+      "frontier_disable_automerge_kill_switch_intact": true,
+      "run_gh_and_core_bare_restore_untouched": true,
+      "test_github_utils": "28 passed"
+    },
+    "ci_parity_refusal_and_bootstrap": {
+      "pass": true,
+      "optional_module_refusal_research_venv": "refused: duckdb, polars, pyarrow (False)",
+      "optional_module_refusal_ci_venv": "clean (True)",
+      "no_fallback_to_research_or_system": "fail-closed exit 2 with explicit message",
+      "no_ensurepip_bootstrap": "fail-closed rc=1 with clear message; system ensurepip absent on this host",
+      "virtualenv_hint_in_message": "added by reviewer (authorized one-line fix, W1)"
+    },
+    "mutation_driver_skips_yellow": {
+      "pass": true,
+      "mutation": "ci_parity_required_for_phase lanes {yellow,red} -> {red}",
+      "result": "4 failed (yellow-runs, green-skips, repair-routing, skip-escape tests all FAILED)",
+      "restored_sha256_byte_identical": "20cf613f941980e34f3ed326277b285031d1c4c8c99ebbe8151cc47abef39542"
+    },
+    "validation_runs": {
+      "pass": true,
+      "battery_frontier_driver_hooks_relock": "111 passed in 25.07s",
+      "github_utils": "28 passed",
+      "relock_no_data": "5 passed, 1 skipped",
+      "canary_runner": "All Frontier canaries passed, rc=0",
+      "verify_smoke": "rc=0",
+      "just_ci_parity_real_run": "3261 passed, 74 skipped in 76.57s, exit 0 (wall 77.3s)"
+    },
+    "git_hygiene": {
+      "pass": true,
+      "staged_files": 0,
+      "git_ls_files_runs": "empty",
+      "no_commit_made": true
+    }
+  },
+  "reviewer_edits": [
+    {
+      "file": "tools/frontier/ci_parity.py",
+      "change": "one-line bootstrap-failure message now mentions `virtualenv <path>` route (authorized by review task item 6); py_compile + drift test re-verified after edit"
+    }
+  ],
+  "warnings": [
+    {
+      "id": "W1",
+      "summary": "Bootstrap-failure message lacked the virtualenv hint (host has no system ensurepip); reviewer made the authorized one-line message fix in create_venv's SystemExit branch."
+    },
+    {
+      "id": "W2",
+      "summary": "No-ensurepip bootstrap exits rc=1 (propagated stdlib code) rather than the script's rc=2; still fail-closed with a clear message. Cosmetic."
+    },
+    {
+      "id": "W3",
+      "summary": "Guard remains regex-based; pre-existing alias bypasses are not widened by the sanctioned-pattern substitution. tests/_helpers/local_data.py (the one legitimate raw pytest.skip) is outside should_check scan scope by pre-existing rules."
+    },
+    {
+      "id": "W4",
+      "summary": "Branch is 2 commits behind origin/main (#391, #387); rerun `just ci-parity` after rebase/update-branch before merge."
+    },
+    {
+      "id": "W5",
+      "summary": "Parity gate (~77s) runs even when run_phase_validation already failed; slower repair iterations for fuller evidence."
+    },
+    {
+      "id": "W6",
+      "summary": "Optional-module refusal is a fixed 7-module probe list, not an exact installed==pinned assertion; extend if the optional-dep surface grows."
+    }
+  ],
+  "research_only": true
+}
