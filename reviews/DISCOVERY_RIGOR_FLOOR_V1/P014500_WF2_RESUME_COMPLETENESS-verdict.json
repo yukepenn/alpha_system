@@ -1,0 +1,73 @@
+{
+  "phase_id": "P014500_WF2_RESUME_COMPLETENESS",
+  "verdict": "PASS_WITH_WARNINGS",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "required_repair",
+      "summary": "Spec test 3b only half-delivered: no test covers repair-exhaustion with a PARSEABLE failing (REWORK) final review; mutation 'adopt REWORK as passing' survives the full suite (84 passed). Add one test: final repair_review.md = 'VERDICT: REWORK' with no repair bullets -> assert synthetic BLOCKED verdict.json (source repair_exhausted, raw_review_path null). No production-code change required.",
+      "evidence": "grep -rn repair_exhausted tests/ matches only the new test file; its negative test uses an unparseable review which the shared parser maps to BLOCKED, so widening the adoption set to REWORK is invisible. Exposure bounded: execute_provider_phase re-gates 'verdict not in PASSING_VERDICTS -> block_provider_run', so the mutant cannot merge a non-passing phase."
+    },
+    {
+      "id": "F2",
+      "severity": "info",
+      "summary": "parse_final_repair_review falls back to phase review.md when the final attempt dir is absent; that file is always reviewer-authored (repair loop mirrors every repair review into it), so non-reviewer text cannot be adopted."
+    },
+    {
+      "id": "F3",
+      "severity": "info",
+      "summary": "Dropping the required_repairs guard is an equivalent mutant: parse_review_text (tools/frontier/verdict.py:221) structurally forces required_repairs=[] for passing verdicts and is the only verdict source on this path. Guard kept as defense-in-depth."
+    }
+  ],
+  "mutation_tests": [
+    {
+      "id": "a",
+      "mutation": "fidelity path adopts REWORK (PASSING_VERDICTS | {\"REWORK\"})",
+      "result": "SURVIVED",
+      "tests": "84 passed",
+      "disposition": "required repair F1"
+    },
+    {
+      "id": "b",
+      "mutation": "drop 'and not final_review.required_repairs'",
+      "result": "SURVIVED_EQUIVALENT",
+      "tests": "84 passed",
+      "disposition": "proven equivalent mutant via verdict.py:221; documented F3"
+    },
+    {
+      "id": "c",
+      "mutation": "remove mid-pipeline continuation block in ready_wave_phases",
+      "result": "KILLED",
+      "tests": "1 failed: test_targeted_done_check_resume_finishes_midpipeline_phase_before_wave_scheduling (SCHEDULE_DEADLOCK reappears)"
+    },
+    {
+      "id": "d",
+      "mutation": "skip done_check gate (if False), REVIEWED jumps straight to commit",
+      "result": "KILLED",
+      "tests": "2 failed: test_targeted_done_check_resume_finishes_midpipeline_phase_before_wave_scheduling (done_check checkpoint assert) + test_provider_wired_env_max_phases_one_runs_exactly_one_mock_phase"
+    }
+  ],
+  "validation_counts": {
+    "pytest_tests_unit_frontier_plus_test_ralph_driver": "84 passed (18 + 66), exit 0",
+    "verify_smoke": "exit 0",
+    "canary_runner": "21 PASS, exit 0",
+    "status_doctor": "4 ok / 1 WARN (no live run dir in worktree, expected), exit 0",
+    "diff_sha256_before_equals_after_mutations": "391bdb4c710212fab100a93368f7d8857f2d31376f9e13bc240c84ff6f1b24aa",
+    "staged_files": 0,
+    "git_ls_files_runs": "empty"
+  },
+  "rework_resolution": {
+    "resolved_finding": "F1",
+    "date": "2026-06-11",
+    "reviewer": "Claude (fresh re-review, Workflow 1)",
+    "repair": "Executor added test_repair_exhaustion_parseable_rework_final_review_stays_synthetic_blocked to tests/unit/frontier/test_ralph_driver_resume_completeness.py: final repair_review.md is a clean parseable 'VERDICT: REWORK' with no repair bullets; asserts run_provider_repair_loop returns BLOCKED, phase status stays REWORK (not REVIEWED), verdict.json has verdict BLOCKED / source repair_exhausted / raw_review_path null, and the REPAIR_EXHAUSTED event carries no source or verdict keys. Test-only delta: git diff names only tools/frontier/ralph_driver.py (production), whose diff sha256 still equals 391bdb4c710212fab100a93368f7d8857f2d31376f9e13bc240c84ff6f1b24aa, byte-identical to the reviewed diff; the only other working-tree path is the (untracked) test file gaining the one new test.",
+    "re_review_evidence": {
+      "suite_with_repair": "85 passed (was 84), exit 0 — ~/.venvs/alpha_system_research/bin/python -m pytest tests/unit/frontier tests/test_ralph_driver.py -q",
+      "mutation_a_rerun": "Re-applied mutant: fidelity path adoption set widened to PASSING_VERDICTS | {\"REWORK\"} at ralph_driver.py:4985. Result: 1 failed, 84 passed — exactly the new test failed with assert 'REWORK' == 'BLOCKED'. Mutation (a) is now KILLED.",
+      "restore_verified": "Mutant reverted; git diff tools/frontier/ralph_driver.py | sha256sum == 391bdb4c710212fab100a93368f7d8857f2d31376f9e13bc240c84ff6f1b24aa; suite re-passed 85.",
+      "parser_path_confirmed": "Under the mutant the adopted verdict was REWORK, proving parse_review_text parses the test's review to a clean REWORK with required_repairs == [] — the test exercises the parseable-REWORK path, not the unparseable fallback."
+    },
+    "verdict_after_resolution": "PASS_WITH_WARNINGS",
+    "remaining_warnings": "Informational findings F2 (review.md fallback is reviewer-authored-only) and F3 (required_repairs guard is a proven-equivalent mutant kept as defense-in-depth) stand as documented; no repair required."
+  }
+}
