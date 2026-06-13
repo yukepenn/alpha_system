@@ -7,32 +7,24 @@ and validating offline research substrate under Frontier Harness Generic
 ## Current Snapshot
 
 The repository-level campaign pointer targets
-`SHIP_REFIT_V1`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`, which is
-coordinator-owned in Workflow 2.
+`STRATEGY_SHAPED_RESEARCH_LANE_V0`. Campaign state is tracked in
+`ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-`SHIP_REFIT-P04` is the current refit phase on this branch. It is the GREEN,
-non-gating second-wave cleanup/provenance landing after P00-P03. The load-bearing
-cores remain P01 provider-watchdog resilience, P02 diagnostics fast-path parity,
-and P03 Detection-Power / N_eff rigor.
+`SSRL-P00` is the documentation-only bootstrap phase. After this phase merges,
+campaign progress is `1/5` phases complete. The active / next phase is
+`SSRL-P01` -- SetupSpec + MechanismCard contracts, YELLOW.
 
-Durable surfaces added so far are the provider watchdog in
-`tools/frontier/command_runner.py`, the Ralph watchdog wiring and first-light
-preflight in `tools/frontier/ralph_driver.py`, the permutation-index diagnostics
-fast path in `src/alpha_system/governance/surrogate_run.py` and
-`src/alpha_system/research/diagnostics.py`, the IC power helper in
-`src/alpha_system/runtime/diagnostics/power.py`, the purge/embargo-aware N_eff
-estimator in `src/alpha_system/runtime/diagnostics/splits/n_eff.py`, the parity
-harness in `tests/unit/governance/test_surrogate_run.py`, and the design notes
-`docs/ship_refit_v1/PROVIDER_WATCHDOG.md` and
-`docs/ship_refit_v1/DIAGNOSTICS_FAST_PATH.md`. P04 adds the shared
-`tools/frontier/cleanup.py` path, `tools/frontier/runs_retention.py`,
-`tools/frontier/runtime_paths.py`, the `just frontier-clean` and
-`just frontier-clean-dry-run` recipes, post-merge stale-worktree/run-retention
-cleanup wiring, the done-check provenance fix, and persistent Frontier scratch
-under `$ALPHA_SYSTEM_ROOT/.tmp`; see
-`docs/ship_refit_v1/CLEANUP_PROVENANCE.md`. The provider timeout is `3600s`; the
-first-light pre-run check remains callable with
-`python tools/frontier/ralph_driver.py first-light`.
+Durable docs added by `SSRL-P00` are
+`docs/strategy_shaped_lane/REUSE_MAP.md` and
+`docs/strategy_shaped_lane/V0_SCOPE.md`. They lock reuse of the existing path
+labels, path-outcome diagnostics, single-factor template, governance spec chain,
+variant ledger, rejected-idea ledger, surrogate-FDR machinery, and power helpers.
+
+Safety boundaries are unchanged: EXPLORATORY output is not promotion evidence;
+there is no research-to-reference-sim bridge and no second PnL truth; the
+single-factor path remains additive-only and unchanged; V0 is bounded and is not
+a grid; there is no live trading, paper trading, broker operation, order routing,
+deployment, new paid data, or new runtime dependency.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
