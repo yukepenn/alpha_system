@@ -2,53 +2,49 @@
 
 Project: `alpha_system`
 
-Campaign: `campaigns/SHIP_REFIT_V1`
+Campaign: `campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0`
 Workflow: `workflow2`
-Status: `ready-to-launch`. The FUTSUB substrate-scaleout campaign is COMPLETE
-(34/34, run `2026-06-07T235209Z_...`); its first kill-shot produced **0
-survivors** (4 distinct legacy mechanisms REJECT at near-zero IC — a conservative,
-power-qualified negative, method integrity intact). The ultracode war council
-adjudicated the next path as `SHIP_REFIT_V1` (scoped) — the voyage-earned refit
-that lowers the future marginal cost of an honest verdict.
+Status: `ready-to-launch`. SHIP_REFIT_V1 is COMPLETE (verdict engine hardened:
+provider-watchdog, diagnostics fast-path 11.4× byte-parity, per-factor MDE/power
++ purge/embargo N_eff). The corrective war council verified alpha_system has **no
+generic strategy-shaped research path** (single-primary-factor engine; context==trigger;
+no SetupSpec class). This campaign removes that foundational platform blocker.
 
-## Why SHIP_REFIT_V1 next (not broad mining)
+## Why STRATEGY_SHAPED_RESEARCH_LANE_V0 next
 
-Survivor-gate = 0 ⇒ DIAGNOSE, do not build by inertia. The dominant voyage cost
-was verdict **cost** (codex provider hangs; per-seed materialized shuffled-label
-calibration bloat) AND verdict **trust** (no MDE/power machinery; first-order
-N_eff). SHIP_REFIT closes both before the next, *differentiated* kill-shot.
+A capability investment (decoupled from any alpha bet): let any human OR AI researcher
+express a strategy-shaped hypothesis — context, trigger (SEPARATE from context),
+confirmation, invalidation, stop/target/hold-time, horizon, path-label binding — as one
+governed `SetupSpec`/`MechanismCard`, explore it as a QUARANTINED EXPLORATORY probe over
+the existing path labels + already-wired path-outcome diagnostics, under a pre-registered
+FDR budget, and hand promising results to the trusted lane WITHOUT becoming promotion
+evidence.
 
-## Campaign Identity
+## Phases (minimal; sequential)
 
-- Campaign ID: `SHIP_REFIT_V1`
-- Contract bundle: `campaigns/SHIP_REFIT_V1/`
-- Scheduler: `dag_wave`, serial merge queue (DAG linearizes to sequential —
-  P01 holds a global path).
+- `SSRL-P00` (GREEN) — bootstrap + REUSE-MAP/scope lock.
+- `SSRL-P01` (YELLOW) — SetupSpec + MechanismCard contract classes.
+- `SSRL-P02` (YELLOW) — context≠trigger conditional probe (additive, path-label outcomes, EXPLORATORY).
+- `SSRL-P03` (YELLOW) — first-light example on a small slice + the de-stack probe.
+- `SSRL-P04` (YELLOW) — trusted-handoff scaffold + AI-researcher happy-path + PA_GRAMMAR naming docs.
 
-## Phases (3 load-bearing + bootstrap + non-gating cleanup)
+## Hard invariants
 
-- `SHIP_REFIT-P00` (GREEN) — bootstrap / pointer.
-- `SHIP_REFIT-P01` (YELLOW) — Provider-Watchdog / job-runner resilience
-  (hang recovery from up to 6h to <2 min).
-- `SHIP_REFIT-P02` (YELLOW) — Diagnostics-Fast-Path (pure-Python permutation-index,
-  byte-identical parity gate, ≥10× calibration speedup).
-- `SHIP_REFIT-P03` (YELLOW) — Detection-Power / N_eff rigor (MDE + purge/embargo +
-  per-factor power statement). A-vs-B settler = NULL ⇒ bounded, no interaction detector.
-- `SHIP_REFIT-P04` (GREEN, non-gating) — cleanup / provenance second wave.
+EXPLORATORY ≠ promotion evidence (trusted path refuses it); NO research→reference-sim
+bridge (reference engine stays the survivor-only PnL truth — no second PnL truth);
+single-factor path UNCHANGED (additive only); pre-registered FDR / no grid; NO multi-bar
+sequence, NO geometry sweeps, NO feature fast lane (all deferred behind a later trigger);
+no new dependency; no new paid data; no paper/live/broker.
 
 ## Boundaries
 
-In scope: harness/diagnostics hardening only. Out of scope: new alpha ideation,
-FactorLibrary/AlphaBook/Research Runner, researcher-UX/Feature-Fast-Lane, paid
-data, paper/live/broker, any new dependency (numpy/pandas/polars stay absent).
-No profitability/tradability claim. Truth-chain invariants preserved (canary
-fires, surrogate-FDR zero-pass + constant-factor exclusion held, fast-path
-parity-gated).
+Data ≠ Feature ≠ Factor ≠ Signal ≠ Strategy ≠ Portfolio ≠ Execution. Sandbox/exploratory
+≠ promotion evidence. Runtime diagnostics ≠ Strategy Reference validation. Validated
+research ≠ paper/live approval. `FactorLibrary` reserved for surviving-alpha memory (a PA
+content substrate, if earned, is `PA_GRAMMAR_SUBSTRATE_V1`, separate).
 
 ## Stop / Resume
 
-A `runs/<run_id>/STOP` file is an active stop request; Ralph checks it before
-every stage transition. Resume continues from recorded run state. For live phase
-status, trust `python tools/frontier/status_doctor.py` /
-`runs/<run_id>/state.json`, never this file. Phase branches never write this
-pointer; the coordinator owns it.
+A `runs/<run_id>/STOP` file is an active stop request (checked before each stage). For live
+phase status trust `python tools/frontier/status_doctor.py` / `runs/<run_id>/state.json`,
+never this file. Phase branches never write this pointer; the coordinator owns it.

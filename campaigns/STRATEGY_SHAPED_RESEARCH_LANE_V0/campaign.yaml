@@ -1,0 +1,382 @@
+campaign_id: STRATEGY_SHAPED_RESEARCH_LANE_V0
+campaign_name: >-
+  Strategy-Shaped Research Lane V0: the minimal, evidence-gated capability that lets a
+  human OR AI researcher express a strategy-shaped hypothesis — context, trigger
+  (SEPARATE from context), confirmation, invalidation, stop/target/hold-time, horizon,
+  path-label binding — as one governed object (SetupSpec/MechanismCard), explore it as a
+  QUARANTINED EXPLORATORY probe over the EXISTING path labels + already-wired path-outcome
+  diagnostics, ledger every variant under a pre-registered FDR budget, and hand promising
+  results to the trusted lane WITHOUT ever becoming promotion evidence. This removes the
+  verified expressibility blocker (single-primary-factor engine; context==trigger; no
+  SetupSpec class) — a platform CAPABILITY investment, decoupled from any alpha bet.
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: strategy_shaped_research_lane
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Research-capability engineering only. Adds a SetupSpec/MechanismCard contract + a
+    bounded context!=trigger conditional probe that REUSES existing path labels
+    (MFE/MAE/target-before-stop/triple-barrier) and the already-wired path-outcome
+    diagnostics (target_before_stop_probability / post_event_mfe_mae). It is NOT a strategy
+    backtester, NOT FactorLibrary/AlphaBook, NOT a PA grammar pack, NOT paper/live/broker,
+    NOT new paid data, and introduces NO new dependency. HARD INVARIANTS: (a) EXPLORATORY
+    output can NEVER be promotion evidence and the trusted resolver MUST NOT consume it;
+    (b) NO research->reference-sim bridge (the reference engine stays the survivor-only PnL
+    truth — no second PnL truth); (c) outcomes come from materialized PATH LABELS only;
+    (d) the existing single-factor study path + all truth-chain invariants (canary,
+    surrogate-FDR zero-pass, parity, roll/maintenance fail-closed) are UNCHANGED — the
+    conditional capability is strictly ADDITIVE. DEFERRED to a later trigger: multi-bar
+    SEQUENCE state machine, target/stop GEOMETRY sweeps, the feature-research fast lane.
+
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available, not the default for this campaign.
+  workflow2:
+    description: >-
+      Ralph strict autonomous loop, DAG-wave + serial merge. Phases are sequential (linear
+      deps + overlapping src/ footprints in governance/research/strategies), so the DAG
+      linearizes to P00 -> P01 -> P02 -> P03 -> P04.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 1
+    merge_queue: serial
+
+runtime:
+  python: '3.12'
+  smoke_command: python tools/verify.py --smoke
+  all_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+
+lanes:
+  green:
+    description: Low-risk automatic work (bootstrap, docs).
+    merge_policy:
+      review_required: false
+  yellow:
+    description: Material engineering; fresh Claude Opus review required.
+    merge_policy:
+      review_required: true
+  red:
+    description: External/destructive/live/broker. NOT used by this campaign.
+    merge_policy:
+      review_required: true
+
+forbidden_paths: &forbidden_paths
+- src/alpha_system/execution/**
+- src/alpha_system/broker/**
+- src/alpha_system/live/**
+- src/alpha_system/portfolio/**
+- src/alpha_system/management/**
+- src/alpha_system/backtest/**
+- src/alpha_system/l2/**
+- src/alpha_system/agent_factory/**
+- data/raw/**
+- data/canonical/**
+- data/factors/**
+- data/labels/**
+- data/cache/**
+- metadata/*.sqlite
+- metadata/*.db
+- registry/*.sqlite
+- artifacts/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+
+never_commit: &never_commit
+- runs/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+- data/raw/**
+- data/canonical/**
+- secrets/**
+- '**/*.key'
+
+acceptance_invariants:
+- EXPLORATORY SetupSpec/probe output can NEVER be promotion evidence; the trusted resolver/promotion path MUST refuse to consume EXPLORATORY-stamped artifacts (enforced + a canary).
+- NO research -> reference-sim bridge: research/ MUST NOT import backtest/management/fast_path; outcomes come ONLY from materialized path labels. No second PnL truth.
+- The existing single-factor study path (SINGLE_FACTOR_THRESHOLD_TEMPLATE, StudyConfig.factor_id) is UNCHANGED; the conditional capability is strictly ADDITIVE.
+- All truth-chain invariants hold: planted_fake_alpha + true-alpha canaries PASS, surrogate-FDR zero-pass criterion intact, no-lookahead/available_ts + roll/maintenance fail-closed guards intact, fast-vs-reference parity intact.
+- No multi-bar SEQUENCE encoder, no target/stop GEOMETRY sweeps, no feature-research fast lane (all DEFERRED behind a later trigger).
+- No new runtime dependency (numpy/pandas/polars stay absent). No new paid data. git ls-files runs == empty.
+
+phases:
+- id: SSRL-P00
+  name: Bootstrap, REUSE-MAP Lock, and V0 Scope Contract
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the bundle + a value-free REUSE-MAP/scope-lock doc that pins exactly which existing engines are reused (path labels, path-outcome diagnostics, spec chain, ledgers, single_factor template) and what is in/out of V0, so no later phase rebuilds or scope-creeps.
+  scope:
+  - Confirm the 6-file bundle is present + consistent; update the root ACTIVE_CAMPAIGN pointer (coordinator-owned).
+  - Write docs/strategy_shaped_lane/REUSE_MAP.md + V0_SCOPE.md cross-linking the reused code (research/diagnostics.py path-outcome wiring lines 451-452/938-991, strategies/templates.py SINGLE_FACTOR_THRESHOLD_TEMPLATE, governance/{study_spec,variant_ledger,rejected_idea}.py, labels/families/path/**) and the explicit OUT-of-scope list (sequence, geometry sweeps, sim-bridge, feature fast lane).
+  non_goals:
+  - Any code; any engine change.
+  checks:
+  - test -f campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0/GOAL.md
+  - test -f campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0/campaign.yaml
+  - python -c "import yaml; yaml.safe_load(open('campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0/campaign.yaml'))"
+  - grep -q "STRATEGY_SHAPED_RESEARCH_LANE_V0" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0/**
+  - docs/strategy_shaped_lane/**
+  - research/strategy_shaped_lane_v0/**
+  - handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P00.md
+  - reviews/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [campaign control + scope docs, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle consistent; pointer set; YAML parses; smoke + canaries pass; REUSE_MAP + V0_SCOPE committed; runs/ untracked.
+  handoff: handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P00.md
+  review: green lane; review optional.
+
+- id: SSRL-P01
+  name: SetupSpec + MechanismCard Contract Classes
+  lane: YELLOW
+  dependencies: [SSRL-P00]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Add the missing governed contract objects so a strategy-shaped hypothesis can be DECLARED as one object — the verified-missing piece (no SetupSpec/MechanismCard class exists today).
+  scope:
+  - New governance module(s) for MechanismCard (source, rationale, expected mechanism/direction, horizon, session, required_features, required_labels, cost sensitivity, variant_budget, duplicate-exposure note) and SetupSpec (entry_context, event_trigger SEPARATE from context, regime_filter, confirmation, invalidation, stop/target/hold_time, horizon, path_label binding, allowed_variants, forbidden_post_hoc_changes, mechanism_id).
+  - Content-addressed IDs + validation + an EXPLORATORY stamp field; pure schema + validators + tests. Reuse the existing spec-chain conventions (governance/study_spec.py); do NOT duplicate AlphaSpec/StudySpec.
+  non_goals:
+  - Any executable probe/compiler (that is P02); any engine change; any sim.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "setup_spec or mechanism_card" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: contracts
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - tests/**
+  - docs/strategy_shaped_lane/**
+  - handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P01.md
+  - reviews/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [setup-spec + mechanism-card schema + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - MechanismCard + SetupSpec classes exist, content-addressed, validated, EXPLORATORY-stampable; context and trigger are SEPARATE fields; tests pass; canaries PASS; no engine/sim code touched.
+  handoff: handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P01.md
+  review: yellow lane; fresh Claude Opus review required.
+
+- id: SSRL-P02
+  name: Context!=Trigger Conditional Probe (Additive, Path-Label Outcomes, EXPLORATORY)
+  lane: YELLOW
+  dependencies: [SSRL-P01]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: The core capability — let a study condition a SEPARATE trigger factor on a SEPARATE context factor (today both collapse from the same value>0), scored over EXISTING path labels + already-wired path-outcome diagnostics, as a QUARANTINED EXPLORATORY probe. This is the genuine new logic, deliberately bounded.
+  scope:
+  - ADD a conditional/multi-condition template ALONGSIDE SINGLE_FACTOR_THRESHOLD_TEMPLATE in strategies/templates.py (do NOT modify or weaken the single-factor template); compile a SetupSpec -> a probe that reads context-bucket x trigger over existing path-outcome diagnostics (target_before_stop_probability / post_event_mfe_mae) bound to a materialized path label.
+  - FIXED geometry (no target/stop sweeps); NO multi-bar sequence; NO import of backtest/management/fast_path from research/; outcomes ONLY from path labels. EXPLORATORY-stamp every output; the trusted resolver/promotion path MUST refuse EXPLORATORY artifacts (add a fail-closed guard + canary).
+  - Bound variants via the existing VariantLedger/family_budget; surrogate-FDR zero-pass gate + per-factor MDE/power statement (reuse power.py) on every readout.
+  non_goals:
+  - Sequence state machine; geometry sweeps; sim-bridge; feature fast lane; any change to the single-factor path or truth-chain invariants.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "conditional or setup_probe or exploratory or templates" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas/polars must NOT import') for m in ('numpy','pandas','polars') if importlib.util.find_spec(m)]"
+  - 'grep -rELq "import.*(backtest|management|fast_path)" src/alpha_system/research || true'
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: capability
+  allowed_paths:
+  - src/alpha_system/strategies/templates.py
+  - src/alpha_system/research/**
+  - src/alpha_system/governance/**
+  - tests/**
+  - docs/strategy_shaped_lane/**
+  - handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P02.md
+  - reviews/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [conditional probe + template + quarantine guard + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - A SetupSpec with context != trigger compiles + runs an EXPLORATORY probe over a path label; the single-factor path is byte-unchanged; research/ has zero import of backtest/management/fast_path; EXPLORATORY output is refused by the trusted/promotion path (canary proves it); surrogate-FDR + per-factor power attached; canaries all-PASS; numpy/pandas/polars still absent.
+  handoff: handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P02.md
+  review: yellow lane; fresh Claude Opus review required.
+
+- id: SSRL-P03
+  name: First-Light Strategy-Shaped Example (Small Slice, EXPLORATORY) + De-Stack Probe
+  lane: YELLOW
+  dependencies: [SSRL-P02]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Prove the lane end-to-end on ONE strategy-shaped idea over a small real slice, and fold in the cheap unexhausted de-stack diagnostic the settler flagged.
+  scope:
+  - Express ONE strategy-shaped idea as MechanismCard -> SetupSpec with context != trigger (e.g. context=range_contraction bucket, trigger=prior-high-sweep-then-close-back-inside, target=path-label target_before_stop, max-hold <= 120m), run it as an EXPLORATORY probe on a small real slice; show context!=trigger works, target/stop/hold expressible via path label, variants ledgered, EXPLORATORY stamp present, no manual/raw registry write.
+  - Record the DE-STACK diagnostic (settler-flagged isolated vwap_session factor_session_minute IC +0.068, n=6862, diluted by stacking) as a single-factor read on the existing engine (zero new code) into the value-free evidence dir.
+  - Value-free evidence only; no promotion, no profitability/tradability claim.
+  non_goals:
+  - Any promotion; any grid; any geometry sweep; any sequence; any sim-bridge.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "first_light or conditional or exploratory" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: capability
+  allowed_paths:
+  - research/strategy_shaped_lane_v0/**
+  - src/alpha_system/research/**
+  - src/alpha_system/governance/**
+  - tests/**
+  - docs/strategy_shaped_lane/**
+  - handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P03.md
+  - reviews/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [first-light value-free evidence + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - One context!=trigger idea expressed + explored end-to-end on a small slice, EXPLORATORY-stamped, variant-ledgered, surrogate-FDR + power attached; de-stack diagnostic recorded; no promotion; canaries PASS.
+  handoff: handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P03.md
+  review: yellow lane; fresh Claude Opus review required.
+
+- id: SSRL-P04
+  name: Trusted-Handoff Scaffold + AI-Researcher Happy-Path Docs
+  lane: YELLOW
+  dependencies: [SSRL-P03]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Make a promising EXPLORATORY probe routable to the TRUSTED lane without auto-promotion, and document the future AI/human researcher happy path + PA_GRAMMAR positioning.
+  scope:
+  - A scaffold that, from an interesting EXPLORATORY probe, emits the AlphaSpec/StudySpec/FeatureRequest/LabelSpec GAPS needed for a trusted rerun (promotion REQUIRES the trusted rerun; the scaffold never promotes).
+  - Docs — the AI-researcher happy-path (idea -> MechanismCard -> SetupSpec -> exploratory probe -> trusted handoff -> verdict/memory) plus a PA_GRAMMAR_SUBSTRATE_V1 naming/positioning note (FactorLibrary stays reserved for surviving-alpha memory; shape-split is factor-first for point-in-time/path-outcome and setup-first for sequence/context-not-equal-trigger).
+  non_goals:
+  - Any auto-promotion; building the PA grammar pack; building the trusted rerun itself.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "handoff or promotion_refusal or exploratory" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: handoff
+  allowed_paths:
+  - src/alpha_system/governance/**
+  - docs/strategy_shaped_lane/**
+  - research/strategy_shaped_lane_v0/**
+  - tests/**
+  - handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P04.md
+  - reviews/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [handoff scaffold + happy-path docs + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Handoff scaffold emits trusted-lane spec gaps without promoting; promotion-refusal of EXPLORATORY artifacts holds; happy-path + PA_GRAMMAR naming docs committed; canaries PASS.
+  handoff: handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/SSRL-P04.md
+  review: yellow lane; fresh Claude Opus review required.
