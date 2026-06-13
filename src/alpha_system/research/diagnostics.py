@@ -6,11 +6,12 @@ import json
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import sqrt
 from pathlib import Path
 from typing import Any, cast
 
+import alpha_system.research.management_features as research_management_features
 from alpha_system.core.git_info import capture_git_info
 from alpha_system.core.hashing import hash_config
 from alpha_system.core.registry import connect_registry, init_registry
@@ -39,15 +40,14 @@ from alpha_system.research.events import (
 )
 from alpha_system.research.execution_filters import execution_filter_summary
 from alpha_system.research.ic import (
-    icir,
     ic_by_calendar_period,
     ic_by_horizon,
     ic_decay,
+    icir,
     icir_from_calendar_periods,
     pearson_ic,
     rank_ic,
 )
-from alpha_system.research.management_features import management_feature_summary
 from alpha_system.research.regimes import (
     conditional_strategy_improvement,
     false_rejection_rate,
@@ -66,7 +66,6 @@ from alpha_system.research.study_outputs import (
     StudyRunResult,
     write_study_outputs,
 )
-
 
 SUPPORTED_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(DEFAULT_DIAGNOSTIC_TYPES)
 
@@ -165,7 +164,11 @@ def run_study(config: StudyConfig) -> StudyRunResult:
     )
 
 
-def compute_diagnostic_summary(config: StudyConfig, *, run_id: str | None = None) -> DiagnosticSummary:
+def compute_diagnostic_summary(
+    config: StudyConfig,
+    *,
+    run_id: str | None = None,
+) -> DiagnosticSummary:
     """Compute a deterministic diagnostic summary from versioned factor and label inputs."""
     factor_values = read_factor_value_dicts(config.factor_values_path)
     labels = read_label_dicts(config.labels_path)
@@ -405,7 +408,9 @@ def _diagnostics_for_observations(
     )
     for item in unsupported:
         warnings.append(f"unsupported diagnostic type: {item}")
-    requested = tuple(item for item in config.diagnostic_types if item in SUPPORTED_DIAGNOSTIC_TYPES)
+    requested = tuple(
+        item for item in config.diagnostic_types if item in SUPPORTED_DIAGNOSTIC_TYPES
+    )
 
     if "directional" in requested:
         diagnostics["directional"] = {
@@ -464,7 +469,9 @@ def _diagnostics_for_observations(
         diagnostics["execution_filters"] = execution_filter_summary(observations)
 
     if "management_features" in requested:
-        diagnostics["management_features"] = management_feature_summary(observations)
+        diagnostics["management_features"] = (
+            research_management_features.management_feature_summary(observations)
+        )
 
     diagnostics["stability"] = {
         "time_of_day": time_of_day_stability(observations),
@@ -499,7 +506,9 @@ def _fast_diagnostics_for_panel(
     )
     for item in unsupported:
         warnings.append(f"unsupported diagnostic type: {item}")
-    requested = tuple(item for item in config.diagnostic_types if item in SUPPORTED_DIAGNOSTIC_TYPES)
+    requested = tuple(
+        item for item in config.diagnostic_types if item in SUPPORTED_DIAGNOSTIC_TYPES
+    )
     factors = tuple(row["factor_value"] for row in panel.observation_templates)
     labels = tuple(_float(label_values[index]) for index in panel.primary_label_indices)
     rank_ic_summary = _panel_rank_ic(
@@ -798,7 +807,10 @@ def _sample_warnings_from_panel(
         if missing_factor_rate > thresholds.max_missing_factor_rate:
             warnings.append("high missing-factor rate exceeds configured threshold")
     horizon_counts = Counter(row["horizon_seconds"] for row in panel.observation_templates)
-    if len(horizon_counts) > 1 and (min(horizon_counts.values()) / max(horizon_counts.values())) < 0.8:
+    if (
+        len(horizon_counts) > 1
+        and (min(horizon_counts.values()) / max(horizon_counts.values())) < 0.8
+    ):
         warnings.append("unstable horizon coverage across selected labels")
     return tuple(warnings)
 
@@ -817,7 +829,10 @@ def _sample_warnings(config: StudyConfig, alignment: AlignmentResult) -> tuple[s
         if missing_factor_rate > thresholds.max_missing_factor_rate:
             warnings.append("high missing-factor rate exceeds configured threshold")
     horizon_counts = Counter(row["horizon_seconds"] for row in alignment.observations)
-    if len(horizon_counts) > 1 and (min(horizon_counts.values()) / max(horizon_counts.values())) < 0.8:
+    if (
+        len(horizon_counts) > 1
+        and (min(horizon_counts.values()) / max(horizon_counts.values())) < 0.8
+    ):
         warnings.append("unstable horizon coverage across selected labels")
     return tuple(warnings)
 
@@ -840,7 +855,7 @@ def _record_registry_entries(
     git_info = capture_git_info(Path.cwd())
     record = RunRecord(
         run_id=summary.run_id,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         git_commit=git_info.commit,
         git_dirty=git_info.dirty,
         code_hash=hash_config({"engine_version": config.engine_version, "module": __name__}),
@@ -1063,7 +1078,10 @@ def _selector_allows_label(label: LabelSpec, config: StudyConfig) -> bool:
         return False
     if config.end_ts is not None and label.event_ts > config.end_ts:
         return False
-    if config.horizon_seconds is not None and int(label.horizon.total_seconds()) != config.horizon_seconds:
+    if (
+        config.horizon_seconds is not None
+        and int(label.horizon.total_seconds()) != config.horizon_seconds
+    ):
         return False
     return True
 
@@ -1143,8 +1161,8 @@ def _datetime(value: Any) -> datetime:
     else:
         active = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if active.tzinfo is None:
-        active = active.replace(tzinfo=timezone.utc)
-    return active.astimezone(timezone.utc)
+        active = active.replace(tzinfo=UTC)
+    return active.astimezone(UTC)
 
 
 def _time_delta_bars(label: LabelSpec) -> int | None:

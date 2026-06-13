@@ -27,6 +27,7 @@ from alpha_system.governance.promotion import (
     PROMOTION_REVIEW_SOURCE_STATE,
     PromotionDecision,
     PromotionLifecycleState,
+    reject_exploratory_promotion_artifacts,
     validate_promotion_decision,
 )
 from alpha_system.governance.rejected_idea import (
@@ -119,6 +120,7 @@ class PromotionGateContext:
     budget_amendments: tuple[BudgetAmendmentRecord | Mapping[str, Any], ...] = ()
     sealed_holdout_registry_path: str | Path | None = None
     require_sealed_holdout: bool = False
+    promotion_artifacts: tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +172,7 @@ def validate_governance_transition(
         raise GovernanceValidationError(issues)
     assert previous_state is not None
     assert next_state is not None
+    _reject_exploratory_artifacts(active_context)
 
     if not _transition_is_allowed(previous_state, next_state):
         raise GovernanceValidationError(
@@ -306,6 +309,20 @@ def assert_promotion_gate(
     """Alias for fail-closed state-machine validation."""
 
     return validate_governance_transition(from_state, to_state, context)
+
+
+def _reject_exploratory_artifacts(context: PromotionGateContext) -> None:
+    reject_exploratory_promotion_artifacts(
+        {
+            "alpha_spec": context.alpha_spec,
+            "study_spec": context.study_spec,
+            "evidence_bundle": context.evidence_bundle,
+            "promotion_decision": context.promotion_decision,
+            "reviewer_verdict": context.reviewer_verdict,
+            "trial_ledger_records": context.trial_ledger_records,
+            "promotion_artifacts": context.promotion_artifacts,
+        }
+    )
 
 
 def _validate_variant_budget_context(

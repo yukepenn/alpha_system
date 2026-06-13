@@ -10,10 +10,11 @@ The repository-level campaign pointer targets
 `STRATEGY_SHAPED_RESEARCH_LANE_V0`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-`SSRL-P01` adds the governance-only `MechanismCard` and `SetupSpec`
-declaration contracts. After this phase merges, campaign progress is `2/5`
-phases complete. The next phase is `SSRL-P02` -- context != trigger
-conditional probe, YELLOW.
+`SSRL-P02` adds the additive context != trigger conditional template, the
+`SetupSpec` -> conditional probe compiler over materialized path labels, and the
+EXPLORATORY promotion-refusal guard/canary. After this phase merges, campaign
+progress is `3/5` phases complete. The next phase is `SSRL-P03` -- first-light
+strategy-shaped example plus de-stack probe, YELLOW.
 
 Durable docs added by `SSRL-P00` are
 `docs/strategy_shaped_lane/REUSE_MAP.md` and
@@ -22,14 +23,19 @@ labels, path-outcome diagnostics, single-factor template, governance spec chain,
 variant ledger, rejected-idea ledger, surrogate-FDR machinery, and power helpers.
 Durable governance modules added by `SSRL-P01` are
 `src/alpha_system/governance/mechanism_card.py` and
-`src/alpha_system/governance/setup_spec.py`.
+`src/alpha_system/governance/setup_spec.py`. Durable `SSRL-P02` surfaces are
+`src/alpha_system/strategies/templates.py`,
+`src/alpha_system/research/conditional_probe.py`,
+`docs/strategy_shaped_lane/CONDITIONAL_PROBE.md`, and the
+`forbidden_exploratory_promotion` canary.
 
 Safety boundaries are unchanged: EXPLORATORY output is not promotion evidence;
-there is no research-to-reference-sim bridge and no second PnL truth; the
-single-factor path remains additive-only and unchanged; the new contracts do not
-add a research-to-sim bridge, runtime dependency, engine change, live trading,
-paper trading, broker operation, order routing, deployment, new paid data, or
-promotion eligibility.
+the trusted promotion path refuses EXPLORATORY-stamped artifacts; there is no
+research-to-reference-sim bridge and no second PnL truth; the single-factor path
+remains byte-unchanged and additive-only; outcomes come from path labels only;
+there is no new runtime dependency, engine change, live trading, paper trading,
+broker operation, order routing, deployment, new paid data, or promotion
+eligibility.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
