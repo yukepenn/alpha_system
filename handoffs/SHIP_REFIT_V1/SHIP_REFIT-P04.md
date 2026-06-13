@@ -30,6 +30,12 @@
   `docs/ship_refit_v1/CLEANUP_PROVENANCE.md`.
 - Updated the compact README snapshot and the SHIP_REFIT docs index.
 
+## Repair Attempt
+
+- Repaired the CI failure in `tests/tools/test_system_map.py` by regenerating
+  `docs/SYSTEM_MAP.md` with `just system-map`. The generated command surface now
+  includes the new `frontier-clean` and `frontier-clean-dry-run` recipes.
+
 ## Validation
 
 - `python -m py_compile tools/frontier/runtime_paths.py tools/frontier/runs_retention.py tools/frontier/cleanup.py tools/frontier/ci_parity.py tools/frontier/ralph_driver.py tools/hooks/canary_runner.py tests/frontier/test_cleanup_provenance.py`
@@ -46,13 +52,23 @@
   - PASS; no output.
 - `git ls-files runs`
   - PASS; no output.
+- `PYTHONPATH=src python -m pytest tests/tools/test_system_map.py -q`
+  - PASS: `2 passed in 0.02s`.
+- `git diff --check`
+  - PASS; no output.
+- `python tools/frontier/status_doctor.py`
+  - WARN only: no SHIP_REFIT_V1 run dir with `state.json` was present in this
+    checkout; core.bare false, hooks armed, active campaign pointer set to
+    SHIP_REFIT_V1, runtime contract consistent.
 
 No requested command failed.
 
 ## Artifact And Safety Notes
 
-- No `git add`, `git commit`, `git push`, `git status`, or `git diff` command
-  was run by the executor. Changes are left unstaged for Ralph.
+- No `git add`, `git commit`, or `git push` command was run by the executor.
+  Changes are left unstaged for Ralph. Read-only `git status`, `git diff`,
+  `git diff --check`, and `git ls-files runs` checks were used for repair
+  inspection and artifact verification.
 - No PR, merge, review, reviewer call, `review.md`, or `verdict.json` was
   created by the executor.
 - No `runs/` path was created for commit eligibility; the prompt-named
@@ -80,6 +96,7 @@ No requested command failed.
 - `tests/frontier/test_cleanup_provenance.py`
 - `docs/ship_refit_v1/CLEANUP_PROVENANCE.md`
 - `docs/ship_refit_v1/README.md`
+- `docs/SYSTEM_MAP.md`
 - `handoffs/SHIP_REFIT_V1/SHIP_REFIT-P04.md`
 
 ## Review Status
