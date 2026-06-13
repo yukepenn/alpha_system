@@ -10,22 +10,21 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Current campaign progress is in the `rerun` gate. `FUTSUB-P27` re-locked the
-Core Pilot StudySpecs against the full substrate, and the `FUTSUB-P28` repair
-attempt now has value-free rerun evidence under
-`research/futures_substrate_scaleout_v1/rerun/` plus the docs page
-`docs/futures_substrate_scaleout/CORE_PILOT_RERUN.md`.
+Post-`FUTSUB-P29` snapshot: 30 of 34 FUTSUB phases are complete after merge,
+and the `rerun` gate (`FUTSUB-P27`...`FUTSUB-P29`) is closed. `FUTSUB-P27`
+re-locked the Core Pilot StudySpecs against the full substrate, `FUTSUB-P28`
+produced value-free rerun diagnostics, and `FUTSUB-P29` refreshed the honest
+promotion boundary in
+`research/futures_substrate_scaleout_v1/rerun/verdict_refresh.md` and
+`docs/futures_substrate_scaleout/VERDICT_REFRESH.md`.
 
-The P28 repair re-executed all six prior-INCONCLUSIVE V2 StudySpecs under the
-research interpreter with `ALPHA_DATA_ROOT` set. All feature and label locks
-resolved through the local runtime resolver, current registered Parquet value
-stores loaded, and runtime factor diagnostics completed over real in-memory
-observation samples with N_eff and purged/embargoed walk-forward context. This
-is evidence only: label diagnostics still fail closed at
-`label_coverage_missingness_gate`, and Ralph owns validation routing, review,
-staging, commit, PR/CI, merge, and done-check handling. The next planned phase
-remains `FUTSUB-P29` - Honest Verdict Refresh and Scaleout Evidence Summary -
-after Ralph/review handling.
+The refreshed boundary is `10 REJECT / 0 INCONCLUSIVE / 0 WATCH / 0
+CANDIDATE_RESEARCH`. The six previously `INCONCLUSIVE` rerun studies are now
+`REJECT` based on resolver-clean, value-free diagnostics evidence and retained
+caveats, including the label diagnostics fail-closed
+`label_coverage_missingness_gate`, duplicate within-family exposures, and BBO
+proxy limits. The next planned phase is `FUTSUB-P30` - Artifact Audit and
+Local-Only Value Verification.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -54,9 +53,10 @@ only. `runs/**` is local-only and never committed. Raw or canonical data,
 feature or label values, provider responses, heavy artifacts, local databases,
 logs, caches, secrets, and credentials are never committed.
 
-FUTSUB-P28 does not authorize new AlphaSpecs, parameter tuning, verdict refresh,
-promotion, Strategy Reference validation, AlphaBook construction, paper/live
-behavior, broker access, production deployment, or any profitability or
-tradability claim. Local feature/label values and registries remain outside git
-under `ALPHA_DATA_ROOT`. Workflow 2 orchestration, validation routing, review,
-staging, commit, PR, CI, merge, and done-check actions are owned by Ralph.
+The FUTSUB rerun gate does not authorize new AlphaSpecs, parameter tuning,
+Strategy Reference validation, FactorLibrary ingestion, AlphaBook construction,
+paper/live behavior, broker access, production deployment, profitability
+claims, or tradability claims. Local feature/label values and registries remain
+outside git under `ALPHA_DATA_ROOT`. Workflow 2 orchestration, validation
+routing, review, staging, commit, PR, CI, merge, and done-check actions are
+owned by Ralph.
