@@ -16,6 +16,8 @@ from alpha_system.governance.ids import (
 
 EXPECTED_PREFIXES = {
     "HypothesisCard": "hyp",
+    "MechanismCard": "mech",
+    "SetupSpec": "setup",
     "AlphaSpec": "aspec",
     "FeatureRequest": "freq",
     "LabelSpec": "lspec",
@@ -38,6 +40,8 @@ EXPECTED_PREFIXES = {
 def test_governance_id_prefixes_match_naming_contract() -> None:
     assert dict(GOVERNANCE_ID_PREFIXES) == EXPECTED_PREFIXES
     assert prefix_for_kind(GovernanceIdKind.ALPHA_SPEC) == "aspec"
+    assert prefix_for_kind(GovernanceIdKind.MECHANISM_CARD) == "mech"
+    assert prefix_for_kind(GovernanceIdKind.SETUP_SPEC) == "setup"
     assert object_for_prefix("aspec") == "AlphaSpec"
 
 
