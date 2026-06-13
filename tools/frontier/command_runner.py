@@ -9,12 +9,15 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
+import threading
 import time
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,6 +63,30 @@ class CommandResult:
     @property
     def ok(self) -> bool:
         return self.return_code == 0 and not self.timed_out
+
+
+@dataclass(frozen=True)
+class ProviderWatchdogConfig:
+    """Progress watchdog for long provider subprocesses.
+
+    Defaults implement the phase contract: sample about every 30s; kill only
+    after wall-clock exceeds 60s, the process-group CPU tick delta is exactly
+    zero (`cpu_tick_epsilon=0`), and the run events file has not grown.
+    """
+
+    events_path: Path | None
+    event_writer: Callable[[str, Mapping[str, Any]], None] | None = None
+    sample_interval_seconds: float = 30.0
+    hang_after_seconds: float = 60.0
+    cpu_tick_epsilon: int = 0
+    kill_grace_seconds: float = 5.0
+    event_name: str = "PROVIDER_HANG_DETECTED"
+
+
+@dataclass(frozen=True)
+class _EventSnapshot:
+    size: int
+    mtime_ns: int
 
 
 def _normalize_command(command: Sequence[str]) -> list[str]:
@@ -117,6 +144,178 @@ def _display_command(command: Sequence[str], display_command: Sequence[str] | No
     return head
 
 
+def _proc_stat_ticks(pid: int) -> int | None:
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    rparen = text.rfind(")")
+    if rparen == -1:
+        return None
+    fields = text[rparen + 2 :].split()
+    try:
+        return int(fields[11]) + int(fields[12])
+    except (IndexError, ValueError):
+        return None
+
+
+def _process_group_pids(pid: int) -> tuple[int, ...]:
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return ()
+    pids: list[int] = []
+    proc_root = Path("/proc")
+    try:
+        entries = tuple(proc_root.iterdir())
+    except OSError:
+        return (pid,)
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        candidate = int(entry.name)
+        try:
+            if os.getpgid(candidate) == pgid:
+                pids.append(candidate)
+        except OSError:
+            continue
+    return tuple(sorted(set(pids))) or (pid,)
+
+
+def _cpu_ticks_for_process_group(pid: int) -> int | None:
+    ticks = 0
+    seen = False
+    for member_pid in _process_group_pids(pid):
+        value = _proc_stat_ticks(member_pid)
+        if value is None:
+            continue
+        ticks += value
+        seen = True
+    return ticks if seen else None
+
+
+def _event_snapshot(path: Path | None) -> _EventSnapshot:
+    if path is None:
+        return _EventSnapshot(size=0, mtime_ns=0)
+    try:
+        stat = path.stat()
+    except OSError:
+        return _EventSnapshot(size=0, mtime_ns=0)
+    return _EventSnapshot(size=stat.st_size, mtime_ns=stat.st_mtime_ns)
+
+
+def _event_grew(previous: _EventSnapshot, current: _EventSnapshot) -> bool:
+    return current.size > previous.size or current.mtime_ns > previous.mtime_ns
+
+
+def _wchan(pid: int) -> str | None:
+    try:
+        return Path(f"/proc/{pid}/wchan").read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _append_raw_watchdog_event(events_path: Path | None, event: str, details: Mapping[str, Any]) -> None:
+    if events_path is None:
+        return
+    try:
+        events_path.parent.mkdir(parents=True, exist_ok=True)
+        with events_path.open("a", encoding="utf-8") as handle:
+            payload = {"timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "event": event, **details}
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    except OSError:
+        return
+
+
+def _kill_process_group(process: subprocess.Popen[str], *, grace_seconds: float) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        pgid = os.getpgid(process.pid)
+    except OSError:
+        process.kill()
+        return
+    with suppress(ProcessLookupError):
+        os.killpg(pgid, signal.SIGTERM)
+    try:
+        process.wait(timeout=max(0.0, grace_seconds))
+        return
+    except subprocess.TimeoutExpired:
+        with suppress(ProcessLookupError):
+            os.killpg(pgid, signal.SIGKILL)
+        with suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=max(0.0, grace_seconds))
+
+
+class _ProviderWatchdog:
+    def __init__(self, process: subprocess.Popen[str], config: ProviderWatchdogConfig) -> None:
+        self.process = process
+        self.config = config
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name=f"provider-watchdog-{process.pid}", daemon=True)
+        self.triggered_details: dict[str, Any] | None = None
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1.0)
+
+    def _emit(self, details: Mapping[str, Any]) -> None:
+        if self.config.event_writer is not None:
+            try:
+                self.config.event_writer(self.config.event_name, details)
+            except Exception:
+                _append_raw_watchdog_event(self.config.events_path, self.config.event_name, details)
+            return
+        _append_raw_watchdog_event(self.config.events_path, self.config.event_name, details)
+
+    def _run(self) -> None:
+        started = time.monotonic()
+        last_ticks = _cpu_ticks_for_process_group(self.process.pid)
+        last_events = _event_snapshot(self.config.events_path)
+        last_event_growth = started
+        interval = max(0.01, float(self.config.sample_interval_seconds))
+        while not self._stop.wait(interval):
+            if self.process.poll() is not None:
+                return
+            now = time.monotonic()
+            ticks = _cpu_ticks_for_process_group(self.process.pid)
+            events = _event_snapshot(self.config.events_path)
+            event_growth = _event_grew(last_events, events)
+            if event_growth:
+                last_event_growth = now
+            cpu_delta: int | None = None
+            if ticks is not None and last_ticks is not None:
+                cpu_delta = ticks - last_ticks
+            wall_seconds = now - started
+            frozen_cpu = cpu_delta is not None and cpu_delta <= self.config.cpu_tick_epsilon
+            if wall_seconds > self.config.hang_after_seconds and frozen_cpu and not event_growth:
+                details = {
+                    "pid": self.process.pid,
+                    "pgid": _safe_getpgid(self.process.pid),
+                    "wall_seconds": round(wall_seconds, 3),
+                    "cpu_delta": cpu_delta,
+                    "last_event_age_seconds": round(now - last_event_growth, 3),
+                    "events_path": str(self.config.events_path) if self.config.events_path is not None else None,
+                    "wchan": _wchan(self.process.pid),
+                }
+                self.triggered_details = details
+                self._emit(details)
+                _kill_process_group(self.process, grace_seconds=self.config.kill_grace_seconds)
+                return
+            last_ticks = ticks
+            last_events = events
+
+
+def _safe_getpgid(pid: int) -> int | None:
+    try:
+        return os.getpgid(pid)
+    except OSError:
+        return None
+
+
 class CommandRunner:
     """Run commands with captured output and optional artifact persistence."""
 
@@ -154,6 +353,7 @@ class CommandRunner:
         stdin_text: str | None = None,
         stdin_path: Path | str | None = None,
         display_command: Sequence[str] | None = None,
+        provider_watchdog: ProviderWatchdogConfig | None = None,
     ) -> CommandResult:
         if stdin_text is not None and stdin_path is not None:
             raise ValueError("Pass either stdin_text or stdin_path, not both.")
@@ -190,32 +390,65 @@ class CommandRunner:
             stdin_digest, stdin_bytes = _digest_file(resolved_stdin_path)
 
         try:
-            if resolved_stdin_path is not None:
-                with resolved_stdin_path.open("r", encoding="utf-8") as stdin_file:
-                    completed = subprocess.run(
-                        normalized,
-                        cwd=resolved_cwd,
-                        env=merged_env,
-                        text=True,
-                        stdin=stdin_file,
-                        capture_output=True,
-                        timeout=timeout,
-                        check=False,
-                    )
-            else:
-                completed = subprocess.run(
+            stdin_file = None
+            try:
+                if resolved_stdin_path is not None:
+                    stdin_file = resolved_stdin_path.open("r", encoding="utf-8")
+                    stdin_stream = stdin_file
+                    input_text = None
+                elif stdin_text is not None:
+                    stdin_stream = subprocess.PIPE
+                    input_text = stdin_text
+                else:
+                    stdin_stream = None
+                    input_text = None
+                process = subprocess.Popen(
                     normalized,
                     cwd=resolved_cwd,
                     env=merged_env,
                     text=True,
-                    input=stdin_text,
-                    capture_output=True,
-                    timeout=timeout,
-                    check=False,
+                    stdin=stdin_stream,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=provider_watchdog is not None,
                 )
-            stdout = completed.stdout
-            stderr = completed.stderr
-            return_code = completed.returncode
+                watchdog = _ProviderWatchdog(process, provider_watchdog) if provider_watchdog is not None else None
+                if watchdog is not None:
+                    watchdog.start()
+                try:
+                    stdout, stderr = process.communicate(input=input_text, timeout=timeout)
+                    return_code = process.returncode
+                except subprocess.TimeoutExpired as error:
+                    stdout = error.stdout or ""
+                    stderr = error.stderr or ""
+                    if isinstance(stdout, bytes):
+                        stdout = stdout.decode("utf-8", errors="replace")
+                    if isinstance(stderr, bytes):
+                        stderr = stderr.decode("utf-8", errors="replace")
+                    if provider_watchdog is not None:
+                        _kill_process_group(process, grace_seconds=provider_watchdog.kill_grace_seconds)
+                    else:
+                        process.kill()
+                    extra_stdout, extra_stderr = process.communicate()
+                    stdout += extra_stdout or ""
+                    stderr += extra_stderr or ""
+                    stderr = (stderr + "\n" if stderr else "") + f"Command timed out after {timeout} seconds."
+                    return_code = TIMEOUT_RETURN_CODE
+                    timed_out = True
+                finally:
+                    if watchdog is not None:
+                        watchdog.stop()
+                        if watchdog.triggered_details is not None:
+                            return_code = TIMEOUT_RETURN_CODE
+                            timed_out = True
+                            wall = watchdog.triggered_details.get("wall_seconds")
+                            stderr = (
+                                (stderr + "\n" if stderr else "")
+                                + f"Provider watchdog detected a hung provider process group after {wall} seconds."
+                            )
+            finally:
+                if stdin_file is not None:
+                    stdin_file.close()
         except subprocess.TimeoutExpired as error:
             stdout = error.stdout or ""
             stderr = error.stderr or ""
