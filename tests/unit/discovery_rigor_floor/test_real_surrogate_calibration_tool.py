@@ -16,14 +16,17 @@ from alpha_system.governance.surrogate_run import CALIBRATION_BLOCKED
 from alpha_system.governance.validation import GovernanceValidationError
 from tests._helpers.local_data import skip_unless_local_registry
 from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
+    DEFAULT_RUNS_PER_CONFIG_CAP,
     _aligned_factor_value_series,
     _declared_factor_ids,
     _declared_feature_family,
+    _effective_runs_per_config,
     _expected_sub_config_count,
     _factor_series_is_zero_variance,
     _load_study_spec,
     _select_label_locks,
     _staged_sub_config_is_constant_factor,
+    build_parser,
     run_real_surrogate_calibration,
 )
 
@@ -94,6 +97,32 @@ KILL_SHOT_RERUN_SPECS = {
         "bbo_tradability_microprice",
     ),
 }
+
+
+def test_runs_per_config_defaults_and_caps_without_changing_in_range_values() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "--study-spec",
+            "study.json",
+            "--alpha-data-root",
+            "/tmp/alpha-data",
+            "--base-seed",
+            "1",
+            "--namespace",
+            "/tmp/rigor_p05_surrogate_cap",
+            "--report-out",
+            "/tmp/report.md",
+        ]
+    )
+
+    assert args.runs_per_config is None
+    assert _effective_runs_per_config(args.runs_per_config) == DEFAULT_RUNS_PER_CONFIG_CAP
+    assert _effective_runs_per_config(7) == 7
+    assert (
+        _effective_runs_per_config(DEFAULT_RUNS_PER_CONFIG_CAP + 1)
+        == DEFAULT_RUNS_PER_CONFIG_CAP
+    )
 
 
 def test_real_surrogate_calibration_tool_resolves_locked_packs_via_resolver(
