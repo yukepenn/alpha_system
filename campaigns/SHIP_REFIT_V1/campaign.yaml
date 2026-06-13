@@ -78,6 +78,12 @@ workflow2:
     max_parallel_phases: 2
     merge_queue: serial
 
+runtime:
+  python: '3.12'
+  smoke_command: python tools/verify.py --smoke
+  all_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+
 lanes:
   green:
     description: Low-risk automatic work (bootstrap, non-gating cleanup).
