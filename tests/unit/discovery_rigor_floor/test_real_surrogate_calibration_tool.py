@@ -16,11 +16,14 @@ from alpha_system.governance.surrogate_run import CALIBRATION_BLOCKED
 from alpha_system.governance.validation import GovernanceValidationError
 from tests._helpers.local_data import skip_unless_local_registry
 from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
+    _aligned_factor_value_series,
     _declared_factor_ids,
     _declared_feature_family,
     _expected_sub_config_count,
+    _factor_series_is_zero_variance,
     _load_study_spec,
     _select_label_locks,
+    _staged_sub_config_is_constant_factor,
     run_real_surrogate_calibration,
 )
 
@@ -694,8 +697,546 @@ def test_real_surrogate_calibration_includes_partial_null_factor(
     assert sum(row["value"] is None for row in staged_rows) == 3
     assert sum(row["normalized_value"] is not None for row in staged_rows) == 3
     rendered = report_path.read_text(encoding="utf-8")
-    assert "Excluded all-null factor partitions: 0" in rendered
+    assert "Excluded all-null/constant factor partitions: 0" in rendered
     assert "## excluded_factors\n\n- None." in rendered
+
+
+def test_aligned_factor_value_series_drops_unpaired_rows() -> None:
+    """The aligned IC series keeps only non-null factor/label pairs."""
+
+    factor_rows = [
+        {
+            "factor_id": "f",
+            "factor_version": "fv",
+            "data_version": "dv",
+            "instrument_id": "SYNTH",
+            "event_ts": f"2026-01-02T14:3{index}:00Z",
+            "session_id": "SYNTH:2026-01-02:surrogate",
+            "value": float(index),
+            "normalized_value": float(index),
+        }
+        for index in range(4)
+    ]
+    label_rows = [
+        {
+            "label_id": "forward_return_5m",
+            "data_version": "dv",
+            "instrument_id": "SYNTH",
+            "event_ts": f"2026-01-02T14:3{index}:00Z",
+            "horizon": 300,
+            # only rows 1 and 2 have a numeric label
+            "value": None if index in (0, 3) else 0.01 * index,
+            "path_metadata": {
+                "session_id": "SYNTH:2026-01-02:surrogate",
+                "label_version": "lv",
+            },
+        }
+        for index in range(4)
+    ]
+    series = _aligned_factor_value_series(factor_rows, label_rows, horizon_seconds=300)
+    assert series == [1.0, 2.0]
+    # mismatched horizon yields no aligned pairs
+    assert _aligned_factor_value_series(factor_rows, label_rows, horizon_seconds=60) == []
+
+
+def test_factor_series_is_zero_variance_distinguishes_constant_from_varying() -> None:
+    assert _factor_series_is_zero_variance([]) is True
+    assert _factor_series_is_zero_variance([0.0]) is True
+    assert _factor_series_is_zero_variance([0.0, 0.0, 0.0]) is True
+    assert _factor_series_is_zero_variance([0.0, 1.0]) is False
+    assert _factor_series_is_zero_variance([1.5, 1.5, 1.5, 2.0]) is False
+
+
+def test_staged_constant_factor_check_is_factor_only_safety_invariant(
+    tmp_path: Path,
+) -> None:
+    """A varying factor against a CONSTANT label is NOT a constant-factor case."""
+
+    feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    numeric_feature_rows, _ = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    _, base_label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    constant_label_rows = [{**row, "value": 0.25} for row in base_label_rows]
+    factor_path = _write_jsonl(
+        tmp_path / "factor-values.jsonl",
+        _staged_factor_rows(numeric_feature_rows),
+    )
+    labels_path = _write_jsonl(
+        tmp_path / "labels.jsonl",
+        _converted_label_rows(constant_label_rows),
+    )
+    # FACTOR varies even though the LABEL is constant -> must NOT be excluded.
+    assert (
+        _staged_sub_config_is_constant_factor(
+            factor_path,
+            labels_path,
+            horizon_seconds=300,
+        )
+        is False
+    )
+    # A genuinely constant factor against the same labels IS excluded.
+    constant_factor_path = _write_jsonl(
+        tmp_path / "constant-factor-values.jsonl",
+        _staged_factor_rows(
+            _constant_feature_rows(
+                feature_version_id=feature_version_id,
+                label_version_id=label_version_id,
+            )
+        ),
+    )
+    assert (
+        _staged_sub_config_is_constant_factor(
+            constant_factor_path,
+            labels_path,
+            horizon_seconds=300,
+        )
+        is True
+    )
+
+
+def test_real_surrogate_calibration_records_constant_factor_exclusion(
+    tmp_path: Path,
+) -> None:
+    constant_feature_version_id = "fver_" + "3" * 64
+    numeric_feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="fixture_constant_flag",
+                feature_family="fixture_signal_family",
+                feature_version_id=constant_feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="fixture_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id=numeric_feature_version_id,
+            ),
+        ),
+    )
+    numeric_feature_rows, label_rows = _value_rows(
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    constant_feature_rows = _constant_feature_rows(
+        feature_version_id=constant_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_rows = constant_feature_rows + numeric_feature_rows
+    feature_hash = compute_value_content_hash(feature_rows)
+    label_hash = compute_value_content_hash(label_rows)
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    resolver = _FakeResolver(
+        feature_record={
+            constant_feature_version_id: _FeatureRecord(
+                feature_version_id=constant_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="fixture_constant_flag"),
+            ),
+            numeric_feature_version_id: _FeatureRecord(
+                feature_version_id=numeric_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="fixture_close_delta"),
+            ),
+        },
+        label_record=_LabelRecord(
+            label_version_id=label_version_id,
+            materialization_output_path=label_path.as_posix(),
+            value_content_hash=label_hash,
+        ),
+    )
+    namespace = tmp_path / "rigor_p05_surrogate_constant_exclusion"
+    namespace.mkdir()
+    report_path = tmp_path / "report.md"
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=report_path,
+        resolver=resolver,
+    )
+
+    assert result["accepted"] is True
+    assert result["declared_factor_count"] == 2
+    # only the numeric sub-config is staged/scored
+    assert result["surrogate_study_spec_count"] == 1
+    assert result["run_count"] == 2
+    assert result["error_count"] == 0
+    assert result["excluded_factor_count"] == 1
+    assert result["excluded_factors"] == [
+        {
+            "factor_id": "fixture_constant_flag",
+            "feature_version_id": constant_feature_version_id,
+            "reason": "constant_factor_zero_variance",
+            "partition": "SYNTH_2026_full_year",
+            "total_rows": len(constant_feature_rows),
+            "null_rows": 0,
+            "numeric_rows": len(constant_feature_rows),
+        }
+    ]
+    rendered = report_path.read_text(encoding="utf-8")
+    assert "## excluded_factors" in rendered
+    assert "`fixture_constant_flag`" in rendered
+    assert "`constant_factor_zero_variance`" in rendered
+    assert "Excluded all-null/constant factor partitions: 1" in rendered
+    # the constant sub-config's staged jsonl is removed; only the numeric one stays
+    staged_factor_paths = tuple(
+        (namespace / "real_surrogate_inputs" / result["study_spec_id"]).glob(
+            "**/factor-values.jsonl"
+        )
+    )
+    assert len(staged_factor_paths) == 1
+    assert {
+        row["factor_id"] for row in _read_jsonl(staged_factor_paths[0])
+    } == {"fixture_close_delta"}
+
+
+def test_real_surrogate_calibration_keeps_two_distinct_value_factor(
+    tmp_path: Path,
+) -> None:
+    """A factor with two distinct aligned values stays staged and scored."""
+
+    feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    _, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    two_distinct_rows = _two_distinct_feature_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", two_distinct_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_two_distinct"
+    namespace.mkdir()
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=tmp_path / "report.md",
+        resolver=_FakeResolver(
+            feature_record=_FeatureRecord(
+                feature_version_id=feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=compute_value_content_hash(two_distinct_rows),
+            ),
+            label_record=_LabelRecord(
+                label_version_id=label_version_id,
+                materialization_output_path=label_path.as_posix(),
+                value_content_hash=compute_value_content_hash(label_rows),
+            ),
+        ),
+    )
+
+    # A two-distinct-value factor is NOT a constant exclusion: it is staged and
+    # scored (zero errors). The pass/block verdict on tiny synthetic data is not
+    # the contract under test here.
+    assert result["surrogate_study_spec_count"] == 1
+    assert result["excluded_factor_count"] == 0
+    assert result["error_count"] == 0
+    assert result["run_count"] == 2
+    staged_factor_paths = tuple(
+        (namespace / "real_surrogate_inputs" / result["study_spec_id"]).glob(
+            "**/factor-values.jsonl"
+        )
+    )
+    assert len(staged_factor_paths) == 1
+
+
+def test_real_surrogate_calibration_excludes_aligned_constant_factor(
+    tmp_path: Path,
+) -> None:
+    """A factor that is constant only after the non-null label join is excluded."""
+
+    aligned_feature_version_id = "fver_" + "3" * 64
+    numeric_feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="fixture_aligned_constant_flag",
+                feature_family="fixture_signal_family",
+                feature_version_id=aligned_feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="fixture_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id=numeric_feature_version_id,
+            ),
+        ),
+    )
+    aligned_feature_rows, aligned_label_rows = _aligned_constant_feature_rows(
+        feature_version_id=aligned_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    numeric_feature_rows, _ = _value_rows(
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_rows = aligned_feature_rows + numeric_feature_rows
+    feature_hash = compute_value_content_hash(feature_rows)
+    label_hash = compute_value_content_hash(aligned_label_rows)
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", aligned_label_rows)
+    resolver = _FakeResolver(
+        feature_record={
+            aligned_feature_version_id: _FeatureRecord(
+                feature_version_id=aligned_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="fixture_aligned_constant_flag"),
+            ),
+            numeric_feature_version_id: _FeatureRecord(
+                feature_version_id=numeric_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="fixture_close_delta"),
+            ),
+        },
+        label_record=_LabelRecord(
+            label_version_id=label_version_id,
+            materialization_output_path=label_path.as_posix(),
+            value_content_hash=label_hash,
+        ),
+    )
+    namespace = tmp_path / "rigor_p05_surrogate_aligned_constant"
+    namespace.mkdir()
+
+    # raw factor has two distinct values, so the all-null path does not fire.
+    assert len({row["value"] for row in aligned_feature_rows}) == 2
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(aligned_label_rows),
+        namespace=namespace,
+        report_out=tmp_path / "report.md",
+        resolver=resolver,
+    )
+
+    assert result["accepted"] is True
+    assert result["error_count"] == 0
+    assert result["excluded_factor_count"] == 1
+    assert result["excluded_factors"][0]["factor_id"] == "fixture_aligned_constant_flag"
+    assert (
+        result["excluded_factors"][0]["reason"] == "constant_factor_zero_variance"
+    )
+    # the aligned-constant factor has two raw numeric values, so numeric_rows>1
+    assert result["excluded_factors"][0]["numeric_rows"] == len(aligned_feature_rows)
+
+
+def test_real_surrogate_calibration_constant_label_stays_error_not_excluded(
+    tmp_path: Path,
+) -> None:
+    """Non-finite IC from a constant LABEL must stay an error, never excluded."""
+
+    feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    numeric_feature_rows, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    constant_label_rows = [{**row, "value": 0.25} for row in label_rows]
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", numeric_feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", constant_label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_constant_label"
+    namespace.mkdir()
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(constant_label_rows),
+        namespace=namespace,
+        report_out=tmp_path / "report.md",
+        resolver=_FakeResolver(
+            feature_record=_FeatureRecord(
+                feature_version_id=feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=compute_value_content_hash(numeric_feature_rows),
+            ),
+            label_record=_LabelRecord(
+                label_version_id=label_version_id,
+                materialization_output_path=label_path.as_posix(),
+                value_content_hash=compute_value_content_hash(constant_label_rows),
+            ),
+        ),
+    )
+
+    # The factor varies -> it is staged (not excluded); the constant label makes
+    # the IC non-finite -> the run is an ERROR and calibration is blocked.
+    assert result["excluded_factor_count"] == 0
+    assert result["error_count"] >= 1
+    assert result["accepted"] is False
+    assert result["threshold_verdict"] == CALIBRATION_BLOCKED
+
+
+def test_real_surrogate_rescore_reclassifies_constant_preserving_seed_numbering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rescore drops a constant sub-config's seeds while higher specs keep theirs.
+
+    Emulates a pre-fix run: the staging-time constant check is disabled so the
+    constant sub-config (lower spec_index) DOES receive a spec_index and seed
+    dirs, exactly like the live bbo namespace. The fix-era rescore must then
+    reclassify only that sub-config error->excluded while the higher-spec_index
+    numeric sub-config still resolves its original seed dirs.
+    """
+
+    import tools.discovery_rigor_floor.run_real_surrogate_calibration as tool
+
+    constant_feature_version_id = "fver_" + "3" * 64
+    numeric_feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    # constant sub-config sorts BEFORE the numeric one in staging order, so the
+    # numeric sub-config sits at a higher spec_index and its seed dir must still
+    # resolve after the constant sub-config's seeds are reclassified.
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="aaa_constant_flag",
+                feature_family="fixture_signal_family",
+                feature_version_id=constant_feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="zzz_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id=numeric_feature_version_id,
+            ),
+        ),
+    )
+    numeric_feature_rows, label_rows = _value_rows(
+        feature_version_id=numeric_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    constant_feature_rows = _constant_feature_rows(
+        feature_version_id=constant_feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_rows = constant_feature_rows + numeric_feature_rows
+    feature_hash = compute_value_content_hash(feature_rows)
+    label_hash = compute_value_content_hash(label_rows)
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+
+    resolver = _FakeResolver(
+        feature_record={
+            constant_feature_version_id: _FeatureRecord(
+                feature_version_id=constant_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="aaa_constant_flag"),
+            ),
+            numeric_feature_version_id: _FeatureRecord(
+                feature_version_id=numeric_feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=feature_hash,
+                feature_spec=_FeatureSpec(feature_id="zzz_close_delta"),
+            ),
+        },
+        label_record=_LabelRecord(
+            label_version_id=label_version_id,
+            materialization_output_path=label_path.as_posix(),
+            value_content_hash=label_hash,
+        ),
+    )
+
+    namespace = tmp_path / "rigor_p05_surrogate_rescore_constant"
+    namespace.mkdir()
+    base_seed = _base_seed_without_bootstrap_identity(label_rows)
+
+    # Stage like the pre-fix code: constant sub-config is NOT excluded, so both
+    # sub-configs receive spec_index slots (0 = constant, 1 = numeric) and seeds.
+    monkeypatch.setattr(tool, "_staged_sub_config_is_constant_factor", lambda *a, **k: False)
+    legacy = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "legacy.md",
+        resolver=resolver,
+    )
+    # Pre-fix: the constant sub-config produced a DetectionStatisticError seed.
+    assert legacy["surrogate_study_spec_count"] == 2
+    assert legacy["excluded_factor_count"] == 0
+    assert legacy["error_count"] >= 1
+    assert legacy["threshold_verdict"] == CALIBRATION_BLOCKED
+    # capture the numeric sub-config's (spec_index 1) seed dir to prove it is
+    # preserved (not renumbered) by the rescore.
+    seed_block_size = 2  # surrogate_spec_count(2) * runs_per_config(1)
+    numeric_seed_dirs = [
+        namespace / f"seed_{base_seed + config_index * seed_block_size + 1}"
+        for config_index in range(2)
+    ]
+    for seed_dir in numeric_seed_dirs:
+        assert (seed_dir / "study_outputs" / "diagnostic_summary.json").is_file()
+
+    # Fix-era rescore reclassifies the constant sub-config and keeps the numeric.
+    monkeypatch.undo()
+    rescored = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "rescored.md",
+        rescore_existing=True,
+    )
+
+    # The constant sub-config (spec_index 0) is reclassified to a recorded
+    # exclusion; the numeric sub-config (spec_index 1) keeps its seed dir and is
+    # rescored cleanly -> zero errors, accepted.
+    assert rescored["excluded_factor_count"] == 1
+    assert rescored["excluded_factors"][0]["factor_id"] == "aaa_constant_flag"
+    assert (
+        rescored["excluded_factors"][0]["reason"] == "constant_factor_zero_variance"
+    )
+    assert rescored["error_count"] == 0
+    assert rescored["accepted"] is True
+    assert rescored["statistic_pass_count"] == 0
+    # exactly the numeric sub-config's seeds were rescored (2 perturbations x 1).
+    assert rescored["run_count"] == 2
+    # the numeric sub-config's original seed dirs are the ones that were read.
+    for seed_dir in numeric_seed_dirs:
+        assert (seed_dir / "study_outputs" / "diagnostic_summary.json").is_file()
 
 
 def test_real_surrogate_calibration_refuses_value_hash_mismatch(
@@ -1094,6 +1635,104 @@ def _all_null_feature_rows(
         label_version_id=label_version_id,
     )
     return [{**row, "value": None} for row in feature_rows]
+
+
+def _constant_feature_rows(
+    *,
+    feature_version_id: str,
+    label_version_id: str,
+    constant: float = 0.0,
+) -> list[dict[str, object]]:
+    """Numeric feature rows that all share one value (zero variance everywhere)."""
+
+    feature_rows, _ = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    return [{**row, "value": constant} for row in feature_rows]
+
+
+def _two_distinct_feature_rows(
+    *,
+    feature_version_id: str,
+    label_version_id: str,
+) -> list[dict[str, object]]:
+    """Numeric feature rows with exactly two distinct values (kept in calibration)."""
+
+    feature_rows, _ = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    return [
+        {**row, "value": 0.0 if index % 2 == 0 else 1.0}
+        for index, row in enumerate(feature_rows)
+    ]
+
+
+def _aligned_constant_feature_rows(
+    *,
+    feature_version_id: str,
+    label_version_id: str,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Feature rows with two raw values that collapse to one after the label join.
+
+    The only row carrying the second value (1.0) is paired with a null label,
+    so the non-null IC join drops it and the aligned factor series is constant
+    even though the raw factor has two distinct values. Mirrors the two ES_2019
+    bbo binary flags that are aligned-constant in the live namespace.
+    """
+
+    feature_rows, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    distinct_index = 0
+    raw_feature_rows = [
+        {**row, "value": 1.0 if index == distinct_index else 0.0}
+        for index, row in enumerate(feature_rows)
+    ]
+    aligned_label_rows = [
+        {**row, "value": None} if index == distinct_index else row
+        for index, row in enumerate(label_rows)
+    ]
+    return raw_feature_rows, aligned_label_rows
+
+
+def _staged_factor_rows(
+    feature_rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Convert resolver-style feature rows into the staged factor-jsonl shape.
+
+    Matches ``_materialize_factor_jsonl`` output (data_version/session_id) so the
+    staged constant-factor check joins to ``_converted_label_rows`` correctly.
+    """
+
+    staged: list[dict[str, object]] = []
+    for row in feature_rows:
+        event_ts = str(row["event_ts"])
+        value = row.get("value")
+        numeric_value = (
+            value
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+            else None
+        )
+        staged.append(
+            {
+                "factor_id": "fixture_close_delta",
+                "factor_version": str(row["feature_version_id"]),
+                "instrument_id": row["entity_id"],
+                "event_ts": event_ts,
+                "available_ts": row["available_ts"],
+                "session_id": f"{row['entity_id']}:{event_ts[:10]}:surrogate",
+                "bar_index": 0,
+                "value": value,
+                "normalized_value": numeric_value,
+                "quality_flags": [],
+                "data_version": "data:v1",
+                "compute_version": "real_surrogate_calibration_bridge_v1",
+            }
+        )
+    return staged
 
 
 def _base_seed_without_bootstrap_identity(label_rows: list[dict[str, object]]) -> int:

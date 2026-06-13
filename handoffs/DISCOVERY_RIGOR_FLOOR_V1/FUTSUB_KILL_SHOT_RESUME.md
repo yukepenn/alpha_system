@@ -7,6 +7,36 @@ Boundary: FUTSUB is stopped before P28; this phase does not touch the run.
 This is coordinator-only. Do not execute these steps from a phase executor.
 Do not inspect Track A metrics before Track-B registration is complete.
 
+## RELOCK_V2 AMENDMENT (2026-06-13 — overrides V1-era narrative below)
+
+This handoff predates `P110000_RELOCK_V2` (PR #405), which rotated all 10
+StudySpec ids and forced a substrate re-materialization. The kill-shot runs the
+**V2** content-addressed objects. The original step narrative (V1 Track-B
+registration as the closing action; "4560-lock" audits) is SUPERSEDED:
+
+- **Track-B (step 4)**: V2 pooled hypotheses are ALREADY registered pre-metric
+  against the V2 anchor `sspec_f6cbd88caa0445f0f56d81fd` —
+  `poolhyp_d3b3d986369b525618a1caa0` (cross_symbol) +
+  `poolhyp_0755f59753552574a8092624` (cross_horizon),
+  `registered_before_metrics: true` (live registry
+  `~/alpha_data/alpha_system/futsub_killshot_track_b/`). The
+  2026-06-12T05:06:10Z V1 records are immutable history, NOT execution contracts.
+- **Audits (steps 6/7)**: use the V2 re-runs —
+  `variant_reconciliation/FUTSUB_KILL_SHOT_variant_reconciliation_v2.md` (PASS)
+  and `substrate_invariant/FUTSUB_KILL_SHOT_substrate_invariant_audit_v2.md`
+  (GREEN; V2 corpus 4112 handles → 1168 distinct fver + 96 lver, all REGISTERED).
+- **Caveat-carry (step 3)**: ADD the `bbo_tradability_spread_ticks` all-null
+  substrate caveat (24 excluded bbo sub-configs in the Row 6 V2 calibration) to
+  the operator context, alongside R-037 and BBO-proxy.
+- **P28 surgery + run id**: use the FULL run id
+  `2026-06-07T235209Z_...` (two stale same-suffix runs exist — DUPLICATE RUN-ID
+  HAZARD). P28 BLOCKED→PENDING: reduce to the canonical 14-key set (matches
+  P29–P33), DROP the 10 runtime keys (`branch`, `*_at`, `current_stage`,
+  `last_completed_stage`, `completed_stages`, `suppress_active_pointer`,
+  `wave_id`, `worktree_path`), keep `dependencies=["FUTSUB-P27"]`. STOP present,
+  RUN.lock absent, heartbeat pid 998997 dead. Prune stale `futsub-p28` worktree
+  (29fab84, ancestor of main).
+
 ## Ordered Resume Steps
 
 1. Confirm the rigor-floor closeout has been merged and reviewed by Ralph.
