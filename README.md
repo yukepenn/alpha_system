@@ -10,17 +10,24 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Post-`FUTSUB-P31` snapshot: 32 of 34 FUTSUB phases are complete after merge,
+Post-`FUTSUB-P32` snapshot: 33 of 34 FUTSUB phases are complete after merge,
 and the `handoff_and_closeout` gate remains in progress. `FUTSUB-P31` added the
 value-free Validation Governance requirement handoff at
 `handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/VALIDATION_GOVERNANCE_HANDOFF.md`
 and the durable docs mirror at
-`docs/futures_substrate_scaleout/HANDOFF_VALIDATION_GOVERNANCE.md`.
+`docs/futures_substrate_scaleout/HANDOFF_VALIDATION_GOVERNANCE.md`. `FUTSUB-P32`
+added the value-free FactorLibrary and Multi-Horizon Mining requirement
+handoffs at
+`handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FACTOR_LIBRARY_HANDOFF.md`
+and
+`handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/MULTI_HORIZON_MINING_HANDOFF.md`,
+with the durable docs mirror at
+`docs/futures_substrate_scaleout/HANDOFF_FACTOR_LIBRARY_AND_MINING.md`.
 
 The refreshed `FUTSUB-P29` boundary remains `10 REJECT / 0 INCONCLUSIVE / 0
 WATCH / 0 CANDIDATE_RESEARCH`, with the same retained caveats around label
 diagnostics, duplicate within-family exposures, and BBO proxy limits. The next
-planned phase is `FUTSUB-P32` - FactorLibrary / Multi-Horizon Mining Handoff.
+planned phase is `FUTSUB-P33` - Acceptance Audit and Closeout.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
