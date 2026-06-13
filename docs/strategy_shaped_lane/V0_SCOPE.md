@@ -34,6 +34,7 @@ These are explicitly deferred behind a later trigger and are not part of V0:
 - Feature-research fast lane.
 - FactorLibrary or AlphaBook.
 - PA grammar pack.
+- Broad PA library or strategy zoo.
 - Strategy backtester.
 - Paper trading, live trading, broker calls, order routing, capital interaction,
   deployment, or production operation.
@@ -50,9 +51,9 @@ These are explicitly deferred behind a later trigger and are not part of V0:
 2. No research-to-reference-sim bridge and no second PnL truth. The sanctioned
    reference engine remains the only value/accounting truth; V0 outcomes come
    from materialized path labels and diagnostics readouts.
-3. The single-factor path is additive-only and unchanged. New conditional
-   capability can be added alongside `SINGLE_FACTOR_THRESHOLD_TEMPLATE`, but the
-   existing one-factor template and truth-chain invariants stay intact.
+3. The single-factor path is additive-only and unchanged. Conditional capability
+   remains alongside `SINGLE_FACTOR_THRESHOLD_TEMPLATE`; the existing one-factor
+   template and truth-chain invariants stay intact.
 4. V0 is bounded and not a grid. Variants are pre-registered, ledgered, and
    family-budgeted; target/stop geometry sweeps, sequence state machines, and
    feature fast-lane expansion stay deferred.
@@ -69,4 +70,5 @@ endorses an exploratory result as trusted evidence.
 SSRL-P00 is documentation and bootstrap only. It confirms the campaign bundle
 and writes this scope contract plus the reuse map. It introduces no code, no
 engine change, no executable probe, no simulation, no tests, no dependency, and
-no data artifact.
+no data artifact. This phase does not authorize later-phase surfaces merely
+because they may already be present in a working tree.

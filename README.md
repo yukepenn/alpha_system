@@ -44,30 +44,31 @@ run-local state owned by Ralph.
 ## Source Of Truth
 
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
-- Active campaign bundle: `campaigns/SHIP_REFIT_V1/`
-- Campaign overview docs: `docs/ship_refit_v1/`
-- Value-free research evidence root:
-  `research/ship_refit_v1/`
-- Commit-eligible handoffs: `handoffs/SHIP_REFIT_V1/`
+- Active campaign bundle: `campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0/`
+- Strategy-shaped scope docs: `docs/strategy_shaped_lane/`
+- Commit-eligible handoffs:
+  `handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/`
 - Strategy and roadmap compass: `docs/OPERATING_COMPASS_V4.md`
 
 ## Safety Boundaries
 
-The project remains research-only and local-first. `SHIP_REFIT_V1` authorizes
-harness and diagnostics hardening only. It does not authorize live trading,
-paper trading, broker operations, order routing, deployment, account operations,
-funding decisions, or autonomous trading behavior.
+The project remains research-only and local-first.
+`STRATEGY_SHAPED_RESEARCH_LANE_V0` authorizes bounded strategy-shaped research
+capability only. It does not authorize live trading, paper trading, broker
+operations, order routing, deployment, account operations, funding decisions, or
+autonomous trading behavior.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
 feature or label values, provider responses, heavy artifacts, local databases,
 logs, caches, secrets, and credentials are never committed.
 
-The refit does not authorize new alpha ideation, FactorLibrary ingestion,
-AlphaBook construction, paper/live behavior, broker access, deployment,
-profitability claims, tradability claims, or execution-readiness claims.
-`pyproject.toml` dependencies remain empty, so numpy, pandas, and polars stay
-absent. Truth-chain invariants are preserved, including the sanctioned reference
-engine as the only value/accounting truth. Workflow 2 orchestration, validation
+The active campaign does not authorize promotion evidence, FactorLibrary
+ingestion, AlphaBook construction, a broad PA library or strategy zoo,
+paper/live behavior, broker access, deployment, profitability claims,
+tradability claims, or execution-readiness claims. `pyproject.toml`
+dependencies remain empty, so numpy, pandas, and polars stay absent.
+Truth-chain invariants are preserved, including the sanctioned reference engine
+as the only value/accounting truth. Workflow 2 orchestration, validation
 routing, review, staging, commit, PR, CI, merge, and done-check actions are owned
 by Ralph.
