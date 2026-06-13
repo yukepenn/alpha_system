@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.frontier.runtime_paths import persistent_tmp_env, persistent_tmp_root
+from tools.frontier.runtime_paths import persistent_tmp_env, persistent_tmp_root  # noqa: E402
 
 HOOKS = ROOT / "tools" / "hooks"
 
@@ -157,6 +157,31 @@ def registry_event_ts_grid_canary() -> Canary:
         {},
         expect_block=False,
         report_on_pass=True,
+    )
+
+
+def exploratory_promotion_refusal_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.promotion import "
+        "EXPLORATORY_PROMOTION_REFUSAL_CODE, reject_exploratory_promotion_artifact; "
+        "from alpha_system.governance.validation import GovernanceValidationError; "
+        "artifact = {'readout_id': 'canary', 'stamp': 'EXPLORATORY'}; "
+        "\ntry:\n"
+        "    reject_exploratory_promotion_artifact(artifact, field='promotion_artifact')\n"
+        "except GovernanceValidationError as exc:\n"
+        "    codes = {issue.code for issue in exc.issues}\n"
+        "    print(','.join(sorted(codes)))\n"
+        "    raise SystemExit(0 if EXPLORATORY_PROMOTION_REFUSAL_CODE in codes else 1)\n"
+        "print('EXPLORATORY artifact was not refused')\n"
+        "raise SystemExit(1)\n"
+    )
+    return Canary(
+        "forbidden_exploratory_promotion",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
     )
 
 
@@ -350,6 +375,7 @@ def scenarios() -> list[Canary]:
         governance_canary("permuted_labels"),
         governance_canary("optimistic_fill"),
         registry_event_ts_grid_canary(),
+        exploratory_promotion_refusal_canary(),
         planted_fake_alpha_canary(),
         true_alpha_detection_canary("strong", expected_detection=True),
         true_alpha_detection_canary("weak", expected_detection=False),

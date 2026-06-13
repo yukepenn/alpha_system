@@ -15,6 +15,7 @@ from alpha_system.governance.ids import (
     generate_governance_id,
     validate_governance_id,
 )
+from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP
 from alpha_system.governance.serialization import (
     GovernanceSerializationError,
     JsonValue,
@@ -88,6 +89,7 @@ PROHIBITED_MVP_STATES = (
 PROMOTION_IMPLIES_LIVE_APPROVAL = False
 PROMOTION_IMPLIES_CAPITAL_ALLOCATION = False
 PROMOTION_IMPLIES_PRODUCTION_READINESS = False
+EXPLORATORY_PROMOTION_REFUSAL_CODE = "exploratory_artifact_refused"
 
 _UTC_SECONDS_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _VAGUE_TEXT = {
@@ -258,7 +260,10 @@ def generate_promotion_decision_id(payload: Mapping[str, Any]) -> str:
         ),
         object_name="PromotionDecision",
     )
-    if mapping["decision"] == PromotionDecisionOutcome.INCONCLUSIVE.value and "reason_code" not in mapping:
+    if (
+        mapping["decision"] == PromotionDecisionOutcome.INCONCLUSIVE.value
+        and "reason_code" not in mapping
+    ):
         raise GovernanceValidationError(
             missing_inconclusive_reason_issue(state_field="PromotionDecision.decision")
         )
@@ -378,6 +383,51 @@ def validate_promotion_transition(*args: Any, **kwargs: Any) -> Any:
     return validate_governance_transition(*args, **kwargs)
 
 
+def reject_exploratory_promotion_artifact(
+    artifact: Any,
+    *,
+    field: str = "artifact",
+) -> None:
+    """Fail closed when a trusted promotion input carries EXPLORATORY stamp."""
+
+    paths = _exploratory_stamp_paths(artifact, field=field)
+    if not paths:
+        return
+    raise GovernanceValidationError(
+        [
+            ValidationIssue(
+                field=path,
+                code=EXPLORATORY_PROMOTION_REFUSAL_CODE,
+                message="EXPLORATORY-stamped artifacts cannot be promotion evidence",
+                expected="trusted rerun artifact without EXPLORATORY stamp",
+                actual=EXPLORATORY_STAMP,
+            )
+            for path in paths
+        ]
+    )
+
+
+def reject_exploratory_promotion_artifacts(
+    artifacts: Mapping[str, Any],
+) -> None:
+    """Fail closed when any named trusted promotion input is EXPLORATORY."""
+
+    issues: list[ValidationIssue] = []
+    for field, artifact in artifacts.items():
+        for path in _exploratory_stamp_paths(artifact, field=field):
+            issues.append(
+                ValidationIssue(
+                    field=path,
+                    code=EXPLORATORY_PROMOTION_REFUSAL_CODE,
+                    message="EXPLORATORY-stamped artifacts cannot be promotion evidence",
+                    expected="trusted rerun artifact without EXPLORATORY stamp",
+                    actual=EXPLORATORY_STAMP,
+                )
+            )
+    if issues:
+        raise GovernanceValidationError(issues)
+
+
 def _validate_ids(mapping: Mapping[str, Any]) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     id_checks = (
@@ -400,6 +450,33 @@ def _validate_ids(mapping: Mapping[str, Any]) -> list[ValidationIssue]:
                 )
             )
     return issues
+
+
+def _exploratory_stamp_paths(value: Any, *, field: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    payload = _artifact_payload(value)
+    if isinstance(payload, Mapping):
+        paths: list[str] = []
+        if payload.get("stamp") == EXPLORATORY_STAMP:
+            paths.append(f"{field}.stamp")
+        for key, item in payload.items():
+            child_field = f"{field}.{key}"
+            paths.extend(_exploratory_stamp_paths(item, field=child_field))
+        return tuple(paths)
+    if isinstance(payload, tuple | list):
+        paths = []
+        for index, item in enumerate(payload):
+            paths.extend(_exploratory_stamp_paths(item, field=f"{field}[{index}]"))
+        return tuple(paths)
+    return ()
+
+
+def _artifact_payload(value: Any) -> Any:
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        return to_dict()
+    return value
 
 
 def _validate_trial_ledger_refs(values: list[Any]) -> list[ValidationIssue]:
