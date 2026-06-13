@@ -1,0 +1,62 @@
+{
+  "mechanism_id": "fomc_drift",
+  "hypothesis": {
+    "statement": "Conditional on a scheduled FOMC statement/press-conference window, intraday forward behavior over short horizons may differ systematically from non-event sessions; we test whether the pre-event-knowable proximity-to-scheduled-FOMC conditioner relates to forward outcomes. This is a falsifiable conditioning hypothesis, not a profitability claim.",
+    "economic_rationale": "Scheduled monetary-policy information arrival concentrates positioning and hedging flow into a known window; behavior in that window is plausibly governed by a different process than ambient price action. Diagnostics decide whether any relationship exists."
+  },
+  "expected_horizon": ["5m", "30m"],
+  "expected_session": "event_window",
+  "expected_sign": "undirected",
+  "conditioning_variable": {
+    "name": "minutes_to_scheduled_fomc_event",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_minutes_to_rth_close",
+      "session_calendar_roll_session_id"
+    ],
+    "new": [
+      {
+        "name": "minutes_to_scheduled_event",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "No scheduled-macro-event proximity feature exists; would extend SESSION_CALENDAR_ROLL via a new FeatureRequest (freq_) with a known-ahead event-schedule metadata surface analogous to SessionCalendarRollMetadata.expiration_ts_by_contract_id, carrying point-in-time provenance (metadata.available_ts <= row.available_ts)."
+      },
+      {
+        "name": "in_fomc_event_window_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "Binary known-ahead window membership flag; same new FeatureRequest family extension."
+      }
+    ]
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward", "event:return_to_vwap"],
+    "new": []
+  },
+  "lookahead_risk": {
+    "level": "high",
+    "description": "Two distinct hazards: (1) the scheduled FOMC TIME must be carried as known-ahead metadata, not back-filled from realized volatility; (2) any FOMC SURPRISE magnitude (decision vs consensus, dot-plot deltas) is only knowable AFTER the release and must never become a live feature.",
+    "mitigation": "Scheduled times use the existing point-in-time metadata pattern with the _require_metadata_known_as_of guard (metadata.available_ts <= row.available_ts). Surprise magnitude, if used at all, is an OFFLINE diagnostic conditioner / labels-only split and is excluded from any live feature contract.",
+    "pre_event_knowable_features": ["minutes_to_scheduled_fomc_event", "in_fomc_event_window_flag"],
+    "post_event_knowable_features": ["fomc_decision_surprise_magnitude", "dot_plot_delta"]
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "The conditioner is a known-ahead calendar position, not a price/quote-derived state; it is structurally distinct from the rejected price-action (regime, vwap_session) and BBO (bbo_tradability, liquidity_pa) main effects, which condition on realized price/quote dynamics. Expected-orthogonal by construction; the diagnostic, not this statement, decides.",
+    "shared_inputs_with_dead": [],
+    "diagnostic_check": "Residualize forward outcomes against the dead-mechanism factors (regime/vwap_session/bbo_tradability/liquidity_pa) before scoring the event conditioner, and report the conditioner's marginal relationship on the residual."
+  },
+  "capacity_turnover_note": "Approximately 8 scheduled FOMC windows per year; very low occurrence count drives an N_eff-limited test. Per the Compass Track-B pooled minimum, pool across instruments (ES/NQ/RTY and related) rather than testing one instrument. No capacity or turnover dollar claim is made.",
+  "data_dependency": {
+    "class": "needs_paid_data",
+    "detail": "FOMC scheduled meeting dates/times are publicly available and could be encoded as a small known-ahead calendar; FOMC SURPRISE magnitudes require an external economic-data feed. No event-calendar data source exists in the repo today (zero hits for fomc/cpi/nfp). Sourcing any external macro feed is deferred.",
+    "deferred_pending_user_approval": true
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}

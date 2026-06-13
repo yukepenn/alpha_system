@@ -1,0 +1,62 @@
+{
+  "mechanism_id": "month_end_flow",
+  "hypothesis": {
+    "statement": "On scheduled month-end (and quarter-end) sessions, we test whether intraday forward behavior conditioned on the known-ahead month-end-session flag and time-to-RTH-close differs from ordinary sessions (a rebalancing-flow conditioning hypothesis). Falsifiable; not a profitability claim.",
+    "economic_rationale": "Calendar-driven portfolio rebalancing and index-fund flows can concentrate into the month-end / quarter-end close; whether this produces a measurable conditional forward pattern is an empirical question the diagnostics resolve."
+  },
+  "expected_horizon": ["30m"],
+  "expected_session": "RTH",
+  "expected_sign": "undirected",
+  "conditioning_variable": {
+    "name": "is_month_end_session",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_to_rth_close",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_session_id"
+    ],
+    "new": [
+      {
+        "name": "is_month_end_session_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "Month-end / quarter-end session membership is DERIVABLE from the exchange calendar (last trading session of the month/quarter) and known ahead; needs a new FeatureRequest extending SESSION_CALENDAR_ROLL. No month-end concept exists in the current SessionFeatureName enum (only day_of_week, RTH/ETH clocks, roll/expiration proximity)."
+      },
+      {
+        "name": "is_quarter_end_session_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "Quarter-end variant; same calendar-derivable family extension."
+      }
+    ]
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward"],
+    "new": []
+  },
+  "lookahead_risk": {
+    "level": "low",
+    "description": "Month-end / quarter-end sessions are deterministic from the exchange calendar and known ahead, so the conditioner carries little lookahead hazard. The only hazard is mislabeling the last trading session when holidays shift it; this must use the actual trading calendar, not a naive calendar-day rule.",
+    "mitigation": "Derive the flag from the actual exchange trading calendar (last available trading session in the month/quarter), carried as known-ahead point-in-time metadata under the _require_metadata_known_as_of guard so a holiday-shifted last session is never inferred from future data.",
+    "pre_event_knowable_features": ["is_month_end_session_flag", "is_quarter_end_session_flag", "session_calendar_roll_minutes_to_rth_close"],
+    "post_event_knowable_features": []
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "A calendar-derived month-end flag is structurally independent of the realized-price/quote main effects the dead mechanisms used. Risk of NON-orthogonality is mainly redundancy with day_of_week / session position already present, not with the dead price-action factors; this must be checked.",
+    "shared_inputs_with_dead": [],
+    "diagnostic_check": "Residualize forward outcomes against regime/vwap_session factors AND against the existing day_of_week feature before scoring the month-end conditioner, to confirm it is not a relabeling of an existing calendar feature."
+  },
+  "capacity_turnover_note": "Approximately 12 month-end + 4 quarter-end sessions per year; low occurrence count, N_eff-limited. Pool across index futures per Track-B. No capacity/turnover dollar claim.",
+  "data_dependency": {
+    "class": "derivable_from_exchange_calendar",
+    "detail": "Month-end/quarter-end last-trading-session dates are deterministic from the exchange trading calendar; no external feed required. Same low-data-dependency class as opex_pinning.",
+    "deferred_pending_user_approval": false
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}

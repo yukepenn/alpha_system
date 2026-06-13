@@ -1,0 +1,50 @@
+{
+  "mechanism_id": "day_of_week_effect",
+  "hypothesis": {
+    "statement": "We test whether intraday forward behavior conditioned on the known-ahead calendar day-of-week (and the interaction of day-of-week with intraday session position) differs systematically across weekdays. This is a falsifiable seasonality-conditioning hypothesis, not a profitability claim.",
+    "economic_rationale": "Calendar-driven flow can cluster by weekday for structural reasons (weekly fund-flow cadence, Monday gap absorption, Friday position-squaring into the weekend); whether any of this produces a measurable conditional forward pattern is an empirical question the diagnostics resolve."
+  },
+  "expected_horizon": ["30m"],
+  "expected_session": "RTH",
+  "expected_sign": "undirected",
+  "conditioning_variable": {
+    "name": "day_of_week",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_minutes_to_rth_close",
+      "session_calendar_roll_session_id",
+      "session_calendar_roll_rth_segment_flag"
+    ],
+    "new": []
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward"],
+    "new": []
+  },
+  "lookahead_risk": {
+    "level": "low",
+    "description": "Day-of-week is deterministic from the bar timestamp (the existing day_of_week feature is computed from bar_start_ts.weekday()) and is fully known-ahead, so the conditioner carries no lookahead hazard. The only hazard is treating a holiday-shortened or early-close session as an ordinary weekday; that must be segmented with the existing session-type classification, not a naive weekday rule.",
+    "mitigation": "Use the existing point-in-time day_of_week feature directly; condition jointly on the existing rth_segment_flag / session_id so holiday and early-close sessions are not silently pooled with full sessions. No new metadata surface is required.",
+    "pre_event_knowable_features": ["session_calendar_roll_day_of_week", "session_calendar_roll_rth_segment_flag", "session_calendar_roll_minutes_from_rth_open"],
+    "post_event_knowable_features": []
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "A pure calendar position is structurally independent of the realized-price/quote main effects the dead mechanisms (regime, vwap_session, bbo_tradability, liquidity_pa) conditioned on. This is the WEAKEST orthogonality claim in the seasonality set because day_of_week is the most generic calendar conditioner and is most at risk of being a proxy for an already-present session-position effect rather than a distinct flow mechanism; the diagnostic, not this statement, decides.",
+    "shared_inputs_with_dead": [],
+    "diagnostic_check": "Residualize forward outcomes against the dead-mechanism factors (regime/vwap_session/bbo_tradability/liquidity_pa) AND against intraday session position (minutes_from_rth_open) before scoring the day-of-week conditioner, to confirm it is not a relabeling of an intraday-position effect already captured elsewhere."
+  },
+  "capacity_turnover_note": "Five weekday buckets observed every trading week (roughly 250 sessions/year split across 5 buckets); occurrence count is higher than the calendar-event mechanisms, but the conditional sample is still split across buckets. Pool across the index-futures family per Track-B. No capacity/turnover dollar claim.",
+  "data_dependency": {
+    "class": "existing_substrate",
+    "detail": "Fully covered by the existing SessionFeatureName.DAY_OF_WEEK feature plus existing RTH/session-position features; no new FeatureRequest, no exchange-calendar extension, and no external feed required. Lowest data dependency in the entire differentiated-substrate set.",
+    "deferred_pending_user_approval": false
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}
