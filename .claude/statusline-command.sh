@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# alpha_system status line — no external deps (python, not jq).
-# Format: ⛵ Model-effort | 5h N% 1wk N% | ~$N.NN est | branch | 🟢 WF2:<campaign> <state> <done>/<total> [<active phase>] | TASK:<coordinator note>
-# Icons: ⛵ smooth sailing (no red anywhere) / ⚠️ attention; WF2: 🟢 running, ✅ completed, 🟡 stopped/paused, 🔴 blocked/failed.
+# alpha_system status line — no external deps (python, not jq). TWO LINES:
+#   Line 1 (SHIP):    ⛵ Model-effort | ctx 🟢 N% left | 5h N% 1wk N% | ~$N.NN est | branch
+#   Line 2 (MISSION): <icon> WF2:<campaign> <state> <done>/<total> [<active phase>] | TASK:<note>
+# Icons: ⛵ smooth (no red) / ⚠️ attention; WF2: 🟢 running, ✅ completed, 🟡 stopped/paused, 🔴 blocked/failed.
 # WF2 reads the newest runs/*/state.json; TASK reads runs/STATUSLINE_TASK.txt (local-only, coordinator-maintained).
 input=$(cat)
 printf '%s' "$input" | python3 -c '
@@ -23,14 +24,15 @@ fh_used = (rl.get("five_hour") or {}).get("used_percentage")
 wk_used = (rl.get("seven_day") or {}).get("used_percentage")
 wd = (d.get("workspace") or {}).get("current_dir") or d.get("cwd") or "."
 
-seg = model + ("-" + str(effort) if effort else "")
+# ---------- LINE 1: ship (identity / context / fuel / cost / branch) ----------
+line1 = model + ("-" + str(effort) if effort else "")
 
 cw = d.get("context_window") or {}
 rem = cw.get("remaining_percentage")
 if rem is not None:
     r = float(rem)
     ctx_icon = "\U0001F7E2" if r > 35 else ("\U0001F7E1" if r > 15 else "\U0001F534")
-    seg += " | ctx %s%.0f%% left" % (ctx_icon, r)
+    line1 += " | ctx %s %.0f%% left" % (ctx_icon, r)   # space between icon and number
 
 parts = []
 if fh_used is not None:
@@ -38,11 +40,11 @@ if fh_used is not None:
 if wk_used is not None:
     parts.append("1wk %.0f%%" % (100.0 - float(wk_used)))
 if parts:
-    seg += " | " + " ".join(parts)
+    line1 += " | " + " ".join(parts)
 
 try:
     if cost is not None and float(cost) > 0:
-        seg += " | ~$%.2f est" % float(cost)
+        line1 += " | ~$%.2f est" % float(cost)
 except (TypeError, ValueError):
     pass
 
@@ -50,13 +52,14 @@ try:
     b = subprocess.run(["git", "-C", wd, "--no-optional-locks", "symbolic-ref", "--short", "HEAD"],
                        capture_output=True, text=True, timeout=2).stdout.strip()
     if b:
-        seg += " | " + b
+        line1 += " | " + b
 except Exception:
     pass
 
 healthy = True
 
-# --- WF2 live status from newest runs/*/state.json ---
+# ---------- LINE 2: mission (WF2 live state + coordinator task note) ----------
+wf2 = ""
 try:
     states = glob.glob(os.path.join(wd, "runs", "*", "state.json"))
     if states:
@@ -87,11 +90,10 @@ try:
         wf2 = "%s WF2:%s %s %d/%d" % (icon, tag, run_status, done, total)
         if active:
             wf2 += " [%s %s]" % (active.get("phase_id", "?"), astat)
-        seg += " | " + wf2
 except Exception:
     pass
 
-# --- coordinator task note (local-only file; may start with its own status emoji) ---
+task = ""
 try:
     tf = os.path.join(wd, "runs", "STATUSLINE_TASK.txt")
     if os.path.isfile(tf):
@@ -99,10 +101,16 @@ try:
         if note:
             if "\U0001F534" in note or "⚠" in note:
                 healthy = False
-            seg += " | TASK:" + note[:90]
+            task = "TASK:" + note[:110]
 except Exception:
     pass
 
+line2 = " | ".join(x for x in (wf2, task) if x)
+
+# ---------- assemble ----------
 prefix = "⛵ " if healthy else "⚠️ "
-print(prefix + seg)
+out = prefix + line1
+if line2:
+    out += "\n" + line2
+print(out)
 '
