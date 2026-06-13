@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import inspect
 import json
 import os
 import re
@@ -23,14 +24,14 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.frontier import lessons_candidates
-from tools.frontier.command_runner import CommandRunner
+from tools.frontier.command_runner import CommandRunner, ProviderWatchdogConfig, TIMEOUT_RETURN_CODE
 from tools.frontier.config import load_config
 from tools.frontier.git_utils import (
     RemoteBranchResult,
@@ -81,6 +82,7 @@ from tools.frontier.provider_adapters import (
     ClaudeProviderAdapter,
     CodexProviderAdapter,
     classify_provider_nonzero,
+    provider_limit_status,
 )
 from tools.frontier.provider_config import ProviderRuntimeConfig, load_provider_config
 from tools.frontier.resume import (
@@ -488,6 +490,23 @@ def append_event(run_dir: Path, state: dict[str, Any], event: str, **details: An
         }
         with (run_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def provider_watchdog_config(
+    run_dir: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any] | None,
+    *,
+    provider: str,
+    stage: str,
+) -> ProviderWatchdogConfig:
+    def write_watchdog_event(event: str, details: Mapping[str, Any]) -> None:
+        payload = dict(details)
+        if phase is not None:
+            payload["phase_id"] = phase.get("phase_id")
+        append_event(run_dir, state, event, provider=provider, stage=stage, **payload)
+
+    return ProviderWatchdogConfig(events_path=run_dir / "events.jsonl", event_writer=write_watchdog_event)
 
 
 def unique_executor_notes_path(phase_dir: Path, source: Path) -> Path:
@@ -1989,7 +2008,10 @@ def handle_provider_nonzero(
     stage: str,
     result: CommandResult,
 ) -> bool:
-    status = classify_provider_nonzero(provider, result.stdout, result.stderr, result.returncode)
+    if result.returncode == TIMEOUT_RETURN_CODE:
+        status = provider_limit_status(provider)
+    else:
+        status = classify_provider_nonzero(provider, result.stdout, result.stderr, result.returncode)
     if status in PROVIDER_WAITING_STATUSES:
         wait_provider_limit(run_dir, state, phase, provider=provider, stage=stage, result=result, status=status)
         return True
@@ -2482,7 +2504,11 @@ def run_ci_repair_attempt(
         state["codex_called_by_driver"] = True
         state["external_providers_called"] = True
         state["network_used"] = True
-        result = codex_noninteractive(prompt_text, root=execution_root)
+        result = _codex_noninteractive_for_driver(
+            prompt_text,
+            root=execution_root,
+            watchdog=provider_watchdog_config(run_dir, state, phase, provider="codex", stage="ci_repair"),
+        )
         append_cost_record(
             run_dir, state, provider="codex", model=None, phase_id=phase_id, note="ci_repair_execution",
             duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -2626,7 +2652,12 @@ def provider_handoff_text(phase: dict[str, Any], verdict: str, mock_enabled: boo
 """
 
 
-def claude_headless(prompt: str, *, root: Path = ROOT) -> CommandResult:
+def claude_headless(
+    prompt: str,
+    *,
+    root: Path = ROOT,
+    watchdog: ProviderWatchdogConfig | None = None,
+) -> CommandResult:
     if provider_replay_disabled():
         return CommandResult(
             ("provider-replay-disabled", "claude"),
@@ -2635,17 +2666,38 @@ def claude_headless(prompt: str, *, root: Path = ROOT) -> CommandResult:
             "FRONTIER_NO_PROVIDER_REPLAY=1 prevents Claude replay.",
         )
     config = load_provider_config(root)
-    response = ClaudeProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
+    runner = CommandRunner(root)
+    adapter = ClaudeProviderAdapter(config, runner)
+    if config.mock_providers:
+        response = adapter.run_prompt(prompt)
+        return CommandResult(
+            tuple(response.command),
+            response.return_code,
+            response.stdout,
+            response.stderr,
+            response.duration_ms,
+        )
+    result = runner.run(
+        adapter.build_command(prompt),
+        timeout_seconds=config.provider_timeout_seconds,
+        stdin_text=prompt,
+        provider_watchdog=watchdog,
+    )
     return CommandResult(
-        tuple(response.command),
-        response.return_code,
-        response.stdout,
-        response.stderr,
-        response.duration_ms,
+        tuple(result.command),
+        result.return_code,
+        result.stdout,
+        result.stderr,
+        result.duration_ms,
     )
 
 
-def codex_noninteractive(prompt: str, *, root: Path = ROOT) -> CommandResult:
+def codex_noninteractive(
+    prompt: str,
+    *,
+    root: Path = ROOT,
+    watchdog: ProviderWatchdogConfig | None = None,
+) -> CommandResult:
     if provider_replay_disabled():
         return CommandResult(
             ("provider-replay-disabled", "codex"),
@@ -2654,18 +2706,91 @@ def codex_noninteractive(prompt: str, *, root: Path = ROOT) -> CommandResult:
             "FRONTIER_NO_PROVIDER_REPLAY=1 prevents Codex replay.",
         )
     config = load_provider_config(root)
-    response = CodexProviderAdapter(config, CommandRunner(root)).run_prompt(prompt)
-    return CommandResult(
-        tuple(response.command),
-        response.return_code,
-        response.stdout,
-        response.stderr,
-        response.duration_ms,
+    runner = CommandRunner(root)
+    adapter = CodexProviderAdapter(config, runner)
+    if config.mock_providers:
+        response = adapter.run_prompt(prompt)
+        return CommandResult(
+            tuple(response.command),
+            response.return_code,
+            response.stdout,
+            response.stderr,
+            response.duration_ms,
+        )
+    result = runner.run(
+        adapter.build_command(prompt),
+        timeout_seconds=config.provider_timeout_seconds,
+        stdin_text=prompt,
+        provider_watchdog=watchdog,
     )
+    return CommandResult(
+        tuple(result.command),
+        result.return_code,
+        result.stdout,
+        result.stderr,
+        result.duration_ms,
+    )
+
+
+def _callable_accepts_keyword(func: Any, name: str) -> bool:
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return True
+    return any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        or (
+            param.name == name
+            and param.kind
+            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        )
+        for param in params.values()
+    )
+
+
+def _codex_noninteractive_for_driver(
+    prompt: str,
+    *,
+    root: Path,
+    watchdog: ProviderWatchdogConfig | None,
+) -> CommandResult:
+    kwargs: dict[str, Any] = {"root": root}
+    if _callable_accepts_keyword(codex_noninteractive, "watchdog"):
+        kwargs["watchdog"] = watchdog
+    return codex_noninteractive(prompt, **kwargs)
 
 
 def write_provider_failure(path: Path, title: str, result: CommandResult) -> None:
     path.write_text(f"# {title}\n\n{command_block(result)}\n", encoding="utf-8")
+
+
+FIRST_LIGHT_RESOLVER_SMOKE_COMMAND = [
+    sys.executable,
+    "-m",
+    "pytest",
+    "tests/unit/futures_substrate_scaleout/features/test_feature_resolver_smoke.py",
+    "tests/unit/futures_substrate_scaleout/labels/test_label_resolver_smoke.py",
+    "-q",
+]
+FIRST_LIGHT_CANARY_COMMAND = [sys.executable, "tools/hooks/canary_runner.py"]
+
+
+def run_first_light_preflight(*, root: Path = ROOT) -> tuple[bool, str]:
+    results = [
+        run_local_command(FIRST_LIGHT_RESOLVER_SMOKE_COMMAND, root=root),
+        run_local_command(FIRST_LIGHT_CANARY_COMMAND, root=root),
+    ]
+    ok = all(result.returncode == 0 for result in results)
+    body = ["# First-Light Preflight", ""]
+    for result in results:
+        body.append(command_block(result))
+    return ok, "\n".join(body)
+
+
+def first_light_preflight(*, root: Path = ROOT) -> int:
+    ok, body = run_first_light_preflight(root=root)
+    print(body)
+    return 0 if ok else 1
 
 
 def run_validation_commands(*, root: Path = ROOT) -> tuple[bool, str]:
@@ -4623,7 +4748,10 @@ def execute_provider_phase(
             state["claude_called_by_driver"] = True
             state["external_providers_called"] = True
             state["network_used"] = True
-            result = claude_headless(spec_prompt_text)
+            result = claude_headless(
+                spec_prompt_text,
+                watchdog=provider_watchdog_config(run_dir, state, phase, provider="claude", stage="spec"),
+            )
             append_cost_record(
                 run_dir, state, provider="claude", model=None, phase_id=phase_id, note="spec_generation",
                 duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -4671,7 +4799,11 @@ def execute_provider_phase(
             state["codex_called_by_driver"] = True
             state["external_providers_called"] = True
             state["network_used"] = True
-            result = codex_noninteractive(exec_prompt_text, root=execution_root)
+            result = _codex_noninteractive_for_driver(
+                exec_prompt_text,
+                root=execution_root,
+                watchdog=provider_watchdog_config(run_dir, state, phase, provider="codex", stage="execute"),
+            )
             append_cost_record(
                 run_dir, state, provider="codex", model=None, phase_id=phase_id, note="phase_execution",
                 duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -4758,7 +4890,11 @@ def execute_provider_phase(
             review_text = mock_review_text(phase)
             append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_review")
         else:
-            result = claude_headless(review_prompt_text, root=execution_root)
+            result = claude_headless(
+                review_prompt_text,
+                root=execution_root,
+                watchdog=provider_watchdog_config(run_dir, state, phase, provider="claude", stage="review"),
+            )
             append_cost_record(
                 run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_review",
                 duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -4849,7 +4985,11 @@ def execute_provider_phase(
                 done_text = mock_done_check_text(phase)
                 append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_done_check")
             else:
-                result = claude_headless(done_prompt, root=execution_root)
+                result = claude_headless(
+                    done_prompt,
+                    root=execution_root,
+                    watchdog=provider_watchdog_config(run_dir, state, phase, provider="claude", stage="done_check"),
+                )
                 append_cost_record(
                     run_dir, state, provider="claude", model=None, phase_id=phase_id, note="phase_done_check",
                     duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -4941,7 +5081,11 @@ def run_provider_repair_loop(
             state["codex_called_by_driver"] = True
             state["external_providers_called"] = True
             state["network_used"] = True
-            result = codex_noninteractive(repair_prompt_text, root=execution_root)
+            result = _codex_noninteractive_for_driver(
+                repair_prompt_text,
+                root=execution_root,
+                watchdog=provider_watchdog_config(run_dir, state, phase, provider="codex", stage="repair"),
+            )
             append_cost_record(
                 run_dir, state, provider="codex", model=None, phase_id=phase_id, note="repair_execution",
                 duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -5001,7 +5145,11 @@ def run_provider_repair_loop(
             repaired_review_text = mock_review_text(phase)
             append_cost_record(run_dir, state, provider="mock", model=None, phase_id=phase_id, note="mock_claude_repair_review")
         else:
-            result = claude_headless(review_prompt_text, root=execution_root)
+            result = claude_headless(
+                review_prompt_text,
+                root=execution_root,
+                watchdog=provider_watchdog_config(run_dir, state, phase, provider="claude", stage="repair_review"),
+            )
             append_cost_record(
                 run_dir, state, provider="claude", model=None, phase_id=phase_id, note="repair_review",
                 duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -5086,7 +5234,16 @@ def run_campaign_done_check(run_dir: Path, state: dict[str, Any]) -> str:
         text = mock_campaign_done_check_text(state["campaign_id"])
         append_cost_record(run_dir, state, provider="mock", model=None, phase_id=None, note="mock_campaign_done_check")
     else:
-        result = claude_headless(prompt)
+        result = claude_headless(
+            prompt,
+            watchdog=provider_watchdog_config(
+                run_dir,
+                state,
+                None,
+                provider="claude",
+                stage="campaign_done_check",
+            ),
+        )
         append_cost_record(
             run_dir, state, provider="claude", model=None, phase_id=None, note="campaign_done_check",
             duration_ms=result.duration_ms, tokens=parse_provider_tokens(result),
@@ -6515,6 +6672,10 @@ def main(argv: list[str] | None = None) -> int:
     plan_parser.add_argument("--campaign-id")
     plan_parser.add_argument("--max-parallel", type=int)
     plan_parser.add_argument("--json", action="store_true")
+    subparsers.add_parser(
+        "first-light",
+        help="Run resolver-smoke and canary checks before a real provider run.",
+    )
     args = parser.parse_args(argv)
 
     if args.command == "run":
@@ -6543,6 +6704,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "plan-dag":
         return plan_dag(args.campaign_id, max_parallel=args.max_parallel, as_json=args.json)
+    if args.command == "first-light":
+        return first_light_preflight()
     parser.print_help()
     return 0
 

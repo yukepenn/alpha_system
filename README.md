@@ -10,14 +10,17 @@ The repository-level campaign pointer targets
 `SHIP_REFIT_V1`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`, which is
 coordinator-owned in Workflow 2.
 
-`SHIP_REFIT-P00` is the bootstrap snapshot: the campaign control bundle is
-present, the root pointer selects `SHIP_REFIT_V1`, and the value-free overview
-plus evidence scaffold have been added. The next phase is `SHIP_REFIT-P01`
-Provider-Watchdog / Job-Runner Resilience.
+`SHIP_REFIT-P01` adds provider-watchdog and job-runner resilience to the
+Workflow 2 driver. The next load-bearing phase is `SHIP_REFIT-P02`
+Diagnostics-Fast-Path.
 
-New durable scaffold docs are `docs/ship_refit_v1/` and the value-free evidence
-placeholder under `research/ship_refit_v1/`. P00 adds no runtime modules, no
-commands, and no dependencies.
+New durable surfaces are the provider watchdog in
+`tools/frontier/command_runner.py`, the Ralph watchdog wiring and first-light
+preflight in `tools/frontier/ralph_driver.py`, and the design note
+`docs/ship_refit_v1/PROVIDER_WATCHDOG.md`. The provider timeout is now `3600s`;
+the watchdog, not the timeout, is the primary frozen-provider liveness guard.
+The first-light pre-run check is callable with
+`python tools/frontier/ralph_driver.py first-light`.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
