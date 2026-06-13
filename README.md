@@ -10,24 +10,26 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Post-`FUTSUB-P32` snapshot: 33 of 34 FUTSUB phases are complete after merge,
-and the `handoff_and_closeout` gate remains in progress. `FUTSUB-P31` added the
-value-free Validation Governance requirement handoff at
-`handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/VALIDATION_GOVERNANCE_HANDOFF.md`
-and the durable docs mirror at
-`docs/futures_substrate_scaleout/HANDOFF_VALIDATION_GOVERNANCE.md`. `FUTSUB-P32`
-added the value-free FactorLibrary and Multi-Horizon Mining requirement
-handoffs at
-`handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/FACTOR_LIBRARY_HANDOFF.md`
-and
-`handoffs/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/MULTI_HORIZON_MINING_HANDOFF.md`,
-with the durable docs mirror at
-`docs/futures_substrate_scaleout/HANDOFF_FACTOR_LIBRARY_AND_MINING.md`.
+Post-`FUTSUB-P33` snapshot: the final acceptance audit and semantic done-check
+artifacts exist, and
+`campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/CLOSEOUT.md` records
+the campaign verdict as `BLOCKED`. The block is committed review provenance:
+the substrate evidence, P30 artifact audit, and P31/P32 downstream handoffs are
+present, but the acceptance contract requires committed Yellow-lane review
+artifacts that are missing for most named FUTSUB phases.
+
+New closeout docs are
+`campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/CLOSEOUT.md`,
+`docs/futures_substrate_scaleout/CLOSEOUT.md`, and the value-free closeout
+indexes under `research/futures_substrate_scaleout_v1/closeout/`. The
+Validation Governance, FactorLibrary, and Multi-Horizon Mining handoffs remain
+the downstream requirement handoffs for the next coordinator-owned work.
 
 The refreshed `FUTSUB-P29` boundary remains `10 REJECT / 0 INCONCLUSIVE / 0
-WATCH / 0 CANDIDATE_RESEARCH`, with the same retained caveats around label
-diagnostics, duplicate within-family exposures, and BBO proxy limits. The next
-planned phase is `FUTSUB-P33` - Acceptance Audit and Closeout.
+WATCH / 0 CANDIDATE_RESEARCH`, with retained caveats around label diagnostics,
+duplicate within-family exposures, and BBO proxy limits. There is no next phase
+within this campaign until the coordinator resolves the closeout block and then
+updates `ACTIVE_CAMPAIGN.md`.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -48,8 +50,8 @@ run-local state owned by Ralph.
 
 The project remains research-only and local-first. This campaign does not
 authorize live trading, paper trading, broker operations, order routing,
-production deployment, account operations, capital allocation, or autonomous
-trading behavior.
+deployment, account operations, funding decisions, or autonomous trading
+behavior.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
 only. `runs/**` is local-only and never committed. Raw or canonical data,
@@ -58,8 +60,8 @@ logs, caches, secrets, and credentials are never committed.
 
 The FUTSUB rerun gate does not authorize new AlphaSpecs, parameter tuning,
 Strategy Reference validation, FactorLibrary ingestion, AlphaBook construction,
-paper/live behavior, broker access, production deployment, profitability
-claims, or tradability claims. Local feature/label values and registries remain
+paper/live behavior, broker access, deployment, market-performance claims, or
+execution-readiness claims. Local feature/label values and registries remain
 outside git under `ALPHA_DATA_ROOT`. Workflow 2 orchestration, validation
-routing, review, staging, commit, PR, CI, merge, and done-check actions are
-owned by Ralph.
+routing, review, staging, commit, PR, CI, merge, and done-check actions are owned
+by Ralph.
