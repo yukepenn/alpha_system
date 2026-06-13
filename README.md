@@ -10,21 +10,26 @@ The repository-level campaign pointer targets
 `STRATEGY_SHAPED_RESEARCH_LANE_V0`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-`SSRL-P00` is the documentation-only bootstrap phase. After this phase merges,
-campaign progress is `1/5` phases complete. The active / next phase is
-`SSRL-P01` -- SetupSpec + MechanismCard contracts, YELLOW.
+`SSRL-P01` adds the governance-only `MechanismCard` and `SetupSpec`
+declaration contracts. After this phase merges, campaign progress is `2/5`
+phases complete. The next phase is `SSRL-P02` -- context != trigger
+conditional probe, YELLOW.
 
 Durable docs added by `SSRL-P00` are
 `docs/strategy_shaped_lane/REUSE_MAP.md` and
 `docs/strategy_shaped_lane/V0_SCOPE.md`. They lock reuse of the existing path
 labels, path-outcome diagnostics, single-factor template, governance spec chain,
 variant ledger, rejected-idea ledger, surrogate-FDR machinery, and power helpers.
+Durable governance modules added by `SSRL-P01` are
+`src/alpha_system/governance/mechanism_card.py` and
+`src/alpha_system/governance/setup_spec.py`.
 
 Safety boundaries are unchanged: EXPLORATORY output is not promotion evidence;
 there is no research-to-reference-sim bridge and no second PnL truth; the
-single-factor path remains additive-only and unchanged; V0 is bounded and is not
-a grid; there is no live trading, paper trading, broker operation, order routing,
-deployment, new paid data, or new runtime dependency.
+single-factor path remains additive-only and unchanged; the new contracts do not
+add a research-to-sim bridge, runtime dependency, engine change, live trading,
+paper trading, broker operation, order routing, deployment, new paid data, or
+promotion eligibility.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the

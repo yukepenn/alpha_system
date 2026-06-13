@@ -25,6 +25,8 @@ class GovernanceIdKind(StrEnum):
     """Governance ID kinds fixed by the naming contract."""
 
     HYPOTHESIS_CARD = "HypothesisCard"
+    MECHANISM_CARD = "MechanismCard"
+    SETUP_SPEC = "SetupSpec"
     ALPHA_SPEC = "AlphaSpec"
     FEATURE_REQUEST = "FeatureRequest"
     LABEL_SPEC = "LabelSpec"
@@ -46,6 +48,8 @@ class GovernanceIdKind(StrEnum):
 GOVERNANCE_ID_PREFIXES = MappingProxyType(
     {
         GovernanceIdKind.HYPOTHESIS_CARD.value: "hyp",
+        GovernanceIdKind.MECHANISM_CARD.value: "mech",
+        GovernanceIdKind.SETUP_SPEC.value: "setup",
         GovernanceIdKind.ALPHA_SPEC.value: "aspec",
         GovernanceIdKind.FEATURE_REQUEST.value: "freq",
         GovernanceIdKind.LABEL_SPEC.value: "lspec",
