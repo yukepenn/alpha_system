@@ -14,6 +14,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.frontier.runtime_paths import persistent_tmp_root
+
 REQUIREMENTS = ROOT / "tools/frontier/ci_parity_requirements.txt"
 DEFAULT_VENV = Path("~/.venvs/alpha_system_ci").expanduser()
 OPTIONAL_MODULES = ("databento", "duckdb", "ib_insync", "numpy", "pandas", "polars", "pyarrow")
@@ -114,6 +119,7 @@ def missing_deps(python: Path, deps: Iterable[str]) -> list[str]:
 
 
 def wheel_dirs() -> list[Path]:
+    frontier_tmp = persistent_tmp_root()
     roots: list[Path] = []
     for raw in os.environ.get("FRONTIER_CI_PARITY_WHEEL_DIR", "").split(os.pathsep):
         if raw.strip():
@@ -124,8 +130,8 @@ def wheel_dirs() -> list[Path]:
             ROOT / "wheelhouse",
             Path("~/.cache/pip").expanduser(),
             Path("~/.cache/uv").expanduser(),
-            Path("/tmp/wheelhouse"),
-            Path("/tmp/wheels"),
+            frontier_tmp / "wheelhouse",
+            frontier_tmp / "wheels",
         ]
     )
 

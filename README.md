@@ -10,11 +10,10 @@ The repository-level campaign pointer targets
 `SHIP_REFIT_V1`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`, which is
 coordinator-owned in Workflow 2.
 
-`SHIP_REFIT-P03` is the current refit phase on this branch. It adds
-Detection-Power / N_eff rigor: pure-Python SE(IC) and minimum-detectable-effect
-power statements on detection surfaces, per-declared-factor power reporting in
-addition to the stacked aggregate, and purge/embargo-aware N_eff estimation. The
-next phase is `SHIP_REFIT-P04` (GREEN), a non-gating cleanup/provenance wave.
+`SHIP_REFIT-P04` is the current refit phase on this branch. It is the GREEN,
+non-gating second-wave cleanup/provenance landing after P00-P03. The load-bearing
+cores remain P01 provider-watchdog resilience, P02 diagnostics fast-path parity,
+and P03 Detection-Power / N_eff rigor.
 
 Durable surfaces added so far are the provider watchdog in
 `tools/frontier/command_runner.py`, the Ralph watchdog wiring and first-light
@@ -25,11 +24,15 @@ fast path in `src/alpha_system/governance/surrogate_run.py` and
 estimator in `src/alpha_system/runtime/diagnostics/splits/n_eff.py`, the parity
 harness in `tests/unit/governance/test_surrogate_run.py`, and the design notes
 `docs/ship_refit_v1/PROVIDER_WATCHDOG.md` and
-`docs/ship_refit_v1/DIAGNOSTICS_FAST_PATH.md`. The provider timeout is `3600s`;
-the first-light pre-run check remains callable with
-`python tools/frontier/ralph_driver.py first-light`. The real surrogate
-calibration CLI now caps missing or oversized `--runs-per-config` values at the
-local default cap.
+`docs/ship_refit_v1/DIAGNOSTICS_FAST_PATH.md`. P04 adds the shared
+`tools/frontier/cleanup.py` path, `tools/frontier/runs_retention.py`,
+`tools/frontier/runtime_paths.py`, the `just frontier-clean` and
+`just frontier-clean-dry-run` recipes, post-merge stale-worktree/run-retention
+cleanup wiring, the done-check provenance fix, and persistent Frontier scratch
+under `$ALPHA_SYSTEM_ROOT/.tmp`; see
+`docs/ship_refit_v1/CLEANUP_PROVENANCE.md`. The provider timeout is `3600s`; the
+first-light pre-run check remains callable with
+`python tools/frontier/ralph_driver.py first-light`.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the

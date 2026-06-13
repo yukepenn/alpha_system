@@ -11,6 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.frontier.runtime_paths import persistent_tmp_env, persistent_tmp_root
+
 HOOKS = ROOT / "tools" / "hooks"
 
 
@@ -35,10 +40,17 @@ def _scrub_git_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
     return {key: value for key, value in source.items() if not key.startswith("GIT_")}
 
 
+def _clean_runtime_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    return persistent_tmp_env(repo_root=ROOT, env=_scrub_git_env(env))
+
+
 def run_canary(canary: Canary) -> tuple[bool, str]:
-    with tempfile.TemporaryDirectory(prefix=f"frontier-canary-{canary.name}-") as raw_tmp:
+    with tempfile.TemporaryDirectory(
+        prefix=f"frontier-canary-{canary.name}-",
+        dir=persistent_tmp_root(repo_root=ROOT),
+    ) as raw_tmp:
         tmp = Path(raw_tmp)
-        clean_env = _scrub_git_env()
+        clean_env = _clean_runtime_env()
         subprocess.run(
             ["git", "init"],
             cwd=tmp,

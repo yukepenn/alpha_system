@@ -14,7 +14,8 @@ differentiated kill-shot.
 - `SHIP_REFIT-P02`: add the diagnostics fast path with parity gating; see
   `docs/ship_refit_v1/DIAGNOSTICS_FAST_PATH.md`.
 - `SHIP_REFIT-P03`: add detection-power and effective-sample rigor.
-- `SHIP_REFIT-P04`: add non-gating cleanup and provenance hardening.
+- `SHIP_REFIT-P04`: add non-gating cleanup and provenance hardening; see
+  `docs/ship_refit_v1/CLEANUP_PROVENANCE.md`.
 
 ## Evidence Scaffold
 
