@@ -64,14 +64,17 @@ try:
         s = json.load(open(newest))
         phases = s.get("phases") or []
         total = len(phases)
-        done = sum(1 for p in phases if p.get("status") in ("PASS", "PASS_WITH_WARNINGS") and p.get("merged"))
-        if done == 0:
-            done = sum(1 for p in phases if p.get("status") in ("PASS", "PASS_WITH_WARNINGS"))
+        run_status = str(s.get("status", "?"))
+        pass_ct = sum(1 for p in phases if p.get("status") in ("PASS", "PASS_WITH_WARNINGS"))
+        if run_status in ("COMPLETED", "COMPLETE"):
+            done = pass_ct                       # terminal run: every passing phase is done (merged-flag may lag)
+        else:
+            merged_ct = sum(1 for p in phases if p.get("status") in ("PASS", "PASS_WITH_WARNINGS") and p.get("merged"))
+            done = merged_ct or pass_ct          # live run: prefer truly-merged; fall back to passing
         active = next((p for p in phases if p.get("status") not in
                        ("PASS", "PASS_WITH_WARNINGS", "PENDING", "SKIPPED")), None)
         pid0 = (phases[0].get("phase_id") or "") if phases else ""
         tag = pid0.split("-")[0] if "-" in pid0 else (s.get("campaign_id") or "?")[:10]
-        run_status = str(s.get("status", "?"))
         astat = str(active.get("status")) if active else ""
         if "BLOCKED" in run_status or "FAIL" in run_status or "BLOCKED" in astat or "FAIL" in astat:
             icon = "\U0001F534"; healthy = False          # red
