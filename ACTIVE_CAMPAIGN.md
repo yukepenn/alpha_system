@@ -2,45 +2,48 @@
 
 Project: `alpha_system`
 
-Campaign: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
+Campaign: `campaigns/SHIP_REFIT_V1`
 Workflow: `workflow2`
-Status: `resuming`. The Discovery Rigor Floor (RIGOR-P00..P07) is COMPLETE 8/8
-and the FUTSUB kill-shot readiness checklist is 13/13 `MET` (fire condition
-SATISFIED), so the boundary-STOPPED substrate-scaleout run resumes at the
-FUTSUB-P28 Core Pilot kill-shot re-run.
+Status: `ready-to-launch`. The FUTSUB substrate-scaleout campaign is COMPLETE
+(34/34, run `2026-06-07T235209Z_...`); its first kill-shot produced **0
+survivors** (4 distinct legacy mechanisms REJECT at near-zero IC — a conservative,
+power-qualified negative, method integrity intact). The ultracode war council
+adjudicated the next path as `SHIP_REFIT_V1` (scoped) — the voyage-earned refit
+that lowers the future marginal cost of an honest verdict.
 
-## Resume context
+## Why SHIP_REFIT_V1 next (not broad mining)
 
-`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` run `2026-06-07T235209Z_...` was
-deliberately boundary-STOPPED at 28/34 (P00–P27 merged) with FUTSUB-P28 BLOCKED
-behind the Stage-B rigor gate. The gate is now satisfied:
-
-- Readiness 13/13 `MET` (`research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md`),
-  including row 6 (six per-family real-data surrogate calibrations, all
-  `zero-pass-met`) and the POST-RELOCK_V2 reconciliation of rows 8/9/11.
-- Track-B pre-registered pre-metric against the V2 anchor (`poolhyp_d3b3d986`,
-  `poolhyp_0755f597`).
-- P28 is reset BLOCKED→PENDING at resume; the run resumes from recorded state.
-
-Caveats that travel into the kill-shot run context (resume handoff step 3):
-R-037 `contract_id`, BBO-proxy regime limits, and the BBO proxy-flag /
-`spread_ticks` degeneracy substrate caveat (74 bbo sub-configs excluded as
-degenerate — recorded substrate findings, not signal).
+Survivor-gate = 0 ⇒ DIAGNOSE, do not build by inertia. The dominant voyage cost
+was verdict **cost** (codex provider hangs; per-seed materialized shuffled-label
+calibration bloat) AND verdict **trust** (no MDE/power machinery; first-order
+N_eff). SHIP_REFIT closes both before the next, *differentiated* kill-shot.
 
 ## Campaign Identity
 
-- Campaign ID: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
-- Run: `2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
-  (resuming from 28/34; P28 kill-shot + P29–P33 closeout remain)
-- Contract bundle: `campaigns/ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1/`
+- Campaign ID: `SHIP_REFIT_V1`
+- Contract bundle: `campaigns/SHIP_REFIT_V1/`
+- Scheduler: `dag_wave`, serial merge queue (DAG linearizes to sequential —
+  P01 holds a global path).
+
+## Phases (3 load-bearing + bootstrap + non-gating cleanup)
+
+- `SHIP_REFIT-P00` (GREEN) — bootstrap / pointer.
+- `SHIP_REFIT-P01` (YELLOW) — Provider-Watchdog / job-runner resilience
+  (hang recovery from up to 6h to <2 min).
+- `SHIP_REFIT-P02` (YELLOW) — Diagnostics-Fast-Path (pure-Python permutation-index,
+  byte-identical parity gate, ≥10× calibration speedup).
+- `SHIP_REFIT-P03` (YELLOW) — Detection-Power / N_eff rigor (MDE + purge/embargo +
+  per-factor power statement). A-vs-B settler = NULL ⇒ bounded, no interaction detector.
+- `SHIP_REFIT-P04` (GREEN, non-gating) — cleanup / provenance second wave.
 
 ## Boundaries
 
-In scope: P28 re-run of the previously-INCONCLUSIVE Core Pilot studies (Track A
-exact reruns + Track B pooled hypotheses, scored separately), P29–P33 closeout
-and verdict evidence. Out of scope: any alpha/profitability/tradability claim;
-historical evidence mutation; Mining-V2 / FactorLibrary mechanisms. No live
-trading, paper, broker, or capital scope (research-only, evidence-gated).
+In scope: harness/diagnostics hardening only. Out of scope: new alpha ideation,
+FactorLibrary/AlphaBook/Research Runner, researcher-UX/Feature-Fast-Lane, paid
+data, paper/live/broker, any new dependency (numpy/pandas/polars stay absent).
+No profitability/tradability claim. Truth-chain invariants preserved (canary
+fires, surrogate-FDR zero-pass + constant-factor exclusion held, fast-path
+parity-gated).
 
 ## Stop / Resume
 

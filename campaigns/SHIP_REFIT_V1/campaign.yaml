@@ -1,0 +1,447 @@
+campaign_id: SHIP_REFIT_V1
+campaign_name: >-
+  Ship Refit V1: the voyage-earned refit that lowers the future marginal cost of an
+  honest verdict. Three load-bearing cores — driver-level Provider-Watchdog / job-runner
+  resilience, a pure-Python Diagnostics-Fast-Path (permutation-index, no per-seed
+  materialized shuffled-label copies), and Detection-Power / N_eff rigor (MDE + purge/
+  embargo folding so a REJECT is distinguishable from underpowered) — plus a bounded,
+  non-gating cleanup/provenance second wave. It makes future idea -> verdict loops
+  cheaper, safer, faster, and less dependent on heroic captain intervention.
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: harness_refit
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Research-harness engineering only. This campaign hardens the Workflow 2 driver and
+    the diagnostics/calibration engine so the NEXT differentiated kill-shot is cheap and
+    trustworthy. It is NOT new alpha ideation, NOT FactorLibrary/AlphaBook/Research
+    Runner, NOT a researcher-UX/Feature-Fast-Lane build, NOT paid data, NOT paper/live/
+    broker. It makes no profitability or tradability claim. The truth-chain invariants
+    (planted_fake_alpha canary firing, surrogate-FDR zero-pass criterion, constant-factor
+    exclusion, spec_index->seed mapping) are preserved; the fast-path is INVALID unless it
+    holds byte-identical diagnostic_summary parity against the current reference path.
+
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available but not the default for this campaign.
+  workflow2:
+    description: >-
+      Ralph strict autonomous campaign loop with DAG-wave scheduling and a serial merge
+      queue. P01 (driver/job-runner) and P02 (diagnostics engine) touch disjoint module
+      footprints and are parallel_safe; P03 depends on P02; P04 is non-gating and trails.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+    scheduler:
+      mode: dag_wave
+      parallel_execution: true
+      max_parallel_phases: 2
+      merge_queue: serial
+      update_active_campaign: coordinator_only
+
+# Scheduler is read by the driver from the TOP-LEVEL workflow2.scheduler block.
+# NOTE: the DAG linearizes to effectively sequential — P01 holds a global/coordinator
+# path (frontier.yaml) so it must run alone, and P03/P04 have linear dependencies; P02
+# is parallel-capable but unpaired. This is accepted: correctness over a negligible
+# 5-phase parallelism gain. `just frontier-run-parallel SHIP_REFIT_V1 2` is still safe.
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 2
+    merge_queue: serial
+
+runtime:
+  python: '3.12'
+  smoke_command: python tools/verify.py --smoke
+  all_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+
+lanes:
+  green:
+    description: Low-risk automatic work (bootstrap, non-gating cleanup).
+    merge_policy:
+      review_required: false
+  yellow:
+    description: Material engineering work; fresh Claude Opus review required.
+    merge_policy:
+      review_required: true
+  red:
+    description: External/destructive/live/broker work. NOT used by this campaign.
+    merge_policy:
+      review_required: true
+
+forbidden_paths: &forbidden_paths
+- src/alpha_system/execution/**
+- src/alpha_system/broker/**
+- src/alpha_system/live/**
+- src/alpha_system/signals/**
+- src/alpha_system/strategies/**
+- src/alpha_system/portfolio/**
+- src/alpha_system/management/**
+- src/alpha_system/l2/**
+- src/alpha_system/backtest/**
+- src/alpha_system/agent_factory/**
+- data/raw/**
+- data/canonical/**
+- data/factors/**
+- data/labels/**
+- data/cache/**
+- metadata/*.sqlite
+- metadata/*.db
+- registry/*.sqlite
+- artifacts/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+
+never_commit: &never_commit
+- runs/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+- data/raw/**
+- data/canonical/**
+- secrets/**
+- '**/*.key'
+
+acceptance_invariants:
+- The planted_fake_alpha canary still fires and canary_runner.py is all-PASS after every phase.
+- The surrogate-FDR zero-pass criterion and constant-factor (zero-variance) exclusion are preserved.
+- The Diagnostics-Fast-Path is INVALID unless it produces byte-identical diagnostic_summary hashes vs the current reference path on a fixed locked sample.
+- No numpy / pandas / polars dependency is introduced (the venv is pure-Python; dependencies stay []).
+- git ls-files runs returns empty; no data/DB/Parquet/secret is staged.
+
+phases:
+- id: SHIP_REFIT-P00
+  name: Campaign Bootstrap and Active Pointer
+  lane: GREEN
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the campaign contract bundle, the docs/evidence scaffold, and the root active pointer so Workflow 2 can plan and schedule the refit.
+  scope:
+  - Confirm the 6-file campaign bundle is present and internally consistent.
+  - Create docs/ship_refit_v1/ overview + value-free evidence directory skeleton.
+  - Update the root ACTIVE_CAMPAIGN.md pointer (coordinator-owned).
+  non_goals:
+  - Any driver/diagnostics code change, any data or registry write.
+  checks:
+  - test -f campaigns/SHIP_REFIT_V1/GOAL.md
+  - test -f campaigns/SHIP_REFIT_V1/PHASE_PLAN.md
+  - test -f campaigns/SHIP_REFIT_V1/campaign.yaml
+  - test -f campaigns/SHIP_REFIT_V1/ACCEPTANCE.md
+  - test -f campaigns/SHIP_REFIT_V1/RISK_REGISTER.md
+  - test -f campaigns/SHIP_REFIT_V1/RUNBOOK.md
+  - python -c "import yaml; yaml.safe_load(open('campaigns/SHIP_REFIT_V1/campaign.yaml'))"
+  - grep -q "SHIP_REFIT_V1" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/SHIP_REFIT_V1/**
+  - docs/ship_refit_v1/**
+  - research/ship_refit_v1/**
+  - handoffs/SHIP_REFIT_V1/SHIP_REFIT-P00.md
+  - reviews/SHIP_REFIT_V1/SHIP_REFIT-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - campaign control + overview docs
+    - value-free evidence directory skeleton
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle present and consistent; root pointer selects this campaign; YAML parses; smoke + canaries pass; runs/ untracked.
+  handoff: handoffs/SHIP_REFIT_V1/SHIP_REFIT-P00.md
+  review: green lane; review optional.
+
+- id: SHIP_REFIT-P01
+  name: Provider-Watchdog and Job-Runner Resilience
+  lane: YELLOW
+  dependencies:
+  - SHIP_REFIT-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: >-
+    Auto-detect and auto-recover the codex provider-hang class in the driver so the same
+    hang never again needs heroic captain intervention. Two futex hangs cost up to 6h each
+    this voyage; the resume target already exists (handle_provider_nonzero /
+    WAITING_PROVIDER_LIMIT, 8 call sites) — only DETECTION + process-group kill are missing.
+  scope:
+  - Add a liveness sampler to tools/frontier/command_runner.py for provider subprocesses — a periodic (~30s) thread sampling /proc/<pid>/stat user+sys ticks AND events.jsonl mtime/size growth.
+  - Spawn provider subprocesses with start_new_session=True so the whole process group can be killed.
+  - On (wall > 60s AND cpu_delta ~= 0 AND no events growth) os.killpg the group (return 124), emit a PROVIDER_HANG_DETECTED event, and route to the existing handle_provider_nonzero / WAITING_PROVIDER_LIMIT resume path in tools/frontier/ralph_driver.py.
+  - Distinguish a benign hrtimer/poll sleep (cpu_delta > 0 or events growing) from a true futex hang (frozen ticks + no events) so a slow-but-working provider is NOT killed.
+  - Lower frontier.yaml timeout_seconds from 21600 to 3600.
+  - Fold in a ~10-line first-light pre-run check (resolver-smoke + canary_runner) callable before a real run.
+  non_goals:
+  - Any diagnostics-engine change (that is P02); any data/registry write; any new dependency.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests/frontier -k "watchdog or command_runner or hang" -q
+  - python tools/hooks/canary_runner.py
+  - grep -q "3600" frontier.yaml
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with:
+  - SHIP_REFIT-P04
+  resource_class: []
+  merge_group: driver
+  allowed_paths:
+  - tools/frontier/command_runner.py
+  - tools/frontier/ralph_driver.py
+  - frontier.yaml
+  - tests/frontier/**
+  - docs/ship_refit_v1/**
+  - handoffs/SHIP_REFIT_V1/SHIP_REFIT-P01.md
+  - reviews/SHIP_REFIT_V1/SHIP_REFIT-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - driver + command-runner watchdog code
+    - watchdog regression tests
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - A synthetic futex-hang fixture is detected and recovered in < 2 minutes (was up to 6h); a benign slow provider is NOT falsely killed; recovery is driven by the existing resume path; timeout default is 3600s; canary_runner all-PASS including planted_fake_alpha.
+  handoff: handoffs/SHIP_REFIT_V1/SHIP_REFIT-P01.md
+  review: yellow lane; fresh Claude Opus review required.
+
+- id: SHIP_REFIT-P02
+  name: Diagnostics Fast-Path (Pure-Python Permutation-Index)
+  lane: YELLOW
+  dependencies:
+  - SHIP_REFIT-P00
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: >-
+    Eliminate the per-seed materialized shuffled-label copies (the VHDX-bloat + ~150h
+    over-provision source) and make a K>=60-per-family surrogate-FDR rerun run in bounded
+    low-hour / sub-hour time, at byte-identical diagnostic parity. numpy/pandas/polars are
+    NOT installed (dependencies=[]) so the win is pure-Python permutation-INDEX indirection
+    + align-once panels + batched statistics, NOT vectorization.
+  scope:
+  - Replace per-seed write_label_shuffled_copy materialization in src/alpha_system/governance/surrogate_run.py (around lines 481-492, 865) with an align-once in-memory factor-label panel + a permutation-INDEX per seed (no materialized shuffled copies on disk).
+  - Batch IC / RankIC / bucket / detection-statistic computation across K seeds in pure Python; reuse the walk-forward / N_eff split structure across seeds rather than recomputing per seed.
+  - Add a 1-line default-K cap in tools/discovery_rigor_floor/run_real_surrogate_calibration.py to prevent another ~150h over-provision; preserve constant-factor (zero-variance) exclusion and the spec_index->seed mapping exactly.
+  - Provide a parity harness that diffs diagnostic_summary hashes fast-path vs reference path on a fixed locked sample.
+  non_goals:
+  - Any driver change (that is P01); introducing numpy/pandas/polars; any change to the detection threshold or the surrogate-FDR zero-pass criterion; any data/registry write.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "surrogate or fast_path or permutation or calibration" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas/polars must NOT import') for m in ('numpy','pandas','polars') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: true
+  must_run_alone: false
+  conflicts_with:
+  - SHIP_REFIT-P04
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/governance/surrogate_run.py
+  - tools/discovery_rigor_floor/run_real_surrogate_calibration.py
+  - src/alpha_system/research/**
+  - tests/**
+  - docs/ship_refit_v1/**
+  - handoffs/SHIP_REFIT_V1/SHIP_REFIT-P02.md
+  - reviews/SHIP_REFIT_V1/SHIP_REFIT-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - fast-path diagnostics code
+    - parity harness + tests
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - PARITY GATE — byte-identical diagnostic_summary hashes vs the reference path on a fixed locked sample for >= 10 seeds; constant-factor exclusion + spec_index->seed mapping preserved; measured calibration wall-clock AND disk write-count reduced >= 10x at parity; numpy/pandas/polars still absent; canaries all-PASS.
+  handoff: handoffs/SHIP_REFIT_V1/SHIP_REFIT-P02.md
+  review: yellow lane; fresh Claude Opus review required.
+
+- id: SHIP_REFIT-P03
+  name: Detection-Power and N_eff Rigor
+  lane: YELLOW
+  dependencies:
+  - SHIP_REFIT-P02
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: >-
+    Make a REJECT distinguishable from an underpowered non-result and let a rare ACCEPT be
+    underwritten. There is currently ZERO MDE/power machinery in src/ and N_eff is
+    first-order (n_eff.py floor(rows/discount), no purge/embargo/autocorrelation/session
+    fold-in). The A-vs-B conditional re-score settler (run by the coordinator before
+    launch) determines whether this phase stays bounded to power/MDE/N_eff or must also add
+    a minimal interaction/gating detector.
+  scope:
+  - Add a per-study minimum-detectable-effect / SE(IC) computation at honest N_eff and surface a "could have detected IC down to X" power statement on every verdict.
+  - Fold at least purge/embargo into N_eff in src/alpha_system/runtime/diagnostics/splits/n_eff.py (currently first-order).
+  - A-vs-B conditional re-score settler RESULT = NULL (coordinator, 2026-06-13): conditional uplift collapses to ~1e-6 at full power (39-66M obs, cross-validated byte-exact vs research/regimes.py); the linear gate is NOT interaction-blind for these 4 mechanisms. P03 therefore stays BOUNDED — NO interaction/gating detector is added.
+  - Report MDE/power PER-FACTOR, not only stacked across declared factors. The settler surfaced a distinct stacking-blindness concern (stacked IC can dilute a single factor's signal); per-factor power reporting closes that gap. This is bounded power rigor, NOT an interaction detector.
+  - Keep the detection threshold + surrogate-FDR zero-pass criterion unchanged (the NULL settler removed the only condition that would have changed them).
+  non_goals:
+  - Any driver change; any new dependency; broadening into full researcher UX; any data/registry write.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "n_eff or mde or power or detection or split" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with:
+  - SHIP_REFIT-P04
+  resource_class: []
+  merge_group: diagnostics
+  allowed_paths:
+  - src/alpha_system/runtime/diagnostics/**
+  - src/alpha_system/research/**
+  - src/alpha_system/governance/detection_statistic.py
+  - tests/**
+  - docs/ship_refit_v1/**
+  - research/ship_refit_v1/**
+  - handoffs/SHIP_REFIT_V1/SHIP_REFIT-P03.md
+  - reviews/SHIP_REFIT_V1/SHIP_REFIT-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - power/MDE + N_eff code
+    - tests + value-free power-statement evidence
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Every REJECT/ACCEPT carries an explicit "could have detected IC down to X" statement; N_eff folds at least purge/embargo; the A-vs-B settler result is recorded; if nonzero, the minimal interaction detector is added and tested; canaries all-PASS.
+  handoff: handoffs/SHIP_REFIT_V1/SHIP_REFIT-P03.md
+  review: yellow lane; fresh Claude Opus review required.
+
+- id: SHIP_REFIT-P04
+  name: Second-Wave Cleanup and Provenance (Non-Gating)
+  lane: GREEN
+  dependencies:
+  - SHIP_REFIT-P01
+  - SHIP_REFIT-P02
+  - SHIP_REFIT-P03
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: >-
+    Bounded ops hardening that trails the load-bearing cores and does NOT gate the
+    campaign: automate worktree/branch cleanup, bound runs/ growth, fix the done-check
+    provenance-path mismatch, and persist logs outside /tmp.
+  scope:
+  - Wire worktree clean_stale + cleanup_after_merge into the post-merge driver step and a `just frontier-clean` recipe.
+  - Add a runs/ backup-rotation policy and a STOP-prune policy for non-active runs (runs/ stays local-only, never committed).
+  - Fix the done-check provenance path so executors no longer try to write reviewer-owned reviews/ paths.
+  - Re-route ephemeral logs/temp from /tmp to $ALPHA_SYSTEM_ROOT/.tmp so they survive WSL restart.
+  non_goals:
+  - Anything that gates P01-P03; deleting non-regenerable data; committing runs/ or data.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests/frontier -k "cleanup or worktree or provenance or runs_retention" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: false
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: ops
+  allowed_paths:
+  - tools/frontier/**
+  - tools/hooks/**
+  - justfile
+  - tests/frontier/**
+  - docs/ship_refit_v1/**
+  - handoffs/SHIP_REFIT_V1/SHIP_REFIT-P04.md
+  - reviews/SHIP_REFIT_V1/SHIP_REFIT-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only:
+    - cleanup/provenance automation
+    - tests
+    - commit-eligible handoff
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Post-merge step prunes stale worktrees; runs/ growth bounded by rotation; executor done-check no longer attempts reviewer-owned paths; logs persist outside /tmp; campaign was NOT gated on this wave.
+  handoff: handoffs/SHIP_REFIT_V1/SHIP_REFIT-P04.md
+  review: green lane; review optional.
