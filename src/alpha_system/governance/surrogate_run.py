@@ -63,7 +63,14 @@ from alpha_system.governance.validation import (
     validate_schema,
 )
 from alpha_system.governance.verdict_reason_code import VerdictReasonCode
-from alpha_system.research.diagnostics import DiagnosticsError, compute_diagnostic_summary
+from alpha_system.factors.io import read_factor_value_dicts
+from alpha_system.research.diagnostics import (
+    DiagnosticPanel,
+    DiagnosticsError,
+    build_diagnostic_panel,
+    compute_diagnostic_summary,
+    compute_diagnostic_summary_from_panel,
+)
 from alpha_system.research.study_config import StudyConfig, StudyConfigError
 from alpha_system.research.study_outputs import (
     StudyOutputError,
@@ -349,6 +356,12 @@ class _DateBlock:
     indices: tuple[int, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _LabelPermutationIndex:
+    source_indices_by_target: tuple[int, ...]
+    summary: dict[str, JsonValue]
+
+
 def create_surrogate_study_run(
     *,
     original_study_spec_id: str,
@@ -479,12 +492,19 @@ def run_surrogate_study(
     scope = _surrogate_scope(active_study_spec)
     original_labels_path = _scope_path(scope, "labels_path")
     shuffled_labels_path = labels_dir / _perturbation_output_name(active_type)
-    perturbation_summary = _write_perturbation_copy(
-        active_type,
+    labels = _read_required_label_rows(
         original_labels_path,
-        shuffled_labels_path,
+        missing_message=(
+            f"{active_type.value} surrogate requires an existing label JSONL file"
+        ),
+        empty_message=f"{active_type.value} surrogate requires at least one label row",
+    )
+    permutation = _permutation_index_for_perturbation(
+        active_type,
+        labels,
         seed=active_seed,
     )
+    perturbation_summary = permutation.summary
     study_config = _study_config_for_surrogate(
         active_study_spec,
         scope=scope,
@@ -492,7 +512,47 @@ def run_surrogate_study(
         shuffled_labels_path=shuffled_labels_path,
         output_dir=study_dir,
     )
-    study_result = _run_study_deterministic(study_config, seed=active_seed)
+    panel = _diagnostic_panel_for_surrogate(study_config, labels)
+    study_result = _run_study_deterministic_from_panel(
+        study_config,
+        seed=active_seed,
+        panel=panel,
+        label_values=_permuted_label_values(labels, permutation),
+        label_source_indices=permutation.source_indices_by_target,
+    )
+    return _finish_surrogate_run(
+        active_study_spec=active_study_spec,
+        active_type=active_type,
+        active_seed=active_seed,
+        active_created_at=active_created_at,
+        active_namespace=active_namespace,
+        family_id=family_id,
+        study_config=study_config,
+        study_result=study_result,
+        perturbation_summary=perturbation_summary,
+        shuffled_labels_path=shuffled_labels_path,
+        study_dir=study_dir,
+        ledgers_dir=ledgers_dir,
+        records_dir=records_dir,
+    )
+
+
+def _finish_surrogate_run(
+    *,
+    active_study_spec: StudySpec,
+    active_type: SurrogatePerturbationType,
+    active_seed: int,
+    active_created_at: str,
+    active_namespace: Path,
+    family_id: str,
+    study_config: StudyConfig,
+    study_result: StudyRunResult,
+    perturbation_summary: Mapping[str, JsonValue],
+    shuffled_labels_path: Path,
+    study_dir: Path,
+    ledgers_dir: Path,
+    records_dir: Path,
+) -> SurrogateRunResult:
     diagnostics_status = _diagnostics_status(study_result.summary.warnings)
     detection_statistic = evaluate_detection_statistic(
         study_result.summary,
@@ -639,6 +699,83 @@ def run_surrogate_study(
     return SurrogateRunResult(run=run, paths=paths)
 
 
+def _run_surrogate_study_from_panel(
+    study_spec: StudySpec,
+    *,
+    seed: int,
+    namespace: Path,
+    family_id: str,
+    perturbation_type: SurrogatePerturbationType,
+    scope: Mapping[str, Any],
+    labels: list[dict[str, JsonValue]],
+    panel: DiagnosticPanel,
+) -> SurrogateRunResult:
+    active_seed = _validate_seed(seed)
+    active_created_at = deterministic_created_at(active_seed)
+    run_root = namespace / f"seed_{active_seed}"
+    labels_dir = run_root / "labels"
+    study_dir = run_root / "study_outputs"
+    ledgers_dir = run_root / "ledgers"
+    records_dir = run_root / "surrogate_runs"
+    for directory in (labels_dir, study_dir, ledgers_dir, records_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    shuffled_labels_path = labels_dir / _perturbation_output_name(perturbation_type)
+    permutation = _permutation_index_for_perturbation(
+        perturbation_type,
+        labels,
+        seed=active_seed,
+    )
+    study_config = _study_config_for_surrogate(
+        study_spec,
+        scope=scope,
+        seed=active_seed,
+        shuffled_labels_path=shuffled_labels_path,
+        output_dir=study_dir,
+    )
+    study_result = _run_study_deterministic_from_panel(
+        study_config,
+        seed=active_seed,
+        panel=panel,
+        label_values=_permuted_label_values(labels, permutation),
+        label_source_indices=permutation.source_indices_by_target,
+    )
+    return _finish_surrogate_run(
+        active_study_spec=study_spec,
+        active_type=perturbation_type,
+        active_seed=active_seed,
+        active_created_at=active_created_at,
+        active_namespace=namespace,
+        family_id=family_id,
+        study_config=study_config,
+        study_result=study_result,
+        perturbation_summary=permutation.summary,
+        shuffled_labels_path=shuffled_labels_path,
+        study_dir=study_dir,
+        ledgers_dir=ledgers_dir,
+        records_dir=records_dir,
+    )
+
+
+def _row_from_surrogate_result(
+    study_spec: StudySpec,
+    result: SurrogateRunResult,
+    *,
+    seed: int,
+) -> dict[str, JsonValue]:
+    return {
+        "study_spec_id": study_spec.study_spec_id,
+        "perturbation_type": result.run.perturbation_type.value,
+        "seed": seed,
+        "surrogate_id": result.run.surrogate_id,
+        "gate_status": str(result.run.gate_outcome["status"]),
+        "passed": result.passed,
+        "statistic_passed": result.run.gate_outcome.get("statistic_passed") is True,
+        "eligibility_clean": result.run.gate_outcome.get("eligibility_clean") is True,
+        "reason_code": result.run.gate_outcome.get("reason_code"),
+    }
+
+
 def calibrate_surrogate_fdr(
     study_specs: Iterable[StudySpec | Mapping[str, Any]],
     *,
@@ -668,15 +805,67 @@ def calibrate_surrogate_fdr(
 
     rows: list[dict[str, JsonValue]] = []
     for spec_index, study_spec in enumerate(validated_specs):
+        first_seed = active_base_seed + spec_index * active_run_budget
+        try:
+            scope = _surrogate_scope(study_spec)
+            original_labels_path = _scope_path(scope, "labels_path")
+            labels = _read_required_label_rows(
+                original_labels_path,
+                missing_message=(
+                    f"{active_perturbation_type.value} surrogate requires an "
+                    "existing label JSONL file"
+                ),
+                empty_message=(
+                    f"{active_perturbation_type.value} surrogate requires at "
+                    "least one label row"
+                ),
+            )
+            panel_run_root = active_namespace / f"seed_{first_seed}"
+            panel_config = _study_config_for_surrogate(
+                study_spec,
+                scope=scope,
+                seed=first_seed,
+                shuffled_labels_path=(
+                    panel_run_root
+                    / "labels"
+                    / _perturbation_output_name(active_perturbation_type)
+                ),
+                output_dir=panel_run_root / "study_outputs",
+            )
+            panel = _diagnostic_panel_for_surrogate(panel_config, labels)
+        except (
+            DiagnosticsError,
+            GovernanceSerializationError,
+            GovernanceValidationError,
+            OSError,
+            StudyConfigError,
+            StudyOutputError,
+            ValueError,
+        ) as exc:
+            for run_index in range(active_run_budget):
+                seed = active_base_seed + spec_index * active_run_budget + run_index
+                rows.append(
+                    _error_row(
+                        study_spec,
+                        perturbation_type=active_perturbation_type,
+                        seed=seed,
+                        exc=exc,
+                    )
+                )
+            continue
+
         for run_index in range(active_run_budget):
             seed = active_base_seed + spec_index * active_run_budget + run_index
             try:
-                result = run_surrogate_study(
+                result = _run_surrogate_study_from_panel(
                     study_spec,
                     seed=seed,
                     namespace=active_namespace,
                     family_id=family_id,
                     perturbation_type=active_perturbation_type,
+                    scope=scope,
+                    labels=labels,
+                    panel=panel,
                 )
             except (
                 DiagnosticsError,
@@ -696,25 +885,7 @@ def calibrate_surrogate_fdr(
                     )
                 )
                 continue
-            rows.append(
-                {
-                    "study_spec_id": study_spec.study_spec_id,
-                    "perturbation_type": result.run.perturbation_type.value,
-                    "seed": seed,
-                    "surrogate_id": result.run.surrogate_id,
-                    "gate_status": str(result.run.gate_outcome["status"]),
-                    "passed": result.passed,
-                    "statistic_passed": result.run.gate_outcome.get(
-                        "statistic_passed"
-                    )
-                    is True,
-                    "eligibility_clean": result.run.gate_outcome.get(
-                        "eligibility_clean"
-                    )
-                    is True,
-                    "reason_code": result.run.gate_outcome.get("reason_code"),
-                }
-            )
+            rows.append(_row_from_surrogate_result(study_spec, result, seed=seed))
 
     return surrogate_calibration_report_from_rows(rows)
 
@@ -873,63 +1044,14 @@ def write_label_shuffled_copy(
     active_seed = _validate_seed(seed)
     source = assert_local_wsl_path(labels_path)
     output = assert_local_wsl_path(output_path)
-    if not source.is_file():
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="labels_path",
-                code="missing_label_values",
-                message="label-shuffle surrogate requires an existing label JSONL file",
-                expected="existing local label JSONL file",
-                actual=source.as_posix(),
-            )
-        )
-    labels = _read_jsonl_mappings(source)
-    if not labels:
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="labels_path",
-                code="empty_label_values",
-                message="label-shuffle surrogate requires at least one label row",
-                expected="non-empty label JSONL file",
-                actual=source.as_posix(),
-            )
-        )
-    shuffled = [dict(label) for label in labels]
-    moved_count = 0
-    groups = _label_groups(labels)
-    for group_key, indices in groups.items():
-        if len(indices) < 2:
-            continue
-        permutation = _deranged_indices(
-            len(indices),
-            seed=active_seed + _stable_group_offset(group_key),
-        )
-        for target_position, source_position in enumerate(permutation):
-            target_index = indices[target_position]
-            source_index = indices[source_position]
-            shuffled[target_index]["value"] = labels[source_index].get("value")
-            if target_index != source_index:
-                moved_count += 1
-    if moved_count == 0:
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="labels_path",
-                code="insufficient_label_rows_for_shuffle",
-                message="label-shuffle surrogate must move at least one label value",
-                expected="at least two labels in one label group",
-                actual=f"{len(labels)} label rows across {len(groups)} groups",
-            )
-        )
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        "".join(json.dumps(row, sort_keys=True) + "\n" for row in shuffled),
-        encoding="utf-8",
+    labels = _read_required_label_rows(
+        source,
+        missing_message="label-shuffle surrogate requires an existing label JSONL file",
+        empty_message="label-shuffle surrogate requires at least one label row",
     )
-    return {
-        "record_count": len(labels),
-        "group_count": len(groups),
-        "moved_count": moved_count,
-    }
+    permutation = _label_shuffle_permutation_index(labels, seed=active_seed)
+    _write_jsonl_rows(output, _labels_with_permuted_values(labels, permutation))
+    return dict(permutation.summary)
 
 
 def write_trade_date_block_shuffled_copy(
@@ -948,68 +1070,9 @@ def write_trade_date_block_shuffled_copy(
         missing_message="trade-date block shuffle requires an existing label JSONL file",
         empty_message="trade-date block shuffle requires at least one label row",
     )
-    shuffled = [dict(label) for label in labels]
-    groups = _label_groups(labels)
-    moved_count = 0
-    date_block_count = 0
-    shuffled_block_count = 0
-    unmatched_block_count = 0
-    unmatched_record_count = 0
-    eligible_block_count = 0
-
-    for group_key, indices in groups.items():
-        blocks = _date_blocks_for_group(labels, group_key, indices)
-        date_block_count += len(blocks)
-        for block_length, same_length_blocks in _blocks_by_length(blocks).items():
-            if len(same_length_blocks) < 2:
-                unmatched_block_count += len(same_length_blocks)
-                unmatched_record_count += block_length * len(same_length_blocks)
-                continue
-            eligible_block_count += len(same_length_blocks)
-            permutation = _deranged_block_indices(
-                len(same_length_blocks),
-                seed=(
-                    active_seed
-                    + _stable_group_offset(group_key)
-                    + _stable_length_offset(block_length)
-                ),
-            )
-            for target_position, source_position in enumerate(permutation):
-                target_block = same_length_blocks[target_position]
-                source_block = same_length_blocks[source_position]
-                _copy_block_values(
-                    labels,
-                    shuffled,
-                    target_indices=target_block.indices,
-                    source_indices=source_block.indices,
-                )
-                shuffled_block_count += 1
-                moved_count += len(target_block.indices)
-
-    if eligible_block_count < 2 or moved_count == 0:
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="labels_path",
-                code="insufficient_label_rows_for_shuffle",
-                message=(
-                    "trade-date block shuffle must move at least one equal-length "
-                    "date block"
-                ),
-                expected="at least two equal-length date blocks in one label group",
-                actual=f"{len(labels)} label rows across {len(groups)} groups",
-            )
-        )
-    _write_jsonl_rows(output, shuffled)
-    return {
-        "record_count": len(labels),
-        "group_count": len(groups),
-        "date_block_count": date_block_count,
-        "shuffled_block_count": shuffled_block_count,
-        "moved_count": moved_count,
-        "unmatched_block_count": unmatched_block_count,
-        "unmatched_record_count": unmatched_record_count,
-        "timestamp_field": LABEL_BLOCK_TIMESTAMP_FIELD,
-    }
+    permutation = _trade_date_block_shuffle_permutation_index(labels, seed=active_seed)
+    _write_jsonl_rows(output, _labels_with_permuted_values(labels, permutation))
+    return dict(permutation.summary)
 
 
 def write_trade_date_block_bootstrap_copy(
@@ -1028,84 +1091,9 @@ def write_trade_date_block_bootstrap_copy(
         missing_message="trade-date block bootstrap requires an existing label JSONL file",
         empty_message="trade-date block bootstrap requires at least one label row",
     )
-    bootstrapped = [dict(label) for label in labels]
-    groups = _label_groups(labels)
-    moved_count = 0
-    date_block_count = 0
-    sampled_block_count = 0
-    identity_block_count = 0
-    duplicate_source_block_count = 0
-    eligible_block_count = 0
-
-    for group_key, indices in groups.items():
-        blocks = _date_blocks_for_group(labels, group_key, indices)
-        date_block_count += len(blocks)
-        for block_length, same_length_blocks in _blocks_by_length(blocks).items():
-            if len(same_length_blocks) < 2:
-                identity_block_count += len(same_length_blocks)
-                continue
-            eligible_block_count += len(same_length_blocks)
-            rng = random.Random(
-                active_seed
-                + _stable_group_offset(group_key)
-                + _stable_length_offset(block_length)
-                + 104729
-            )
-            sampled_positions = [
-                rng.randrange(len(same_length_blocks)) for _ in same_length_blocks
-            ]
-            duplicate_source_block_count += len(sampled_positions) - len(
-                set(sampled_positions)
-            )
-            for target_position, source_position in enumerate(sampled_positions):
-                target_block = same_length_blocks[target_position]
-                source_block = same_length_blocks[source_position]
-                _copy_block_values(
-                    labels,
-                    bootstrapped,
-                    target_indices=target_block.indices,
-                    source_indices=source_block.indices,
-                )
-                sampled_block_count += 1
-                if target_position == source_position:
-                    identity_block_count += 1
-                else:
-                    moved_count += len(target_block.indices)
-
-    if eligible_block_count < 2:
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="labels_path",
-                code="insufficient_label_rows_for_shuffle",
-                message=(
-                    "trade-date block bootstrap requires at least two equal-length "
-                    "date blocks"
-                ),
-                expected="at least two equal-length date blocks in one label group",
-                actual=f"{len(labels)} label rows across {len(groups)} groups",
-            )
-        )
-    if moved_count == 0:
-        raise GovernanceValidationError(
-            ValidationIssue(
-                field="labels_path",
-                code="identity_trade_date_block_bootstrap",
-                message="trade-date block bootstrap sampled the identity arrangement",
-                expected="at least one date block sampled from a different source block",
-                actual=f"{date_block_count} date blocks",
-            )
-        )
-    _write_jsonl_rows(output, bootstrapped)
-    return {
-        "record_count": len(labels),
-        "group_count": len(groups),
-        "date_block_count": date_block_count,
-        "sampled_block_count": sampled_block_count,
-        "moved_count": moved_count,
-        "identity_block_count": identity_block_count,
-        "duplicate_source_block_count": duplicate_source_block_count,
-        "timestamp_field": LABEL_BLOCK_TIMESTAMP_FIELD,
-    }
+    permutation = _trade_date_block_bootstrap_permutation_index(labels, seed=active_seed)
+    _write_jsonl_rows(output, _labels_with_permuted_values(labels, permutation))
+    return dict(permutation.summary)
 
 
 def require_isolated_namespace(namespace: str | Path) -> Path:
@@ -1215,6 +1203,60 @@ def _run_study_deterministic(config: StudyConfig, *, seed: int) -> StudyRunResul
         registry_path=None,
         registry_written=False,
     )
+
+
+def _run_study_deterministic_from_panel(
+    config: StudyConfig,
+    *,
+    seed: int,
+    panel: DiagnosticPanel,
+    label_values: tuple[JsonValue, ...],
+    label_source_indices: tuple[int, ...] | None = None,
+) -> StudyRunResult:
+    config_payload = config.to_dict()
+    config_hash = hash_config(config_payload)
+    timestamp = datetime(2000, 1, 1, 0, 0, seed % 60, tzinfo=UTC)
+    run_id = generate_run_id(
+        "study",
+        timestamp=timestamp,
+        seed=config.study_id,
+        components={
+            "factor_id": config.factor_id,
+            "factor_version": config.factor_version,
+            "label_id": config.label_id,
+            "label_version": config.label_version,
+            "data_version": config.data_version,
+            "config_hash": config_hash,
+        },
+    )
+    summary = compute_diagnostic_summary_from_panel(
+        panel,
+        config=config,
+        label_values=label_values,
+        label_source_indices=label_source_indices,
+        run_id=run_id,
+    )
+    output_paths = write_study_outputs(
+        summary,
+        output_dir=config.output_dir,
+        manifest_path=config.manifest_path,
+        config_hash=config_hash,
+        config_payload=config_payload,
+    )
+    return StudyRunResult(
+        summary=summary,
+        output_paths=output_paths,
+        registry_path=None,
+        registry_written=False,
+    )
+
+
+def _diagnostic_panel_for_surrogate(
+    config: StudyConfig,
+    labels: list[dict[str, JsonValue]],
+) -> DiagnosticPanel:
+    factor_values = read_factor_value_dicts(config.factor_values_path)
+    return build_diagnostic_panel(factor_values, labels, config)
 
 
 def _study_config_for_surrogate(
@@ -1495,6 +1537,261 @@ def _copy_block_values(
         raise AssertionError("date block value copies require equal-length blocks")
     for offset, target_index in enumerate(target_indices):
         output_rows[target_index]["value"] = labels[source_indices[offset]].get("value")
+
+
+def _copy_block_value_indices(
+    source_indices_by_target: list[int],
+    *,
+    target_indices: tuple[int, ...],
+    source_indices: tuple[int, ...],
+) -> None:
+    if len(target_indices) != len(source_indices):
+        raise AssertionError("date block value copies require equal-length blocks")
+    for offset, target_index in enumerate(target_indices):
+        source_indices_by_target[target_index] = source_indices[offset]
+
+
+def _labels_with_permuted_values(
+    labels: list[dict[str, JsonValue]],
+    permutation: _LabelPermutationIndex,
+) -> list[dict[str, JsonValue]]:
+    return [
+        {
+            **dict(label),
+            "value": labels[permutation.source_indices_by_target[index]].get("value"),
+        }
+        for index, label in enumerate(labels)
+    ]
+
+
+def _permuted_label_values(
+    labels: list[dict[str, JsonValue]],
+    permutation: _LabelPermutationIndex,
+) -> tuple[JsonValue, ...]:
+    return tuple(
+        labels[source_index].get("value")
+        for source_index in permutation.source_indices_by_target
+    )
+
+
+def _permutation_index_for_perturbation(
+    perturbation_type: SurrogatePerturbationType,
+    labels: list[dict[str, JsonValue]],
+    *,
+    seed: int,
+) -> _LabelPermutationIndex:
+    if perturbation_type is SurrogatePerturbationType.LABEL_SHUFFLE:
+        return _label_shuffle_permutation_index(labels, seed=seed)
+    if perturbation_type is SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE:
+        return _trade_date_block_shuffle_permutation_index(labels, seed=seed)
+    if perturbation_type is SurrogatePerturbationType.TRADE_DATE_BLOCK_BOOTSTRAP:
+        return _trade_date_block_bootstrap_permutation_index(labels, seed=seed)
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="perturbation_type",
+            code="unsupported_surrogate_execution",
+            message="surrogate runner does not execute random_target perturbations",
+            expected="supported label-value perturbation",
+            actual=perturbation_type.value,
+        )
+    )
+
+
+def _label_shuffle_permutation_index(
+    labels: list[dict[str, JsonValue]],
+    *,
+    seed: int,
+) -> _LabelPermutationIndex:
+    source_indices_by_target = list(range(len(labels)))
+    moved_count = 0
+    groups = _label_groups(labels)
+    for group_key, indices in groups.items():
+        if len(indices) < 2:
+            continue
+        permutation = _deranged_indices(
+            len(indices),
+            seed=seed + _stable_group_offset(group_key),
+        )
+        for target_position, source_position in enumerate(permutation):
+            target_index = indices[target_position]
+            source_index = indices[source_position]
+            source_indices_by_target[target_index] = source_index
+            if target_index != source_index:
+                moved_count += 1
+    if moved_count == 0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="insufficient_label_rows_for_shuffle",
+                message="label-shuffle surrogate must move at least one label value",
+                expected="at least two labels in one label group",
+                actual=f"{len(labels)} label rows across {len(groups)} groups",
+            )
+        )
+    return _LabelPermutationIndex(
+        source_indices_by_target=tuple(source_indices_by_target),
+        summary={
+            "record_count": len(labels),
+            "group_count": len(groups),
+            "moved_count": moved_count,
+        },
+    )
+
+
+def _trade_date_block_shuffle_permutation_index(
+    labels: list[dict[str, JsonValue]],
+    *,
+    seed: int,
+) -> _LabelPermutationIndex:
+    source_indices_by_target = list(range(len(labels)))
+    groups = _label_groups(labels)
+    moved_count = 0
+    date_block_count = 0
+    shuffled_block_count = 0
+    unmatched_block_count = 0
+    unmatched_record_count = 0
+    eligible_block_count = 0
+
+    for group_key, indices in groups.items():
+        blocks = _date_blocks_for_group(labels, group_key, indices)
+        date_block_count += len(blocks)
+        for block_length, same_length_blocks in _blocks_by_length(blocks).items():
+            if len(same_length_blocks) < 2:
+                unmatched_block_count += len(same_length_blocks)
+                unmatched_record_count += block_length * len(same_length_blocks)
+                continue
+            eligible_block_count += len(same_length_blocks)
+            permutation = _deranged_block_indices(
+                len(same_length_blocks),
+                seed=(
+                    seed
+                    + _stable_group_offset(group_key)
+                    + _stable_length_offset(block_length)
+                ),
+            )
+            for target_position, source_position in enumerate(permutation):
+                target_block = same_length_blocks[target_position]
+                source_block = same_length_blocks[source_position]
+                _copy_block_value_indices(
+                    source_indices_by_target,
+                    target_indices=target_block.indices,
+                    source_indices=source_block.indices,
+                )
+                shuffled_block_count += 1
+                moved_count += len(target_block.indices)
+
+    if eligible_block_count < 2 or moved_count == 0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="insufficient_label_rows_for_shuffle",
+                message=(
+                    "trade-date block shuffle must move at least one equal-length "
+                    "date block"
+                ),
+                expected="at least two equal-length date blocks in one label group",
+                actual=f"{len(labels)} label rows across {len(groups)} groups",
+            )
+        )
+    return _LabelPermutationIndex(
+        source_indices_by_target=tuple(source_indices_by_target),
+        summary={
+            "record_count": len(labels),
+            "group_count": len(groups),
+            "date_block_count": date_block_count,
+            "shuffled_block_count": shuffled_block_count,
+            "moved_count": moved_count,
+            "unmatched_block_count": unmatched_block_count,
+            "unmatched_record_count": unmatched_record_count,
+            "timestamp_field": LABEL_BLOCK_TIMESTAMP_FIELD,
+        },
+    )
+
+
+def _trade_date_block_bootstrap_permutation_index(
+    labels: list[dict[str, JsonValue]],
+    *,
+    seed: int,
+) -> _LabelPermutationIndex:
+    source_indices_by_target = list(range(len(labels)))
+    groups = _label_groups(labels)
+    moved_count = 0
+    date_block_count = 0
+    sampled_block_count = 0
+    identity_block_count = 0
+    duplicate_source_block_count = 0
+    eligible_block_count = 0
+
+    for group_key, indices in groups.items():
+        blocks = _date_blocks_for_group(labels, group_key, indices)
+        date_block_count += len(blocks)
+        for block_length, same_length_blocks in _blocks_by_length(blocks).items():
+            if len(same_length_blocks) < 2:
+                identity_block_count += len(same_length_blocks)
+                continue
+            eligible_block_count += len(same_length_blocks)
+            rng = random.Random(
+                seed
+                + _stable_group_offset(group_key)
+                + _stable_length_offset(block_length)
+                + 104729
+            )
+            sampled_positions = [
+                rng.randrange(len(same_length_blocks)) for _ in same_length_blocks
+            ]
+            duplicate_source_block_count += len(sampled_positions) - len(
+                set(sampled_positions)
+            )
+            for target_position, source_position in enumerate(sampled_positions):
+                target_block = same_length_blocks[target_position]
+                source_block = same_length_blocks[source_position]
+                _copy_block_value_indices(
+                    source_indices_by_target,
+                    target_indices=target_block.indices,
+                    source_indices=source_block.indices,
+                )
+                sampled_block_count += 1
+                if target_position == source_position:
+                    identity_block_count += 1
+                else:
+                    moved_count += len(target_block.indices)
+
+    if eligible_block_count < 2:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="insufficient_label_rows_for_shuffle",
+                message=(
+                    "trade-date block bootstrap requires at least two equal-length "
+                    "date blocks"
+                ),
+                expected="at least two equal-length date blocks in one label group",
+                actual=f"{len(labels)} label rows across {len(groups)} groups",
+            )
+        )
+    if moved_count == 0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="labels_path",
+                code="identity_trade_date_block_bootstrap",
+                message="trade-date block bootstrap sampled the identity arrangement",
+                expected="at least one date block sampled from a different source block",
+                actual=f"{date_block_count} date blocks",
+            )
+        )
+    return _LabelPermutationIndex(
+        source_indices_by_target=tuple(source_indices_by_target),
+        summary={
+            "record_count": len(labels),
+            "group_count": len(groups),
+            "date_block_count": date_block_count,
+            "sampled_block_count": sampled_block_count,
+            "moved_count": moved_count,
+            "identity_block_count": identity_block_count,
+            "duplicate_source_block_count": duplicate_source_block_count,
+            "timestamp_field": LABEL_BLOCK_TIMESTAMP_FIELD,
+        },
+    )
 
 
 def _deranged_indices(length: int, *, seed: int) -> list[int]:

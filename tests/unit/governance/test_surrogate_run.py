@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -27,7 +28,9 @@ from alpha_system.governance.surrogate_run import (
     deterministic_created_at,
     render_value_free_calibration_report,
     run_surrogate_study,
+    study_config_for_surrogate_scope,
     validate_surrogate_study_run,
+    _run_study_deterministic,
     write_label_shuffled_copy,
     write_trade_date_block_bootstrap_copy,
     write_trade_date_block_shuffled_copy,
@@ -206,6 +209,64 @@ def test_surrogate_runner_uses_isolated_namespace_and_real_gate_stack(
     )
     assert trial_ledger["records"][0]["surrogate_flag"] is True
     assert Path(result.paths.variant_ledger_path).read_text(encoding="utf-8") == ""
+    assert not Path(result.paths.shuffled_labels_path).exists()
+
+
+def test_surrogate_fast_path_matches_reference_diagnostic_summary_hashes_for_10_seeds(
+    tmp_path: Path,
+) -> None:
+    namespace = tmp_path / "rigor_p05_surrogate_fast_path_parity"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=1)
+    scope = spec.dataset_scope["surrogate_fdr"]
+    labels_path = Path(str(scope["labels_path"]))
+    seed_hashes: dict[int, tuple[str, str]] = {}
+
+    for seed in range(700, 710):
+        run_root = namespace / f"seed_{seed}"
+        shuffled_path = run_root / "labels" / "label_shuffle.jsonl"
+        study_dir = run_root / "study_outputs"
+        write_label_shuffled_copy(labels_path, shuffled_path, seed=seed)
+        reference_config = study_config_for_surrogate_scope(
+            spec,
+            scope=scope,
+            seed=seed,
+            shuffled_labels_path=shuffled_path,
+            output_dir=study_dir,
+        )
+        reference_result = _run_study_deterministic(reference_config, seed=seed)
+        reference_summary_path = Path(reference_result.output_paths.summary_path)
+        reference_hash = hashlib.sha256(reference_summary_path.read_bytes()).hexdigest()
+        shuffled_path.unlink()
+
+        fast_result = run_surrogate_study(spec, seed=seed, namespace=namespace)
+        fast_summary_path = Path(fast_result.paths.study_output_dir) / "diagnostic_summary.json"
+        fast_hash = hashlib.sha256(fast_summary_path.read_bytes()).hexdigest()
+
+        assert fast_hash == reference_hash
+        assert not shuffled_path.exists()
+        seed_hashes[seed] = (reference_hash, fast_hash)
+
+    assert len(seed_hashes) == 10
+
+
+def test_surrogate_calibration_fast_path_writes_no_per_seed_label_copies(
+    tmp_path: Path,
+) -> None:
+    namespace = tmp_path / "rigor_p05_surrogate_no_label_copies"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=10)
+
+    report = calibrate_surrogate_fdr(
+        (spec,),
+        run_budget=3,
+        base_seed=800,
+        namespace=namespace,
+    )
+
+    assert report.run_count == 3
+    assert tuple(namespace.glob("seed_*/labels/*.jsonl")) == ()
+    assert len(tuple(namespace.glob("seed_*/study_outputs/diagnostic_summary.json"))) == 3
 
 
 @pytest.mark.parametrize(
@@ -234,6 +295,7 @@ def test_surrogate_runner_threads_block_perturbation_types(
     assert result.run.gate_outcome["status"] == SurrogateGateStatus.BLOCKED.value
     assert result.run.gate_outcome["passed"] is False
     assert Path(result.paths.shuffled_labels_path).name == f"{perturbation_type.value}.jsonl"
+    assert not Path(result.paths.shuffled_labels_path).exists()
 
 
 def test_surrogate_pass_uses_statistic_not_clean_diagnostics(tmp_path: Path) -> None:

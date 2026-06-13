@@ -10,17 +10,21 @@ The repository-level campaign pointer targets
 `SHIP_REFIT_V1`. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`, which is
 coordinator-owned in Workflow 2.
 
-`SHIP_REFIT-P01` adds provider-watchdog and job-runner resilience to the
-Workflow 2 driver. The next load-bearing phase is `SHIP_REFIT-P02`
-Diagnostics-Fast-Path.
+`SHIP_REFIT-P02` adds the diagnostics fast path for surrogate calibration. The
+next load-bearing phase is `SHIP_REFIT-P03` Detection-Power / N_eff rigor.
 
-New durable surfaces are the provider watchdog in
+Durable surfaces added so far are the provider watchdog in
 `tools/frontier/command_runner.py`, the Ralph watchdog wiring and first-light
-preflight in `tools/frontier/ralph_driver.py`, and the design note
-`docs/ship_refit_v1/PROVIDER_WATCHDOG.md`. The provider timeout is now `3600s`;
-the watchdog, not the timeout, is the primary frozen-provider liveness guard.
-The first-light pre-run check is callable with
-`python tools/frontier/ralph_driver.py first-light`.
+preflight in `tools/frontier/ralph_driver.py`, the permutation-index diagnostics
+fast path in `src/alpha_system/governance/surrogate_run.py` and
+`src/alpha_system/research/diagnostics.py`, the parity harness in
+`tests/unit/governance/test_surrogate_run.py`, and the design notes
+`docs/ship_refit_v1/PROVIDER_WATCHDOG.md` and
+`docs/ship_refit_v1/DIAGNOSTICS_FAST_PATH.md`. The provider timeout is `3600s`;
+the first-light pre-run check remains callable with
+`python tools/frontier/ralph_driver.py first-light`. The real surrogate
+calibration CLI now caps missing or oversized `--runs-per-config` values at the
+local default cap.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the

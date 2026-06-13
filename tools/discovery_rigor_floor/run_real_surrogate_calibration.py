@@ -61,6 +61,7 @@ PARTITION_RE = re.compile(r"^(?P<symbol>[A-Z0-9]+)_(?P<year>\d{4})_")
 SUPPORT_FEATURE_FAMILIES = frozenset({"base_ohlcv", "session_calendar_maintenance"})
 STAGING_MANIFEST_SCHEMA = "real_surrogate_calibration_staging_manifest_v1"
 STAGING_MANIFEST_NAME = "staging_manifest.json"
+DEFAULT_RUNS_PER_CONFIG_CAP = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,8 +155,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--runs-per-config",
         type=int,
-        required=True,
-        help="Declared K seeded runs per perturbation configuration.",
+        default=None,
+        help=(
+            "Declared K seeded runs per perturbation configuration; defaults "
+            f"to and is capped at {DEFAULT_RUNS_PER_CONFIG_CAP}."
+        ),
     )
     parser.add_argument("--base-seed", type=int, required=True, help="Base non-negative seed.")
     parser.add_argument(
@@ -179,7 +183,7 @@ def run_real_surrogate_calibration(
     *,
     study_spec_path: str | Path,
     alpha_data_root: str | Path,
-    runs_per_config: int,
+    runs_per_config: int | None,
     base_seed: int,
     namespace: str | Path,
     report_out: str | Path,
@@ -189,7 +193,7 @@ def run_real_surrogate_calibration(
     """Resolve locked packs, run K per block-null config, and write one report."""
 
     active_namespace = require_isolated_namespace(namespace)
-    active_runs_per_config = _positive_int(runs_per_config, "runs_per_config")
+    active_runs_per_config = _effective_runs_per_config(runs_per_config)
     active_base_seed = _non_negative_int(base_seed, "base_seed")
     study_spec = _load_study_spec(study_spec_path)
     scope = study_spec.dataset_scope
@@ -2073,6 +2077,12 @@ def _positive_int(value: Any, field_name: str) -> int:
     if active <= 0:
         raise ValueError(f"{field_name} must be positive")
     return active
+
+
+def _effective_runs_per_config(value: Any) -> int:
+    if value is None:
+        return DEFAULT_RUNS_PER_CONFIG_CAP
+    return min(_positive_int(value, "runs_per_config"), DEFAULT_RUNS_PER_CONFIG_CAP)
 
 
 def _non_negative_int(value: Any, field_name: str) -> int:

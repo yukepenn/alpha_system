@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import sqrt
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from alpha_system.core.git_info import capture_git_info
 from alpha_system.core.hashing import hash_config
@@ -38,6 +39,7 @@ from alpha_system.research.events import (
 )
 from alpha_system.research.execution_filters import execution_filter_summary
 from alpha_system.research.ic import (
+    icir,
     ic_by_calendar_period,
     ic_by_horizon,
     ic_decay,
@@ -76,6 +78,44 @@ class DiagnosticsError(ValueError):
 @dataclass(frozen=True, slots=True)
 class AlignmentResult:
     observations: tuple[dict[str, Any], ...]
+    missing_label_count: int
+    missing_factor_count: int
+    warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _LabelEntry:
+    index: int
+    label: LabelSpec
+
+
+@dataclass(frozen=True, slots=True)
+class _PanelGroup:
+    key: str
+    indices: tuple[int, ...]
+    factor_mean: float | None
+    factor_denom: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class DiagnosticPanel:
+    """Seed-invariant factor/label alignment for repeated relabeling runs."""
+
+    observation_templates: tuple[dict[str, Any], ...]
+    primary_label_indices: tuple[int, ...]
+    primary_labels: tuple[LabelSpec, ...]
+    optional_labels: tuple[_LabelEntry, ...]
+    label_values: tuple[Any, ...]
+    factor_ranks_all_numeric: tuple[float, ...] | None
+    label_ranks_all_numeric: tuple[float, ...] | None
+    horizon_groups: tuple[_PanelGroup, ...]
+    day_groups: tuple[_PanelGroup, ...]
+    week_groups: tuple[_PanelGroup, ...]
+    month_groups: tuple[_PanelGroup, ...]
+    time_of_day_groups: tuple[_PanelGroup, ...]
+    session_segment_groups: tuple[_PanelGroup, ...]
+    stability_month_groups: tuple[_PanelGroup, ...]
+    regime_groups: tuple[_PanelGroup, ...]
     missing_label_count: int
     missing_factor_count: int
     warnings: tuple[str, ...]
@@ -129,51 +169,44 @@ def compute_diagnostic_summary(config: StudyConfig, *, run_id: str | None = None
     """Compute a deterministic diagnostic summary from versioned factor and label inputs."""
     factor_values = read_factor_value_dicts(config.factor_values_path)
     labels = read_label_dicts(config.labels_path)
-    alignment = align_factor_values_to_labels(factor_values, labels, config)
-    observations = alignment.observations
-    warnings = list(alignment.warnings)
-    diagnostics = _diagnostics_for_observations(observations, config, warnings)
-    warnings.extend(_sample_warnings(config, alignment))
-    return DiagnosticSummary(
-        run_id=run_id or generate_run_id("study", seed=config.study_id),
-        study_id=config.study_id,
-        factor_id=config.factor_id,
-        factor_version=config.factor_version,
-        label_id=config.label_id,
-        label_version=config.label_version,
-        data_version=config.data_version,
-        engine_version=config.engine_version,
-        sample_size=len(observations),
-        missing_label_count=alignment.missing_label_count,
-        missing_factor_count=alignment.missing_factor_count,
-        warnings=tuple(dict.fromkeys(warnings)),
-        diagnostics=diagnostics,
+    return compute_diagnostic_summary_from_inputs(
+        config,
+        factor_values=factor_values,
+        labels=labels,
+        run_id=run_id,
     )
 
 
-def read_label_dicts(path: str | Path) -> tuple[dict[str, Any], ...]:
-    """Read label JSONL records and return normalized dictionaries."""
-    input_path = assert_local_wsl_path(path)
-    lines = input_path.read_text(encoding="utf-8").splitlines()
-    labels: list[dict[str, Any]] = []
-    for line in lines:
-        if line.strip():
-            labels.append(validate_label_record(json.loads(line)).to_dict())
-    return tuple(labels)
+def compute_diagnostic_summary_from_inputs(
+    config: StudyConfig,
+    *,
+    factor_values: Iterable[Mapping[str, Any]],
+    labels: Iterable[Mapping[str, Any] | LabelSpec],
+    run_id: str | None = None,
+) -> DiagnosticSummary:
+    """Compute a diagnostic summary from caller-supplied in-memory inputs."""
+
+    panel = build_diagnostic_panel(factor_values, labels, config)
+    return compute_diagnostic_summary_from_panel(
+        panel,
+        config=config,
+        label_values=panel.label_values,
+        run_id=run_id,
+    )
 
 
-def align_factor_values_to_labels(
+def build_diagnostic_panel(
     factor_values: Iterable[Mapping[str, Any]],
     labels: Iterable[Mapping[str, Any] | LabelSpec],
     config: StudyConfig,
-) -> AlignmentResult:
-    """Validate versioned factor/label alignment and return joined observations."""
-    normalized_labels = tuple(_label(label) for label in labels)
-    primary_labels = tuple(label for label in normalized_labels if label.label_id == config.label_id)
-    optional_labels = tuple(label for label in normalized_labels if label.label_id != config.label_id)
-    _assert_label_versions(primary_labels, config)
-    primary_index = _primary_label_index(primary_labels, config)
-    optional_index = _optional_label_index(optional_labels, config)
+) -> DiagnosticPanel:
+    """Build seed-invariant alignment state for repeated diagnostic summaries."""
+
+    entries = tuple(_LabelEntry(index, _label(label)) for index, label in enumerate(labels))
+    primary_entries = tuple(entry for entry in entries if entry.label.label_id == config.label_id)
+    optional_entries = tuple(entry for entry in entries if entry.label.label_id != config.label_id)
+    _assert_label_versions(tuple(entry.label for entry in primary_entries), config)
+    primary_index = _primary_label_entry_index(primary_entries, config)
 
     selected_factors: list[Mapping[str, Any]] = []
     mismatched_factor_versions = 0
@@ -200,7 +233,9 @@ def align_factor_values_to_labels(
         msg = "label version reference produced no matching labels"
         raise DiagnosticsError(msg)
 
-    observations: list[dict[str, Any]] = []
+    observation_templates: list[dict[str, Any]] = []
+    primary_label_indices: list[int] = []
+    primary_labels: list[LabelSpec] = []
     missing_label_count = 0
     for factor in selected_factors:
         key = (
@@ -214,20 +249,148 @@ def align_factor_values_to_labels(
         if not labels_for_factor:
             missing_label_count += 1
             continue
-        for label in labels_for_factor:
-            _assert_label_available_after_factor(factor, label)
-            observation = _observation_from_pair(factor, label)
-            observation.update(optional_index.get(_optional_key(label), {}))
-            observations.append(observation)
+        for entry in labels_for_factor:
+            _assert_label_available_after_factor(factor, entry.label)
+            observation_templates.append(_observation_from_pair(factor, entry.label))
+            primary_label_indices.append(entry.index)
+            primary_labels.append(entry.label)
 
     warnings: list[str] = []
     if mismatched_factor_versions:
         warnings.append("invalid version references ignored for non-matching factor/data versions")
-    return AlignmentResult(
-        observations=tuple(observations),
+    label_values = tuple(entry.label.value for entry in entries)
+    factor_values_for_ranks = tuple(row["factor_value"] for row in observation_templates)
+    observation_templates_tuple = tuple(observation_templates)
+    max_bar_index = max(
+        (int(row.get("bar_index", 0)) for row in observation_templates_tuple),
+        default=0,
+    )
+
+    def segment_key(row: Mapping[str, Any]) -> str:
+        if max_bar_index <= 0:
+            return "segment_1"
+        segment = min(3, int(int(row.get("bar_index", 0)) * 3 / (max_bar_index + 1)) + 1)
+        return f"segment_{segment}"
+
+    return DiagnosticPanel(
+        observation_templates=observation_templates_tuple,
+        primary_label_indices=tuple(primary_label_indices),
+        primary_labels=tuple(primary_labels),
+        optional_labels=optional_entries,
+        label_values=label_values,
+        factor_ranks_all_numeric=_ranks_if_all_numeric(factor_values_for_ranks),
+        label_ranks_all_numeric=_ranks_if_all_numeric(label_values),
+        horizon_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: str(int(row["horizon_seconds"])),
+        ),
+        day_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: _calendar_period_key(_datetime(row["event_ts"]), "day"),
+        ),
+        week_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: _calendar_period_key(_datetime(row["event_ts"]), "week"),
+        ),
+        month_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: _calendar_period_key(_datetime(row["event_ts"]), "month"),
+        ),
+        time_of_day_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: _datetime(row["event_ts"]).strftime("%H:%M"),
+        ),
+        session_segment_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=segment_key,
+        ),
+        stability_month_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: _datetime(row["event_ts"]).strftime("%Y-%m"),
+        ),
+        regime_groups=_make_panel_groups(
+            observation_templates_tuple,
+            key_fn=lambda row: str(row.get("regime", "unknown")),
+        ),
         missing_label_count=missing_label_count,
         missing_factor_count=missing_factor_count,
         warnings=tuple(warnings),
+    )
+
+
+def compute_diagnostic_summary_from_panel(
+    panel: DiagnosticPanel,
+    *,
+    config: StudyConfig,
+    label_values: Sequence[Any],
+    label_source_indices: Sequence[int] | None = None,
+    run_id: str | None = None,
+) -> DiagnosticSummary:
+    """Compute diagnostics by applying label values to an aligned panel."""
+
+    warnings = list(panel.warnings)
+    if _can_use_panel_fast_diagnostics(config):
+        diagnostics = _fast_diagnostics_for_panel(
+            panel,
+            config=config,
+            label_values=label_values,
+            label_source_indices=label_source_indices,
+            warnings=warnings,
+        )
+        warnings.extend(_sample_warnings_from_panel(config, panel))
+        sample_size = len(panel.observation_templates)
+    else:
+        observations = _observations_from_panel(panel, config=config, label_values=label_values)
+        diagnostics = _diagnostics_for_observations(observations, config, warnings)
+        alignment = AlignmentResult(
+            observations=observations,
+            missing_label_count=panel.missing_label_count,
+            missing_factor_count=panel.missing_factor_count,
+            warnings=panel.warnings,
+        )
+        warnings.extend(_sample_warnings(config, alignment))
+        sample_size = len(observations)
+    return DiagnosticSummary(
+        run_id=run_id or generate_run_id("study", seed=config.study_id),
+        study_id=config.study_id,
+        factor_id=config.factor_id,
+        factor_version=config.factor_version,
+        label_id=config.label_id,
+        label_version=config.label_version,
+        data_version=config.data_version,
+        engine_version=config.engine_version,
+        sample_size=sample_size,
+        missing_label_count=panel.missing_label_count,
+        missing_factor_count=panel.missing_factor_count,
+        warnings=tuple(dict.fromkeys(warnings)),
+        diagnostics=diagnostics,
+    )
+
+
+def read_label_dicts(path: str | Path) -> tuple[dict[str, Any], ...]:
+    """Read label JSONL records and return normalized dictionaries."""
+    input_path = assert_local_wsl_path(path)
+    lines = input_path.read_text(encoding="utf-8").splitlines()
+    labels: list[dict[str, Any]] = []
+    for line in lines:
+        if line.strip():
+            labels.append(validate_label_record(json.loads(line)).to_dict())
+    return tuple(labels)
+
+
+def align_factor_values_to_labels(
+    factor_values: Iterable[Mapping[str, Any]],
+    labels: Iterable[Mapping[str, Any] | LabelSpec],
+    config: StudyConfig,
+) -> AlignmentResult:
+    """Validate versioned factor/label alignment and return joined observations."""
+    panel = build_diagnostic_panel(factor_values, labels, config)
+    observations = _observations_from_panel(panel, config=config, label_values=panel.label_values)
+    return AlignmentResult(
+        observations=observations,
+        missing_label_count=panel.missing_label_count,
+        missing_factor_count=panel.missing_factor_count,
+        warnings=panel.warnings,
     )
 
 
@@ -310,6 +473,334 @@ def _diagnostics_for_observations(
         "regime": regime_stability(observations),
     }
     return diagnostics
+
+
+def _can_use_panel_fast_diagnostics(config: StudyConfig) -> bool:
+    requested = tuple(
+        item for item in config.diagnostic_types if item in SUPPORTED_DIAGNOSTIC_TYPES
+    )
+    return all(item == "directional" for item in requested)
+
+
+def _fast_diagnostics_for_panel(
+    panel: DiagnosticPanel,
+    *,
+    config: StudyConfig,
+    label_values: Sequence[Any],
+    label_source_indices: Sequence[int] | None,
+    warnings: list[str],
+) -> dict[str, Any]:
+    if len(label_values) != len(panel.label_values):
+        msg = "diagnostic panel relabeling requires one value per source label row"
+        raise DiagnosticsError(msg)
+    diagnostics: dict[str, Any] = {}
+    unsupported = tuple(
+        item for item in config.diagnostic_types if item not in SUPPORTED_DIAGNOSTIC_TYPES
+    )
+    for item in unsupported:
+        warnings.append(f"unsupported diagnostic type: {item}")
+    requested = tuple(item for item in config.diagnostic_types if item in SUPPORTED_DIAGNOSTIC_TYPES)
+    factors = tuple(row["factor_value"] for row in panel.observation_templates)
+    labels = tuple(_float(label_values[index]) for index in panel.primary_label_indices)
+    rank_ic_summary = _panel_rank_ic(
+        panel,
+        factors=factors,
+        labels=labels,
+        label_source_indices=label_source_indices,
+    )
+    if "directional" in requested:
+        by_horizon = _panel_ic_by_horizon(
+            panel,
+            factors=factors,
+            labels=labels,
+            rank_ic_summary=rank_ic_summary,
+        )
+        by_day = _panel_ic_by_calendar_period(panel, factors=factors, labels=labels, period="day")
+        diagnostics["directional"] = {
+            "pearson_ic": pearson_ic(factors, labels),
+            "rank_ic": rank_ic_summary,
+            "ic_by_horizon": by_horizon,
+            "ic_decay": _panel_ic_decay(by_horizon),
+            "ic_by_day": by_day,
+            "ic_by_week": _panel_ic_by_calendar_period(
+                panel,
+                factors=factors,
+                labels=labels,
+                period="week",
+            ),
+            "ic_by_month": _panel_ic_by_calendar_period(
+                panel,
+                factors=factors,
+                labels=labels,
+                period="month",
+            ),
+            "icir": icir(metrics["ic"] for metrics in by_day.values()),
+        }
+    diagnostics["stability"] = _panel_stability(panel, factors=factors, labels=labels)
+    return diagnostics
+
+
+def _panel_ic_by_horizon(
+    panel: DiagnosticPanel,
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+    rank_ic_summary: Mapping[str, float | int | None],
+) -> dict[str, dict[str, float | int | None]]:
+    return {
+        group.key: _panel_horizon_ic_metrics(
+            group,
+            factors=factors,
+            labels=labels,
+            full_count=len(panel.observation_templates),
+            rank_ic_summary=rank_ic_summary,
+        )
+        for group in panel.horizon_groups
+    }
+
+
+def _panel_rank_ic(
+    panel: DiagnosticPanel,
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+    label_source_indices: Sequence[int] | None,
+) -> dict[str, float | int | None]:
+    if (
+        label_source_indices is not None
+        and panel.factor_ranks_all_numeric is not None
+        and panel.label_ranks_all_numeric is not None
+        and len(panel.primary_label_indices) == len(panel.observation_templates)
+        and len(label_source_indices) == len(panel.label_values)
+        and tuple(panel.primary_label_indices) == tuple(range(len(panel.primary_label_indices)))
+    ):
+        label_ranks = [
+            panel.label_ranks_all_numeric[label_source_indices[index]]
+            for index in panel.primary_label_indices
+        ]
+        return pearson_ic(panel.factor_ranks_all_numeric, label_ranks)
+    return rank_ic(factors, labels)
+
+
+def _panel_horizon_ic_metrics(
+    group: _PanelGroup,
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+    full_count: int,
+    rank_ic_summary: Mapping[str, float | int | None],
+) -> dict[str, float | int | None]:
+    pearson = _panel_pearson_for_group(group, factors=factors, labels=labels)
+    factor_values = [factors[index] for index in group.indices]
+    label_values = [labels[index] for index in group.indices]
+    active_rank_ic = (
+        rank_ic_summary["ic"]
+        if len(group.indices) == full_count
+        else rank_ic(factor_values, label_values)["ic"]
+    )
+    return {
+        "pearson_ic": pearson["ic"],
+        "rank_ic": active_rank_ic,
+        "n": pearson["n"],
+    }
+
+
+def _panel_ic_decay(
+    by_horizon: Mapping[str, Mapping[str, float | int | None]],
+) -> dict[str, Any]:
+    points = [
+        (int(horizon), metrics["pearson_ic"])
+        for horizon, metrics in by_horizon.items()
+        if metrics["pearson_ic"] is not None
+    ]
+    if len(points) < 2:
+        slope = None
+    else:
+        first_horizon, first_ic = points[0]
+        last_horizon, last_ic = points[-1]
+        assert first_ic is not None and last_ic is not None
+        denominator = max(last_horizon - first_horizon, 1)
+        slope = (float(last_ic) - float(first_ic)) / denominator
+    return {"by_horizon": by_horizon, "decay_slope_per_second": slope, "n_horizons": len(points)}
+
+
+def _panel_ic_by_calendar_period(
+    panel: DiagnosticPanel,
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+    period: str,
+) -> dict[str, dict[str, float | int | None]]:
+    if period == "day":
+        groups = panel.day_groups
+    elif period == "week":
+        groups = panel.week_groups
+    elif period == "month":
+        groups = panel.month_groups
+    else:
+        msg = "period must be day, week, or month"
+        raise ValueError(msg)
+    return {
+        group.key: _panel_pearson_for_group(group, factors=factors, labels=labels)
+        for group in groups
+    }
+
+
+def _panel_stability(
+    panel: DiagnosticPanel,
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+) -> dict[str, Any]:
+    return {
+        "time_of_day": _panel_group_summary(
+            panel.time_of_day_groups,
+            factors=factors,
+            labels=labels,
+        ),
+        "session_segment": _panel_group_summary(
+            panel.session_segment_groups,
+            factors=factors,
+            labels=labels,
+        ),
+        "monthly": _panel_group_summary(
+            panel.stability_month_groups,
+            factors=factors,
+            labels=labels,
+        ),
+        "regime": _panel_group_summary(
+            panel.regime_groups,
+            factors=factors,
+            labels=labels,
+        ),
+    }
+
+
+def _panel_group_summary(
+    groups: Sequence[_PanelGroup],
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+) -> dict[str, dict[str, Any]]:
+    output: dict[str, dict[str, Any]] = {}
+    for group in groups:
+        returns = [
+            value
+            for index in group.indices
+            if (value := _float(labels[index])) is not None
+        ]
+        output[group.key] = {
+            "n": len(group.indices),
+            "mean_forward_return": _mean(returns),
+            "pearson_ic": _panel_pearson_for_group(
+                group,
+                factors=factors,
+                labels=labels,
+            )["ic"],
+        }
+    return output
+
+
+def _make_panel_groups(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    key_fn: Any,
+) -> tuple[_PanelGroup, ...]:
+    grouped: dict[str, list[int]] = defaultdict(list)
+    for index, row in enumerate(rows):
+        grouped[str(key_fn(row))].append(index)
+    output: list[_PanelGroup] = []
+    for key, indices in sorted(grouped.items()):
+        factor_values = [_float(rows[index].get("factor_value")) for index in indices]
+        if any(value is None for value in factor_values) or len(factor_values) < 2:
+            factor_mean = None
+            factor_denom = None
+        else:
+            active_values = [cast(float, value) for value in factor_values]
+            factor_mean = sum(active_values) / len(active_values)
+            factor_denom = sqrt(
+                sum((value - factor_mean) ** 2 for value in active_values)
+            )
+        output.append(
+            _PanelGroup(
+                key=key,
+                indices=tuple(indices),
+                factor_mean=factor_mean,
+                factor_denom=factor_denom,
+            )
+        )
+    return tuple(output)
+
+
+def _panel_pearson_for_group(
+    group: _PanelGroup,
+    *,
+    factors: Sequence[Any],
+    labels: Sequence[Any],
+) -> dict[str, float | int | None]:
+    label_values = [_float(labels[index]) for index in group.indices]
+    if (
+        group.factor_mean is None
+        or group.factor_denom is None
+        or group.factor_denom == 0
+        or any(value is None for value in label_values)
+    ):
+        return pearson_ic(
+            (factors[index] for index in group.indices),
+            (labels[index] for index in group.indices),
+        )
+    active_labels = [cast(float, value) for value in label_values]
+    if len(active_labels) < 2:
+        return {"ic": None, "n": len(active_labels)}
+    mean_y = sum(active_labels) / len(active_labels)
+    centered = [
+        (
+            cast(float, factors[index]) - group.factor_mean,
+            value - mean_y,
+        )
+        for index, value in zip(group.indices, active_labels, strict=True)
+    ]
+    numerator = sum(x * y for x, y in centered)
+    denom_y = sqrt(sum(y * y for _, y in centered))
+    denominator = group.factor_denom * denom_y
+    return {
+        "ic": None if denominator == 0 else numerator / denominator,
+        "n": len(active_labels),
+    }
+
+
+def _calendar_period_key(value: datetime, period: str) -> str:
+    if period == "day":
+        return value.date().isoformat()
+    if period == "week":
+        iso = value.isocalendar()
+        return f"{iso.year}-W{iso.week:02d}"
+    if period == "month":
+        return f"{value.year:04d}-{value.month:02d}"
+    msg = "period must be day, week, or month"
+    raise ValueError(msg)
+
+
+def _sample_warnings_from_panel(
+    config: StudyConfig,
+    panel: DiagnosticPanel,
+) -> tuple[str, ...]:
+    warnings: list[str] = []
+    total_factor_rows = len(panel.observation_templates) + panel.missing_label_count
+    thresholds = config.sample_size_thresholds
+    if len(panel.observation_templates) < thresholds.min_total:
+        warnings.append("insufficient sample size for requested diagnostics")
+    if total_factor_rows:
+        missing_label_rate = panel.missing_label_count / total_factor_rows
+        missing_factor_rate = panel.missing_factor_count / total_factor_rows
+        if missing_label_rate > thresholds.max_missing_label_rate:
+            warnings.append("missing label coverage exceeds configured threshold")
+        if missing_factor_rate > thresholds.max_missing_factor_rate:
+            warnings.append("high missing-factor rate exceeds configured threshold")
+    horizon_counts = Counter(row["horizon_seconds"] for row in panel.observation_templates)
+    if len(horizon_counts) > 1 and (min(horizon_counts.values()) / max(horizon_counts.values())) < 0.8:
+        warnings.append("unstable horizon coverage across selected labels")
+    return tuple(warnings)
 
 
 def _sample_warnings(config: StudyConfig, alignment: AlignmentResult) -> tuple[str, ...]:
@@ -406,6 +897,31 @@ def _primary_label_index(
     return {key: tuple(value) for key, value in buckets.items()}
 
 
+def _primary_label_entry_index(
+    labels: tuple[_LabelEntry, ...],
+    config: StudyConfig,
+) -> dict[tuple[str, datetime, str, str, str], tuple[_LabelEntry, ...]]:
+    buckets: dict[tuple[str, datetime, str, str, str], list[_LabelEntry]] = defaultdict(list)
+    for entry in labels:
+        label = entry.label
+        if str(label.path_metadata.get("label_version", "")) != config.label_version:
+            continue
+        if label.data_version != config.data_version:
+            continue
+        if not _selector_allows_label(label, config):
+            continue
+        buckets[
+            (
+                label.instrument_id,
+                label.event_ts,
+                str(label.path_metadata["session_id"]),
+                label.data_version,
+                str(label.path_metadata["label_version"]),
+            )
+        ].append(entry)
+    return {key: tuple(value) for key, value in buckets.items()}
+
+
 def _optional_label_index(
     labels: tuple[LabelSpec, ...],
     config: StudyConfig,
@@ -437,6 +953,72 @@ def _optional_label_index(
             bucket["volume_participation"] = _float(metadata.get("average_trade_count"))
             bucket["slippage"] = _float(metadata.get("average_spread", label.value))
     return output
+
+
+def _optional_label_index_for_values(
+    labels: tuple[_LabelEntry, ...],
+    config: StudyConfig,
+    label_values: Sequence[Any],
+) -> dict[tuple[str, datetime, str, int, str, str], dict[str, Any]]:
+    output: dict[tuple[str, datetime, str, int, str, str], dict[str, Any]] = {}
+    for entry in labels:
+        label = entry.label
+        if str(label.path_metadata.get("label_version", "")) != config.label_version:
+            continue
+        if label.data_version != config.data_version:
+            continue
+        if not _selector_allows_label(label, config):
+            continue
+        value = label_values[entry.index]
+        bucket = output.setdefault(_optional_key(label), {})
+        label_type = label.label_type.value
+        if label_type == "mfe_by_horizon":
+            bucket["mfe"] = _float(value)
+        elif label_type == "mae_by_horizon":
+            bucket["mae"] = _float(value)
+        elif label_type == "target_before_stop":
+            bucket["target_before_stop"] = None if value is None else bool(value)
+            bucket["time_to_target"] = _time_delta_bars(label)
+        elif label_type == "stop_before_target":
+            bucket["stop_before_target"] = None if value is None else bool(value)
+            bucket["time_to_stop"] = _time_delta_bars(label)
+        elif label_type == "future_spread_liquidity":
+            metadata = dict(label.path_metadata)
+            bucket["spread"] = _float(metadata.get("average_spread", value))
+            bucket["liquidity"] = _float(metadata.get("total_volume"))
+            bucket["volume_participation"] = _float(metadata.get("average_trade_count"))
+            bucket["slippage"] = _float(metadata.get("average_spread", value))
+    return output
+
+
+def _observations_from_panel(
+    panel: DiagnosticPanel,
+    *,
+    config: StudyConfig,
+    label_values: Sequence[Any],
+) -> tuple[dict[str, Any], ...]:
+    if len(label_values) != len(panel.label_values):
+        msg = "diagnostic panel relabeling requires one value per source label row"
+        raise DiagnosticsError(msg)
+    optional_index = _optional_label_index_for_values(
+        panel.optional_labels,
+        config,
+        label_values,
+    )
+    observations: list[dict[str, Any]] = []
+    for template, label_index, label in zip(
+        panel.observation_templates,
+        panel.primary_label_indices,
+        panel.primary_labels,
+        strict=True,
+    ):
+        label_value = _float(label_values[label_index])
+        observation = dict(template)
+        observation["label_value"] = label_value
+        observation["forward_return"] = label_value
+        observation.update(optional_index.get(_optional_key(label), {}))
+        observations.append(observation)
+    return tuple(observations)
 
 
 def _observation_from_pair(factor: Mapping[str, Any], label: LabelSpec) -> dict[str, Any]:
@@ -526,6 +1108,33 @@ def _float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _mean(values: Sequence[float]) -> float | None:
+    return None if not values else sum(values) / len(values)
+
+
+def _ranks_if_all_numeric(values: Sequence[Any]) -> tuple[float, ...] | None:
+    numeric = [_float(value) for value in values]
+    if any(value is None for value in numeric):
+        return None
+    return tuple(_average_ranks(cast(float, value) for value in numeric))
+
+
+def _average_ranks(values: Iterable[float]) -> list[float]:
+    materialized = list(values)
+    indexed = sorted(enumerate(materialized), key=lambda item: item[1])
+    ranks = [0.0] * len(materialized)
+    index = 0
+    while index < len(indexed):
+        end = index + 1
+        while end < len(indexed) and indexed[end][1] == indexed[index][1]:
+            end += 1
+        average_rank = (index + 1 + end) / 2
+        for original_index, _ in indexed[index:end]:
+            ranks[original_index] = average_rank
+        index = end
+    return ranks
 
 
 def _datetime(value: Any) -> datetime:

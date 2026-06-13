@@ -11,7 +11,8 @@ differentiated kill-shot.
   and evidence scaffold.
 - `SHIP_REFIT-P01`: add provider-watchdog and job-runner resilience; see
   `docs/ship_refit_v1/PROVIDER_WATCHDOG.md`.
-- `SHIP_REFIT-P02`: add the diagnostics fast path with parity gating.
+- `SHIP_REFIT-P02`: add the diagnostics fast path with parity gating; see
+  `docs/ship_refit_v1/DIAGNOSTICS_FAST_PATH.md`.
 - `SHIP_REFIT-P03`: add detection-power and effective-sample rigor.
 - `SHIP_REFIT-P04`: add non-gating cleanup and provenance hardening.
 
