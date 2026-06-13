@@ -12,6 +12,7 @@ from alpha_system.runtime.diagnostics.report import (
     DiagnosticsReport,
     DiagnosticsReportContractError,
 )
+from alpha_system.runtime.diagnostics.power import build_detection_power_report
 
 
 def test_diagnostics_report_is_descriptive_non_promotional_and_value_free() -> None:
@@ -139,6 +140,20 @@ def test_report_ref_links_to_diagnostics_run_record_without_values() -> None:
         "report_hash": ref.report_hash,
         "report_kind": "factor_diagnostics_summary",
     }
+
+
+def test_report_accepts_value_free_power_statement_block() -> None:
+    power = build_detection_power_report(
+        stacked_n_eff=25,
+        per_factor_inputs=({"factor_id": "factor_a", "factor_version": "v1", "n_eff": 25},),
+    )
+    report = _report(power_statement=power)
+    payload = report.to_dict()
+
+    assert payload["power_statement"] == report.power_statement
+    assert payload["power_statement"]["stacked"]["n_eff"] == 25
+    assert payload["power_statement"]["per_factor"][0]["factor_id"] == "factor_a"
+    assert payload["power_statement"]["statistical_validity_claim"] is False
 
 
 def _report(**overrides: object) -> DiagnosticsReport:

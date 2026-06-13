@@ -201,6 +201,10 @@ def test_surrogate_runner_uses_isolated_namespace_and_real_gate_stack(
         result.run.gate_outcome["detection_threshold_abs_pearson_ic"]
         == TRUE_ALPHA_DETECTION_THRESHOLD_ABS_PEARSON_IC
     )
+    power = result.run.gate_outcome["detection_power"]
+    assert power["stacked"]["n_eff"] >= 0
+    assert "Could have detected IC down to" in power["stacked"]["statement"]
+    assert power["statistical_validity_claim"] is False
     assert result.run.gate_outcome["evidence_transition"] == "DIAGNOSTICS_RUN->EVIDENCE_READY"
     for path in result.paths.to_dict().values():
         assert Path(str(path)).is_relative_to(namespace)

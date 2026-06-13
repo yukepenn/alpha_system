@@ -53,8 +53,30 @@ def test_n_eff_equals_rows_for_non_overlapping_and_discounts_overlap() -> None:
     )
 
     assert non_overlapping.n_eff == non_overlapping.rows == 120
+    assert non_overlapping.rows_after_purge_embargo == 120
+    assert non_overlapping.purge_embargo_removed_rows == 0
     assert overlapping.n_eff == 24
     assert overlapping.n_eff < overlapping.rows
+
+
+def test_purge_embargo_lowers_n_eff_before_overlap_discount() -> None:
+    metadata = {
+        "horizon_bars": 2,
+        "sampling_cadence_bars": 1,
+        "discount_factor": 2,
+        "metadata_source": "synthetic_overlap",
+    }
+
+    base = estimate_n_eff(20, metadata)
+    adjusted = estimate_n_eff(20, metadata, purge_gap=3, embargo_gap=2)
+
+    assert base.n_eff == 10
+    assert adjusted.rows == 20
+    assert adjusted.rows_after_purge_embargo == 15
+    assert adjusted.purge_embargo_removed_rows == 5
+    assert adjusted.n_eff == 7
+    assert adjusted.n_eff < base.n_eff
+    assert adjusted.n_eff <= adjusted.rows
 
 
 def test_extended_horizon_discount_is_stronger_than_primary_horizon() -> None:
@@ -134,9 +156,11 @@ def test_per_fold_n_eff_attaches_to_p24_fold_metadata() -> None:
     assert records[0]["purge_gap"] == 1
     assert records[0]["embargo_gap"] == 1
     assert records[0]["train"]["rows"] == 4
-    assert records[0]["train"]["n_eff"] == 2
+    assert records[0]["train"]["rows_after_purge_embargo"] == 2
+    assert records[0]["train"]["n_eff"] == 1
     assert records[0]["validation"]["rows"] == 2
-    assert records[0]["validation"]["n_eff"] == 1
+    assert records[0]["validation"]["rows_after_purge_embargo"] == 0
+    assert records[0]["validation"]["n_eff"] == 0
 
 
 def test_label_report_carries_opt_in_n_eff_block_and_marker() -> None:
@@ -150,6 +174,7 @@ def test_label_report_carries_opt_in_n_eff_block_and_marker() -> None:
     block = payload["label_n_eff_report"]
     assert block["rows"] == 8
     assert block["n_eff"] == 2
+    assert block["rows_after_purge_embargo"] == 8
     assert block["rows_are_not_independent_samples"] is ROWS_NOT_INDEPENDENT_MARKER
     assert block["overlap_metadata"]["discount_factor"] == 4
     assert block["session_day_aggregation"]["session_trade_date_unit_count"] == 4

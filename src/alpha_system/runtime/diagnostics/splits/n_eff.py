@@ -14,7 +14,10 @@ from typing import Any
 
 JsonScalar = None | bool | int | float | str
 
-ESTIMATOR_FORMULA = "n_eff = floor(rows / discount_factor), bounded to [0, rows]"
+ESTIMATOR_FORMULA = (
+    "n_eff = floor(max(rows - purge_gap - embargo_gap, 0) / discount_factor), "
+    "bounded to [0, rows]"
+)
 ROWS_NOT_INDEPENDENT_MARKER = True
 
 _HORIZON_KEYS: tuple[tuple[str, str], ...] = (
@@ -128,14 +131,42 @@ class NEffEstimate:
     rows: int
     n_eff: int
     overlap_metadata: HorizonOverlapMetadata
+    rows_after_purge_embargo: int | None = None
+    purge_gap: int = 0
+    embargo_gap: int = 0
+    purge_embargo_removed_rows: int | None = None
 
     def __post_init__(self) -> None:
         rows = _non_negative_int(self.rows, "rows")
         n_eff = _non_negative_int(self.n_eff, "n_eff")
+        adjusted_value = rows if self.rows_after_purge_embargo is None else self.rows_after_purge_embargo
+        adjusted_rows = _non_negative_int(
+            adjusted_value,
+            "rows_after_purge_embargo",
+        )
+        purge_gap = _non_negative_int(self.purge_gap, "purge_gap")
+        embargo_gap = _non_negative_int(self.embargo_gap, "embargo_gap")
+        removed_value = (
+            rows - adjusted_rows
+            if self.purge_embargo_removed_rows is None
+            else self.purge_embargo_removed_rows
+        )
+        removed_rows = _non_negative_int(
+            removed_value,
+            "purge_embargo_removed_rows",
+        )
         if n_eff > rows:
             raise NEffSampleReportingError("n_eff must never exceed rows")
+        if adjusted_rows > rows:
+            raise NEffSampleReportingError("rows_after_purge_embargo must never exceed rows")
+        if removed_rows > rows:
+            raise NEffSampleReportingError("purge/embargo removed rows must never exceed rows")
         object.__setattr__(self, "rows", rows)
         object.__setattr__(self, "n_eff", n_eff)
+        object.__setattr__(self, "rows_after_purge_embargo", adjusted_rows)
+        object.__setattr__(self, "purge_gap", purge_gap)
+        object.__setattr__(self, "embargo_gap", embargo_gap)
+        object.__setattr__(self, "purge_embargo_removed_rows", removed_rows)
 
     def to_dict(self) -> dict[str, object]:
         """Return a value-free rows-vs-effective-samples report block."""
@@ -143,12 +174,16 @@ class NEffEstimate:
         return {
             "rows": self.rows,
             "n_eff": self.n_eff,
+            "rows_after_purge_embargo": self.rows_after_purge_embargo,
+            "purge_gap": self.purge_gap,
+            "embargo_gap": self.embargo_gap,
+            "purge_embargo_removed_rows": self.purge_embargo_removed_rows,
             "rows_are_not_independent_samples": ROWS_NOT_INDEPENDENT_MARKER,
             "overlap_metadata": self.overlap_metadata.to_dict(),
             "estimator_formula": ESTIMATOR_FORMULA,
             "conservatism_direction": (
-                "raw rows are discounted by the supplied overlap factor and "
-                "n_eff is never reported above rows"
+                "purge/embargo gaps are removed before the supplied overlap discount "
+                "and n_eff is never reported above rows"
             ),
             "statistical_validity_claim": False,
         }
@@ -227,21 +262,45 @@ def coerce_horizon_overlap_metadata(
 def estimate_n_eff(
     rows: int,
     horizon_overlap_metadata: HorizonOverlapMetadata | Mapping[str, Any] | None,
+    *,
+    purge_gap: int | None = None,
+    embargo_gap: int | None = None,
 ) -> NEffEstimate:
     """Return a conservative overlap-aware effective sample count.
 
-    Rows are discounted by the explicit metadata discount factor. Non-empty
-    overlapping samples retain at least one effective sample, while zero rows
+    Purge/embargo gaps are removed first, then the remaining rows are
+    discounted by the explicit metadata discount factor. Non-empty adjusted
+    samples retain at least one effective sample, while zero adjusted rows
     remain zero. The estimate is always bounded by the raw row count.
     """
 
     active_rows = _non_negative_int(rows, "rows")
+    active_purge_gap = _gap_value(
+        explicit=purge_gap,
+        metadata=horizon_overlap_metadata,
+        key="purge_gap",
+    )
+    active_embargo_gap = _gap_value(
+        explicit=embargo_gap,
+        metadata=horizon_overlap_metadata,
+        key="embargo_gap",
+    )
+    removed_rows = min(active_rows, active_purge_gap + active_embargo_gap)
+    adjusted_rows = active_rows - removed_rows
     metadata = coerce_horizon_overlap_metadata(horizon_overlap_metadata)
-    if active_rows == 0:
+    if adjusted_rows == 0:
         n_eff = 0
     else:
-        n_eff = max(1, math.floor(active_rows / metadata.discount_factor))
-    return NEffEstimate(rows=active_rows, n_eff=min(n_eff, active_rows), overlap_metadata=metadata)
+        n_eff = max(1, math.floor(adjusted_rows / metadata.discount_factor))
+    return NEffEstimate(
+        rows=active_rows,
+        n_eff=min(n_eff, active_rows),
+        overlap_metadata=metadata,
+        rows_after_purge_embargo=adjusted_rows,
+        purge_gap=active_purge_gap,
+        embargo_gap=active_embargo_gap,
+        purge_embargo_removed_rows=removed_rows,
+    )
 
 
 def build_session_day_aggregation(
@@ -315,12 +374,24 @@ def attach_n_eff_to_walk_forward_metadata(
         split_id = _required_text(item.get("split_id"), "split_id")
         train_rows = _index_count(item.get("train_indices"), "train_indices")
         validation_rows = _index_count(item.get("validation_indices"), "validation_indices")
+        purge_gap = _optional_int(item.get("purge_gap"), "purge_gap")
+        embargo_gap = _optional_int(item.get("embargo_gap"), "embargo_gap")
         record: dict[str, object] = {
             "split_id": split_id,
-            "purge_gap": _optional_int(item.get("purge_gap"), "purge_gap"),
-            "embargo_gap": _optional_int(item.get("embargo_gap"), "embargo_gap"),
-            "train": estimate_n_eff(train_rows, metadata).to_dict(),
-            "validation": estimate_n_eff(validation_rows, metadata).to_dict(),
+            "purge_gap": purge_gap,
+            "embargo_gap": embargo_gap,
+            "train": estimate_n_eff(
+                train_rows,
+                metadata,
+                purge_gap=purge_gap,
+                embargo_gap=embargo_gap,
+            ).to_dict(),
+            "validation": estimate_n_eff(
+                validation_rows,
+                metadata,
+                purge_gap=purge_gap,
+                embargo_gap=embargo_gap,
+            ).to_dict(),
         }
         if half_life_protocol is not None:
             record["half_life_protocol"] = half_life_protocol
@@ -393,6 +464,19 @@ def _extract_factor(value: Mapping[str, Any]) -> float:
         if key in value:
             return _positive_float(value.get(key), key)
     raise NEffSampleReportingError("discount_factor is required in horizon overlap metadata")
+
+
+def _gap_value(
+    *,
+    explicit: int | None,
+    metadata: HorizonOverlapMetadata | Mapping[str, Any] | None,
+    key: str,
+) -> int:
+    if explicit is not None:
+        return _non_negative_int(explicit, key)
+    if isinstance(metadata, Mapping) and key in metadata:
+        return _non_negative_int(metadata.get(key), key)
+    return 0
 
 
 def _implied_discount_factor(
