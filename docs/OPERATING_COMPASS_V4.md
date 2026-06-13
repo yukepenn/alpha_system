@@ -1,4 +1,4 @@
-# Alpha System Operating Compass v4.5 — Consolidated Roadmap
+# Alpha System Operating Compass v4.6 — Consolidated Roadmap
 
 Status: canonical. Supersedes Compass v2 / v2.1 / v3 / v3.5 (chat-only). Where
 older routes conflict with this document, this document wins. Live phase status
@@ -29,6 +29,28 @@ ambition input; onboarding many agent researchers early is explicitly named
 an anti-pattern; (c) new §9 digest queue records open decisions awaiting the
 post-kill-shot war council so they are neither lost nor prematurely decided.
 Changes carry [v4.5] tags.
+
+Patched to v4.6 on 2026-06-13 (post-first-kill-shot reality advance). The route
+A→O is unchanged; this patch moves the document's center of gravity from
+"kill-shot upcoming" to "first kill-shot fired" and folds the post-verdict map
+in. Substantive changes, all [v4.6]-tagged inline: (a) **Stage C FIRED → 0 clean
+survivors** — the FUTSUB minimum-substrate kill-shot ran and returned a
+trustworthy negative; Stage A is DONE and Stage C's readiness checklist is
+collapsed to a delivered-and-fired pointer (history preserved in
+`research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md` and the FUTSUB run
+record). (b) **Stage D 0-survivor branch is LIVE** — branch (a) idea
+differentiation is being executed: `SHIP_REFIT_V1` made the verdict engine fast
++ boring (DONE; resolves §9 items 2–3), and `STRATEGY_SHAPED_RESEARCH_LANE_V0`
+(SSRL) is the running expression-layer capability that makes strategy-shaped
+ideas testable. (c) **`DIFFERENTIATED_KILLSHOT_V1` brief authored** as the next
+narrow kill-shot, with two BINDING refinements (Track B hard-gated on
+SSRL-P02/P03; FDR budget amended before any metric to a zero-feed subset — the
+inherited family_budget=6 counted two `needs_paid_data` cards) —
+`research/differentiated_substrate_v1/DIFFERENTIATED_KILLSHOT_V1_BRIEF.md`.
+(d) **§6 priors scored** against the 0-survivor outcome. (e) **new §10** records
+the single research production line and the layer-naming law
+(PA_GRAMMAR_SUBSTRATE ≠ FactorLibrary). Nothing load-bearing deleted; live
+phase status still comes only from `status_doctor`.
 
 ---
 
@@ -236,8 +258,12 @@ Each stage lists ENTRY (trigger), WORK, EXIT (gate). Conditional stages do not
 start until their trigger fires. [v4.1] All ETAs are non-binding informational
 estimates and never override `status_doctor` / live run-state.
 
-### Stage A — FUTSUB minimum trusted substrate  [ACTIVE]
+### Stage A — FUTSUB minimum trusted substrate  [DONE — FUTSUB 34/34]
 
+- [v4.6] DONE: `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` completed 34/34
+  (P19 cost-adjusted tail through P26 BBO/cross-market matrices). The six
+  previously-INCONCLUSIVE families gained no missing packs/labels/guards/N_eff;
+  the substrate was sufficient to fire Stage C. Live record, not this file.
 - ENTRY: now (P19 executing on per-family engine policy).
 - WORK: P19 cost-adjusted tail (reference, checkpoint-resumed) → P20 path
   labels (V1 fast, workers 8, 10.2x) → P21 guard audit → P22 registry/resolver
@@ -328,8 +354,16 @@ Rigor Floor gate machinery and closeout artifacts are delivered by
 - SUBSTRATE-CAVEAT REGISTER: `MET` — R-037 `contract_id` caveat and BBO-proxy limits recorded in the readiness checklist and resume handoff.
 - REAL FEE CONSTANTS: `MET` — P035000 fee schedule tests and review.
 
-### Stage C — CORE_PILOT_RERUN_V1 (the kill-shot)  [the point of everything above]
+### Stage C — CORE_PILOT_RERUN_V1 (the kill-shot)  [FIRED → 0 clean survivors]
 
+- [v4.6] FIRED: the first kill-shot ran on the FUTSUB minimum substrate + the
+  Discovery Rigor Floor and returned **0 clean survivors** — a trustworthy
+  negative, which §0.1 / §3 define as a SUCCESSFUL kill-shot (conclusive, not
+  positive). All §3.C readiness preconditions were DELIVERED before firing
+  (deterministic truth: `research/discovery_rigor_floor_v1/KILL_SHOT_READINESS.md`;
+  the 6-item design list below is retained as the historical record). The route
+  now branches at Stage D's 0-survivor arm (live). The body below is the design
+  spec the kill-shot was held to; it is no longer a forward plan.
 - ENTRY: Stage A + B exits green. Named explicitly; realized as FUTSUB P27–P29
   (re-lock StudySpecs, rerun, honest verdict refresh) if the do-not-duplicate
   check at the P26/P27 boundary confirms; else a narrow named campaign.
@@ -381,6 +415,19 @@ Rigor Floor gate machinery and closeout artifacts are delivered by
 - ETA: days, not weeks (labels are fast now; diagnostics are cheap).
 
 ### Stage D — Survivor gate (route branches on evidence)
+
+- [v4.6] LIVE BRANCH = **0 survivors**. Execution of branch (a) idea
+  differentiation is under way and has two concrete pieces: (1) `SHIP_REFIT_V1`
+  (DONE) made the verdict engine fast + trustworthy so the next cycle is cheap;
+  (2) `STRATEGY_SHAPED_RESEARCH_LANE_V0` (SSRL, running) adds the missing
+  **expression layer** — `SetupSpec`/`MechanismCard` + a quarantined
+  context≠trigger probe over existing path labels — so differentiated,
+  strategy-shaped mechanisms become *expressible* before they are tested. The
+  next narrow kill-shot is pre-registered in
+  `research/differentiated_substrate_v1/DIFFERENTIATED_KILLSHOT_V1_BRIEF.md`
+  (Track A zero-feed calendar mechanisms always-eligible; Track B SetupSpec
+  probes hard-gated on SSRL-P02/P03; FDR budget amended to a zero-feed subset
+  before any metric). Branches (b)–(e) remain available if (a) exhausts.
 
 ```text
 0 survivors (all clean REJECT):
@@ -434,6 +481,14 @@ Rigor Floor gate machinery and closeout artifacts are delivered by
   evidence). TRIGGER: PA/strategy-shaped ideas dominate the queue or a
   survivor is strategy-like. The path-label substrate it needs already exists
   (LCFP).
+  - [v4.6] PRECURSOR PULLED FORWARD: `STRATEGY_SHAPED_RESEARCH_LANE_V0` (Stage D
+    idea-differentiation) builds the MINIMAL slice of this — the expression
+    layer (`SetupSpec`/`MechanismCard`) + a single bounded context≠trigger
+    probe over existing path labels, EXPLORATORY-quarantined — under a generic
+    platform mandate, not by inertia. It is NOT the full sandbox: multi-bar
+    SEQUENCE, geometry sweeps, and any research→reference sim-bridge stay
+    DEFERRED behind this stage's trigger (a strategy-like survivor or a
+    queue dominated by sequence-shaped ideas).
 
 ### Stage F — ALPHA_MINING_V2  [conditional: survivor- or diagnosis-informed]
 
@@ -708,6 +763,31 @@ Recorded 2026-06-10 so future evidence can grade them:
 If the kill-shot contradicts these, the diagnosis branch (Stage D) wins over
 the prior, by construction.
 
+### Scoring after the first kill-shot [v4.6, 2026-06-13]
+
+The first kill-shot fired (0 clean survivors). Grading the priors honestly:
+
+1. **Lower bound HELD, optimistic tail did NOT.** "0–1 individually-validatable
+   survivors" — actual was 0. But the "most probable positive outcome" (1–2
+   pooled/ensemble WATCH from cross-market/regime families) did NOT materialize;
+   the pooled channel produced no WATCH either. The optimistic half of the prior
+   is so far unconfirmed.
+2. **CONFIRMED and acted on.** Idea differentiation — not infrastructure — is the
+   binding constraint; the six families read as crowded priors. The response is
+   exactly this: SSRL (expressibility) + `DIFFERENTIATED_KILLSHOT_V1`
+   (differentiated mechanisms), not a substrate rebuild.
+3. **UNRESOLVED.** No survivors yet exist to form a weak-edge book; the pooled
+   route remains the standing bet, untested post-kill-shot.
+4. **NOT YET TRIGGERED.** No surviving exposures to test for shared equity-beta;
+   Stage N stays the default-expected route per §0.1, not yet activated.
+5. **VALIDATED as doctrine.** The durable asset is the falling marginal cost of
+   an honest verdict — `SHIP_REFIT_V1` was a direct, deliberate investment in
+   exactly that (verdict engine made fast + trustworthy before the next cycle).
+
+Net: the negative was clean and the differentiation pivot was the pre-registered
+response, not a post-hoc rationalization. No prior is overturned; the optimistic
+tail of #1 is simply not yet realized.
+
 ---
 
 ## 7. Upside options adopted post-v4.1 (v4.2, 2026-06-10 red-team)
@@ -802,17 +882,26 @@ a DECISION to make with kill-shot evidence in hand, not a commitment:
    the cost stack's spread/slippage layers (versioned, like fees v2); decide
    NQ/RTY treatment (conservative multipliers vs more data — spending freeze
    in force, hard-stop ask either way).
-2. Diagnostics fast-path: LCFP-pattern parity-gated engine for
-   research/diagnostics.py (~10x precedent) — turns the surrogate floor from
-   a day-burner into a sub-hour routine; top SHIP_REFIT_V1 candidate.
-3. SHIP_REFIT_V1 scope: seam audit (implicit cross-layer contracts →
-   written contracts + canaries + guards; label-side pack writers are the
-   known open seam) + ops pain log (RAM/disk budgeting for compute chains,
-   job-runner discipline, merge babysitter, runbook state-aware
-   preconditions, first-light smoke as campaign-close gate).
-4. DIFFERENTIATED_SUBSTRATE_V1 contract authoring (overnight §7.7, events
-   §7.3, seasonality §7.4, hypothesis sourcing §7.5) — timing depends on the
-   survivor-gate branch.
+2. ~~Diagnostics fast-path~~ **[v4.6 RESOLVED — DELIVERED]** in `SHIP_REFIT_V1`
+   (P02 diagnostics fast-path, parity-gated). The surrogate floor is no longer
+   a day-burner.
+3. ~~SHIP_REFIT_V1 scope~~ **[v4.6 RESOLVED — DONE]**: `SHIP_REFIT_V1` completed
+   (P01 provider watchdog, P02 diagnostics fast-path, P03 detection-power/N_eff,
+   P04 cleanup/provenance). Verdict engine is fast + trustworthy; ops made
+   boring. This is the L0-pilot precondition in Stage L.
+4. **[v4.6 PROMOTED]** DIFFERENTIATED_SUBSTRATE → next kill-shot is
+   pre-registered in
+   `research/differentiated_substrate_v1/DIFFERENTIATED_KILLSHOT_V1_BRIEF.md`
+   with two BINDING refinements: (i) Track B (SetupSpec/strategy-shaped) is
+   hard-gated on SSRL-P02/P03 success; (ii) the FDR budget is AMENDED (via
+   `BudgetAmendmentRecord`) to a zero-feed active subset before any metric —
+   the inherited `family_budget=6` counted two `needs_paid_data` cards
+   (`fomc_drift`, `cpi_surprise_reversion`), which are DEFERRED until a macro
+   feed is onboarded behind the SOP. Track A zero-feed calendar mechanisms
+   (day-of-week, OPEX, month-end, roll-week, open/close clock) are always
+   eligible. Overnight (§7.7) / hypothesis sourcing (§7.5) remain later
+   increments. Campaign-bundle authoring still waits on the SSRL completion +
+   survivor-gate read.
 5. bbo_tradability_spread_ticks substrate finding: zero numeric values across
    all partitions/years (caveat register + first-light case study) — decide
    repair vs retire for the feature.
@@ -820,3 +909,71 @@ a DECISION to make with kill-shot evidence in hand, not a commitment:
 
 Promotion rule: an item leaves this queue only by becoming a campaign
 contract, a standing doctrine section above, or an explicit REJECTED note.
+
+---
+
+## 10. The single research production line + layer-naming law [v4.6]
+
+This section folds in (it does not replace) the §1 layer model and §5 checklist,
+in response to a 2026-06-13 review: "is there one clean pipeline, or are we
+accreting modules that will bloat?" The answer is one line, and everything we
+have built sits on it. **No new artifact is created for this** — it lives here,
+in §1, and in `docs/SYSTEM_MAP.md`.
+
+### The line (one pipeline, evidence-gated, gated by the prior step)
+
+```text
+Idea
+→ MechanismCard / SetupSpec / FactorSpec        (express it — Stage D expression layer, SSRL)
+→ REUSE MAP / duplicate check                   (§0, §5 — before any build)
+→ feature / label / path-label discovery        (Stage A substrate; no raw reads)
+→ EXPLORATORY  vs  TRUSTED lane decision         (quarantine boundary; EXPLORATORY ≠ evidence)
+→ diagnostics / conditional or strategy-shaped probe
+→ VariantLedger / TrialLedger / surrogate-FDR / power   (Stage B rigor floor)
+→ verdict: primary_state + reason_code          (Stage C/F)
+→ RejectedIdea memory  OR  survivor memory       (Stage D gate)
+→ FactorLibrary (survivor-only)                  (Stage G — conditional)
+→ Strategy Reference (survivor-only)             (Stage H — conditional)
+→ AlphaBook → Shadow → Paper → Live              (Stages J–O — conditional, RED last)
+```
+
+The core test of the platform is not "can it backtest" — it is **"can any human
+or AI idea become a computable, reviewable, rejectable, remembered object?"**
+SSRL is the missing *expression* segment of this line; it connects existing
+wheels (path labels, path-outcome diagnostics, StudySpec/rigor, ledgers, the
+no-second-PnL-truth guard), it does not build a new universe.
+
+### Layer-naming law (each object belongs to exactly ONE layer)
+
+```text
+Substrate          data / features / labels / materialized path-label values
+Rigor              ledgers / surrogate-FDR / holdout / canaries / N_eff / power
+Verdict engine     research/ diagnostics + SHIP_REFIT fast path
+Expression layer   MechanismCard / SetupSpec / FeatureSpec / LabelSpec
+                     └─ catalog of these PA/VWAP/event/setup shapes
+                        = PA_GRAMMAR_SUBSTRATE  (grammar, NOT evidence)
+Exploratory lane   SSRL / (later) Feature Fast Lane / Strategy Sandbox  — never evidence
+Trusted lane       AlphaSpec / StudySpec / runtime diagnostics / verdict
+Memory             TrialLedger / RejectedIdeaLedger / (conditional) FactorLibrary
+Reference          survivor-only Strategy Reference (the only second PnL surface)
+Portfolio          AlphaBook / Shadow / Paper / Live
+```
+
+**Binding distinction (do not conflate):**
+`PA_GRAMMAR_SUBSTRATE` is the **expression/grammar catalog** — the vocabulary of
+setups and mechanisms a researcher writes in. `FactorLibrary` (Stage G) is
+**evidence-backed survivor memory** — a factor enters it only AFTER clearing the
+verdict gate. A MechanismCard or SetupSpec is NOT a FactorLibrary entry. Naming
+a grammar catalog "FactorLibrary," or letting an EXPLORATORY artifact into
+survivor memory, is a layer-violation and is refused.
+
+### Anti-bloat rule (already doctrine; restated for this question)
+
+If a proposed campaign / lane / object does not map to exactly one layer above,
+do not build it. Every downstream layer (Fast Lane, Strategy Sandbox,
+FactorLibrary, AlphaBook, Research Runner) is **trigger-gated** by the
+survivor-gate ladder (Stage D) and the §5 checklist + REUSE MAP — a name
+appearing on this roadmap is permission to build it ONLY when its trigger
+fires, never by sequence/inertia. The current legitimate front is exactly two
+items: SSRL (running) and `DIFFERENTIATED_KILLSHOT_V1` (pre-registered). Nothing
+downstream is earned until a survivor exists.
