@@ -10,21 +10,18 @@ The repository-level campaign pointer targets
 `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-Post-`FUTSUB-P29` snapshot: 30 of 34 FUTSUB phases are complete after merge,
-and the `rerun` gate (`FUTSUB-P27`...`FUTSUB-P29`) is closed. `FUTSUB-P27`
-re-locked the Core Pilot StudySpecs against the full substrate, `FUTSUB-P28`
-produced value-free rerun diagnostics, and `FUTSUB-P29` refreshed the honest
-promotion boundary in
-`research/futures_substrate_scaleout_v1/rerun/verdict_refresh.md` and
-`docs/futures_substrate_scaleout/VERDICT_REFRESH.md`.
+Post-`FUTSUB-P30` snapshot: 31 of 34 FUTSUB phases are complete after merge,
+and the `handoff_and_closeout` gate has entered its audit/handoff sequence.
+`FUTSUB-P30` added the value-free artifact audit report at
+`research/futures_substrate_scaleout_v1/closeout/artifact_audit.md` and the
+durable docs mirror at `docs/futures_substrate_scaleout/ARTIFACT_AUDIT.md`.
+The audit keeps materialized values, SQLite registries, roll-calendar data, and
+`runs/**` local-only.
 
-The refreshed boundary is `10 REJECT / 0 INCONCLUSIVE / 0 WATCH / 0
-CANDIDATE_RESEARCH`. The six previously `INCONCLUSIVE` rerun studies are now
-`REJECT` based on resolver-clean, value-free diagnostics evidence and retained
-caveats, including the label diagnostics fail-closed
-`label_coverage_missingness_gate`, duplicate within-family exposures, and BBO
-proxy limits. The next planned phase is `FUTSUB-P30` - Artifact Audit and
-Local-Only Value Verification.
+The refreshed `FUTSUB-P29` boundary remains `10 REJECT / 0 INCONCLUSIVE / 0
+WATCH / 0 CANDIDATE_RESEARCH`, with the same retained caveats around label
+diagnostics, duplicate within-family exposures, and BBO proxy limits. The next
+planned phase is `FUTSUB-P31` - Validation Governance Handoff.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
