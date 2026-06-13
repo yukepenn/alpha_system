@@ -1,0 +1,62 @@
+{
+  "mechanism_id": "opex_pinning",
+  "hypothesis": {
+    "statement": "On scheduled options-expiration (OPEX) and quad-witching sessions, we test whether intraday forward behavior conditioned on the known-ahead OPEX-day flag and time-to-expiration differs from non-OPEX sessions (a 'pinning'-type conditioning hypothesis). Falsifiable; not a profitability claim.",
+    "economic_rationale": "Dealer hedging of expiring options positions can concentrate flow near large open-interest strikes into the expiration; whether this produces a measurable conditional forward pattern is an empirical question the diagnostics resolve. The strike/open-interest detail is NOT assumed here; the conditioner is the calendar position alone unless paid options data is approved."
+  },
+  "expected_horizon": ["30m"],
+  "expected_session": "RTH",
+  "expected_sign": "reversion",
+  "conditioning_variable": {
+    "name": "is_opex_or_quad_witch_session",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_to_expiration",
+      "session_calendar_roll_minutes_to_rth_close",
+      "session_calendar_roll_session_id"
+    ],
+    "new": [
+      {
+        "name": "is_opex_day_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "OPEX / quad-witching dates are DERIVABLE from the exchange calendar (third-Friday rules, quarterly cycle) and are known ahead; needs a new FeatureRequest extending SESSION_CALENDAR_ROLL. The existing minutes_to_expiration feature uses SessionCalendarRollMetadata.expiration_ts_by_contract_id (FUTURES contract expiration), which is related but NOT the options-expiration calendar; do not conflate them."
+      },
+      {
+        "name": "is_quad_witch_day_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "Quarterly quad-witching session flag; derivable from the exchange calendar; same family extension."
+      }
+    ]
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward", "event:return_to_vwap"],
+    "new": []
+  },
+  "lookahead_risk": {
+    "level": "low",
+    "description": "OPEX/quad-witching dates are fully deterministic from the exchange calendar and known years ahead, so the calendar conditioner itself carries little lookahead hazard. The hazard appears only if strike/open-interest 'pin' levels are introduced (those require point-in-time options data and could leak realized positioning).",
+    "mitigation": "Restrict the conditioner to known-ahead calendar flags and time-to-RTH-close / time-to-expiration clocks. Any strike-level or open-interest input is out of scope here (needs paid options data) and would require its own card and point-in-time guard.",
+    "pre_event_knowable_features": ["is_opex_day_flag", "is_quad_witch_day_flag", "session_calendar_roll_minutes_to_rth_close"],
+    "post_event_knowable_features": ["realized_pin_strike", "expiry_open_interest_concentration"]
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "Conditioning on a deterministic options-expiration calendar is structurally distinct from the rejected realized-price/quote main effects. Because the hypothesized 'pinning' is a price-path outcome, the OUTCOME measurement may overlap with vwap_session/return_to_vwap dynamics; orthogonality of the OUTCOME must be checked, but the CONDITIONER is independent of any dead-mechanism input.",
+    "shared_inputs_with_dead": [],
+    "diagnostic_check": "Residualize forward outcomes against vwap_session and regime factors before scoring the OPEX-day conditioner; report marginal contribution. Cross-check that OPEX flag is not merely a proxy for day_of_week or month-end already captured elsewhere."
+  },
+  "capacity_turnover_note": "Approximately 12 monthly OPEX + 4 quad-witching sessions per year; low occurrence count, N_eff-limited but higher than the macro-print mechanisms. Pool across index futures per Track-B. No capacity/turnover dollar claim.",
+  "data_dependency": {
+    "class": "derivable_from_exchange_calendar",
+    "detail": "OPEX (third-Friday) and quad-witching (quarterly) dates are deterministic calendar rules requiring no external feed. This is the lowest-data-dependency card. Strike-level options data (open interest, pin strikes) is paid data and is explicitly OUT OF SCOPE for this card.",
+    "deferred_pending_user_approval": false
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}

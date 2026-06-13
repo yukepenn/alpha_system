@@ -1,0 +1,56 @@
+{
+  "mechanism_id": "month_end_rebalance_flow",
+  "hypothesis": {
+    "statement": "On the known-ahead final trading sessions of a calendar month/quarter, we test whether intraday forward behavior conditioned jointly on month-end-session membership AND proximity-to-RTH-close (the rebalancing window into the close) differs from ordinary sessions. This is a falsifiable rebalancing-flow conditioning hypothesis, not a profitability claim.",
+    "economic_rationale": "Index funds, target-date funds, and mandate rebalancing concentrate buy/sell flow into the month-end and quarter-end closing auction window; whether this produces a measurable conditional forward pattern in the minutes into the close is an empirical question the diagnostics resolve."
+  },
+  "expected_horizon": ["30m"],
+  "expected_session": "RTH",
+  "expected_sign": "undirected",
+  "conditioning_variable": {
+    "name": "is_month_end_session_x_minutes_to_rth_close",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_to_rth_close",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_session_id"
+    ],
+    "new": [
+      {
+        "name": "is_month_end_session_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "Month-end / quarter-end session membership is DERIVABLE from the exchange trading calendar (last available trading session of the month/quarter) and known ahead; needs a new FeatureRequest extending SESSION_CALENDAR_ROLL. No month-end concept exists in the current SessionFeatureName enum. This is the SAME calendar-derivable flag declared (offline note) by the event-calendar month_end_flow card; the two cards must SHARE one FeatureRequest implementation rather than authoring two near-duplicate flags (REUSE-MAP rule)."
+      }
+    ]
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward"],
+    "new": []
+  },
+  "lookahead_risk": {
+    "level": "low",
+    "description": "Month-end / quarter-end last-session membership and minutes-to-close are deterministic from the exchange trading calendar and known ahead. The only hazard is mislabeling the last trading session when a holiday or early close shifts it; a naive calendar-day rule (last day-of-month) would be wrong.",
+    "mitigation": "Derive the month-end / quarter-end flag from the ACTUAL exchange trading calendar (last available trading session in the month/quarter, accounting for holidays and EARLY_CLOSE sessions), carried as known-ahead point-in-time metadata under the _require_metadata_known_as_of guard so a holiday-shifted last session is never inferred from future data.",
+    "pre_event_knowable_features": ["is_month_end_session_flag", "session_calendar_roll_minutes_to_rth_close"],
+    "post_event_knowable_features": []
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "A calendar-derived month-end-x-close-proximity conditioner is structurally independent of the realized-price/quote main effects the dead mechanisms conditioned on. The most material non-orthogonality risk is internal to the seasonality set: overlap with the event-calendar month_end_flow card and redundancy with the existing day_of_week / session-position features, NOT overlap with the dead price-action factors.",
+    "shared_inputs_with_dead": [],
+    "diagnostic_check": "Residualize forward outcomes against the dead-mechanism factors (regime/vwap_session/bbo_tradability/liquidity_pa) AND against minutes_to_rth_close (to confirm the effect is not a generic into-the-close effect on all days). Cross-check against the event-calendar month_end_flow card to ensure the two are pre-registered as ONE pooled hypothesis, not double-counted (see FDR_BUDGET_PRIORITY_2_3.md de-duplication note)."
+  },
+  "capacity_turnover_note": "Approximately 12 month-end + 4 quarter-end closing windows per year; low occurrence count, N_eff-limited. The quarter-end subset is expected to carry the strongest structural rationale but is the rarest. Pool across the index-futures family per Track-B. No capacity/turnover dollar claim.",
+  "data_dependency": {
+    "class": "derivable_from_exchange_calendar",
+    "detail": "Month-end / quarter-end last-trading-session dates are deterministic from the exchange trading calendar; no external feed required. Same low-data-dependency class as opex_pinning and the event-calendar month_end_flow card, and shares its FeatureRequest implementation.",
+    "deferred_pending_user_approval": false
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}

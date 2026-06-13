@@ -1,0 +1,62 @@
+{
+  "mechanism_id": "cpi_surprise_reversion",
+  "hypothesis": {
+    "statement": "Around scheduled CPI releases, we test whether forward intraday behavior conditioned on the post-release window (and, as an offline-only split, on surprise magnitude) shows a measurable reversion-versus-continuation pattern relative to non-event sessions. Falsifiable conditioning hypothesis; not a profitability claim.",
+    "economic_rationale": "Scheduled inflation-print information arrival can trigger an initial impulse followed by liquidity-provision dynamics; whether the post-impulse path reverts or continues is an empirical question the diagnostics resolve."
+  },
+  "expected_horizon": ["5m", "30m"],
+  "expected_session": "event_window",
+  "expected_sign": "reversion",
+  "conditioning_variable": {
+    "name": "minutes_since_scheduled_cpi_release",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_session_id",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_day_of_week"
+    ],
+    "new": [
+      {
+        "name": "minutes_since_scheduled_event",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "Elapsed-time-since-scheduled-release is a known-ahead clock relative to a known-ahead scheduled time; needs a new FeatureRequest extending SESSION_CALENDAR_ROLL with the event-schedule metadata surface. Scheduled time is known ahead; the clock derived from it is therefore point-in-time legal."
+      }
+    ]
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward", "event:return_to_vwap", "event:sweep_outcome"],
+    "new": [
+      {
+        "name": "event_window_forward_return",
+        "label_family": "fixed_horizon",
+        "label_spec_required": true,
+        "reason": "Optional: an event-window-anchored variant of the existing fixed_horizon forward-return label, restricting the anchor to in-window bars. Only needed if the study wants outcomes strictly anchored inside the CPI window rather than reusing the unrestricted fixed_horizon label with a window FEATURE filter. Prefer reuse over a new LabelSpec unless the window-anchoring is load-bearing."
+      }
+    ]
+  },
+  "lookahead_risk": {
+    "level": "high",
+    "description": "CPI SURPRISE (actual vs consensus) is the natural conditioner but is knowable ONLY after the release. Using it as a live feature would be lookahead. Scheduled release time is known ahead and is safe.",
+    "mitigation": "Scheduled release time carried as known-ahead point-in-time metadata (_require_metadata_known_as_of guard). Surprise magnitude is used only as an OFFLINE diagnostic split / labels-only conditioning, never wired into a live (causal) feature contract.",
+    "pre_event_knowable_features": ["minutes_to_scheduled_cpi_release", "minutes_since_scheduled_cpi_release", "in_cpi_event_window_flag"],
+    "post_event_knowable_features": ["cpi_surprise_magnitude", "cpi_actual_minus_consensus"]
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "Conditioning on a scheduled-release clock is structurally distinct from realized-price-action and BBO-state conditioning used by the rejected mechanisms. The reversion-vs-continuation OUTCOME may overlap with vwap_session/sweep dynamics, so the orthogonality claim is weaker than for fomc_drift and must be checked, not assumed.",
+    "shared_inputs_with_dead": ["forward-return outcome labels are shared substrate (not a dead-mechanism input, but the reversion outcome is adjacent to vwap_session)"],
+    "diagnostic_check": "Residualize forward outcomes against the vwap_session and regime dead-mechanism factors before scoring the CPI-window conditioner; report the conditioner's marginal contribution and an explicit overlap diagnostic."
+  },
+  "capacity_turnover_note": "Approximately 12 scheduled CPI releases per year; low occurrence count, N_eff-limited. Pool across instruments per Track-B pooled minimum. No capacity/turnover dollar claim.",
+  "data_dependency": {
+    "class": "needs_paid_data",
+    "detail": "CPI scheduled release dates/times are public and small to encode; CPI surprise/actual values require an external economic-data feed. No economic-calendar source exists in the repo. External macro feed deferred.",
+    "deferred_pending_user_approval": true
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}

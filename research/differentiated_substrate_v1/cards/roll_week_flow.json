@@ -1,0 +1,55 @@
+{
+  "mechanism_id": "roll_week_flow",
+  "hypothesis": {
+    "statement": "During the known-ahead quarterly futures roll window (the days surrounding the front-to-next contract roll), we test whether intraday forward behavior conditioned on roll-window membership and proximity-to-roll differs from non-roll sessions. This is a falsifiable calendar-flow conditioning hypothesis, not a profitability claim.",
+    "economic_rationale": "Calendar spread trading and the migration of open interest from the expiring to the deferred contract concentrate predictable flow into the roll window; whether this produces a measurable conditional forward pattern in the continuous front-contract series is an empirical question the diagnostics resolve."
+  },
+  "expected_horizon": ["30m"],
+  "expected_session": "RTH",
+  "expected_sign": "undirected",
+  "conditioning_variable": {
+    "name": "in_roll_window",
+    "knowability": "pre_event_knowable"
+  },
+  "required_features": {
+    "existing": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_to_rth_close",
+      "session_calendar_roll_session_id"
+    ],
+    "new": [
+      {
+        "name": "in_roll_window_flag",
+        "family": "session_calendar_roll",
+        "feature_request_required": true,
+        "reason": "The roll-window split logic ALREADY EXISTS as a labels-side guard (classify_roll_window / RollWindowLabel {roll_window, non_roll_window, roll_window_unknown} in src/alpha_system/labels/roll_guard.py, with DEFAULT_ROLL_WINDOW_DAYS_BEFORE=2 / AFTER=1 against CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID). It is not exposed as a live FEATURE in the SessionFeatureName enum (which has bars_to_roll / minutes_to_roll, but those are offline-only future-window countdowns with live=False). Surfacing roll-window membership as a known-ahead live feature needs a new FeatureRequest extending SESSION_CALENDAR_ROLL; it must REUSE the existing roll-calendar classification rather than re-deriving roll dates (REUSE-MAP rule), and must use a backward/known-ahead definition, never the offline-only countdown features."
+      }
+    ]
+  },
+  "required_labels": {
+    "existing": ["fixed_horizon", "midprice_forward"],
+    "new": []
+  },
+  "lookahead_risk": {
+    "level": "medium",
+    "description": "Two hazards: (1) the existing bars_to_roll / minutes_to_roll session features are explicitly OFFLINE-ONLY future-window countdowns (live=False) and must NOT be repurposed as live conditioners; (2) the roll DATE is calendar-derivable and known-ahead, but a forward outcome label entered inside the roll window can have its horizon SPAN the roll splice, which is a known leakage path.",
+    "mitigation": "Condition only on a known-ahead, backward-looking roll-window membership flag derived from the existing quarterly roll calendar (not the offline countdown features). Critically, the OUTCOME labels must be passed through the existing evaluate_roll_guard (RollCrossPolicy.DROP default, with TRUNCATE/FLAG options and a safe DROP default when the calendar is missing or ambiguous) so any forward window that crosses the roll splice is dropped/truncated rather than silently splicing two contracts.",
+    "pre_event_knowable_features": ["in_roll_window_flag"],
+    "post_event_knowable_features": []
+  },
+  "expected_orthogonality_to_dead_mechanisms": {
+    "statement": "Roll-window membership is a deterministic calendar position derived from the quarterly roll policy, structurally independent of the realized-price/quote main effects the dead mechanisms conditioned on. Residual non-orthogonality risk is redundancy with the existing expiration-proximity / session-position features rather than with the dead price-action factors; this must be checked.",
+    "shared_inputs_with_dead": [],
+    "diagnostic_check": "Residualize forward outcomes against the dead-mechanism factors (regime/vwap_session/bbo_tradability/liquidity_pa) before scoring the roll-window conditioner. Separately confirm the roll-window flag is not merely a proxy for the existing minutes_to_expiration feature or for the month-end / opex calendar flags from the other cards (the quarterly roll window can be temporally adjacent to quad-witching)."
+  },
+  "capacity_turnover_note": "Approximately 4 quarterly roll windows per year (each a few sessions wide via DEFAULT_ROLL_WINDOW_DAYS_BEFORE/AFTER); low occurrence count, N_eff-limited. Pool across the index-futures family per Track-B. No capacity/turnover dollar claim.",
+  "data_dependency": {
+    "class": "derivable_from_exchange_calendar",
+    "detail": "Quarterly roll dates are deterministic from the existing CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID roll calendar already used by the roll guard; no external feed required. The roll-window classification logic already exists labels-side and is reused, not rebuilt.",
+    "deferred_pending_user_approval": false
+  },
+  "value_free_status": {
+    "contains_values": false,
+    "claims": "hypothesis pre-registration only; no alpha/tradability/profitability claim"
+  }
+}
