@@ -180,6 +180,7 @@ class DiagnosticsReport:
     limitations: tuple[str, ...]
     quality_gates: tuple[DiagnosticsQualityGate, ...]
     rejection_reasons: tuple[RunRejectionReason, ...]
+    power_statement_json: str
     report_metadata_json: str
     report_hash: str
 
@@ -196,6 +197,7 @@ class DiagnosticsReport:
         limitations: Sequence[str],
         quality_gates: Sequence[DiagnosticsQualityGate | Mapping[str, Any]] = (),
         rejection_reasons: Sequence[RunRejectionReason | Mapping[str, Any]] = (),
+        power_statement: Mapping[str, Any] | None = None,
         report_metadata: Mapping[str, JsonScalar] | None = None,
     ) -> None:
         normalized_report_kind = _checked_text(report_kind, field="report_kind")
@@ -220,6 +222,7 @@ class DiagnosticsReport:
         )
         normalized_gates = tuple(_coerce_quality_gate(gate) for gate in quality_gates)
         normalized_reasons = tuple(_coerce_rejection_reason(reason) for reason in rejection_reasons)
+        power_statement_json = _canonical_power_statement(power_statement or {})
         metadata_json = _canonical_scalar_mapping(
             report_metadata or {},
             field="report_metadata",
@@ -253,6 +256,9 @@ class DiagnosticsReport:
             "raw_or_heavy_data_embedded": False,
             "diagnostic_pass_is_alpha_validation": False,
         }
+        active_power_statement = _power_statement_from_json(power_statement_json)
+        if active_power_statement:
+            payload["power_statement"] = active_power_statement
         digest = governance_content_hash(cast(JsonValue, payload))
 
         object.__setattr__(self, "report_id", f"{DIAGNOSTICS_REPORT_ID_PREFIX}_{digest[:24]}")
@@ -266,6 +272,7 @@ class DiagnosticsReport:
         object.__setattr__(self, "limitations", normalized_limitations)
         object.__setattr__(self, "quality_gates", normalized_gates)
         object.__setattr__(self, "rejection_reasons", normalized_reasons)
+        object.__setattr__(self, "power_statement_json", power_statement_json)
         object.__setattr__(self, "report_metadata_json", metadata_json)
         object.__setattr__(self, "report_hash", digest)
 
@@ -299,6 +306,12 @@ class DiagnosticsReport:
 
         return _scalar_mapping_from_json(self.report_metadata_json, field="report_metadata")
 
+    @property
+    def power_statement(self) -> dict[str, JsonValue]:
+        """Return the optional value-free IC power statement block."""
+
+        return _power_statement_from_json(self.power_statement_json)
+
     def to_ref(self) -> DiagnosticsReportRef:
         """Return a compact report reference for diagnostics run records."""
 
@@ -311,7 +324,7 @@ class DiagnosticsReport:
     def to_dict(self) -> dict[str, object]:
         """Return the common diagnostics report payload with no raw or heavy data."""
 
-        return {
+        payload: dict[str, object] = {
             "schema": DIAGNOSTICS_REPORT_SCHEMA,
             "report_id": self.report_id,
             "report_kind": self.report_kind,
@@ -332,6 +345,9 @@ class DiagnosticsReport:
             "diagnostic_pass_is_alpha_validation": False,
             "value_free": True,
         }
+        if self.power_statement:
+            payload["power_statement"] = self.power_statement
+        return payload
 
 
 def _coerce_family(value: DiagnosticsFamily | str) -> DiagnosticsFamily:
@@ -480,7 +496,77 @@ def _scalar_mapping_from_json(text: str, *, field: str) -> dict[str, JsonScalar]
     return normalized
 
 
+def _canonical_power_statement(value: Mapping[str, Any]) -> str:
+    if not isinstance(value, Mapping):
+        raise DiagnosticsReportContractError("power_statement must be a mapping")
+    normalized = _coerce_power_mapping(value, field="power_statement")
+    return _canonical_power_json(normalized, field="power_statement")
+
+
+def _power_statement_from_json(text: str) -> dict[str, JsonValue]:
+    try:
+        value = deserialize(text)
+    except GovernanceSerializationError as exc:
+        raise DiagnosticsReportContractError(
+            f"power_statement must be serialized JSON: {exc}"
+        ) from exc
+    if not isinstance(value, dict):
+        raise DiagnosticsReportContractError("power_statement must serialize to a mapping")
+    return cast(dict[str, JsonValue], value)
+
+
+def _coerce_power_mapping(value: Mapping[str, Any], *, field: str) -> dict[str, JsonValue]:
+    normalized: dict[str, JsonValue] = {}
+    for key, item in value.items():
+        normalized_key = _checked_power_key(key, field=field)
+        normalized[normalized_key] = _coerce_power_value(
+            item,
+            field=f"{field}.{normalized_key}",
+        )
+    return normalized
+
+
+def _coerce_power_value(value: object, *, field: str) -> JsonValue:
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise DiagnosticsReportContractError(f"{field} must be finite")
+        return value
+    if isinstance(value, str):
+        return _checked_text(value, field=field)
+    if isinstance(value, Mapping):
+        return _coerce_power_mapping(value, field=field)
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return [
+            _coerce_power_value(item, field=f"{field}[{index}]")
+            for index, item in enumerate(value)
+        ]
+    raise DiagnosticsReportContractError(
+        f"{field} must be a JSON-compatible power statement value, got {type(value).__name__}"
+    )
+
+
+def _checked_power_key(value: object, *, field: str) -> str:
+    text = _required_text(value, field=field)
+    normalized = text.lower().replace("-", "_")
+    if any(token in normalized for token in HEAVY_ARTIFACT_TOKENS):
+        raise DiagnosticsReportContractError(f"{field} must not include heavy artifact keys")
+    if normalized in {"raw_values", "provider_rows", "canonical_bars"}:
+        raise DiagnosticsReportContractError(f"{field} must not include raw or value-bearing keys")
+    return text
+
+
 def _canonical_json(value: Mapping[str, JsonScalar], *, field: str) -> str:
+    try:
+        return canonical_serialize(cast(JsonValue, dict(value)))
+    except GovernanceSerializationError as exc:
+        raise DiagnosticsReportContractError(f"{field} must be JSON-compatible: {exc}") from exc
+
+
+def _canonical_power_json(value: Mapping[str, JsonValue], *, field: str) -> str:
     try:
         return canonical_serialize(cast(JsonValue, dict(value)))
     except GovernanceSerializationError as exc:

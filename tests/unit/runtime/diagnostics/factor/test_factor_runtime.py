@@ -121,6 +121,11 @@ def test_factor_diagnostics_orchestrates_research_primitives_and_is_summary_only
     assert result.report.coverage_summary["missingness_rate"] == 0.0
     assert result.report.quality_summary["pearson_ic"] == 0.5
     assert result.report.quality_summary["rank_ic"] == 0.75
+    assert result.report.quality_summary["ic_power_n_eff"] == 4
+    assert result.report.quality_summary["ic_power_statistical_validity_claim"] is False
+    assert "Could have detected IC down to" in str(
+        result.report.quality_summary["ic_power_statement"]
+    )
     assert result.report.quality_summary["bucket_is_monotonic"] is True
     assert result.report.quality_summary["bucket_direction"] == "increasing"
     assert result.report.quality_summary["decay_first_horizon_seconds"] == 60
@@ -132,6 +137,9 @@ def test_factor_diagnostics_orchestrates_research_primitives_and_is_summary_only
         )
     assert "bucket_forward_returns" not in str(payload)
     assert "by_horizon" not in str(payload)
+    assert payload["power_statement"]["stacked"]["n_eff"] == 4
+    assert payload["power_statement"]["per_factor"][0]["factor_id"] == "feature_pack_synthetic_v1"
+    assert payload["power_statement"]["per_factor"][0]["scope"] == "per_factor"
 
 
 def test_missing_available_ts_surfaces_rejection_and_terminal_record() -> None:
@@ -161,6 +169,9 @@ def test_missing_available_ts_surfaces_rejection_and_terminal_record() -> None:
         reason.code for reason in result.report.rejection_reasons
     }
     assert result.record.rejection_reasons == result.report.rejection_reasons
+    power = result.report.to_dict()["power_statement"]
+    assert power["stacked"]["n_eff"] == 0
+    assert "Could have detected IC down to" in power["stacked"]["statement"]
 
 
 def test_low_coverage_or_high_missingness_surfaces_failed_diagnostics() -> None:

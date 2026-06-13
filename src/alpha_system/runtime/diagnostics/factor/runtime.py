@@ -22,6 +22,10 @@ from alpha_system.runtime.diagnostics.report import (
     DiagnosticsQualityGateStatus,
     DiagnosticsReport,
 )
+from alpha_system.runtime.diagnostics.power import (
+    build_detection_power_report,
+)
+from alpha_system.runtime.diagnostics.splits.n_eff import estimate_n_eff
 from alpha_system.runtime.diagnostics.splits.walk_forward import (
     WalkForwardSplitConfig,
     WalkForwardSplitError,
@@ -285,12 +289,19 @@ def build_factor_diagnostics_report(
     coverage_summary.update(walk_forward.coverage_summary)
     quality_summary = _quality_summary(relationship, evaluation)
     quality_summary.update(walk_forward.quality_summary)
+    power_statement = _power_statement(
+        relationship=relationship,
+        walk_forward=walk_forward,
+        lineage_refs=lineage_refs,
+    )
+    quality_summary.update(_power_summary_scalars(power_statement))
     report_metadata = {
         "threshold_profile": FACTOR_DIAGNOSTICS_THRESHOLD_PROFILE,
         "orchestrated_research_primitives": (
             "alpha_system.research.ic;alpha_system.research.buckets"
         ),
         "descriptive_tier": "tier_0_factor_diagnostics",
+        "ic_power_statement_reporting": "reported",
     }
     report_metadata.update(walk_forward.report_metadata)
 
@@ -305,6 +316,7 @@ def build_factor_diagnostics_report(
         limitations=_limitations(relationship),
         quality_gates=evaluation.gates,
         rejection_reasons=evaluation.rejection_reasons,
+        power_statement=power_statement,
         report_metadata=report_metadata,
     )
     return FactorDiagnosticsReport(report=report, walk_forward_plan=walk_forward.plan)
@@ -767,6 +779,75 @@ def _quality_summary(
     }
 
 
+def _power_statement(
+    *,
+    relationship: _RelationshipSummary,
+    walk_forward: _WalkForwardEvaluation,
+    lineage_refs: Mapping[str, str],
+) -> dict[str, object]:
+    n_eff = _power_n_eff(relationship, walk_forward)
+    return build_detection_power_report(
+        stacked_n_eff=n_eff,
+        per_factor_inputs=(
+            {
+                "factor_id": _factor_power_id(lineage_refs),
+                "factor_version": _factor_power_version(lineage_refs),
+                "n_eff": n_eff,
+            },
+        ),
+    )
+
+
+def _power_n_eff(
+    relationship: _RelationshipSummary,
+    walk_forward: _WalkForwardEvaluation,
+) -> int:
+    if walk_forward.plan is None:
+        return relationship.ic_sample_count
+    metadata = {
+        "horizon_bars": 1,
+        "sampling_cadence_bars": 1,
+        "discount_factor": 1,
+        "metadata_source": "factor_walk_forward_purge_embargo",
+    }
+    return estimate_n_eff(
+        relationship.ic_sample_count,
+        metadata,
+        purge_gap=walk_forward.plan.config.purge_gap,
+        embargo_gap=walk_forward.plan.config.embargo_gap,
+    ).n_eff
+
+
+def _power_summary_scalars(power_statement: Mapping[str, object]) -> dict[str, JsonScalar]:
+    stacked = power_statement.get("stacked")
+    if not isinstance(stacked, Mapping):
+        return {}
+    return {
+        "ic_power_n_eff": _scalar_int(stacked.get("n_eff")),
+        "ic_power_se_ic": _scalar_float(stacked.get("se_ic")),
+        "ic_power_mde_abs_ic": _scalar_float(stacked.get("mde_abs_ic")),
+        "ic_power_z_multiple": _scalar_float(stacked.get("z_multiple")),
+        "ic_power_statement": str(stacked.get("statement", "")),
+        "ic_power_statistical_validity_claim": False,
+    }
+
+
+def _factor_power_id(lineage_refs: Mapping[str, str]) -> str:
+    for key in ("factor_id", "feature_id", "feature_pack_ref", "feature_pack_version_id"):
+        value = lineage_refs.get(key)
+        if value:
+            return str(value)
+    return "declared_factor"
+
+
+def _factor_power_version(lineage_refs: Mapping[str, str]) -> str:
+    for key in ("factor_version", "feature_version", "feature_pack_ref", "feature_pack_version_id"):
+        value = lineage_refs.get(key)
+        if value:
+            return str(value)
+    return "declared_factor_version"
+
+
 def _limitations(relationship: _RelationshipSummary) -> tuple[str, ...]:
     limitations = [
         (
@@ -938,6 +1019,15 @@ def _horizon_seconds(row: Mapping[str, Any]) -> int:
 def _scalar_float(value: Any) -> float | None:
     output = _numeric(value)
     return None if output is None else float(output)
+
+
+def _scalar_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _optional_int(value: Any) -> int | None:

@@ -676,6 +676,7 @@ def _finish_surrogate_run(
             detection_statistic.detection_threshold_abs_pearson_ic,
             6,
         ),
+        "detection_power": cast(JsonValue, detection_statistic.detection_power),
         "warning_count": len(study_result.summary.warnings),
     }
     run = create_surrogate_study_run(
