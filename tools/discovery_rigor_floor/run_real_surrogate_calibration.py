@@ -48,6 +48,8 @@ PERTURBATION_CONFIGS: tuple[SurrogatePerturbationType, ...] = (
     SurrogatePerturbationType.TRADE_DATE_BLOCK_SHUFFLE,
     SurrogatePerturbationType.TRADE_DATE_BLOCK_BOOTSTRAP,
 )
+ALL_NULL_EXCLUSION_REASON = "all_null_values"
+CONSTANT_FACTOR_EXCLUSION_REASON = "constant_factor_zero_variance"
 SUPPORTED_FORWARD_HORIZONS: dict[str, tuple[int, str]] = {
     "1m": (60, "forward_return_1m"),
     "3m": (180, "forward_return_3m"),
@@ -70,6 +72,8 @@ class _MaterializedPack:
     total_rows: int
     staged_rows: int
     off_grid_event_ts_count: int = 0
+    numeric_rows: int = 0
+    null_rows: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,19 +212,53 @@ def run_real_surrogate_calibration(
             if staging_manifest is not None
             else expected_sub_config_count
         )
-        excluded_factors = (
+        prior_excluded_factors = (
             staging_manifest.excluded_factors if staging_manifest is not None else ()
         )
+        reclassification = _rescore_constant_factor_reclassification(
+            active_namespace,
+            study_spec=study_spec,
+            scope=scope,
+            label_locks=label_locks,
+            declared_feature_family=declared_feature_family,
+            horizon_seconds=horizon_seconds,
+            prior_excluded_factors=prior_excluded_factors,
+        )
+        # Keep staging-time (all-null) exclusions from the manifest and replace
+        # any previously-recorded constant exclusions with the freshly derived
+        # set so a repeated rescore stays idempotent.
+        excluded_factors = (
+            tuple(
+                item
+                for item in prior_excluded_factors
+                if item.reason == ALL_NULL_EXCLUSION_REASON
+            )
+            + reclassification.excluded_factors
+        )
+        kept_sub_config_count = rescore_sub_config_count - len(
+            reclassification.excluded_spec_indices
+        )
         _raise_if_no_numeric_declared_factors(
-            included_sub_config_count=rescore_sub_config_count,
+            included_sub_config_count=kept_sub_config_count,
             excluded_factors=excluded_factors,
         )
+        if reclassification.excluded_factors:
+            # The manifest's included_sub_config_count drives seed_block_size on
+            # any future rescore, so it must remain the original staged count;
+            # only the recorded exclusions list changes.
+            _rewrite_staging_manifest_exclusions(
+                active_namespace,
+                study_spec=study_spec,
+                excluded_factors=excluded_factors,
+                included_sub_config_count=rescore_sub_config_count,
+            )
         report = _rescore_existing_report(
             active_namespace,
             study_spec=study_spec,
             runs_per_config=active_runs_per_config,
             base_seed=active_base_seed,
             surrogate_spec_count=rescore_sub_config_count,
+            excluded_spec_indices=reclassification.excluded_spec_indices,
         )
         _write_real_report(
             report,
@@ -297,6 +335,29 @@ def run_real_surrogate_calibration(
                 label_type=label_type,
                 label_lock=label_lock,
             )
+            if _staged_sub_config_is_constant_factor(
+                factor_values.pack.path,
+                labels.path,
+                horizon_seconds=horizon_seconds,
+            ):
+                excluded_factors.append(
+                    _ExcludedFactor(
+                        factor_id=_lock_text(feature_lock, "feature_id", "feature lock"),
+                        feature_version_id=_lock_text(
+                            feature_lock,
+                            "feature_version_id",
+                            "feature lock",
+                        ),
+                        reason=CONSTANT_FACTOR_EXCLUSION_REASON,
+                        partition=_lock_text(feature_lock, "partition", "feature lock"),
+                        total_rows=factor_values.pack.staged_rows,
+                        null_rows=factor_values.pack.null_rows,
+                        numeric_rows=factor_values.pack.numeric_rows,
+                    )
+                )
+                factor_values.pack.path.unlink(missing_ok=True)
+                labels.path.unlink(missing_ok=True)
+                continue
             surrogate_spec = _surrogate_study_spec(
                 study_spec,
                 feature_record=resolved["feature_record"],
@@ -728,7 +789,7 @@ def _materialize_factor_jsonl(
                         "feature_version_id",
                         "feature lock",
                     ),
-                    reason="all_null_values",
+                    reason=ALL_NULL_EXCLUSION_REASON,
                     partition=_lock_text(feature_lock, "partition", "feature lock"),
                     total_rows=len(staged_rows),
                     null_rows=null_count,
@@ -753,8 +814,165 @@ def _materialize_factor_jsonl(
             actual_content_hash=verification.actual_content_hash,
             total_rows=len(rows),
             staged_rows=len(staged_rows),
+            numeric_rows=numeric_count,
+            null_rows=len(staged_rows) - numeric_count,
         )
     )
+
+
+def _aligned_factor_value_series(
+    factor_rows: Sequence[Mapping[str, Any]],
+    label_rows: Sequence[Mapping[str, Any]],
+    *,
+    horizon_seconds: int,
+) -> list[float]:
+    """Return the factor-value series that enters the directional Pearson IC.
+
+    This mirrors ``align_factor_values_to_labels`` +
+    ``research.ic.pearson_ic._clean_pairs`` exactly for the surrogate scope
+    (no instrument/session/start/end selector is set on the surrogate
+    StudyConfig, so all staged factor rows are selected): each staged factor
+    row is joined to its primary label by
+    ``(instrument_id, event_ts, session_id, data_version, label_version)`` and
+    only pairs with a numeric factor value AND a numeric label value survive
+    into the IC input. The factor variance must be measured on this aligned
+    series, because a factor with two raw values can collapse to a single
+    value once the non-null label join is applied.
+    """
+
+    if not factor_rows:
+        return []
+    sample = factor_rows[0]
+    factor_id = str(sample.get("factor_id", ""))
+    factor_version = str(sample.get("factor_version", ""))
+    data_version = str(sample.get("data_version", ""))
+    label_version = _staged_label_version(label_rows)
+    if label_version is None:
+        return []
+    # Build the primary label index the diagnostic uses: a single declared
+    # label_version, filtered to the declared horizon, keyed by the join tuple.
+    primary_index: dict[tuple[str, str, str], list[float | None]] = {}
+    for row in label_rows:
+        path_metadata = row.get("path_metadata")
+        if not isinstance(path_metadata, Mapping):
+            continue
+        if str(path_metadata.get("label_version", "")) != label_version:
+            continue
+        if str(row.get("data_version", "")) != data_version:
+            continue
+        if _horizon_seconds_value(row.get("horizon")) != horizon_seconds:
+            continue
+        key = (
+            str(row.get("instrument_id", "")),
+            _iso_text(row.get("event_ts"), "event_ts"),
+            str(path_metadata.get("session_id", "")),
+        )
+        primary_index.setdefault(key, []).append(_optional_float(row.get("value")))
+    series: list[float] = []
+    for row in factor_rows:
+        if str(row.get("factor_id", "")) != factor_id:
+            continue
+        if str(row.get("factor_version", "")) != factor_version:
+            continue
+        if str(row.get("data_version", "")) != data_version:
+            continue
+        factor_value = _aligned_numeric_factor_value(row)
+        key = (
+            str(row.get("instrument_id", "")),
+            _iso_text(row.get("event_ts"), "event_ts"),
+            str(row.get("session_id", "")),
+        )
+        for label_value in primary_index.get(key, ()):
+            if factor_value is not None and label_value is not None:
+                series.append(factor_value)
+    return series
+
+
+def _staged_label_version(label_rows: Sequence[Mapping[str, Any]]) -> str | None:
+    for row in label_rows:
+        path_metadata = row.get("path_metadata")
+        if isinstance(path_metadata, Mapping):
+            label_version = path_metadata.get("label_version")
+            if isinstance(label_version, str) and label_version.strip():
+                return label_version.strip()
+    return None
+
+
+def _factor_series_is_zero_variance(series: Sequence[float]) -> bool:
+    """Return True when the aligned IC factor series has no usable variance.
+
+    Zero variance is the precise condition under which
+    ``research.ic._pearson`` returns ``None`` (fewer than two aligned pairs, or
+    a zero factor standard deviation), which makes ``directional.pearson_ic``
+    non-finite and raises ``DetectionStatisticError``. A factor with two or
+    more distinct aligned values keeps a finite IC and must stay in
+    calibration.
+    """
+
+    if len(series) < 2:
+        return True
+    first = series[0]
+    return all(value == first for value in series)
+
+
+def _staged_sub_config_is_constant_factor(
+    factor_path: Path,
+    labels_path: Path,
+    *,
+    horizon_seconds: int,
+) -> bool:
+    """Return True when the staged sub-config has a zero-variance aligned factor.
+
+    Operates on the same staged JSONL the surrogate study reads, so staging,
+    rescore, and tests share one constant-factor criterion. A missing labels
+    file (an already-excluded all-null sibling) is treated as non-constant
+    here because such sub-configs are excluded by the all-null path first.
+    """
+
+    if not factor_path.is_file() or not labels_path.is_file():
+        return False
+    factor_rows = _read_staged_jsonl(factor_path)
+    label_rows = _read_staged_jsonl(labels_path)
+    series = _aligned_factor_value_series(
+        factor_rows,
+        label_rows,
+        horizon_seconds=horizon_seconds,
+    )
+    return _factor_series_is_zero_variance(series)
+
+
+def _read_staged_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _aligned_numeric_factor_value(row: Mapping[str, Any]) -> float | None:
+    for field in ("normalized_value", "value"):
+        value = _optional_float(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _horizon_seconds_value(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _materialize_label_jsonl(
@@ -854,6 +1072,110 @@ def _combine_reports(reports: Sequence[SurrogateCalibrationReport]) -> Surrogate
     return surrogate_calibration_report_from_rows(rows)
 
 
+@dataclass(frozen=True, slots=True)
+class _RescoreConstantReclassification:
+    """Constant-factor sub-configs discovered when rescoring a staged namespace."""
+
+    excluded_factors: tuple[_ExcludedFactor, ...]
+    excluded_spec_indices: frozenset[int]
+
+
+def _rescore_constant_factor_reclassification(
+    namespace: Path,
+    *,
+    study_spec: StudySpec,
+    scope: Mapping[str, Any],
+    label_locks: Sequence[Mapping[str, Any]],
+    declared_feature_family: str,
+    horizon_seconds: int,
+    prior_excluded_factors: Sequence[_ExcludedFactor],
+) -> _RescoreConstantReclassification:
+    """Re-derive constant-factor sub-configs from still-present staged data.
+
+    The original run assigns each non-excluded (factor, partition) sub-config a
+    ``spec_index`` in staging-loop order (label_locks x feature_locks), skipping
+    sub-configs already recorded as exclusions (all-null). This replays that
+    enumeration against the existing all-null exclusions so kept sub-configs map
+    to the SAME spec_index the seeds were generated with, then reads each kept
+    sub-config's staged JSONL to flag the zero-variance (constant) factors.
+    """
+
+    input_root = namespace / "real_surrogate_inputs" / study_spec.study_spec_id
+    # Only the staging-time exclusions (all-null) were skipped when the original
+    # run assigned spec_index slots. Constant-factor exclusions are a post-hoc
+    # reclassification: they DID receive spec_index slots and seed dirs, so they
+    # must NOT be skipped here or the spec_index -> seed mapping would drift on a
+    # repeated rescore.
+    prior_excluded_keys = {
+        (item.factor_id, item.partition)
+        for item in prior_excluded_factors
+        if item.reason == ALL_NULL_EXCLUSION_REASON
+    }
+    excluded_factors: list[_ExcludedFactor] = []
+    excluded_indices: list[int] = []
+    spec_index = 0
+    for label_lock in label_locks:
+        feature_locks = _declared_feature_locks_for_label(
+            scope,
+            label_lock=label_lock,
+            declared_feature_family=declared_feature_family,
+        )
+        label_partition = _lock_text(label_lock, "partition", "label lock")
+        for feature_lock in feature_locks:
+            factor_id = _lock_text(feature_lock, "feature_id", "feature lock")
+            feature_partition = _lock_text(feature_lock, "partition", "feature lock")
+            if (factor_id, feature_partition) in prior_excluded_keys:
+                # Already excluded by the original run (all-null); it never
+                # received a spec_index, so do not advance the counter.
+                continue
+            sub_config_index = spec_index
+            spec_index += 1
+            input_dir = (
+                input_root
+                / _path_token(label_partition)
+                / _path_token(factor_id)
+            )
+            factor_path = input_dir / "factor-values.jsonl"
+            labels_path = input_dir / "labels.jsonl"
+            if not _staged_sub_config_is_constant_factor(
+                factor_path,
+                labels_path,
+                horizon_seconds=horizon_seconds,
+            ):
+                continue
+            staged_rows, numeric_rows = _staged_factor_row_counts(factor_path)
+            excluded_factors.append(
+                _ExcludedFactor(
+                    factor_id=factor_id,
+                    feature_version_id=_lock_text(
+                        feature_lock,
+                        "feature_version_id",
+                        "feature lock",
+                    ),
+                    reason=CONSTANT_FACTOR_EXCLUSION_REASON,
+                    partition=feature_partition,
+                    total_rows=staged_rows,
+                    null_rows=staged_rows - numeric_rows,
+                    numeric_rows=numeric_rows,
+                )
+            )
+            excluded_indices.append(sub_config_index)
+    return _RescoreConstantReclassification(
+        excluded_factors=tuple(excluded_factors),
+        excluded_spec_indices=frozenset(excluded_indices),
+    )
+
+
+def _staged_factor_row_counts(factor_path: Path) -> tuple[int, int]:
+    if not factor_path.is_file():
+        return 0, 0
+    rows = _read_staged_jsonl(factor_path)
+    numeric_rows = sum(
+        1 for row in rows if _aligned_numeric_factor_value(row) is not None
+    )
+    return len(rows), numeric_rows
+
+
 def _rescore_existing_report(
     namespace: Path,
     *,
@@ -861,11 +1183,19 @@ def _rescore_existing_report(
     runs_per_config: int,
     base_seed: int,
     surrogate_spec_count: int,
+    excluded_spec_indices: frozenset[int] = frozenset(),
 ) -> SurrogateCalibrationReport:
     rows: list[dict[str, Any]] = []
     seed_block_size = surrogate_spec_count * runs_per_config
     for config_index, perturbation_type in enumerate(PERTURBATION_CONFIGS):
         for spec_index in range(surrogate_spec_count):
+            # Seed numbering is preserved: excluded (constant-factor) sub-configs
+            # keep their original spec_index slot in the seed formula so the
+            # remaining kept sub-configs still resolve their original seed dirs.
+            # Their seed rows are dropped from the aggregation (recorded
+            # exclusion), never read as errors.
+            if spec_index in excluded_spec_indices:
+                continue
             for run_index in range(runs_per_config):
                 seed = (
                     base_seed
@@ -1125,7 +1455,7 @@ def _render_real_report(
         f"- Declared feature family: `{declared_feature_family}`.",
         f"- Declared factor count: {len(declared_factor_ids)}.",
         f"- Declared factors: {_inline_code_list(declared_factor_ids)}.",
-        f"- Excluded all-null factor partitions: {len(excluded_factors)}.",
+        f"- Excluded all-null/constant factor partitions: {len(excluded_factors)}.",
         f"- Declared label pack count: {len(label_locks)}.",
         f"- Declared label versions: {_inline_code_list(label_versions)}.",
         f"- Staged surrogate sub-config count: {len(staging_provenance)}.",
@@ -1230,6 +1560,55 @@ def _write_staging_manifest(
         ],
     }
     path = input_root / STAGING_MANIFEST_NAME
+    path.write_text(
+        json.dumps(payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _rewrite_staging_manifest_exclusions(
+    namespace: Path,
+    *,
+    study_spec: StudySpec,
+    excluded_factors: Sequence[_ExcludedFactor],
+    included_sub_config_count: int,
+) -> Path | None:
+    """Record rescore-derived exclusions on the existing staging manifest.
+
+    Preserves the manifest's original ``included_sub_config_count`` (which the
+    seed formula depends on) and only rewrites the recorded ``excluded_factors``
+    plus the metadata ``included_factors`` list, dropping the entries that are
+    now recorded as constant-factor exclusions.
+    """
+
+    path = (
+        namespace
+        / "real_surrogate_inputs"
+        / study_spec.study_spec_id
+        / STAGING_MANIFEST_NAME
+    )
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return None
+    excluded_keys = {(item.factor_id, item.partition) for item in excluded_factors}
+    included = payload.get("included_factors")
+    if isinstance(included, list):
+        payload["included_factors"] = [
+            entry
+            for entry in included
+            if not (
+                isinstance(entry, Mapping)
+                and (str(entry.get("factor_id")), str(entry.get("partition")))
+                in excluded_keys
+            )
+        ]
+    payload["included_sub_config_count"] = included_sub_config_count
+    payload["excluded_factors"] = [
+        _excluded_factor_to_dict(item) for item in excluded_factors
+    ]
     path.write_text(
         json.dumps(payload, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
