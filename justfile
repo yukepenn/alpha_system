@@ -178,6 +178,12 @@ frontier-summary $run_id:
 frontier-lessons $run_id:
     python tools/frontier/lessons_candidates.py --run-id "$run_id"
 
+frontier-clean:
+    python tools/frontier/cleanup.py --apply
+
+frontier-clean-dry-run:
+    python tools/frontier/cleanup.py
+
 frontier-clean-worktrees:
     python tools/frontier/worktree_manager.py clean
 

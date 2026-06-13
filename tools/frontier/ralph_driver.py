@@ -38,6 +38,7 @@ from tools.frontier.git_utils import (
     PushBranchResult,
     commit_phase_changes,
     git,
+    local_branch_exists,
     local_commit_exists,
     prepare_phase_branch,
     push_phase_branch,
@@ -48,6 +49,7 @@ from tools.frontier.git_utils import (
     write_push_branch_artifacts,
     write_remote_branch_artifacts,
 )
+from tools.frontier.cleanup import run_frontier_cleanup
 from tools.frontier.github_utils import (
     ALREADY_MERGED,
     AUTO_MERGE_ARMED,
@@ -3124,6 +3126,7 @@ def cleanup_phase_worktree_after_merge(
     config = load_config(ROOT / "frontier.yaml")
     github_config = config.get("github") if isinstance(config.get("github"), dict) else {}
     remote = str(github_config.get("remote") or "origin")
+    effective_dry = bool(state.get("mock_providers")) if dry_run is None else bool(dry_run)
     # Worktree removal + branch delete only apply in worktree mode.
     if state.get("worktree_mode"):
         path_text = str(phase.get("worktree_path") or "").strip()
@@ -3134,7 +3137,7 @@ def cleanup_phase_worktree_after_merge(
                 Path(path_text),
                 branch,
                 remote=remote,
-                dry_run=bool(state.get("mock_providers")) if dry_run is None else dry_run,
+                dry_run=effective_dry,
             )
             write_json(phase_dir / "worktree_cleanup.json", cleanup)
             append_event(
@@ -3153,8 +3156,18 @@ def cleanup_phase_worktree_after_merge(
         # `git push --delete` does not flip core.bare. Guarded to auto/ branches,
         # skipped under mock/dry-run; best-effort, never blocks the merge.
         branch = str(phase.get("branch") or "").strip()
-        effective_dry = bool(state.get("mock_providers")) if dry_run is None else bool(dry_run)
         if branch.startswith("auto/") and not effective_dry:
+            current = git(ROOT, "branch", "--show-current")
+            if current.returncode == 0 and current.stdout.strip() != branch and local_branch_exists(ROOT, branch):
+                local_delete = git(ROOT, "branch", "-D", branch)
+                append_event(
+                    run_dir,
+                    state,
+                    "LOCAL_BRANCH_DELETED" if local_delete.returncode == 0 else "LOCAL_BRANCH_DELETE_FAILED",
+                    phase_id=phase["phase_id"],
+                    branch=branch,
+                    ok=local_delete.returncode == 0,
+                )
             delete = git(ROOT, "push", remote, "--delete", branch)
             append_event(
                 run_dir,
@@ -3175,6 +3188,29 @@ def cleanup_phase_worktree_after_merge(
             core_bare_restored=bool(repo_hygiene.get("core_bare_restored")),
             base_synced=bool(repo_hygiene.get("base_synced")),
         )
+    try:
+        cleanup_apply = (not effective_dry) and _path_is_under(run_dir, ROOT / "runs")
+        cleanup = run_frontier_cleanup(
+            repo_root=ROOT,
+            worktree_root=runtime_config().worktree_root,
+            active_run_dir=run_dir,
+            dry_run=not cleanup_apply,
+        )
+    except Exception as error:
+        cleanup = {"schema_version": "frontier-cleanup-v1", "ok": False, "error": str(error)}
+    write_json(phase_dir / "post_merge_cleanup.json", cleanup)
+    worktrees = cleanup.get("worktrees") if isinstance(cleanup, dict) else {}
+    retention = cleanup.get("runs_retention") if isinstance(cleanup, dict) else {}
+    append_event(
+        run_dir,
+        state,
+        "POST_MERGE_CLEANUP",
+        phase_id=phase["phase_id"],
+        dry_run=bool(cleanup.get("dry_run", True)) if isinstance(cleanup, dict) else True,
+        stale_worktrees=len(worktrees.get("stale", [])) if isinstance(worktrees, dict) else 0,
+        rotated_runs=len(retention.get("rotated", [])) if isinstance(retention, dict) else 0,
+        ok=cleanup.get("ok", True) is not False if isinstance(cleanup, dict) else False,
+    )
 
 
 def read_json_if_exists(path: Path) -> dict[str, Any]:
@@ -3192,6 +3228,14 @@ def read_stripped_if_exists(path: Path) -> str | None:
         return None
     value = path.read_text(encoding="utf-8").strip()
     return value or None
+
+
+def _path_is_under(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(parent.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
 
 
 def phase_branch_from_artifacts(
@@ -5005,8 +5049,12 @@ def execute_provider_phase(
                         result=result,
                     ):
                         return False
-                    (phase_dir / "done_check.md").write_text(done_text, encoding="utf-8")
-                    write_provider_verdict(phase_dir, state, phase, "BLOCKED", source="done_check_error")
+                    write_done_check_result(
+                        phase_dir,
+                        state,
+                        phase,
+                        done_text.rstrip() + "\n\nDONE_CHECK: BLOCKED\n",
+                    )
                     block_provider_run(run_dir, state, phase, "BLOCKED", "Claude done-check returned nonzero.")
                     return False
             done_verdict = write_done_check_result(phase_dir, state, phase, done_text)
@@ -5026,7 +5074,7 @@ def execute_provider_phase(
             return False
         elif done_verdict == "PASS_WITH_WARNINGS" and verdict == "PASS":
             verdict = "PASS_WITH_WARNINGS"
-            write_provider_verdict(phase_dir, state, phase, verdict, source="done_check_warning")
+            append_event(run_dir, state, "DONE_CHECK_WARNING_PROMOTED", phase_id=phase_id, verdict=verdict)
 
     if not post_phase_git_github(
         run_dir, state, phase, verdict, execution_root=execution_root, defer_merge=defer_merge
