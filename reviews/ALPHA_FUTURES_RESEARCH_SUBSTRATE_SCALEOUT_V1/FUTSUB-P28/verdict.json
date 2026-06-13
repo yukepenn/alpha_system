@@ -1,0 +1,27 @@
+{
+  "schema_version": "frontier-review-verdict-v1",
+  "phase_id": "FUTSUB-P28",
+  "run_id": "2026-06-07T235209Z_ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
+  "verdict": "PASS_WITH_WARNINGS",
+  "severity": "warning",
+  "source": "coordinator_adjudication_fresh_review",
+  "parsed_at": "2026-06-13T14:20:00Z",
+  "adjudication_note": "P28 had BLOCKED on repair-exhaustion driven by a done-check provenance REWORK (fresh review of repaired artifacts not at committed reviews/ path; executor cannot write reviews/) plus a transient codex provider-hang. Substance verified independently (3 adversarial verifiers, all PASS; synthesis RESOLVE_PASS_WITH_WARNINGS, zero must-fix). This committed review + verdict resolve done-check reason 1; reasons 2 (N_eff provenance) and 3 (label-gate caveat) are confirmed legitimate and P29-carryable, not defects.",
+  "required_repairs": [],
+  "must_fix": [],
+  "caveats_for_p29": [
+    "label_coverage_missingness_gate fail-closed for all six (config gate, no audit bundle) — P29 must supply the audit bundle; not a substrate gap",
+    "near-zero factor IC (|Pearson IC|<=0.0204, |Rank IC|<=0.0011, non-monotone buckets) — descriptive only, P29 owns the verdict",
+    "within-family near-duplicates (liquidity_pa 840e83/c237c6, vwap_session 1604b0/f6cbd88 byte-identical) — treat as near-duplicates for multiple-testing/FDR",
+    "N_eff is first-order (flat horizon/cadence discount; no purge/embargo/session-clustering/autocorrelation fold-in); statistical_validity_claim False",
+    "provenance row-population split: headline N_eff (registered rows) vs factor diagnostics (capped ~74k samples) are different populations",
+    "BBO is a time-sampled forward-filled top-of-book proxy, not execution truth",
+    "pre-existing accepted debt: registry_event_ts_grid ALLOW lines (BBO_PENDING_RE_MATERIALIZATION, COST_SPREAD_LABEL_MIRROR_DEFECT), unrelated to P28"
+  ],
+  "verifier_basis": "workflow p28-killshot-verdict-verify: science_soundness=PASS, neff_provenance=PASS, label_gate_and_posture=PASS",
+  "external_providers_called": true,
+  "network_used": true,
+  "mock_providers": false,
+  "auto_merge_performed": false
+}
