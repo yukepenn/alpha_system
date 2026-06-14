@@ -352,7 +352,7 @@ phases:
     never_commit: *never_commit
     explicit_staging_only: true
   done_criteria:
-  - All 5 mechanisms scored on real data (post FDR-restatement + surrogate zero-pass); each has primary_state + reason_code + N_eff/power; verdict_refresh.md committed (research-only language, no tradability claim); any WATCH/CANDIDATE has a reviewer_verdict artifact and is surfaced; research/ imports no value engine; canaries PASS; runs/ untracked.
+  - All gated mechanisms scored on real data (the 4 that reached ZERO_PASS_MET in DK-P02 -- opex, month_end, day_of_week, open_close; roll_week carried as DATA_GAP / excluded from real-metric inspection per DK-P02's surrogate calibration, its in_roll_window_flag degenerate/all-null) (post FDR-restatement + surrogate zero-pass); each scored mechanism has primary_state + reason_code + N_eff/power; verdict_refresh.md committed (research-only language, no tradability claim); any WATCH/CANDIDATE has a reviewer_verdict artifact and is surfaced; research/ imports no value engine; canaries PASS; runs/ untracked.
   handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P03.md
   review: yellow lane; fresh Claude Opus review required (verdict soundness + no-second-PnL + reason-code fidelity).
 
@@ -415,8 +415,8 @@ phases:
   verifier: Claude Sonnet 4.6
   purpose: Aggregate Track A + Track B into one honest campaign verdict, apply the survivor gate, and write the closeout evidence so the kill-shot is conclusive.
   scope:
-  - Aggregate the 5 Track A mechanism verdicts + the Track B EXPLORATORY readout into research/differentiated_substrate_v1/CAMPAIGN_VERDICT.md (primary_state + reason_code per item; the boundary roll-up across REJECT/INCONCLUSIVE+code/WATCH/CANDIDATE_RESEARCH). Apply the survivor gate -- 0 clean survivors with no remaining substrate excuse = a successful, conclusive kill-shot; ANY WATCH/CANDIDATE survivor is SURFACED for the survivor-gate decision (reviewer_verdict + reason_code), never auto-promoted, no factory by inertia.
-  - Write the evidence summary + RUN_SUMMARY equivalent; record carried caveats (zero-feed approximations, N_eff limits, DATA_GAP if Track B hit one, fomc/cpi deferred). Research-only language; no profitability/tradability/alpha claim; no promotion.
+  - Aggregate the full 5-mechanism Track A surface (4 scored on real data: opex, month_end, day_of_week, open_close; + roll_week carried as INCONCLUSIVE/DATA_GAP, excluded from real-metric inspection per DK-P02's surrogate calibration -- its in_roll_window_flag degenerate/all-null) + the Track B EXPLORATORY readout into research/differentiated_substrate_v1/CAMPAIGN_VERDICT.md (primary_state + reason_code per item; the boundary roll-up across REJECT/INCONCLUSIVE+code/WATCH/CANDIDATE_RESEARCH). Apply the survivor gate -- 0 clean survivors with no remaining substrate excuse = a successful, conclusive kill-shot; ANY WATCH/CANDIDATE survivor is SURFACED for the survivor-gate decision (reviewer_verdict + reason_code), never auto-promoted, no factory by inertia.
+  - Write the evidence summary + RUN_SUMMARY equivalent; record carried caveats (zero-feed approximations, N_eff limits, roll_week DATA_GAP (in_roll_window_flag degenerate/all-null, excluded from DK-P03 real-metric inspection), DATA_GAP if Track B hit one, fomc/cpi deferred). Research-only language; no profitability/tradability/alpha claim; no promotion.
   non_goals:
   - Any promotion / FactorLibrary build / next-campaign authoring (that is a separate, triggered decision); any new metric beyond aggregation; any paid data.
   checks:
@@ -446,6 +446,6 @@ phases:
     never_commit: *never_commit
     explicit_staging_only: true
   done_criteria:
-  - CAMPAIGN_VERDICT.md aggregates all 5 Track A + Track B items with primary_state + reason_code; survivor gate applied (0 survivors documented as conclusive, or survivor surfaced with reviewer_verdict); evidence summary + RUN_SUMMARY written; research-only language; no promotion; canaries PASS; runs/ untracked.
+  - CAMPAIGN_VERDICT.md aggregates all 5 Track A mechanisms (= 4 scored -- opex, month_end, day_of_week, open_close -- plus 1 DATA_GAP -- roll_week INCONCLUSIVE/DATA_GAP, excluded from real-metric inspection per DK-P02) + Track B item with primary_state + reason_code; survivor gate applied (0 survivors documented as conclusive, or survivor surfaced with reviewer_verdict); evidence summary + RUN_SUMMARY written; research-only language; no promotion; canaries PASS; runs/ untracked.
   handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P05.md
   review: yellow lane; fresh Claude Opus review required (verdict honesty + survivor-gate discipline + no promotion).

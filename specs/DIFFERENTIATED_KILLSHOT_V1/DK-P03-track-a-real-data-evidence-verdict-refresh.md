@@ -13,9 +13,13 @@ verifier: Claude Sonnet 4.6
 
 ## Purpose
 
-Run the **first real-data metric** of the campaign for the five Track A differentiated
-mechanisms (day-of-week, OPEX/quad-witch pinning, month-end flow, roll-week flow, open/close
-auction proximity) and map their evidence to the **closed verdict taxonomy honestly**. This is
+Run the **first real-data metric** of the campaign for the **4 gated** Track A differentiated
+mechanisms that reached `ZERO_PASS_MET` in DK-P02 (day-of-week, OPEX/quad-witch pinning,
+month-end flow, open/close auction proximity) and map their evidence to the **closed verdict
+taxonomy honestly**. The fifth pre-registered mechanism, **roll-week flow, is carried as a
+`DATA_GAP` and is excluded from real-metric inspection** (its `in_roll_window_flag` is
+degenerate/all-null per DK-P02's surrogate calibration, so scoring it would violate the
+FDR-before-metric invariant). This is
 the only phase in which a value-bearing IC/return/diagnostic may be inspected, and it is
 unlocked **only because two gates strictly precede it**: the DK-P00 FDR active-subset
 restatement (value-free pre-registration) and the DK-P02 surrogate-FDR `ZERO_PASS_MET`
@@ -89,9 +93,11 @@ one. No promotion, no second PnL truth, no alpha/tradability/profitability claim
 
 ## Scope
 
-1. **Score each locked StudySpec with the runtime factor diagnostics.** For each of the five
-   StudySpecs authored/locked in DK-P02
-   (`research/differentiated_substrate_v1/study_specs/`), call
+1. **Score each gated locked StudySpec with the runtime factor diagnostics.** For each of the
+   **4 gated** StudySpecs authored/locked in DK-P02 that reached `ZERO_PASS_MET` (opex,
+   month_end, day_of_week, open_close;
+   `research/differentiated_substrate_v1/study_specs/`) — **roll_week is excluded** here
+   (`DATA_GAP`, degenerate/all-null `in_roll_window_flag`; no real metric is read for it) — call
    `build_factor_diagnostics_run` with the calendar flag as the declared conditioning
    factor-under-test, forward-return labels at the card's pre-registered horizon(s), pooled
    ES/NQ/RTY as one test. Produce the directional / point-biserial IC, bucket diagnostics, and
@@ -110,8 +116,12 @@ one. No promotion, no second PnL truth, no alpha/tradability/profitability claim
    DK-P00 restatement (event-calendar 6, flow-seasonality 4). Do not exceed budget; do not
    author a `BudgetAmendmentRecord`.
 5. **Write the verdict refresh.** Produce
-   `research/differentiated_substrate_v1/verdict_refresh.md` mapping each mechanism's evidence
-   to a closed-taxonomy `primary_state` + (for `INCONCLUSIVE`) a `VerdictReasonCode`. Mirror the
+   `research/differentiated_substrate_v1/verdict_refresh.md` mapping each **scored** mechanism's
+   evidence to a closed-taxonomy `primary_state` + (for `INCONCLUSIVE`) a `VerdictReasonCode`.
+   The roll-up still spans the full pre-registered surface: the **4 gated** mechanisms carry real
+   per-mechanism rows, and **roll_week is recorded as `INCONCLUSIVE` + `DATA_GAP`** (no metric
+   read; degenerate/all-null `in_roll_window_flag`) so the document remains internally consistent
+   over all 5 pre-registered mechanisms. Mirror the
    FUTSUB `verdict_refresh.md` structure: evidence inputs, a boundary roll-up table across
    `REJECT` / `INCONCLUSIVE`+code / `WATCH` / `CANDIDATE_RESEARCH`, and a per-mechanism row with
    `primary_state`, `reason_code`, `N_eff`, `MDE`, and the runtime `StudyRunResultState` it was
@@ -300,9 +310,13 @@ These are the **only** paths this phase may stage and commit. Stage by explicit 
 
 ## Done Criteria
 
-- All five Track A mechanisms scored on **real data**, post FDR-restatement + surrogate
-  zero-pass (both predecessor gates committed and consumed, not re-opened).
-- Each mechanism has a closed-taxonomy `primary_state` + (for `INCONCLUSIVE`) a
+- All **gated** Track A mechanisms scored on **real data** — the **4** that reached
+  `ZERO_PASS_MET` in DK-P02 (opex, month_end, day_of_week, open_close) — post FDR-restatement +
+  surrogate zero-pass (both predecessor gates committed and consumed, not re-opened).
+  **roll_week is carried as `DATA_GAP` / excluded from real-metric inspection** (degenerate/all-null
+  `in_roll_window_flag` per DK-P02's surrogate calibration); scoring it would violate
+  FDR-before-metric, so it is recorded as `INCONCLUSIVE`+`DATA_GAP`, not re-scored.
+- Each **scored** mechanism has a closed-taxonomy `primary_state` + (for `INCONCLUSIVE`) a
   `VerdictReasonCode` + `N_eff` + `SE(IC)` + `MDE` power statement; N_eff-limited mechanisms land
   `INCONCLUSIVE`+`UNDERPOWERED` honestly.
 - `research/differentiated_substrate_v1/verdict_refresh.md` committed with a per-mechanism

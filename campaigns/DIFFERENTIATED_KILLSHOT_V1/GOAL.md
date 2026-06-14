@@ -58,8 +58,10 @@ production line — not a reflexive factory build on a 0-survivor board.
 
 ## Definition of Campaign Done
 
-All five Track A mechanisms scored on real data (post FDR-restatement + surrogate zero-pass) with a
-`primary_state + reason_code`; one context≠trigger Track B EXPLORATORY probe run over path labels
+All 5 pre-registered Track A mechanisms accounted for — the **4 gated** scored on real data
+(opex, month_end, day_of_week, open_close; post FDR-restatement + surrogate zero-pass) with a
+`primary_state + reason_code`, and **roll_week carried as `INCONCLUSIVE`/`DATA_GAP`** (degenerate/all-null
+`in_roll_window_flag`, excluded from real-metric inspection per DK-P02); one context≠trigger Track B EXPLORATORY probe run over path labels
 (real evidence or honest `DATA_GAP`), never promoted; a campaign verdict aggregates them under the
 survivor gate (0 survivors documented as conclusive, or any survivor surfaced with a reviewer
 verdict — never auto-promoted); all invariants hold; `RUN_SUMMARY` written; research-only language
