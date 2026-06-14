@@ -7,9 +7,10 @@ and validating offline research substrate under Frontier Harness Generic
 ## Current Snapshot
 
 The active non-mock campaign is `ALPHA_IDEA_TO_VERDICT_LOOP_V0`, a seven-phase
-IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P04 is
-complete after IVL-P00..P03 established the role map, intake validator,
-executable pre-test gate, and generic fast exploratory lane bridge:
+IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P05 is
+complete after IVL-P00..P04 established the role map, intake validator,
+executable pre-test gate, generic fast exploratory lane bridge, and governed
+verdict report renderer:
 
 - `alpha idea validate <idea.yaml>` emits a value-free canonical object family:
   `IdeaDraft` lineage sidecar, HypothesisCard parent, AlphaSpec trunk, and an
@@ -40,17 +41,25 @@ executable pre-test gate, and generic fast exploratory lane bridge:
   human-readable `REPORT.md` from precomputed intake, testability, and fast
   readout summaries; `alpha idea report <idea.yaml> --testability-json <path>
   --fast-readout-json <path>` exposes the renderer without running a probe.
+- `src/alpha_system/research_lane/memory_router.py` routes governed verdicts to
+  value-free memory records: REJECT to the rejected-idea graveyard keyed by the
+  minted AlphaSpec id, DATA_GAP to requeue, and WATCH/CANDIDATE only through
+  reviewer-gated promotion inputs.
+- `alpha idea run <idea.yaml>` now composes validate, testability, fast probe
+  when the pre-test gate passes, report rendering, and memory routing. A
+  DATA_GAP gate short-circuits before a probe shot is spent.
 - `src/alpha_system/research/conditional_probe.py` now has an additive
   >=2-distinct-class guard for conditioned path-label rows.
 
-After IVL-P04, the next phase is IVL-P05: memory wiring plus `alpha idea run`
-end-to-end orchestration. The campaign remains GREEN/YELLOW only and
+After IVL-P05, the next phase is IVL-P06: dogfood the assembled loop on the
+DK Track B fixture. The campaign remains GREEN/YELLOW only and
 research-only: no alpha, profitability, tradability, or production claim; no
 second value/accounting truth; `research/` imports no value engine; exploratory
 readouts are never auto-promoted; no materialize, scaleout-driver, paid-data,
 broker, paper, live, order-routing, deployment, or FactorLibrary promotion.
-FactorLibrary remains survivor-only, and exploratory outputs keep
-`promotion_eligible` false.
+FactorLibrary remains survivor-only, exploratory outputs keep
+`promotion_eligible` false, and the frozen governance schemas remain
+byte-unchanged.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
