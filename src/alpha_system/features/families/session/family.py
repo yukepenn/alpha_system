@@ -5,21 +5,29 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import date as Date
+from datetime import datetime, time, timedelta
 from enum import StrEnum
+from functools import lru_cache
 from types import MappingProxyType
 from typing import Any
 
 from alpha_system.data.foundation.grid import DenseGridBarRecord
-from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.rolls import (
+    CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS,
+    build_analytic_cme_equity_index_quarterly_roll_calendar,
+    third_friday,
+)
 from alpha_system.data.foundation.sessions import (
     CME_INDEX_FUTURES_SESSION_TEMPLATE_ID,
     SessionTemplate,
     SessionWindowState,
     classify_session_timestamp,
     load_session_template_by_id,
+    load_trading_calendar_records,
     session_segment_id,
 )
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -44,6 +52,7 @@ from alpha_system.features.semantics import (
 )
 from alpha_system.governance.duplicate_exposure import RegistryReader
 from alpha_system.governance.feature_request import FeatureRequest
+from alpha_system.labels.roll_guard import classify_roll_window
 
 
 class SessionFeatureError(ValueError):
@@ -63,6 +72,11 @@ class SessionFeatureName(StrEnum):
     MINUTES_TO_ROLL = "minutes_to_roll"
     MINUTES_TO_EXPIRATION = "minutes_to_expiration"
     HALT_STATUS_FLAG = "halt_status_flag"
+    IS_OPEX_DAY_FLAG = "is_opex_day_flag"
+    IS_QUAD_WITCH_DAY_FLAG = "is_quad_witch_day_flag"
+    IS_MONTH_END_SESSION_FLAG = "is_month_end_session_flag"
+    IS_QUARTER_END_SESSION_FLAG = "is_quarter_end_session_flag"
+    IN_ROLL_WINDOW_FLAG = "in_roll_window_flag"
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,6 +334,15 @@ class _RollProximity:
     minutes_to_roll: int | None
 
 
+@dataclass(frozen=True, slots=True)
+class _SessionCalendarCoverage:
+    start_year: int
+    end_year: int
+    full_holidays: frozenset[Date]
+    month_end_sessions: frozenset[Date]
+    quarter_end_sessions: frozenset[Date]
+
+
 _SESSION_POSITION_FEATURES = frozenset(
     {
         SessionFeatureName.SESSION_ID,
@@ -329,7 +352,21 @@ _SESSION_POSITION_FEATURES = frozenset(
         SessionFeatureName.ETH_SEGMENT_FLAG,
     }
 )
-_CALENDAR_FEATURES = frozenset({SessionFeatureName.DAY_OF_WEEK})
+_DK_P01_CALENDAR_FLAG_FEATURES = frozenset(
+    {
+        SessionFeatureName.IS_OPEX_DAY_FLAG,
+        SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG,
+        SessionFeatureName.IS_MONTH_END_SESSION_FLAG,
+        SessionFeatureName.IS_QUARTER_END_SESSION_FLAG,
+        SessionFeatureName.IN_ROLL_WINDOW_FLAG,
+    }
+)
+_CALENDAR_FEATURES = frozenset(
+    {
+        SessionFeatureName.DAY_OF_WEEK,
+        *_DK_P01_CALENDAR_FLAG_FEATURES,
+    }
+)
 _ROLL_FEATURES = frozenset(
     {
         SessionFeatureName.BARS_TO_ROLL,
@@ -365,6 +402,11 @@ _INPUT_FIELDS_BY_FEATURE: dict[SessionFeatureName, tuple[str, ...]] = {
     SessionFeatureName.MINUTES_TO_ROLL: ("contract_id", "series_id", "bar_start_ts"),
     SessionFeatureName.MINUTES_TO_EXPIRATION: ("contract_id", "bar_start_ts"),
     SessionFeatureName.HALT_STATUS_FLAG: ("available_ts",),
+    SessionFeatureName.IS_OPEX_DAY_FLAG: ("bar_start_ts",),
+    SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG: ("bar_start_ts",),
+    SessionFeatureName.IS_MONTH_END_SESSION_FLAG: ("bar_start_ts",),
+    SessionFeatureName.IS_QUARTER_END_SESSION_FLAG: ("bar_start_ts",),
+    SessionFeatureName.IN_ROLL_WINDOW_FLAG: ("instrument_id", "bar_start_ts"),
 }
 
 
@@ -531,6 +573,22 @@ def _feature_spec(
                 "non_causal_reason": "requires future roll-transition observation",
             }
         )
+    if name in _DK_P01_CALENDAR_FLAG_FEATURES:
+        contract_metadata.update(
+            {
+                "campaign": "DIFFERENTIATED_KILLSHOT_V1",
+                "phase": "DK-P01",
+                "zero_feed": True,
+                "known_ahead": True,
+                "non_claims": [
+                    "not_exchange_official",
+                    "not_holiday_complete",
+                    "fail_absent_outside_coverage",
+                    "approximate_roll",
+                ],
+                "deferred": ["fomc", "cpi"],
+            }
+        )
     parameters = {
         "feature_name": name.value,
         "session_template_id": session_template.template_id,
@@ -540,6 +598,23 @@ def _feature_spec(
         "roll_transition_source": "contract_id_or_series_id_transition",
         "metadata_absence_policy": "flag_absent_never_fabricate",
     }
+    if name in _DK_P01_CALENDAR_FLAG_FEATURES:
+        coverage = _session_calendar_coverage()
+        parameters.update(
+            {
+                "calendar_derivation": "zero_feed_session_local_calendar_arithmetic",
+                "calendar_coverage_start_year": coverage.start_year,
+                "calendar_coverage_end_year": coverage.end_year,
+                "calendar_non_claims": [
+                    "not_exchange_official",
+                    "not_holiday_complete",
+                ],
+                "roll_window_derivation": (
+                    "classify_roll_window over analytic CME equity-index quarterly "
+                    "roll calendar; approximate_roll"
+                ),
+            }
+        )
     input_fields = _input_fields(name)
     input_metadata = {
         "consumption_surface": (
@@ -561,6 +636,37 @@ def _feature_spec(
         ),
         "session_metadata_role": "SESSION_METADATA_POINT_IN_TIME",
     }
+    availability_assumptions = {
+        "input": "canonical OHLCV rows are accepted-DatasetVersion input-view rows",
+        "causality": "outputs use the current row availability timestamp",
+        "calendar_metadata": (
+            "RTH clock times, contract roll transitions, expiration, and status "
+            "metadata are treated as calendar/definition/status metadata"
+        ),
+        "session_metadata_role_guard": (
+            "optional metadata carrying explicit metadata availability must be "
+            "known at or before the row available_ts"
+        ),
+        "absence": "missing expiration or status metadata yields None with absent flags",
+    }
+    if name in _DK_P01_CALENDAR_FLAG_FEATURES:
+        availability_assumptions.update(
+            {
+                "zero_feed": (
+                    "DK-P01 calendar flags use analytic date arithmetic, the committed "
+                    "local session-calendar config, and the analytic CME quarterly roll "
+                    "calendar only; no external date, strike, open-interest, or auction feed"
+                ),
+                "known_ahead": (
+                    "feature.available_ts remains the current input row available_ts and "
+                    "the calendar inputs are known before the bar is available"
+                ),
+                "coverage": (
+                    "month/quarter-end flags return absent rather than extrapolating "
+                    "outside the committed calendar coverage years"
+                ),
+            }
+        )
     feature_spec = FeatureSpec(
         feature_id=f"session_calendar_roll_{name.value}",
         family=FeatureFamily.SESSION_CALENDAR_ROLL,
@@ -577,19 +683,7 @@ def _feature_spec(
         ),
         window=feature_window,
         normalization=NormalizationSpec(normalization_id="identity"),
-        availability_assumptions={
-            "input": "canonical OHLCV rows are accepted-DatasetVersion input-view rows",
-            "causality": "outputs use the current row availability timestamp",
-            "calendar_metadata": (
-                "RTH clock times, contract roll transitions, expiration, and status "
-                "metadata are treated as calendar/definition/status metadata"
-            ),
-            "session_metadata_role_guard": (
-                "optional metadata carrying explicit metadata availability must be "
-                "known at or before the row available_ts"
-            ),
-            "absence": "missing expiration or status metadata yields None with absent flags",
-        },
+        availability_assumptions=availability_assumptions,
         available_ts_derivation_rule=(
             "feature.available_ts = current input row available_ts; feature values do "
             "not use event_ts or ingested_at as availability substitutes"
@@ -654,6 +748,11 @@ def _transform_id(name: SessionFeatureName) -> str:
         SessionFeatureName.MINUTES_TO_ROLL: "minutes_to_roll",
         SessionFeatureName.MINUTES_TO_EXPIRATION: "minutes_to_expiration",
         SessionFeatureName.HALT_STATUS_FLAG: "halt_status_flag",
+        SessionFeatureName.IS_OPEX_DAY_FLAG: "is_opex_day_flag",
+        SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG: "is_quad_witch_day_flag",
+        SessionFeatureName.IS_MONTH_END_SESSION_FLAG: "is_month_end_session_flag",
+        SessionFeatureName.IS_QUARTER_END_SESSION_FLAG: "is_quarter_end_session_flag",
+        SessionFeatureName.IN_ROLL_WINDOW_FLAG: "in_roll_window_flag",
     }[name]
 
 
@@ -809,6 +908,16 @@ def _feature_point(
         return _point(row, 1 if _session_state(row, session_template).is_eth else 0)
     if name is SessionFeatureName.DAY_OF_WEEK:
         return _point(row, row.bar_start_ts.weekday())
+    if name is SessionFeatureName.IS_OPEX_DAY_FLAG:
+        return _opex_day_point(row, session_template)
+    if name is SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG:
+        return _quad_witch_day_point(row, session_template)
+    if name is SessionFeatureName.IS_MONTH_END_SESSION_FLAG:
+        return _month_end_session_point(row, session_template)
+    if name is SessionFeatureName.IS_QUARTER_END_SESSION_FLAG:
+        return _quarter_end_session_point(row, session_template)
+    if name is SessionFeatureName.IN_ROLL_WINDOW_FLAG:
+        return _roll_window_flag_point(row, session_template)
     if name is SessionFeatureName.BARS_TO_ROLL:
         proximity = roll_proximity[id(row)]
         return _roll_point(row, proximity.bars_to_roll)
@@ -876,6 +985,47 @@ def _halt_status_point(
         return _point(row, None, ("status_metadata_absent",))
     quality_flags = (f"status_{status}",)
     return _point(row, 1 if status in _HALT_STATUS_TOKENS else 0, quality_flags)
+
+
+def _opex_day_point(row: TradeBarRow, session_template: SessionTemplate) -> _FeaturePoint:
+    trade_date = _session_state(row, session_template).trade_date
+    return _point(row, 1 if trade_date == third_friday(trade_date.year, trade_date.month) else 0)
+
+
+def _quad_witch_day_point(row: TradeBarRow, session_template: SessionTemplate) -> _FeaturePoint:
+    trade_date = _session_state(row, session_template).trade_date
+    if trade_date.month not in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS:
+        return _point(row, 0)
+    return _point(row, 1 if trade_date == third_friday(trade_date.year, trade_date.month) else 0)
+
+
+def _month_end_session_point(row: TradeBarRow, session_template: SessionTemplate) -> _FeaturePoint:
+    trade_date = _session_state(row, session_template).trade_date
+    coverage = _session_calendar_coverage()
+    if not _date_is_covered(trade_date, coverage):
+        return _point(row, None, ("session_calendar_coverage_absent",))
+    return _point(row, 1 if trade_date in coverage.month_end_sessions else 0)
+
+
+def _quarter_end_session_point(
+    row: TradeBarRow,
+    session_template: SessionTemplate,
+) -> _FeaturePoint:
+    trade_date = _session_state(row, session_template).trade_date
+    coverage = _session_calendar_coverage()
+    if not _date_is_covered(trade_date, coverage):
+        return _point(row, None, ("session_calendar_coverage_absent",))
+    return _point(row, 1 if trade_date in coverage.quarter_end_sessions else 0)
+
+
+def _roll_window_flag_point(row: TradeBarRow, session_template: SessionTemplate) -> _FeaturePoint:
+    local_ts = row.bar_start_ts.astimezone(session_template.zone)
+    verdict = classify_roll_window(
+        local_ts,
+        _analytic_quarterly_roll_calendar(),
+        root_symbol=row.instrument_id,
+    )
+    return _point(row, 1 if verdict.in_roll_window else 0)
 
 
 def _roll_point(row: TradeBarRow, value: int | None) -> _FeaturePoint:
@@ -975,6 +1125,72 @@ def _session_template_for_definition(definition: SessionFeatureDefinition) -> Se
 def _session_state(row: TradeBarRow, template: SessionTemplate) -> SessionWindowState:
     try:
         return classify_session_timestamp(row.bar_start_ts, template=template)
+    except DataFoundationValidationError as exc:
+        raise SessionFeatureError(str(exc)) from exc
+
+
+@lru_cache(maxsize=1)
+def _session_calendar_coverage() -> _SessionCalendarCoverage:
+    try:
+        records = load_trading_calendar_records()
+    except DataFoundationValidationError as exc:
+        raise SessionFeatureError(str(exc)) from exc
+    if not records:
+        raise SessionFeatureError("session calendar records are required for DK-P01 flags")
+    years = tuple(sorted({record.date.year for record in records}))
+    start_year = years[0]
+    end_year = years[-1]
+    full_holidays = frozenset(record.date for record in records if record.is_holiday)
+    month_ends: set[Date] = set()
+    quarter_ends: set[Date] = set()
+    for year in range(start_year, end_year + 1):
+        for month in range(1, 13):
+            end_session = _last_trading_session_of_month(
+                year,
+                month,
+                full_holidays=full_holidays,
+            )
+            month_ends.add(end_session)
+            if month in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS:
+                quarter_ends.add(end_session)
+    return _SessionCalendarCoverage(
+        start_year=start_year,
+        end_year=end_year,
+        full_holidays=full_holidays,
+        month_end_sessions=frozenset(month_ends),
+        quarter_end_sessions=frozenset(quarter_ends),
+    )
+
+
+def _last_trading_session_of_month(
+    year: int,
+    month: int,
+    *,
+    full_holidays: frozenset[Date],
+) -> Date:
+    if month == 12:
+        cursor = Date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        cursor = Date(year, month + 1, 1) - timedelta(days=1)
+    while cursor.weekday() >= 5 or cursor in full_holidays:
+        cursor -= timedelta(days=1)
+    if cursor.year != year or cursor.month != month:
+        raise SessionFeatureError("calendar coverage produced no trading session for month")
+    return cursor
+
+
+def _date_is_covered(value: Date, coverage: _SessionCalendarCoverage) -> bool:
+    return coverage.start_year <= value.year <= coverage.end_year
+
+
+@lru_cache(maxsize=1)
+def _analytic_quarterly_roll_calendar() -> tuple[Any, ...]:
+    coverage = _session_calendar_coverage()
+    try:
+        return build_analytic_cme_equity_index_quarterly_roll_calendar(
+            start_year=coverage.start_year,
+            end_year=coverage.end_year,
+        )
     except DataFoundationValidationError as exc:
         raise SessionFeatureError(str(exc)) from exc
 

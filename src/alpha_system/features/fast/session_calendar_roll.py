@@ -4,14 +4,21 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import time
+from datetime import date as Date
+from datetime import time, timedelta
+from functools import lru_cache
 from typing import Any
 
-from alpha_system.data.foundation.sources import DataFoundationValidationError
+from alpha_system.data.foundation.rolls import (
+    CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS,
+    build_analytic_cme_equity_index_quarterly_roll_calendar,
+)
 from alpha_system.data.foundation.sessions import (
     SessionTemplate,
     load_session_template_by_id,
+    load_trading_calendar_records,
 )
+from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.storage import require_dependency
 from alpha_system.features.contracts import (
     FeatureFamily,
@@ -25,6 +32,10 @@ from alpha_system.features.fast.materializer import (
     FastFeatureDeclaration,
     FastFeaturePack,
     PackMaterializerError,
+)
+from alpha_system.labels.roll_guard import (
+    DEFAULT_ROLL_WINDOW_DAYS_AFTER,
+    DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
 )
 
 SESSION_CALENDAR_ROLL_FEATURE_IDS: tuple[str, ...] = tuple(
@@ -56,6 +67,15 @@ class _RthClock:
     close_seconds: int
     eth_start_seconds: int
     eth_crosses_midnight: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _CalendarFlagTables:
+    start_year: int
+    end_year: int
+    month_end_sessions: frozenset[str]
+    quarter_end_sessions: frozenset[str]
+    roll_window_dates_by_root: Mapping[str, frozenset[str]]
 
 
 def build_session_calendar_roll_pack(feature_set: FeatureSetSpec) -> FastFeaturePack:
@@ -220,6 +240,7 @@ def _feature_expression(
 ) -> _PackExpression:
     pl = polars
     empty = _flags(pl, ())
+    calendar_tables = _calendar_flag_tables()
     if feature_name is SessionFeatureName.SESSION_ID:
         session_label = _template_session_label(pl, rth_clock)
         session_id = pl.concat_str(
@@ -245,6 +266,35 @@ def _feature_expression(
         return _PackExpression(value, _quality_flags(pl, empty))
     if feature_name is SessionFeatureName.DAY_OF_WEEK:
         value = (_bar_start_ts(pl).dt.weekday() - 1).cast(pl.Int64)
+        return _PackExpression(value, _quality_flags(pl, empty))
+    if feature_name is SessionFeatureName.IS_OPEX_DAY_FLAG:
+        value = _is_third_friday(pl, rth_clock).cast(pl.Int64)
+        return _PackExpression(value, _quality_flags(pl, empty))
+    if feature_name is SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG:
+        trade_dt = _template_trade_datetime(pl, rth_clock)
+        value = (
+            _is_third_friday(pl, rth_clock)
+            & trade_dt.dt.month().is_in(list(CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS))
+        ).cast(pl.Int64)
+        return _PackExpression(value, _quality_flags(pl, empty))
+    if feature_name is SessionFeatureName.IS_MONTH_END_SESSION_FLAG:
+        value, extra_flags = _covered_calendar_flag(
+            pl,
+            rth_clock,
+            calendar_tables.month_end_sessions,
+            calendar_tables=calendar_tables,
+        )
+        return _PackExpression(value, _quality_flags(pl, extra_flags))
+    if feature_name is SessionFeatureName.IS_QUARTER_END_SESSION_FLAG:
+        value, extra_flags = _covered_calendar_flag(
+            pl,
+            rth_clock,
+            calendar_tables.quarter_end_sessions,
+            calendar_tables=calendar_tables,
+        )
+        return _PackExpression(value, _quality_flags(pl, extra_flags))
+    if feature_name is SessionFeatureName.IN_ROLL_WINDOW_FLAG:
+        value = _roll_window_flag(pl, rth_clock, calendar_tables).cast(pl.Int64)
         return _PackExpression(value, _quality_flags(pl, empty))
     if feature_name is SessionFeatureName.BARS_TO_ROLL:
         absent = roll["target_index"].is_null()
@@ -324,14 +374,129 @@ def _template_session_label(polars: Any, rth_clock: _RthClock) -> Any:
 
 
 def _template_trade_date(polars: Any, rth_clock: _RthClock) -> Any:
+    return _template_trade_datetime(polars, rth_clock).dt.strftime("%Y-%m-%d")
+
+
+def _template_trade_datetime(polars: Any, rth_clock: _RthClock) -> Any:
     local = _local_bar_start(polars, rth_clock)
     if not rth_clock.eth_crosses_midnight:
-        return local.dt.strftime("%Y-%m-%d")
+        return local
     seconds = _local_seconds(polars, rth_clock)
-    trade_dt = polars.when(seconds >= rth_clock.eth_start_seconds).then(
+    return polars.when(seconds >= rth_clock.eth_start_seconds).then(
         local.dt.offset_by("1d")
     ).otherwise(local)
-    return trade_dt.dt.strftime("%Y-%m-%d")
+
+
+def _local_date(polars: Any, rth_clock: _RthClock) -> Any:
+    return _local_bar_start(polars, rth_clock).dt.strftime("%Y-%m-%d")
+
+
+def _is_third_friday(polars: Any, rth_clock: _RthClock) -> Any:
+    trade_dt = _template_trade_datetime(polars, rth_clock)
+    day = trade_dt.dt.day()
+    return (trade_dt.dt.weekday() == 5) & (day >= 15) & (day <= 21)
+
+
+def _covered_calendar_flag(
+    polars: Any,
+    rth_clock: _RthClock,
+    session_dates: frozenset[str],
+    *,
+    calendar_tables: _CalendarFlagTables,
+) -> tuple[Any, Any]:
+    pl = polars
+    trade_dt = _template_trade_datetime(pl, rth_clock)
+    trade_date = trade_dt.dt.strftime("%Y-%m-%d")
+    covered = (trade_dt.dt.year() >= calendar_tables.start_year) & (
+        trade_dt.dt.year() <= calendar_tables.end_year
+    )
+    hit = trade_date.is_in(sorted(session_dates))
+    value = pl.when(covered.not_()).then(pl.lit(None, dtype=pl.Int64)).otherwise(
+        hit.cast(pl.Int64)
+    )
+    flags = _conditional_flags(pl, covered.not_(), "session_calendar_coverage_absent")
+    return value, flags
+
+
+def _roll_window_flag(
+    polars: Any,
+    rth_clock: _RthClock,
+    calendar_tables: _CalendarFlagTables,
+) -> Any:
+    pl = polars
+    root = pl.col("instrument_id").cast(pl.Utf8).str.to_uppercase()
+    local_date = _local_date(pl, rth_clock)
+    expression = pl.lit(False)
+    for root_symbol, dates in sorted(calendar_tables.roll_window_dates_by_root.items()):
+        expression = expression | ((root == root_symbol) & local_date.is_in(sorted(dates)))
+    return expression
+
+
+@lru_cache(maxsize=1)
+def _calendar_flag_tables() -> _CalendarFlagTables:
+    try:
+        records = load_trading_calendar_records()
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    if not records:
+        raise PackMaterializerError("session calendar records are required for DK-P01 flags")
+    years = tuple(sorted({record.date.year for record in records}))
+    start_year = years[0]
+    end_year = years[-1]
+    full_holidays = frozenset(record.date for record in records if record.is_holiday)
+    month_end_sessions: set[str] = set()
+    quarter_end_sessions: set[str] = set()
+    for year in range(start_year, end_year + 1):
+        for month in range(1, 13):
+            end_session = _last_trading_session_of_month(
+                year,
+                month,
+                full_holidays=full_holidays,
+            )
+            month_end_sessions.add(end_session.isoformat())
+            if month in CME_EQUITY_INDEX_QUARTERLY_CYCLE_MONTHS:
+                quarter_end_sessions.add(end_session.isoformat())
+    roll_dates: dict[str, set[str]] = {}
+    try:
+        roll_calendar = build_analytic_cme_equity_index_quarterly_roll_calendar(
+            start_year=start_year,
+            end_year=end_year,
+        )
+    except DataFoundationValidationError as exc:
+        raise PackMaterializerError(str(exc)) from exc
+    for record in roll_calendar:
+        root_dates = roll_dates.setdefault(record.root_symbol, set())
+        for offset in range(
+            -DEFAULT_ROLL_WINDOW_DAYS_BEFORE,
+            DEFAULT_ROLL_WINDOW_DAYS_AFTER + 1,
+        ):
+            root_dates.add((record.roll_date + timedelta(days=offset)).isoformat())
+    return _CalendarFlagTables(
+        start_year=start_year,
+        end_year=end_year,
+        month_end_sessions=frozenset(month_end_sessions),
+        quarter_end_sessions=frozenset(quarter_end_sessions),
+        roll_window_dates_by_root={
+            root_symbol: frozenset(dates) for root_symbol, dates in roll_dates.items()
+        },
+    )
+
+
+def _last_trading_session_of_month(
+    year: int,
+    month: int,
+    *,
+    full_holidays: frozenset[Date],
+) -> Date:
+    if month == 12:
+        cursor = Date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        cursor = Date(year, month + 1, 1) - timedelta(days=1)
+    while cursor.weekday() >= 5 or cursor in full_holidays:
+        cursor -= timedelta(days=1)
+    if cursor.year != year or cursor.month != month:
+        raise PackMaterializerError("calendar coverage produced no trading session for month")
+    return cursor
 
 
 def _rth_minutes(
