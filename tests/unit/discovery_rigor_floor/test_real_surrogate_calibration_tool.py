@@ -19,6 +19,7 @@ from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
     DEFAULT_RUNS_PER_CONFIG_CAP,
     _aligned_factor_value_series,
     _declared_factor_ids,
+    _declared_feature_locks_for_label,
     _declared_feature_family,
     _effective_runs_per_config,
     _expected_sub_config_count,
@@ -26,6 +27,7 @@ from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
     _load_study_spec,
     _select_label_locks,
     _staged_sub_config_is_constant_factor,
+    _support_feature_family,
     build_parser,
     run_real_surrogate_calibration,
 )
@@ -1385,6 +1387,204 @@ def test_real_surrogate_calibration_refuses_ambiguous_declared_factor_family(
     assert exc_info.value.issues[0].code == "declared_factor_family_ambiguous"
 
 
+def test_declared_session_calendar_conditioning_family_is_opt_in(
+    tmp_path: Path,
+) -> None:
+    declared_feature_version_id = "fver_" + "1" * 64
+    same_family_support_version_id = "fver_" + "3" * 64
+    other_support_version_id = "fver_" + "4" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=declared_feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="session_calendar_roll_day_of_week",
+                feature_family="session_calendar_roll",
+                feature_version_id=declared_feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="session_calendar_roll_session_id",
+                feature_family="session_calendar_roll",
+                feature_version_id=same_family_support_version_id,
+            ),
+            _feature_lock(
+                feature_id="session_calendar_maintenance_halt_status",
+                feature_family="session_calendar_maintenance",
+                feature_version_id=other_support_version_id,
+            ),
+        ),
+    )
+    _add_declared_conditioning_scope(
+        spec_path,
+        family="session_calendar_roll",
+        feature_ids=("session_calendar_roll_day_of_week",),
+    )
+    study_spec = _load_study_spec(spec_path)
+    scope = study_spec.dataset_scope
+    label_locks = _select_label_locks(scope, "5m")
+
+    assert _support_feature_family("session_calendar_roll") is True
+    assert _support_feature_family("session_calendar_maintenance") is True
+    assert _declared_feature_family(scope) == "session_calendar_roll"
+    assert _declared_factor_ids(
+        scope,
+        declared_feature_family="session_calendar_roll",
+    ) == ("session_calendar_roll_day_of_week",)
+    assert _expected_sub_config_count(
+        scope,
+        label_locks=label_locks,
+        declared_feature_family="session_calendar_roll",
+    ) == 1
+    feature_locks = _declared_feature_locks_for_label(
+        scope,
+        label_lock=label_locks[0],
+        declared_feature_family="session_calendar_roll",
+    )
+    assert [lock["feature_id"] for lock in feature_locks] == [
+        "session_calendar_roll_day_of_week"
+    ]
+
+
+def test_session_calendar_support_family_still_fails_without_declaration(
+    tmp_path: Path,
+) -> None:
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id="fver_" + "1" * 64,
+        label_version_id="lver_" + "2" * 64,
+        feature_locks=(
+            _feature_lock(
+                feature_id="session_calendar_roll_day_of_week",
+                feature_family="session_calendar_roll",
+                feature_version_id="fver_" + "1" * 64,
+            ),
+        ),
+    )
+    study_spec = _load_study_spec(spec_path)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        _declared_feature_family(study_spec.dataset_scope)
+
+    assert exc_info.value.issues[0].code == "declared_factor_family_missing"
+
+
+def test_declared_session_calendar_admission_rejects_incidental_signal_family(
+    tmp_path: Path,
+) -> None:
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id="fver_" + "1" * 64,
+        label_version_id="lver_" + "2" * 64,
+        feature_locks=(
+            _feature_lock(
+                feature_id="session_calendar_roll_day_of_week",
+                feature_family="session_calendar_roll",
+                feature_version_id="fver_" + "1" * 64,
+            ),
+            _feature_lock(
+                feature_id="fixture_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id="fver_" + "3" * 64,
+            ),
+        ),
+    )
+    _add_declared_conditioning_scope(
+        spec_path,
+        family="session_calendar_roll",
+        feature_ids=("session_calendar_roll_day_of_week",),
+    )
+    study_spec = _load_study_spec(spec_path)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        _declared_feature_family(study_spec.dataset_scope)
+
+    assert exc_info.value.issues[0].code == "declared_factor_family_ambiguous"
+    assert exc_info.value.issues[0].actual == "fixture_signal_family"
+
+
+def test_real_surrogate_declared_session_calendar_zero_pass_is_value_free(
+    tmp_path: Path,
+) -> None:
+    feature_version_id = "fver_" + "1" * 64
+    same_family_support_version_id = "fver_" + "3" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="session_calendar_roll_day_of_week",
+                feature_family="session_calendar_roll",
+                feature_version_id=feature_version_id,
+            ),
+            _feature_lock(
+                feature_id="session_calendar_roll_session_id",
+                feature_family="session_calendar_roll",
+                feature_version_id=same_family_support_version_id,
+            ),
+        ),
+    )
+    _add_declared_conditioning_scope(
+        spec_path,
+        family="session_calendar_roll",
+        feature_ids=("session_calendar_roll_day_of_week",),
+    )
+    feature_rows, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    resolver = _FakeResolver(
+        feature_record=_FeatureRecord(
+            feature_version_id=feature_version_id,
+            materialization_output_path=feature_path.as_posix(),
+            value_content_hash=compute_value_content_hash(feature_rows),
+            feature_spec=_FeatureSpec(feature_id="session_calendar_roll_day_of_week"),
+        ),
+        label_record=_LabelRecord(
+            label_version_id=label_version_id,
+            materialization_output_path=label_path.as_posix(),
+            value_content_hash=compute_value_content_hash(label_rows),
+        ),
+    )
+    namespace = tmp_path / "rigor_p05_surrogate_declared_session_calendar"
+    namespace.mkdir()
+    report_path = tmp_path / "report.md"
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=report_path,
+        resolver=resolver,
+    )
+
+    assert result["accepted"] is True
+    assert result["threshold_verdict"] == "zero-pass-met"
+    assert result["declared_factor_ids"] == ["session_calendar_roll_day_of_week"]
+    assert result["surrogate_study_spec_count"] == 1
+    assert resolver.feature_calls == [
+        {
+            "refs": (feature_version_id,),
+            "dataset_version_id": "dsv_fixture_2026",
+            "feature_request_ids": ("freq_" + "5" * 64,),
+            "partition_id": "SYNTH_2026_full_year",
+        }
+    ]
+    rendered = report_path.read_text(encoding="utf-8")
+    assert "This coordinator report is value-free" in rendered
+    assert "Threshold verdict: `zero-pass-met`" in rendered
+    assert "`session_calendar_roll_day_of_week`" in rendered
+    assert "session_calendar_roll_session_id" not in rendered
+    assert "0.03" not in rendered
+
+
 def test_real_surrogate_declared_factor_resolution_for_six_rerun_specs() -> None:
     data_root = Path(os.environ.get("ALPHA_DATA_ROOT", "~/alpha_data/alpha_system")).expanduser()
     skip_unless_local_registry(
@@ -1464,6 +1664,23 @@ def _study_spec_file(
     path = tmp_path / "study_spec.json"
     path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     return path
+
+
+def _add_declared_conditioning_scope(
+    spec_path: Path,
+    *,
+    family: str,
+    feature_ids: tuple[str, ...],
+) -> None:
+    payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    payload["dataset_scope"] = {
+        **payload["dataset_scope"],
+        "declared_conditioning_feature_family": family,
+        "declared_conditioning_feature_ids": list(feature_ids),
+    }
+    payload["study_spec_id"] = generate_study_spec_id(payload)
+    validate_study_spec(payload)
+    spec_path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
 
 def _feature_lock(

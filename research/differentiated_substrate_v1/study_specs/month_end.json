@@ -1,0 +1,673 @@
+{
+  "alpha_spec_id": "aspec_c98eb892abbfc7690d292a3a",
+  "cost_assumptions": {
+    "cost_profile": "diagnostic_metadata_only",
+    "no_execution_cost_claim": true,
+    "no_profitability_or_tradability_claim": true
+  },
+  "dataset_scope": {
+    "artifact_notes": {
+      "contains_alpha_or_tradability_claim": false,
+      "contains_real_metric_values": false,
+      "fdr_restatement_source": "research/differentiated_substrate_v1/FDR_ACTIVE_SUBSET_RESTATEMENT.md"
+    },
+    "campaign_id": "DIFFERENTIATED_KILLSHOT_V1",
+    "conditioning_factor_under_test": {
+      "feature_family": "session_calendar_roll",
+      "feature_ids": [
+        "session_calendar_roll_is_month_end_session_flag",
+        "session_calendar_roll_is_quarter_end_session_flag"
+      ],
+      "support_family_admission": "explicit_dk_p02_declared_conditioning_only"
+    },
+    "declared_conditioning_feature_family": "session_calendar_roll",
+    "declared_conditioning_feature_ids": [
+      "session_calendar_roll_is_month_end_session_flag",
+      "session_calendar_roll_is_quarter_end_session_flag"
+    ],
+    "declared_primary_horizon": "30m",
+    "family_id": "event-calendar",
+    "fdr_gate": {
+      "real_metric_inspection_allowed_in_this_phase": false,
+      "requires_zero_pass_met_before_real_metric": true,
+      "threshold_verdict_required": "zero-pass-met"
+    },
+    "label_contract": {
+      "horizons": [
+        "30m"
+      ],
+      "label_family": "fixed_horizon",
+      "label_source": "midprice_forward"
+    },
+    "label_pack_locks": [
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_a483cc0cc282474b",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_40dfeacb61ce3bea09f5542a",
+        "label_version_id": "lver_1aefece82006e47eab9326b7d1594778086808bd2f7219d70d9617d30d1e5d5a",
+        "partition": "ES_2019_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_655701fec5819e86edda602f",
+        "label_version_id": "lver_29533a5a60b04d787e4723f19bdee5089147e6b605ab6acac2d60427e7503cf1",
+        "partition": "ES_2020_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_8aeb50fb409fc691",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_1dc4cb6bffc1b0fe9e5a7f6e",
+        "label_version_id": "lver_348161849963367a860288491367152cf1f25dd4a24fb34da049aa9070201e80",
+        "partition": "ES_2021_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dc7c86c813fe0dfe",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_cbec65b56d2ca29ba1c013c1",
+        "label_version_id": "lver_40842dfca86712a83cd9d5eb675cd59ca5208ae18febbe324367714eaa7a37d8",
+        "partition": "ES_2022_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_ec144f9a02a64774",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_a93908ecae9518e05bc98756",
+        "label_version_id": "lver_c99ff690cfd885ca65b0cf8c89208354520a0e0c510a712c2e9e9a6cce6f74a5",
+        "partition": "ES_2023_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_b21f5be26cf8bbe82541a4d0",
+        "label_version_id": "lver_91db9a025b106bea1c51bff6770a9d7a77d53afa64e0da0c80e2627ef6ec1f19",
+        "partition": "ES_2024_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_35ffead770498acd",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_36cd3827398b908724ba7801",
+        "label_version_id": "lver_1f87f3d12a4d22c07426ffa953c4b953900d38c6fd69449ff315f23f1903f593",
+        "partition": "ES_2025_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_a0342ee6a412622b",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_e3c4ddd20e0ded4d5021014e",
+        "label_version_id": "lver_546c39cdc34a14ddd1de84b4c4e4b9625d5c9407611b31405573f620c63b43a0",
+        "partition": "ES_2026_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_a483cc0cc282474b",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_40dfeacb61ce3bea09f5542a",
+        "label_version_id": "lver_ba017c8684463e905d5d59cadee3f59f638f9684e789b1a8755d277437c3f738",
+        "partition": "NQ_2019_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_655701fec5819e86edda602f",
+        "label_version_id": "lver_7e88c250e93a27e140e0dae8177e36c649a21b22e50e5c3f60b85b92d52f7c49",
+        "partition": "NQ_2020_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_8aeb50fb409fc691",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_1dc4cb6bffc1b0fe9e5a7f6e",
+        "label_version_id": "lver_42cd6dfa167a9353cab806cdff0a7a585e2fdb6a2bfb6a56e11ecdd09ccae766",
+        "partition": "NQ_2021_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dc7c86c813fe0dfe",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_cbec65b56d2ca29ba1c013c1",
+        "label_version_id": "lver_fcc19b906e26995ccdb53e1f05ce6370312c358d6e3303b0b04cf1eb0d8ef8dd",
+        "partition": "NQ_2022_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_ec144f9a02a64774",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_a93908ecae9518e05bc98756",
+        "label_version_id": "lver_71292138e048f710f28cd764badd7a0214be418fb6e3653933d159445c9ba78d",
+        "partition": "NQ_2023_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_b21f5be26cf8bbe82541a4d0",
+        "label_version_id": "lver_16a3ba95f61d0afcd2fee8296a3524193d1f9f4dcea10cf4d7f56a4c53194aac",
+        "partition": "NQ_2024_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_35ffead770498acd",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_36cd3827398b908724ba7801",
+        "label_version_id": "lver_7e969a7349571523cebab4beba46d31fac918a0b05a4da675153139a67ee0f1b",
+        "partition": "NQ_2025_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_a0342ee6a412622b",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_e3c4ddd20e0ded4d5021014e",
+        "label_version_id": "lver_a02342cc4f39754c353a1e1907b0a6cb82fffdb8ad654b4cbd7c96fa261054d2",
+        "partition": "NQ_2026_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_a483cc0cc282474b",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_40dfeacb61ce3bea09f5542a",
+        "label_version_id": "lver_01187ccb92d93c5893f65fe5293faba8301c48e0eaf0ee59195f780e9b6b1307",
+        "partition": "RTY_2019_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_655701fec5819e86edda602f",
+        "label_version_id": "lver_531f9a25ec7721c3acdb2a12131bd687e30860c7e109e3e86af344657ba163dd",
+        "partition": "RTY_2020_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_8aeb50fb409fc691",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_1dc4cb6bffc1b0fe9e5a7f6e",
+        "label_version_id": "lver_77bb78de2add9e111e3fe5ad40b32ff670e59760afd255c276cf98cc0d68e321",
+        "partition": "RTY_2021_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dc7c86c813fe0dfe",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_cbec65b56d2ca29ba1c013c1",
+        "label_version_id": "lver_05ff5b101c96307362d3004ad673f78180bbad1d29a5e4e1d58fa7ad690ab059",
+        "partition": "RTY_2022_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_ec144f9a02a64774",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_a93908ecae9518e05bc98756",
+        "label_version_id": "lver_9d19ae065a56ef477bb76a4b048bf454a88b87926e14cd2a8dca5faab41a91fa",
+        "partition": "RTY_2023_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_05404069799decb0",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_b21f5be26cf8bbe82541a4d0",
+        "label_version_id": "lver_486615c1020dd2506007c63118ad8f0448967a410ad01a0a0f71942ef9a64e8f",
+        "partition": "RTY_2024_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_35ffead770498acd",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_36cd3827398b908724ba7801",
+        "label_version_id": "lver_cccd39480f150323552a9484cfac74ff92e363c3c86ec9c92c1bdc23dc73b2dc",
+        "partition": "RTY_2025_fwd_ret_30m"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_a0342ee6a412622b",
+        "label_id": "fwd_ret_30m",
+        "label_spec_id": "lspec_e3c4ddd20e0ded4d5021014e",
+        "label_version_id": "lver_6480f62bfc8263e2f2bc551ec5b0b7647258bbd12012e16ee62e6caac825bbec",
+        "partition": "RTY_2026_fwd_ret_30m"
+      }
+    ],
+    "lock_status": "LOCKED",
+    "mechanism_card": "research/differentiated_substrate_v1/cards/month_end_flow.json",
+    "mechanism_id": "month_end_flow",
+    "phase_id": "DK-P02",
+    "pooling": {
+      "instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "per_instrument_split": false,
+      "pooled_as_one_test_per_mechanism": true
+    },
+    "primary_horizons": [
+      "30m"
+    ],
+    "study_window": {
+      "source": "registered local ES/NQ/RTY OHLCV dense feature and forward-return label packs",
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ]
+    },
+    "surrogate_fdr_runbook": {
+      "base_seed": 42022,
+      "namespace": "/home/yuke_zhang/alpha_data/alpha_system/rigor_p05_surrogate_dk_p02_month_end",
+      "perturbations": [
+        "trade_date_block_shuffle",
+        "trade_date_block_bootstrap"
+      ],
+      "report_out": "research/differentiated_substrate_v1/surrogate_fdr/month_end_calibration.md",
+      "runs_per_config_k": 60,
+      "value_free_report_only": true
+    },
+    "feature_pack_locks": [
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2019_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_b3949f8f3948f8a7d0d00900",
+        "feature_version_id": "fver_67d1f27e0a8ccd7b676ee1f5293d4155fcafa406aada8c2d8aa6ef02e44380cc",
+        "partition": "ES_2019_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2019_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_d2cf04b7e9d4ede31da4c6a5",
+        "feature_version_id": "fver_4d4460249a96f1a11211f139fb184b63387c43df328af60404fb90a77d756ed2",
+        "partition": "ES_2019_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2020_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_336b007aeb4c6d01b593b032",
+        "feature_version_id": "fver_31c2fbc7ce48dc4dfec2aecb83c63bd98b7b5b52b9b9d99ed20819427a75b521",
+        "partition": "ES_2020_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2020_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_08f0cb609599a39aa393c70c",
+        "feature_version_id": "fver_ff1273f060d4e86dc0f637e168e34719aa6435b81c07fc124f584c621e9ebdd0",
+        "partition": "ES_2020_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2021_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_30f8b821803411191701cfe6",
+        "feature_version_id": "fver_0c17e451e58a2a871f2d5a3fba64a6aac46d6118fafcddaccf97da12c1de5d9d",
+        "partition": "ES_2021_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2021_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_85e5adf5583349e73a8ef01f",
+        "feature_version_id": "fver_0fb4b396235e1a338fa5a86038da7d9aa98832b45d534366ab3919f2a6109740",
+        "partition": "ES_2021_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2022_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_1bd795302704ee81f29a3528",
+        "feature_version_id": "fver_1ea2278800404cb06dda087716560566f6b0e56db0bd27190dd79e15e0ac008d",
+        "partition": "ES_2022_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2022_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_70f4ab7a3fcf8ce0fc5ebef5",
+        "feature_version_id": "fver_21468d0848ad0369d850dc81aaeb9281d14afd1526fa459dc7297a38eb7f3836",
+        "partition": "ES_2022_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2023_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_08c97a01d8b87f67c9f91700",
+        "feature_version_id": "fver_40e6ca0be2225349e2b43b988a7c73f7d7489fda3141969974b8abd73f5fd974",
+        "partition": "ES_2023_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2023_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_a00886dd6c69fbe9b3eac013",
+        "feature_version_id": "fver_0484f8d9014cee33e73db7541b2ed0302fcd313df004af409f2d291faefb8100",
+        "partition": "ES_2023_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2024_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_1b1f64a53176e882090a43a2",
+        "feature_version_id": "fver_525292c67748436c0a3d83c0c006d3c74c7b0357a28691fe2153de7757604358",
+        "partition": "ES_2024_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2024_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_de315a676de5e930da208593",
+        "feature_version_id": "fver_aff63f12bd90f1eb510fb586366d9ab4dbaa6c7c805076c709d1ff2c6de2bd5c",
+        "partition": "ES_2024_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2025_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_4d8759fbdbbe71ae8ef409a9",
+        "feature_version_id": "fver_ee601c763e94c5e5bd6084b623b1ba673cd40612cd44ed415e08dd3140313c72",
+        "partition": "ES_2025_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2025_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_5f085bbf0102767be9d04118",
+        "feature_version_id": "fver_93a63905420c810ddbfdfce2d880e9e55f843be422d76b38ee813f42363d1077",
+        "partition": "ES_2025_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2026_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_166fe68fd34e449e805d791e",
+        "feature_version_id": "fver_e21880e1247336f1c8cfb654ed94c6fdb774bfb9ca251b160de8636698f33435",
+        "partition": "ES_2026_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2026_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_889e315139511178db7fba9a",
+        "feature_version_id": "fver_4ad7c59d0b3141e792856f12248760584e5f19e0969aece9e84d7e5c2d971a86",
+        "partition": "ES_2026_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2019_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_64b64f0f5a6c183e608b917a",
+        "feature_version_id": "fver_8fccc361084d016a49245db497ee4097202988a64c3c3609ec4ff085e7b90150",
+        "partition": "NQ_2019_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2019_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_9e1ca90911564cdbd533da9f",
+        "feature_version_id": "fver_24c9ae5dfabc740ccd32904bdbdad2344b44d5a42c52534755556f8522a2f5b4",
+        "partition": "NQ_2019_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2020_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_1b95973264d8fedf54499b86",
+        "feature_version_id": "fver_9bfa84ca2b7dee360877d1b014d760d4924726f637ce69a85d089efe48305164",
+        "partition": "NQ_2020_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2020_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_cdea62819d5a7f62ac96f05b",
+        "feature_version_id": "fver_3e8b724217f681f1221bd25d9f88a63db04789fb7d14eb7bfa7db2faae96d3d6",
+        "partition": "NQ_2020_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2021_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_879ec6c63496ad29df324ced",
+        "feature_version_id": "fver_82bc115278edc45c46ab57625a350a73759dc9265013ba9c9487b12a133dd96d",
+        "partition": "NQ_2021_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2021_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_ef60f336704d540dbf0237ff",
+        "feature_version_id": "fver_1a26f47d011adc3c82d3f436e94cb9eb9ea7b0af10123c11feaa0803ce548670",
+        "partition": "NQ_2021_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2022_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_33236f6f1c7b34927bd7720c",
+        "feature_version_id": "fver_d18b07b383dae8b99fe29b0d52728fd42c86804c353ad7e18e14739913dbc80a",
+        "partition": "NQ_2022_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2022_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_85f77a173f2340ba5f387f4d",
+        "feature_version_id": "fver_de0d18ccb2c9dbf8e7caad9a8475e251aaa5a675ae4d5bc92c6c646cc5c6c86a",
+        "partition": "NQ_2022_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2023_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_26460536e1835677d248123f",
+        "feature_version_id": "fver_6e05e470deeac8d4b0c15681db775d1fadcc7c2151a64fd518f2304a6d1cb94d",
+        "partition": "NQ_2023_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2023_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_552bb3d61d629e068c49e57a",
+        "feature_version_id": "fver_6923eb208bbfc7f804dfa515883d03cf633b1af0c7780a7208099e8a45edfb18",
+        "partition": "NQ_2023_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2024_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_4df32b86ab57bc7cf96a4f83",
+        "feature_version_id": "fver_cd3b2c97c3f707a7fc39cc01933c782c52a9f264b7f65b2ce2559006f21e8f99",
+        "partition": "NQ_2024_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2024_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_46c2bfd97fdf523a110d9c87",
+        "feature_version_id": "fver_9698e865ce6e0f920300e18adeb75c8bfcf018bace487435acafdb18902b6853",
+        "partition": "NQ_2024_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2025_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_637d3e1c0bc1dccf4c07e0b2",
+        "feature_version_id": "fver_ab5f55cd0437e92bac15d0d53d490dcacf785e46a975791c36a5d1fc6d00c84b",
+        "partition": "NQ_2025_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2025_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_43b97cd8ae703ab9c026f088",
+        "feature_version_id": "fver_fd01662543a98da143666d3f122f2eaf143c768898e7e3a227f91177cd192a11",
+        "partition": "NQ_2025_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2026_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_8794221ab23f4901d650d9cb",
+        "feature_version_id": "fver_74ea4c3db1adb3bf9661ce9ab18c8a90cb977e4904148a49f4fba12084d80d4f",
+        "partition": "NQ_2026_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2026_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_138cffc1644e79b14caeebff",
+        "feature_version_id": "fver_0e28b850587a9d434417c3b83abb30f75703e07931188a7a71e596ce6bd20a91",
+        "partition": "NQ_2026_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2019_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_8ce7405d452bc663b041a328",
+        "feature_version_id": "fver_3e96a5f37c0dbbde3cf1d386e23d289bae0bc018f4cad91861ea5664b372bb68",
+        "partition": "RTY_2019_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2019_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_a5b92c50f2b04cd4984230f8",
+        "feature_version_id": "fver_9f58c40a86d88c3449a439842a35bda8e7f45e881912d7ce4546bc7cf456bea3",
+        "partition": "RTY_2019_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2020_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_01c74d839631283f502bb52e",
+        "feature_version_id": "fver_7b58815e932ed7ce53e1730526f4c5fb75b33a891846d66d22ed30ff453ce64f",
+        "partition": "RTY_2020_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2020_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_6564192eb4eb1731aa63ad17",
+        "feature_version_id": "fver_a4c9f3c73655f2de53c9385100ea6b984eccea3d76cd45db7def9b260fb0f903",
+        "partition": "RTY_2020_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2021_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_278de48c8cb439c81a07fb84",
+        "feature_version_id": "fver_9749262c835ad4af21c0633df205fbd2986ea735c9ea8eddd517628b75705e9a",
+        "partition": "RTY_2021_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2021_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_6ad29ebc7371c9128f86f824",
+        "feature_version_id": "fver_fc780966ab2a0047a6dbc21744a90abd58d172687fc0c91a173c30c74933cdeb",
+        "partition": "RTY_2021_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2022_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_ed0f36a6f0fb5387dbf8fb1d",
+        "feature_version_id": "fver_9d0554cb368088accb10145a86f97be168954eff034e6c1dda6102428f95b8aa",
+        "partition": "RTY_2022_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2022_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_0b9f751bf1d6128239e2d97b",
+        "feature_version_id": "fver_69750bd161d98e939e6012c503622f393693cc20f4ae0a7c9c2926ed61d87481",
+        "partition": "RTY_2022_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2023_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_06dd8f016036ff1c0837fd37",
+        "feature_version_id": "fver_2071c63d7ea557a419d521ea974db4a30c64d9a6507efc6feca656c7190cb590",
+        "partition": "RTY_2023_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2023_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_1bbea4b6303922b146f8b134",
+        "feature_version_id": "fver_0d86c8202671bd8937ff75bb5dd81502f647a8dabfdeafd794b32300dda82bb5",
+        "partition": "RTY_2023_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2024_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_8460e46aea022fc39c450142",
+        "feature_version_id": "fver_05be17cbcb53b5f5d8423e6c825aa317663ce853c890596dc3b070f23bace7c6",
+        "partition": "RTY_2024_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2024_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_ad0708ed273d6e239147c9ad",
+        "feature_version_id": "fver_f606d3ea12abff2213bbc145c93d6a2f3e44207690c9bc29887317bf31d2023f",
+        "partition": "RTY_2024_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2025_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_9c69ab52e63f3e6ec06d0d61",
+        "feature_version_id": "fver_575fef155286ea9ba71fa4480077dcd4bfd3b59b3a04ea70d90daec9150bc7dd",
+        "partition": "RTY_2025_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2025_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_03ec162b9f123b1099256583",
+        "feature_version_id": "fver_388efd319d31fbd8c5716c8580a1eafad25c368426a912747e852b386c2df85b",
+        "partition": "RTY_2025_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2026_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_month_end_session_flag",
+        "feature_request_id": "freq_327662d432cdca4e25c01160",
+        "feature_version_id": "fver_1690a66e2ccc05eca0cba63aee9301b9d142b5d7b15a22e84e575e76e7e0a60e",
+        "partition": "RTY_2026_full_year"
+      },
+      {
+        "dataset_version_id": "dsv_databento_ohlcv_dense_2026_v1",
+        "feature_family": "session_calendar_roll",
+        "feature_id": "session_calendar_roll_is_quarter_end_session_flag",
+        "feature_request_id": "freq_0aa7d1755d745738bed03151",
+        "feature_version_id": "fver_60f3deeccfc8af78539687e6005473b21dbe8b2a378fcf73391962d2841d0393",
+        "partition": "RTY_2026_full_year"
+      }
+    ]
+  },
+  "family_budget": 6,
+  "label_spec_id": "lspec_cd7fc16998aabe1994b8ab36",
+  "locked_test_policy": {
+    "contamination_handling": "any real IC/return/diagnostic value before ZERO_PASS_MET blocks the study",
+    "fdr_before_metric": "DK-P00 active-subset restatement plus DK-P02 ZERO_PASS_MET before DK-P03 metrics",
+    "per_instrument_split": "forbidden without budget amendment",
+    "real_metric_inspection_in_dk_p02": false
+  },
+  "metrics": [
+    "directional.pearson_ic",
+    "point_biserial_ic",
+    "bucket_summary",
+    "coverage"
+  ],
+  "negative_controls": [
+    "label shuffle surrogate null",
+    "trade-date block surrogate null",
+    "constant/all-null factor exclusion",
+    "random target governance canary"
+  ],
+  "split_protocol": {
+    "locked_test": "untouched until DK-P03 real-data diagnostics after ZERO_PASS_MET",
+    "regime": "pre_registered_track_a_time_ordered_research_split",
+    "train": "historical registered years excluding locked evaluation interval; no fitting in DK-P02",
+    "validation": "surrogate-FDR calibration only; value-free counts and gates"
+  },
+  "stopping_rules": [
+    "stop if any surrogate shuffled statistic passes",
+    "stop if required feature or label pack lock cannot resolve",
+    "stop if a report would contain real metric values",
+    "stop when observed variants reach the declared variant budget"
+  ],
+  "variant_budget": 1,
+  "study_spec_id": "sspec_c8669b6769a07d69ab897e58"
+}
