@@ -201,6 +201,7 @@ acceptance_invariants:
 - The 8 legacy Track-A doc-convention cards (research/differentiated_substrate_v1/cards/*.json) are migrate-then-retire: their content maps into the canonical MechanismCard + AlphaSpec (no second card class). The canonical mechanism_id is a fresh content-hash mech_<hex>; the kebab slug becomes MechanismCard.source (e.g. track_a:day_of_week_effect) so the STOPPED DK tooling's study_spec.dataset_scope['mechanism_id'] linkage is not broken. cards/*.json are read-only references this round and are NOT deleted until the canonical line reproduces them AND a parity test passes.
 - IVL-P01 fails closed when any canonical field with no doc-card source (source, cost_sensitivity, variant_budget, duplicate_exposure) cannot be populated. All 8 cards migrate as study_kind=main_effect (single-conditioner); existing_substrate (day_of_week_effect) is the sole live exemplar, the 5 derivable-calendar cards return DATA_GAP/requeue (new FeatureRequest unmaterialized), and the 2 needs_paid_data cards (fomc_drift, cpi_surprise_reversion) migrate as records only and are NEVER tested (RED-deferred, out of V0 scope -- IVL charters NO FeatureRequest implementation or paid-data sourcing).
 - FUTSUB / core-pilot / differentiated-killshot research artifacts and tools are a STOPPED campaign and are read-only / do-not-touch (in forbidden_paths). Reading already-materialized ES_2020 / ES_2024 packs is load-only (no recompute, no materialize, no registry write). The IVL-P06 dogfood tolerates an honest DATA_GAP when ALPHA_DATA_ROOT is unset and never fabricates values.
+- Slice metadata an idea document carries (testability_slice / testability_slices / slice_spec / slice_specs / fast_probe_slice / fast_probe_slice_spec / slice / slices) is RECOGNIZED PASSTHROUGH at the intake validator (governance/idea_draft.py): validated-and-ignored by the governance bundle and consumed downstream by the testability gate / fast_probe, NEVER folded into the frozen content-hashed AlphaSpec / MechanismCard / SetupSpec dataclasses (their ids stay byte-identical), with the unknown-field rejection still in force for every other undeclared field.
 - git ls-files runs == empty; explicit staging only (no git add . / git add -A); no force push; no edits under forbidden_paths. Allowed outputs only -- REJECT / DATA_GAP / INCONCLUSIVE / WATCH / CANDIDATE. No alpha / profitability / tradability / production claim; no FactorLibrary promotion; no downstream module charter; no second PnL truth.
 
 phases:
@@ -499,19 +500,21 @@ phases:
   review: yellow lane; fresh Claude Opus review required (never-auto-promote rail + graveyard key fail-closed + end-to-end composition).
 
 - id: IVL-P06
-  name: Dogfood DK Track B Through the Loop (No New Mechanism / Feature / Label / Data, No Promotion)
+  name: Front-Door Slice Passthrough Fix + Dogfood DK Track B Through the Loop (No New Mechanism / Feature / Label / Data, No Promotion)
   lane: YELLOW
   dependencies: [IVL-P05]
   spec_required: true
   executor: Codex GPT-5.5 high
   reviewer: Claude Opus 4.8 xhigh
   verifier: Claude Sonnet 4.6
-  purpose: Dogfood the assembled loop end-to-end on the DK Track B context!=trigger idea -- proving the testability gate returns DATA_GAP PRE-TEST on the burned single-class slice (shot not spent) and PASS on the barrier-resolving two-class slice, with a real probe readout + REPORT.md + memory write and promotion_eligible=false throughout -- adding NO new mechanism / feature / label / data, no geometry sweep, no promotion.
+  purpose: First close the verified front-door slice-passthrough gap (the IVL-P06 blocker this dogfood surfaced) that makes any slice-bearing idea.yaml die at intake, then dogfood the assembled loop end-to-end on the DK Track B context!=trigger idea -- proving the testability gate returns DATA_GAP PRE-TEST on the burned single-class slice (shot not spent) and PASS on the barrier-resolving two-class slice, with a real probe readout + REPORT.md + memory write and promotion_eligible=false throughout -- adding NO new mechanism / feature / label / data, no geometry sweep, no promotion.
   scope:
+  - FRONT-DOOR SLICE PASSTHROUGH FIX (the verified IVL-P06 blocker; src/alpha_system/governance/idea_draft.py). The intake validator _reject_unknown_bundle_fields rejects every top-level idea-document field outside IDEA_BUNDLE_INPUT_FIELDS, but the downstream slice extractors (research_lane/testability_gate.py slice_spec_from_idea_payload and research_lane/slice_spec.py SliceSpec.from_idea_payload) read top-level slice keys (testability_slice / testability_slices / slice_spec / slice_specs / fast_probe_slice / fast_probe_slice_spec / slice / slices) and cli/idea.py runs build_idea_validation_bundle BEFORE extraction -- so a slice-bearing idea.yaml dies at intake before any extractor runs. Add a RECOGNIZED slice-passthrough field set to the intake validator so an idea document can carry its own testability/probe slice metadata: the bundle VALIDATES-AND-IGNORES these keys (consumed downstream by the gate/probe), NEVER folds them into the frozen content-hashed AlphaSpec / MechanismCard / SetupSpec dataclasses (their content-hash ids stay byte-identical), and the unknown-field rejection stays in force for every OTHER undeclared key (typos still fail closed). Add an end-to-end regression test driving a RESOLVING embedded slice through `alpha idea gate` AND `alpha idea run` (the coverage gap this dogfood proved was missing -- prior CLI tests covered only the no-slice DATA_GAP path).
   - Run `alpha idea gate` (the testability gate) on the burned single-class ES_2024 120m slice -> expect Check-3 (>=2-class non-degeneracy) DATA_GAP as a PRE-TEST verdict (shot NOT spent) -> requeue. Then run on the barrier-resolving ES_2020_120m slice (verified two-class, row_count 313156 in the FUTSUB coverage matrix, load-only / no recompute) -> expect Check-3 PASS -> `alpha idea run` emits a real probe readout + verdict REPORT.md + memory write.
   - Author tests/integration/test_ivl_dogfood_track_b.py and docs/IDEA_TO_VERDICT_DOGFOOD.md (runbook). Dogfood outputs (readout / REPORT) land under research/idea_to_verdict_loop_v0/dogfood/** (local-or-fixture; never commit data). The test MUST tolerate an honest DATA_GAP if ALPHA_DATA_ROOT is unset in the executor (the first_light DATA_GAP branch) and never fabricate values.
   non_goals:
   - Any new mechanism / feature / label / data; any materialize / recompute / scaleout driver call; any geometry / horizon sweep; any promotion; editing tools/differentiated_killshot_v1/** or research/futures_substrate_scaleout_v1/** (STOPPED -- read-only); fabricating values on a missing data root.
+  - Mutating the frozen content-hashed MechanismCard / SetupSpec / AlphaSpec dataclasses or folding slice metadata into them; weakening the intake unknown-field rejection for any non-slice key; editing the value engine / probe engines / a second value loader.
   checks:
   - python tools/verify.py --smoke
   - python -m pytest tests/integration/test_ivl_dogfood_track_b.py -q
@@ -529,6 +532,9 @@ phases:
   resource_class: []
   merge_group: dogfood
   allowed_paths:
+  - src/alpha_system/governance/idea_draft.py
+  - tests/unit/governance/test_idea_draft.py
+  - tests/unit/cli/test_idea_cli.py
   - tests/integration/test_ivl_dogfood_track_b.py
   - research/idea_to_verdict_loop_v0/**
   - docs/IDEA_TO_VERDICT_DOGFOOD.md
@@ -537,10 +543,10 @@ phases:
   - runs/**
   forbidden_paths: *forbidden_paths
   artifact_policy:
-    commit_only: [dogfood integration test + runbook + value-free dogfood readout/REPORT fixtures, commit-eligible handoff]
+    commit_only: [front-door slice-passthrough fix + e2e regression test + dogfood integration test + runbook + value-free dogfood readout/REPORT fixtures, commit-eligible handoff]
     never_commit: *never_commit
     explicit_staging_only: true
   done_criteria:
-  - "`alpha idea gate` returns Check-3 DATA_GAP PRE-TEST on the degenerate single-class ES_2024 120m slice (shot not spent) -> requeue; PASS on the two-class ES_2020_120m slice (load-only, no recompute) -> `alpha idea run` emits a real probe readout + REPORT.md + memory write; promotion_eligible=false throughout; the test tolerates an honest DATA_GAP when ALPHA_DATA_ROOT is unset (no fabricated values); no new mechanism/feature/label/data, no sweep, no promotion; FUTSUB / DK artifacts untouched; canaries PASS; runs/ untracked."
+  - "The intake validator accepts an idea document carrying recognized slice-passthrough keys (testability_slice / slice_spec / fast_probe_slice / slices and related keys -- consumed downstream by the gate/probe, NOT folded into the frozen content-hashed schemas whose ids stay byte-identical) while still rejecting every other undeclared key, and an end-to-end regression test drives a RESOLVING embedded slice through `alpha idea gate` + `alpha idea run`; `alpha idea gate` returns Check-3 DATA_GAP PRE-TEST on the degenerate single-class ES_2024 120m slice (shot not spent) -> requeue; PASS on the two-class ES_2020_120m slice (load-only, no recompute) -> `alpha idea run` emits a real probe readout + REPORT.md + memory write; promotion_eligible=false throughout; the test tolerates an honest DATA_GAP when ALPHA_DATA_ROOT is unset (no fabricated values); no new mechanism/feature/label/data, no sweep, no promotion; FUTSUB / DK artifacts untouched; canaries PASS; runs/ untracked."
   handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P06.md
   review: yellow lane; fresh Claude Opus review required (DATA_GAP-on-degenerate / PASS-on-two-class + no-fabrication + STOPPED-campaign read-only discipline).
