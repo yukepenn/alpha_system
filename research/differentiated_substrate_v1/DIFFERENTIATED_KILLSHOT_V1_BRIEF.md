@@ -48,6 +48,44 @@ Track A (zero-feed calendar mechanisms, §3) is **independent of SSRL** and may
 run regardless — even in parallel with the SSRL tail — because it uses the
 existing single-factor / conditional-flag path, not the SetupSpec engine.
 
+### Gate verification result — Track B = GO_WITH_CONDITIONS (verified 2026-06-13, merged HEAD `0c841c3`)
+
+`STRATEGY_SHAPED_RESEARCH_LANE_V0` completed (5/5 merged). Refinement-1's four
+sub-conditions were adversarially re-verified against **merged main** (not
+handoff prose) by a verify→refute→adjudicate pass: both hard gates PASS and are
+mutation-tested load-bearing (neutering the probe distinctness check or the
+EXPLORATORY stamp-scan makes the negative tests fail), nothing exploratory is
+treated as promotion evidence (first-light is an honest `DATA_GAP`,
+`promotion_eligible:false`), `research/` imports zero reference engines, and all
+71 targeted tests + 28 canaries are green. **Track B is eligible.**
+
+One precondition was found and **closed before this rail**: the no-second-PnL-truth
+guard (`test_research_package_has_no_sim_bridge_imports`) used a line regex that
+silently missed dotted submodules (`import alpha_system.backtest.fast_path`) and
+every `value_store` form. Replaced with an AST import check (PR #439, merged
+`0c841c3`); no offending import existed, the gap was latent.
+
+Non-blocking authoring constraints the verification surfaced — these **bind the
+campaign bundle** (value-free):
+
+- **C1 — declared-distinctness, not signal-distinctness.** The context≠trigger
+  gate enforces *declared* distinctness (`factor_id` + alias/duplicate/derived
+  markers), not numeric signal-identity. Two distinct `factor_id`s wrapping the
+  same upstream signal compile cleanly. Track B SetupSpecs MUST use genuinely
+  distinct context vs trigger signals; the probe will not catch an
+  aliased-same-signal collapse. Authoring + review responsibility, not a runtime
+  guarantee.
+- **C2 — first-light is NOT a real-data result.** SSRL-P03's first-light
+  ES_2024 readout is an honest `DATA_GAP` (`n_eff:0`, no Parquet reader in the
+  executor); the only end-to-end conditional proof is on a synthetic fixture. No
+  phase, spec, or report may cite `first_light/EVIDENCE.json` as a real ES_2024
+  conditional result. A Track B real-slice run begins from zero real-data
+  evidence.
+- **C3 — de-stack is a re-statement, not fresh corroboration.** The de-stack
+  `ic=0.068 / n=6862` are carried SHIP_REFIT settler constants (self-labeled);
+  only the MDE bound is freshly computed and `promotion_evidence:false`. Do not
+  treat `de_stack/EVIDENCE.json` as new evidence for the +0.068 read.
+
 ### Refinement 2 — FDR budget must be AMENDED before any metric
 
 The committed `FDR_BUDGET.md` pre-registered `family_budget = 6` for a 4-card
