@@ -1,0 +1,451 @@
+campaign_id: DIFFERENTIATED_KILLSHOT_V1
+campaign_name: >-
+  Differentiated-substrate kill-shot V1: a conclusive, evidence-gated verdict on whether a set
+  of DIFFERENTIATED, zero-feed, exchange-calendar-deterministic mechanisms (day-of-week, OPEX /
+  quad-witch pinning, month-end / quarter-end flow, roll-week flow, open/close auction proximity)
+  carry intraday edge that the crowded single-factor price-action substrate did not — run as
+  pooled (ES/NQ/RTY) conditional studies on the EXISTING rigor path (Track A), plus at least one
+  context!=trigger SetupSpec EXPLORATORY conditional probe over materialized path labels using the
+  just-completed strategy-shaped lane (Track B). The whole surface is pre-registered under an FDR
+  active-subset restatement BEFORE any metric; every readout is surrogate-FDR zero-pass gated,
+  variant-ledgered, and N_eff/power-qualified. Success is CONCLUSIVE, not positive: 0 clean
+  survivors with no remaining substrate excuse is a successful kill-shot. No alpha/tradability
+  claim, no promotion, no second PnL truth, no new paid data.
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: differentiated_substrate_kill_shot
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Research-only kill-shot on differentiated zero-feed mechanisms. Track A reuses the existing
+    single-factor / conditional study path (StudySpec -> surrogate-FDR zero-pass calibration ->
+    factor diagnostics -> verdict_refresh) with the calendar-derived flag as the declared
+    conditioning factor-under-test, pooled across ES/NQ/RTY. Track B reuses the SSRL
+    SetupSpec/MechanismCard + conditional_probe engine to run one context!=trigger EXPLORATORY probe
+    over MATERIALIZED path labels. It is NOT a strategy backtester, NOT FactorLibrary/AlphaBook, NOT
+    paper/live/broker, NOT new paid data, and adds NO new runtime dependency. HARD INVARIANTS:
+    (a) the FDR active-subset restatement + surrogate-FDR zero-pass gate precede ANY real-data
+    metric; (b) EXPLORATORY output can NEVER be promotion evidence and the trusted resolver MUST NOT
+    consume it; (c) NO research->reference-sim bridge (research/ imports zero
+    backtest/management/fast_path/value_store; outcomes come only from materialized path labels and
+    values are loaded by tools/runtime and INJECTED into the pure research probe); (d) the existing
+    single-factor study path + all truth-chain invariants (canary, surrogate-FDR zero-pass,
+    no-lookahead/available_ts, roll/maintenance fail-closed, fast-vs-reference parity) are UNCHANGED
+    -- new calendar flags and the declared-conditioning-factor admission are strictly ADDITIVE.
+    DEFERRED (needs_paid_data, OUT this round): fomc_drift, cpi_surprise_reversion. DEFERRED (no
+    cards this round): the governed-overnight family. Allowed outputs: REJECT / INCONCLUSIVE+code /
+    WATCH / CANDIDATE_RESEARCH only.
+
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available, not the default for this campaign.
+  workflow2:
+    description: >-
+      Ralph strict autonomous loop, dag_wave + serial merge. Phases are sequential (linear deps +
+      overlapping src/ footprints in features/governance/research/tools), so the DAG linearizes to
+      DK-P00 -> DK-P01 -> DK-P02 -> DK-P03 -> DK-P04 -> DK-P05. Track A (P01-P03) and Track B (P04)
+      are LOGICALLY independent and could be parallelized in a future run; this first run keeps them
+      sequential for merge-safety, matching the proven SSRL pattern.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 1
+    merge_queue: serial
+
+runtime:
+  python: '3.12'
+  smoke_command: python tools/verify.py --smoke
+  all_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+
+lanes:
+  green:
+    description: Low-risk automatic work (none in this campaign; all phases are material).
+    merge_policy:
+      review_required: false
+  yellow:
+    description: Material engineering/research; fresh Claude Opus review required before merge.
+    merge_policy:
+      review_required: true
+  red:
+    description: External/destructive/live/broker. NOT used by this campaign.
+    merge_policy:
+      review_required: true
+
+forbidden_paths: &forbidden_paths
+- src/alpha_system/execution/**
+- src/alpha_system/broker/**
+- src/alpha_system/live/**
+- src/alpha_system/portfolio/**
+- src/alpha_system/management/**
+- src/alpha_system/backtest/**
+- src/alpha_system/l2/**
+- src/alpha_system/agent_factory/**
+- src/alpha_system/core/value_store.py
+- src/alpha_system/strategies/templates.py
+- research/futures_substrate_scaleout_v1/**
+- research/futures_core_alpha_pilot_v1/**
+- data/raw/**
+- data/canonical/**
+- data/factors/**
+- data/labels/**
+- data/cache/**
+- metadata/*.sqlite
+- metadata/*.db
+- registry/*.sqlite
+- artifacts/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+
+never_commit: &never_commit
+- runs/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+- data/raw/**
+- data/canonical/**
+- secrets/**
+- '**/*.key'
+
+acceptance_invariants:
+- NO real-data metric is inspected before (a) the FDR active-subset RESTATEMENT note is committed (DK-P00, predating the earliest variant attempt) AND (b) the surrogate-FDR zero-pass calibration for that study yields ZERO_PASS_MET (DK-P02). The restatement is a value-free pre-registration note (NOT a BudgetAmendmentRecord -- that object is strictly-increasing and cannot encode a downward re-scope); fomc/cpi stay DEFERRED (needs_paid_data).
+- EXPLORATORY SetupSpec/probe output (Track B) can NEVER be promotion evidence; the trusted resolver/promotion path MUST refuse to consume EXPLORATORY-stamped artifacts (forbidden_exploratory_promotion canary stays green).
+- NO research -> reference-sim bridge -- research/ imports zero backtest/management/fast_path/value_store (forbidden_second_pnl_truth canary + the AST import guard stay green). Outcomes come ONLY from materialized path labels / forward-return labels; values are loaded by tools/ or runtime/ and INJECTED into the pure research probe. No second PnL truth.
+- The existing single-factor study path (SINGLE_FACTOR_THRESHOLD_TEMPLATE, StudyConfig.factor_id) is byte-UNCHANGED; the new calendar flags and the declared-conditioning-factor admission in the surrogate path are strictly ADDITIVE and preserve every gate.
+- All truth-chain invariants hold each phase -- planted_fake_alpha + true-alpha pair + forbidden_second_pnl_truth + forbidden_exploratory_promotion + governance_random_target + forbidden_scope_drift canaries PASS; surrogate-FDR zero-pass intact; no-lookahead/available_ts intact; roll/maintenance fail-closed intact; new SESSION_CALENDAR_ROLL flags pass the fast-vs-reference parity gate.
+- New calendar flags are zero-feed and known-ahead (live=True / CAUSAL / available_ts <= row.available_ts); opex/quad-witch = analytic third-Friday, month/quarter-end = last trading session within the committed calendar's covered window (fail-absent outside coverage, non-exchange-official non-claim), in_roll_window via roll_guard.classify_roll_window over the analytic CME quarterly roll (approximate-roll non-claim). NO external feed; NO use of the offline-only live=False bars_to_roll/minutes_to_roll countdown features.
+- Bounded surface -- pre-registered VariantLedger/family_budget (event-calendar family_budget 6; flow-seasonality family_budget 4); variant_budget = per-mechanism horizon count; instrument-pooled (ES/NQ/RTY) as ONE test per mechanism; NO grid, NO horizon sweep, NO per-instrument split without a (strictly-increasing) BudgetAmendmentRecord.
+- C1 -- Track B context and trigger must be GENUINELY DISTINCT signals (different factor_id AND different underlying signal); the probe only checks declared distinctness, not numeric identity. C2 -- SSRL first-light is an honest DATA_GAP, NOT real ES_2024 evidence; it may not be cited as a result. C3 -- the de-stack ic=0.068/n=6862 is a carried SHIP_REFIT restatement, NOT fresh corroboration.
+- No new runtime dependency (numpy/pandas/polars stay unimportable). No new paid data. FUTSUB / core-pilot research artifacts are NOT modified. git ls-files runs == empty; explicit staging only; no edits under forbidden_paths.
+- Allowed outputs only -- REJECT / INCONCLUSIVE+reason_code / WATCH / CANDIDATE_RESEARCH. No profitability/tradability/alpha claim, no FactorLibrary promotion, no AlphaBook/Strategy-Reference, no paper/live -- unless the survivor gate independently earns the next layer (a WATCH/CANDIDATE survivor requires a reviewer_verdict artifact + reason_code and is surfaced to the user, never auto-promoted).
+
+phases:
+- id: DK-P00
+  name: Bootstrap, FDR Active-Subset Restatement, and REUSE-MAP/Scope Lock
+  lane: YELLOW
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Land the bundle + a value-free FDR ACTIVE-SUBSET RESTATEMENT (the FDR-before-metric gate) + a REUSE-MAP/scope lock, so no later phase rebuilds machinery, scope-creeps, or inspects a metric before the surface is pre-registered.
+  scope:
+  - Confirm the 6-file bundle is present + consistent; confirm the coordinator-set ACTIVE_CAMPAIGN pointer.
+  - Write research/differentiated_substrate_v1/FDR_ACTIVE_SUBSET_RESTATEMENT.md -- value-free, no metric. It RESTATES (NOT via a BudgetAmendmentRecord, which is strictly-increasing and cannot re-scope down) the active surface for THIS run -- active mechanisms = day_of_week_effect, opex_pinning, month_end_flow (month_end_rebalance_flow folded), roll_week_flow, open_close_auction_flow; DEFERRED = fomc_drift, cpi_surprise_reversion (needs_paid_data); overnight family not exercised (no cards). Per-mechanism variant_budget = horizon count (day_of_week 1, opex 1, month_end 1, roll_week 1, open_close 2). Per-family budgets carried unchanged from FDR_BUDGET.md / FDR_BUDGET_PRIORITY_2_3.md (event-calendar 6, flow-seasonality 4). Active effective pooled surface = event-calendar{opex 1 + month_end 1}=2 + flow-seasonality{day_of_week 1 + roll_week 1 + open_close 2}=4 = 6. Provenance + a created_at that predates any variant attempt.
+  - Write docs/differentiated_killshot_v1/REUSE_MAP.md + SCOPE.md pinning the REUSED machinery (governance/{study_spec,variant_ledger,surrogate_run,setup_spec,mechanism_card,trial_ledger,pooled_hypothesis,feature_request}.py; research/conditional_probe.py; features/families/session/**; labels/roll_guard.py; tools/discovery_rigor_floor/run_real_surrogate_calibration.py; runtime factor diagnostics; core/value_store.load_parquet_values as a tools/runtime-only loader) and the explicit OUT-of-scope list (fomc/cpi until a feed is onboarded; overnight family; per-instrument splits; geometry/horizon sweeps; any single-factor-template edit; any FUTSUB-artifact edit).
+  non_goals:
+  - Any code; any engine change; ANY real-data metric, IC, return, or diagnostic value.
+  checks:
+  - test -f campaigns/DIFFERENTIATED_KILLSHOT_V1/GOAL.md
+  - test -f campaigns/DIFFERENTIATED_KILLSHOT_V1/campaign.yaml
+  - python -c "import yaml; yaml.safe_load(open('campaigns/DIFFERENTIATED_KILLSHOT_V1/campaign.yaml'))"
+  - test -f research/differentiated_substrate_v1/FDR_ACTIVE_SUBSET_RESTATEMENT.md
+  - grep -q "DIFFERENTIATED_KILLSHOT_V1" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - campaigns/DIFFERENTIATED_KILLSHOT_V1/**
+  - research/differentiated_substrate_v1/**
+  - docs/differentiated_killshot_v1/**
+  - handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P00.md
+  - reviews/DIFFERENTIATED_KILLSHOT_V1/DK-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [campaign control + FDR restatement + REUSE-MAP/scope docs, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Bundle consistent; pointer set; YAML parses; FDR_ACTIVE_SUBSET_RESTATEMENT.md committed (value-free, predates any variant, fomc/cpi deferred, arithmetic = active surface 6); REUSE_MAP + SCOPE committed; smoke + canaries pass; runs/ untracked.
+  handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P00.md
+  review: yellow lane; fresh Claude Opus review of the FDR restatement + scope lock required.
+
+- id: DK-P01
+  name: Zero-Feed Calendar Substrate -- New SESSION_CALENDAR_ROLL Flags (Additive, Parity-Gated)
+  lane: YELLOW
+  dependencies: [DK-P00]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build the new zero-feed, known-ahead calendar flags three Track A mechanisms need, as ADDITIVE members of the existing SESSION_CALENDAR_ROLL family (not a new family), double-implemented under the fast-vs-reference parity gate, admitted via an APPROVED FeatureRequest.
+  scope:
+  - Add SessionFeatureName members is_opex_day_flag, is_quad_witch_day_flag, is_month_end_session_flag, is_quarter_end_session_flag, in_roll_window_flag in features/families/session/family.py (enum + _transform_id + _INPUT_FIELDS_BY_FEATURE + wrap + _feature_point compute branch), and MIRROR each value-identically in features/fast/session_calendar_roll.py (_feature_expression polars branch) so the auto-derived parity test passes. live=True / CAUSAL / POINT_IN_TIME (NOT offline_only).
+  - opex/quad-witch = analytic third_friday (opex every month; quad-witch only Mar/Jun/Sep/Dec); month/quarter-end = last TRADING session within the committed calendar's covered window (fail-absent outside coverage, non-exchange-official non-claim); in_roll_window = roll_guard.classify_roll_window over the analytic CME quarterly roll (2 trading-adjacent days before + 1 after; approximate-roll non-claim). Session-local timezone (America/Chicago), DST-correct, matching the existing day_of_week/open-close conventions. Do NOT reuse the offline-only live=False bars_to_roll/minutes_to_roll.
+  - Author APPROVED FeatureRequest(s) (freq_ ids) declaring requested_inputs/formula_sketch/availability_assumptions/duplicate-exposure note; extend the parity fixtures; run no-lookahead/available_ts audits. Materialize the new flags on ES/NQ/RTY for the study window (local-only Parquet/registry, NEVER committed). day_of_week_effect and open_close_auction_flow reuse EXISTING members -- no new build for those two.
+  non_goals:
+  - Any factor IC / study / metric (that is P02/P03); any external date feed; any strike/OI/auction-imbalance data; any edit to the single-factor template or the value engine.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "session or calendar or roll or parity or feature_request or no_lookahead" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas/polars must NOT import') for m in ('numpy','pandas','polars') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: [materialization_registry]
+  merge_group: substrate
+  allowed_paths:
+  - src/alpha_system/features/**
+  - src/alpha_system/governance/feature_request.py
+  - tests/**
+  - configs/**
+  - research/differentiated_substrate_v1/**
+  - docs/differentiated_killshot_v1/**
+  - handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P01.md
+  - reviews/DIFFERENTIATED_KILLSHOT_V1/DK-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [new session calendar flag features + fast-path mirror + FeatureRequest + parity/no-lookahead tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - Five new flags exist in BOTH the reference family and the polars fast path, value-identical under the parity gate; APPROVED FeatureRequest(s) present; no-lookahead/available_ts audits pass; live=True/CAUSAL; flags materialized on ES/NQ/RTY locally (uncommitted); canaries PASS; single-factor path + value engine untouched; numpy/pandas/polars absent; runs/ untracked.
+  handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P01.md
+  review: yellow lane; fresh Claude Opus review required (parity + no-lookahead + zero-feed provenance).
+
+- id: DK-P02
+  name: Track A StudySpecs + Declared-Conditioning-Factor Admission + Surrogate-FDR Zero-Pass
+  lane: YELLOW
+  dependencies: [DK-P01]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Author and lock the five Track A StudySpecs (the calendar flag as the declared conditioning factor-under-test, pooled ES/NQ/RTY), make a minimal scoped change so a declared calendar-conditioning factor is admissible where session_calendar_* is otherwise skipped as support, and run the surrogate-FDR zero-pass calibration that GATES all later evidence.
+  scope:
+  - Author 5 StudySpecs under research/differentiated_substrate_v1/study_specs/ (day_of_week, opex, month_end, roll_week, open_close), each declaring the new/existing calendar flag as the conditioning factor, forward-return labels (fixed_horizon / midprice_forward) at the card's pre-registered horizon(s), pooled ES/NQ/RTY, variant_budget = horizon count, family_budget per the restatement (event-calendar 6, flow-seasonality 4). Lock pack/label resolutions (resolver-smoke).
+  - Minimal, well-scoped change so an EXPLICITLY-declared calendar-conditioning factor is admitted as the factor-under-test in the surrogate calibration path (currently session_calendar_* is classified support and skipped, raising declared_factor_family_missing). Preserve EVERY gate -- parity, no-lookahead, zero-pass, constant/all-null exclusion. Do NOT weaken the support-family rule for anything other than an explicitly-declared conditioning factor.
+  - Run tools/discovery_rigor_floor/run_real_surrogate_calibration.py per StudySpec (label_shuffle + trade_date_block nulls), K pre-registered on the StudySpec/runbook, into a FRESH value-free report dir (NOT under any registry or FUTSUB/core-pilot namespace). Gate = ZERO_PASS_MET. ANY shuffled pass = LEAKAGE_BLOCKED -> diagnose FIRST (full autonomy), do not proceed.
+  non_goals:
+  - Inspecting any real-data IC/return/diagnostic value (that is P03 -- calibration reports are value-free, ids/counts/seeds/gate outcomes only); any per-instrument split; any horizon sweep; any new ledger/FDR object.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "study_spec or surrogate or variant_ledger or family_budget or calibrat" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: [materialization_registry]
+  merge_group: track_a
+  allowed_paths:
+  - research/differentiated_substrate_v1/**
+  - src/alpha_system/governance/study_spec.py
+  - src/alpha_system/governance/surrogate_run.py
+  - src/alpha_system/runtime/**
+  - tools/discovery_rigor_floor/**
+  - tests/**
+  - handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P02.md
+  - reviews/DIFFERENTIATED_KILLSHOT_V1/DK-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [Track A StudySpecs + declared-conditioning-factor admission + value-free surrogate calibration reports + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - 5 StudySpecs authored + locked (resolver-smoke green); the declared-conditioning-factor admission is minimal and preserves all gates (mutation-tested); surrogate-FDR zero-pass calibration ZERO_PASS_MET for every study (reports value-free); canaries PASS; no real-data metric inspected; runs/ untracked.
+  handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P02.md
+  review: yellow lane; fresh Claude Opus review required (admission minimality + zero-pass integrity + value-free reports).
+
+- id: DK-P03
+  name: Track A Real-Data Evidence + Verdict Refresh
+  lane: YELLOW
+  dependencies: [DK-P02]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Run the real-data factor diagnostics for the five Track A mechanisms (the FIRST real metric, now that the FDR restatement and surrogate zero-pass gate both precede it) and map the evidence to the closed verdict taxonomy honestly.
+  scope:
+  - Score each locked StudySpec with the runtime factor diagnostics (directional / point-biserial IC + buckets + walk-forward), loaded via the tools/runtime path (core/value_store.load_parquet_values is tools/runtime-only -- research/ never imports it). Record N_eff/power/MDE per mechanism; ledger each variant in the VariantLedger.
+  - Write research/differentiated_substrate_v1/verdict_refresh.md with per-mechanism primary_state + VerdictReasonCode (REJECT / INCONCLUSIVE+code / WATCH / CANDIDATE_RESEARCH), value-bearing diagnostics permitted HERE (post-gate), research-only language, no tradability claim. A WATCH/CANDIDATE_RESEARCH survivor REQUIRES a reviewer_verdict artifact + reason_code (the asymmetric promotion-adjacent gate) and is SURFACED, never auto-promoted.
+  non_goals:
+  - Any promotion / FactorLibrary entry / AlphaBook / paper-live; any per-instrument split or horizon sweep; any second PnL truth (research/ must not import the value engine -- values are injected from tools/runtime).
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "diagnostics or verdict or variant_ledger or power" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas/polars must NOT import') for m in ('numpy','pandas','polars') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: [materialization_registry]
+  merge_group: track_a
+  allowed_paths:
+  - research/differentiated_substrate_v1/**
+  - tools/**
+  - tests/**
+  - handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P03.md
+  - reviews/DIFFERENTIATED_KILLSHOT_V1/DK-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [Track A verdict_refresh + value-free per-mechanism diagnostics summary + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - All 5 mechanisms scored on real data (post FDR-restatement + surrogate zero-pass); each has primary_state + reason_code + N_eff/power; verdict_refresh.md committed (research-only language, no tradability claim); any WATCH/CANDIDATE has a reviewer_verdict artifact and is surfaced; research/ imports no value engine; canaries PASS; runs/ untracked.
+  handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P03.md
+  review: yellow lane; fresh Claude Opus review required (verdict soundness + no-second-PnL + reason-code fidelity).
+
+- id: DK-P04
+  name: Track B Context!=Trigger SetupSpec EXPLORATORY Conditional Probe (Real Slice)
+  lane: YELLOW
+  dependencies: [DK-P03]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Exercise the just-completed SSRL capability on a DIFFERENTIATED idea -- one context!=trigger SetupSpec with GENUINELY distinct context vs trigger signals (C1) -- as an EXPLORATORY, variant-ledgered, surrogate-FDR + power-qualified conditional probe over MATERIALIZED path labels, producing real evidence (or an honest DATA_GAP), never promotion.
+  scope:
+  - Author a MechanismCard + EXPLORATORY SetupSpec via create_mechanism_card / create_setup_spec with entry_context and event_trigger that are GENUINELY DISTINCT signals (different factor_id AND different underlying signal -- e.g. a range-contraction/regime CONTEXT gating a SEPARATE prior-high-sweep-then-reclaim TRIGGER; target = a materialized path-label target-before-stop; hold <= 120m). C1 is the author's responsibility; the probe only checks declared distinctness.
+  - Wire a tools/runtime row-injection harness that loads materialized context+trigger factor rows + path-label outcome rows via core/value_store.load_parquet_values (tools/runtime-only -- research/ stays import-clean), run a label-shuffle surrogate calibration to obtain the ZERO_PASS_MET gate inputs (run_count>0, 0 passes, 0 errors), then call evaluate_setup_conditional_probe with the injected rows. Persist a value-free EVIDENCE.json (stamp EXPLORATORY, promotion_eligible:false). If no sanctioned reader path resolves real rows, record status=INCONCLUSIVE / issue_code=DATA_GAP via the build_*_data_gap_evidence pattern -- DO NOT fabricate values (C2 discipline).
+  - Respect the family/variant budget (bind_probe_variant_budget); record N_eff/power/MDE. NO promotion, NO PromotionDecision, NO alpha claim; the readout stays permanently EXPLORATORY. If promising, emit a trusted-handoff gap report (checklist only, not evidence).
+  non_goals:
+  - Editing conditional_probe.py / the SSRL engine (USE it, byte-unchanged); any promotion; citing first-light EVIDENCE.json as a real result (C2) or de-stack as fresh corroboration (C3); any sequence/geometry sweep.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "conditional_probe or setup or exploratory or first_light or handoff" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas/polars must NOT import') for m in ('numpy','pandas','polars') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: [materialization_registry]
+  merge_group: track_b
+  allowed_paths:
+  - research/differentiated_substrate_v1/**
+  - src/alpha_system/governance/setup_spec.py
+  - src/alpha_system/governance/mechanism_card.py
+  - tools/**
+  - tests/**
+  - handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P04.md
+  - reviews/DIFFERENTIATED_KILLSHOT_V1/DK-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [Track B MechanismCard/SetupSpec JSON + value-free EXPLORATORY EVIDENCE.json + tools/runtime probe harness + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - One context!=trigger EXPLORATORY SetupSpec (genuinely distinct signals, C1) compiled + run over materialized path labels via the injected-row harness; EVIDENCE.json value-free, stamp EXPLORATORY, promotion_eligible:false, with surrogate-FDR gate + variant binding + power (or honest DATA_GAP, no fabricated values); promotion path refuses it (canary); conditional_probe.py byte-unchanged; research/ import-clean; canaries PASS; runs/ untracked.
+  handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P04.md
+  review: yellow lane; fresh Claude Opus review required (C1 genuine distinctness + EXPLORATORY quarantine + no-bridge row injection).
+
+- id: DK-P05
+  name: Verdict Refresh, Survivor Gate, and Closeout
+  lane: YELLOW
+  dependencies: [DK-P04]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Aggregate Track A + Track B into one honest campaign verdict, apply the survivor gate, and write the closeout evidence so the kill-shot is conclusive.
+  scope:
+  - Aggregate the 5 Track A mechanism verdicts + the Track B EXPLORATORY readout into research/differentiated_substrate_v1/CAMPAIGN_VERDICT.md (primary_state + reason_code per item; the boundary roll-up across REJECT/INCONCLUSIVE+code/WATCH/CANDIDATE_RESEARCH). Apply the survivor gate -- 0 clean survivors with no remaining substrate excuse = a successful, conclusive kill-shot; ANY WATCH/CANDIDATE survivor is SURFACED for the survivor-gate decision (reviewer_verdict + reason_code), never auto-promoted, no factory by inertia.
+  - Write the evidence summary + RUN_SUMMARY equivalent; record carried caveats (zero-feed approximations, N_eff limits, DATA_GAP if Track B hit one, fomc/cpi deferred). Research-only language; no profitability/tradability/alpha claim; no promotion.
+  non_goals:
+  - Any promotion / FactorLibrary build / next-campaign authoring (that is a separate, triggered decision); any new metric beyond aggregation; any paid data.
+  checks:
+  - python tools/verify.py --smoke
+  - python tools/verify.py --all
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: closeout
+  allowed_paths:
+  - research/differentiated_substrate_v1/**
+  - campaigns/DIFFERENTIATED_KILLSHOT_V1/**
+  - docs/differentiated_killshot_v1/**
+  - handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P05.md
+  - reviews/DIFFERENTIATED_KILLSHOT_V1/DK-P05/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [campaign verdict + evidence summary + run summary, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - CAMPAIGN_VERDICT.md aggregates all 5 Track A + Track B items with primary_state + reason_code; survivor gate applied (0 survivors documented as conclusive, or survivor surfaced with reviewer_verdict); evidence summary + RUN_SUMMARY written; research-only language; no promotion; canaries PASS; runs/ untracked.
+  handoff: handoffs/DIFFERENTIATED_KILLSHOT_V1/DK-P05.md
+  review: yellow lane; fresh Claude Opus review required (verdict honesty + survivor-gate discipline + no promotion).
