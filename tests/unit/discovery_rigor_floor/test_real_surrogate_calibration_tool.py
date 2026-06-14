@@ -17,7 +17,9 @@ from alpha_system.governance.validation import GovernanceValidationError
 from tests._helpers.local_data import skip_unless_local_registry
 from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
     DEFAULT_RUNS_PER_CONFIG_CAP,
+    RAM_HEADROOM_GB,
     _aligned_factor_value_series,
+    _cleanup_staged_inputs,
     _declared_factor_ids,
     _declared_feature_locks_for_label,
     _declared_feature_family,
@@ -25,6 +27,7 @@ from tools.discovery_rigor_floor.run_real_surrogate_calibration import (
     _expected_sub_config_count,
     _factor_series_is_zero_variance,
     _load_study_spec,
+    _plan_worker_budget,
     _select_label_locks,
     _staged_sub_config_is_constant_factor,
     _support_feature_family,
@@ -125,6 +128,278 @@ def test_runs_per_config_defaults_and_caps_without_changing_in_range_values() ->
         _effective_runs_per_config(DEFAULT_RUNS_PER_CONFIG_CAP + 1)
         == DEFAULT_RUNS_PER_CONFIG_CAP
     )
+    # New parallelism flags default to the byte-identical single-threaded path.
+    assert args.workers == 1
+    assert args.max_ram_gb is None
+    assert args.cleanup_staged_inputs is False
+
+
+def test_plan_worker_budget_defaults_to_serial_single_threaded(tmp_path: Path) -> None:
+    spec_workers, config_workers = _plan_worker_budget(
+        requested_workers=1,
+        spec_count=24,
+        config_count=2,
+        input_root=tmp_path,
+        max_ram_gb=None,
+    )
+
+    assert spec_workers == 1
+    assert config_workers == 1
+
+
+def test_plan_worker_budget_ram_cap_bounds_workers(tmp_path: Path) -> None:
+    # A staging input that estimates to a large per-panel RSS plus a tiny RAM
+    # budget must collapse the worker count to a safe single panel; never OOMs.
+    (tmp_path / "factor-values.jsonl").write_text("x" * (200 * 1024 * 1024), encoding="utf-8")
+
+    spec_workers, config_workers = _plan_worker_budget(
+        requested_workers=8,
+        spec_count=24,
+        config_count=2,
+        input_root=tmp_path,
+        max_ram_gb=1.0,
+    )
+
+    assert spec_workers == 1
+    assert config_workers == 1
+
+
+def test_plan_worker_budget_uses_cores_when_ram_is_ample(tmp_path: Path) -> None:
+    # Tiny staged input + generous RAM budget: the request is honored up to the
+    # sub-config count, and the second (perturbation) axis may engage.
+    (tmp_path / "labels.jsonl").write_text("{}\n", encoding="utf-8")
+
+    spec_workers, config_workers = _plan_worker_budget(
+        requested_workers=2,
+        spec_count=24,
+        config_count=2,
+        input_root=tmp_path,
+        max_ram_gb=10_000.0,
+    )
+
+    assert spec_workers == 2
+    assert config_workers >= 1
+
+
+def test_plan_worker_budget_never_exceeds_spec_count(tmp_path: Path) -> None:
+    spec_workers, _config_workers = _plan_worker_budget(
+        requested_workers=16,
+        spec_count=3,
+        config_count=2,
+        input_root=tmp_path,
+        max_ram_gb=10_000.0,
+    )
+
+    assert spec_workers <= 3
+
+
+def test_cleanup_staged_inputs_removes_only_input_root(tmp_path: Path) -> None:
+    input_root = tmp_path / "real_surrogate_inputs" / "sspec_x"
+    (input_root / "sub").mkdir(parents=True)
+    (input_root / "sub" / "factor-values.jsonl").write_text("{}\n", encoding="utf-8")
+    seed_dir = tmp_path / "seed_100" / "study_outputs"
+    seed_dir.mkdir(parents=True)
+    (seed_dir / "diagnostic_summary.json").write_text("{}", encoding="utf-8")
+
+    _cleanup_staged_inputs(input_root)
+
+    assert not input_root.exists()
+    # The durable per-seed audit artifacts are untouched.
+    assert (seed_dir / "diagnostic_summary.json").is_file()
+
+
+def test_ram_headroom_constant_is_documented_positive() -> None:
+    assert RAM_HEADROOM_GB > 0
+
+
+def _surrun_record_hashes(namespace: Path) -> dict[str, str]:
+    import hashlib
+
+    return {
+        path.parent.parent.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(namespace.glob("seed_*/surrogate_runs/*.json"))
+    }
+
+
+def _diagnostic_summary_hashes(namespace: Path) -> dict[str, str]:
+    import hashlib
+
+    return {
+        path.parent.parent.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(namespace.glob("seed_*/study_outputs/diagnostic_summary.json"))
+    }
+
+
+def test_real_surrogate_calibration_workers_match_serial_byte_identical(
+    tmp_path: Path,
+) -> None:
+    """End-to-end: --workers>1 produces an identical report to --workers 1.
+
+    Two distinct numeric sub-configs => the spec axis is genuinely parallel.
+    The two runs share one namespace (a rerun overwrites the per-seed dirs)
+    because the namespace path feeds config_hash -> surrogate_id; holding it
+    fixed and varying only workers is the fair parity comparison.
+    """
+
+    label_version_id = "lver_" + "2" * 64
+    feature_a = "fver_" + "a" * 64
+    feature_b = "fver_" + "b" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_a,
+        label_version_id=label_version_id,
+        feature_locks=(
+            _feature_lock(
+                feature_id="fixture_close_delta",
+                feature_family="fixture_signal_family",
+                feature_version_id=feature_a,
+            ),
+            _feature_lock(
+                feature_id="fixture_close_delta_b",
+                feature_family="fixture_signal_family",
+                feature_version_id=feature_b,
+            ),
+        ),
+    )
+    rows_a, label_rows = _value_rows(
+        feature_version_id=feature_a,
+        label_version_id=label_version_id,
+    )
+    rows_b, _ = _value_rows(
+        feature_version_id=feature_b,
+        label_version_id=label_version_id,
+    )
+    # Distinct value series so the two sub-configs are genuinely different.
+    rows_b = [{**row, "value": float(row["value"]) + 0.25} for row in rows_b]
+    feature_rows = rows_a + rows_b
+    feature_hash = compute_value_content_hash(feature_rows)
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    label_hash = compute_value_content_hash(label_rows)
+
+    def _resolver() -> _FakeResolver:
+        return _FakeResolver(
+            feature_record={
+                feature_a: _FeatureRecord(
+                    feature_version_id=feature_a,
+                    materialization_output_path=feature_path.as_posix(),
+                    value_content_hash=feature_hash,
+                    feature_spec=_FeatureSpec(feature_id="fixture_close_delta"),
+                ),
+                feature_b: _FeatureRecord(
+                    feature_version_id=feature_b,
+                    materialization_output_path=feature_path.as_posix(),
+                    value_content_hash=feature_hash,
+                    feature_spec=_FeatureSpec(feature_id="fixture_close_delta_b"),
+                ),
+            },
+            label_record=_LabelRecord(
+                label_version_id=label_version_id,
+                materialization_output_path=label_path.as_posix(),
+                value_content_hash=label_hash,
+            ),
+        )
+
+    base_seed = _base_seed_without_bootstrap_identity(label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_cli_workers_parity"
+    namespace.mkdir()
+
+    serial = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=2,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "report_serial.md",
+        resolver=_resolver(),
+        workers=1,
+    )
+    serial_record_hashes = _surrun_record_hashes(namespace)
+    serial_summary_hashes = _diagnostic_summary_hashes(namespace)
+
+    parallel = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=2,
+        base_seed=base_seed,
+        namespace=namespace,
+        report_out=tmp_path / "report_parallel.md",
+        resolver=_resolver(),
+        workers=4,
+        max_ram_gb=10_000.0,
+    )
+    parallel_record_hashes = _surrun_record_hashes(namespace)
+    parallel_summary_hashes = _diagnostic_summary_hashes(namespace)
+
+    # 2 sub-configs were staged; verdict and counts are identical.
+    assert serial["surrogate_study_spec_count"] == 2
+    assert parallel["surrogate_study_spec_count"] == 2
+    assert serial["error_count"] == 0
+    assert parallel["error_count"] == 0
+    # The full value-free result payload is byte-identical except the report
+    # path the caller chose (report_out differs by design between the two runs).
+    serial_payload = {k: v for k, v in serial.items() if k != "report_path"}
+    parallel_payload = {k: v for k, v in parallel.items() if k != "report_path"}
+    assert json.dumps(parallel_payload, sort_keys=True) == json.dumps(
+        serial_payload, sort_keys=True
+    )
+    assert parallel["threshold_verdict"] == serial["threshold_verdict"]
+    # Content-addressed records + diagnostic-summary SHAs are byte-identical.
+    assert parallel_record_hashes == serial_record_hashes
+    assert parallel_summary_hashes == serial_summary_hashes
+    # The two value-free Markdown reports are byte-identical.
+    assert (tmp_path / "report_parallel.md").read_text(encoding="utf-8") == (
+        tmp_path / "report_serial.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_real_surrogate_calibration_cleanup_staged_inputs_removes_inputs(
+    tmp_path: Path,
+) -> None:
+    feature_version_id = "fver_" + "1" * 64
+    label_version_id = "lver_" + "2" * 64
+    spec_path = _study_spec_file(
+        tmp_path,
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_rows, label_rows = _value_rows(
+        feature_version_id=feature_version_id,
+        label_version_id=label_version_id,
+    )
+    feature_path = _write_jsonl(tmp_path / "feature-values.jsonl", feature_rows)
+    label_path = _write_jsonl(tmp_path / "label-values.jsonl", label_rows)
+    namespace = tmp_path / "rigor_p05_surrogate_cleanup"
+    namespace.mkdir()
+
+    result = run_real_surrogate_calibration(
+        study_spec_path=spec_path,
+        alpha_data_root=tmp_path / "alpha_data",
+        runs_per_config=1,
+        base_seed=_base_seed_without_bootstrap_identity(label_rows),
+        namespace=namespace,
+        report_out=tmp_path / "report.md",
+        resolver=_FakeResolver(
+            feature_record=_FeatureRecord(
+                feature_version_id=feature_version_id,
+                materialization_output_path=feature_path.as_posix(),
+                value_content_hash=compute_value_content_hash(feature_rows),
+            ),
+            label_record=_LabelRecord(
+                label_version_id=label_version_id,
+                materialization_output_path=label_path.as_posix(),
+                value_content_hash=compute_value_content_hash(label_rows),
+            ),
+        ),
+        cleanup_staged_inputs=True,
+    )
+
+    assert result["accepted"] is True
+    # The study-spec-scoped staged input subtree is gone (so the large staged
+    # JSONL packs are reclaimed); durable per-seed audit artifacts remain.
+    input_root = namespace / "real_surrogate_inputs" / result["study_spec_id"]
+    assert not input_root.exists()
+    assert tuple(namespace.glob("seed_*/study_outputs/diagnostic_summary.json"))
 
 
 def test_real_surrogate_calibration_tool_resolves_locked_packs_via_resolver(

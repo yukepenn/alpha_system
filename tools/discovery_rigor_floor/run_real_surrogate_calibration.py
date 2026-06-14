@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import sys
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -64,6 +67,15 @@ DECLARED_CONDITIONING_FEATURE_IDS_KEY = "declared_conditioning_feature_ids"
 STAGING_MANIFEST_SCHEMA = "real_surrogate_calibration_staging_manifest_v1"
 STAGING_MANIFEST_NAME = "staging_manifest.json"
 DEFAULT_RUNS_PER_CONFIG_CAP = 60
+# RAM planner constants. The per-sub-config diagnostic panel is built in memory
+# from the staged input JSONL; the resident set is dominated by that panel. We
+# estimate per-panel RSS from the staged input bytes with a conservative
+# multiplier (Python object overhead vs raw JSONL) and always hold back a free
+# RAM headroom so the worker pool can never OOM the host.
+PANEL_RSS_BYTES_PER_STAGED_INPUT_BYTE = 12.0
+MIN_PER_PANEL_RSS_GB = 1.0
+RAM_HEADROOM_GB = 6.0
+_BYTES_PER_GB = 1024.0**3
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +144,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             namespace=args.namespace,
             report_out=args.report_out,
             rescore_existing=args.rescore_existing,
+            workers=args.workers,
+            max_ram_gb=args.max_ram_gb,
+            cleanup_staged_inputs=args.cleanup_staged_inputs,
         )
     except (
         GovernanceValidationError,
@@ -178,6 +193,39 @@ def build_parser() -> argparse.ArgumentParser:
             "and re-running surrogate studies."
         ),
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help=(
+            "Spec-level worker processes for the per-sub-config surrogate units. "
+            "Default 1 keeps the byte-for-byte single-threaded path. Higher values "
+            "are capped by the RAM planner and the host CPU count; the report is "
+            "byte-identical to --workers 1."
+        ),
+    )
+    parser.add_argument(
+        "--max-ram-gb",
+        type=float,
+        default=None,
+        help=(
+            "Optional ceiling on physical RAM (GiB) the worker pool may consume. "
+            "When omitted the planner auto-detects available RAM and keeps a "
+            f"{RAM_HEADROOM_GB:.0f} GiB free-RAM headroom. Effective workers are "
+            "reduced so workers * per-panel-RSS stays under this budget; never OOMs."
+        ),
+    )
+    parser.add_argument(
+        "--cleanup-staged-inputs",
+        action="store_true",
+        help=(
+            "After a successful run, delete the staged input packs under "
+            "real_surrogate_inputs/ to reclaim VHDX space. The durable per-seed "
+            "study_outputs/surrogate_runs audit dirs are kept. Mutually exclusive "
+            "with a later --rescore-existing constant-factor re-derivation, which "
+            "reads those staged inputs; off by default."
+        ),
+    )
     return parser
 
 
@@ -191,12 +239,16 @@ def run_real_surrogate_calibration(
     report_out: str | Path,
     resolver: FeatureLabelPackResolver | None = None,
     rescore_existing: bool = False,
+    workers: int = 1,
+    max_ram_gb: float | None = None,
+    cleanup_staged_inputs: bool = False,
 ) -> dict[str, Any]:
     """Resolve locked packs, run K per block-null config, and write one report."""
 
     active_namespace = require_isolated_namespace(namespace)
     active_runs_per_config = _effective_runs_per_config(runs_per_config)
     active_base_seed = _non_negative_int(base_seed, "base_seed")
+    active_workers = _positive_int(workers, "workers")
     study_spec = _load_study_spec(study_spec_path)
     scope = study_spec.dataset_scope
     horizon_text, horizon_seconds, label_type = _declared_primary_horizon(scope)
@@ -433,19 +485,60 @@ def run_real_surrogate_calibration(
             excluded_factors=tuple(excluded_factors),
         )
 
-    reports: list[SurrogateCalibrationReport] = []
     seed_block_size = len(surrogate_specs) * active_runs_per_config
-    for config_index, perturbation_type in enumerate(PERTURBATION_CONFIGS):
-        reports.append(
-            calibrate_surrogate_fdr(
-                tuple(surrogate_specs),
-                run_budget=active_runs_per_config,
-                base_seed=active_base_seed + config_index * seed_block_size,
-                namespace=active_namespace,
-                perturbation_type=perturbation_type,
-            )
+    spec_workers, config_workers = _plan_worker_budget(
+        requested_workers=active_workers,
+        spec_count=len(surrogate_specs),
+        config_count=len(PERTURBATION_CONFIGS),
+        input_root=input_root,
+        max_ram_gb=max_ram_gb,
+    )
+
+    # When the perturbation-config axis runs on threads, the inner spec pools
+    # must use "spawn" so they never fork a multi-threaded parent (which risks a
+    # child-side deadlock). The serial config path keeps the platform default.
+    config_parallel = config_workers > 1
+    spec_start_method = "spawn" if config_parallel else None
+
+    def _run_config(config_index: int) -> SurrogateCalibrationReport:
+        # Each perturbation config writes a disjoint seed block
+        # (base_seed + config_index * seed_block_size ...), so configs never
+        # collide on seed_* directories and can run concurrently while staying
+        # byte-identical to the serial path.
+        return calibrate_surrogate_fdr(
+            tuple(surrogate_specs),
+            run_budget=active_runs_per_config,
+            base_seed=active_base_seed + config_index * seed_block_size,
+            namespace=active_namespace,
+            perturbation_type=PERTURBATION_CONFIGS[config_index],
+            workers=spec_workers,
+            mp_start_method=spec_start_method,
         )
+
+    config_indices = range(len(PERTURBATION_CONFIGS))
+    if not config_parallel:
+        reports: list[SurrogateCalibrationReport] = [
+            _run_config(config_index) for config_index in config_indices
+        ]
+    else:
+        # The perturbation-config axis (only a handful of configs) is dispatched
+        # on threads: the heavy work happens inside calibrate_surrogate_fdr's own
+        # process pool, so a thread per config simply lets two process pools run
+        # concurrently. Results are reassembled in config order.
+        reports_by_config: list[SurrogateCalibrationReport | None] = [
+            None
+        ] * len(PERTURBATION_CONFIGS)
+        with ThreadPoolExecutor(max_workers=config_workers) as executor:
+            futures = {
+                executor.submit(_run_config, config_index): config_index
+                for config_index in config_indices
+            }
+            for future in futures:
+                reports_by_config[futures[future]] = future.result()
+        reports = [report for report in reports_by_config if report is not None]
     report = _combine_reports(reports)
+    if cleanup_staged_inputs:
+        _cleanup_staged_inputs(input_root)
     _write_real_report(
         report,
         report_out=report_out,
@@ -1187,6 +1280,114 @@ def _surrogate_study_spec(
 def _combine_reports(reports: Sequence[SurrogateCalibrationReport]) -> SurrogateCalibrationReport:
     rows = tuple(row for report in reports for row in report.per_run)
     return surrogate_calibration_report_from_rows(rows)
+
+
+def _available_ram_bytes() -> float:
+    """Return best-effort available physical RAM in bytes (stdlib only)."""
+
+    try:
+        avail_pages = os.sysconf("SC_AVPHYS_PAGES")
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        if avail_pages > 0 and page_size > 0:
+            return float(avail_pages) * float(page_size)
+    except (ValueError, OSError):  # pragma: no cover - platform dependent
+        pass
+    meminfo = Path("/proc/meminfo")
+    if meminfo.is_file():
+        for line in meminfo.read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                parts = line.split()
+                if len(parts) >= 2 and parts[1].isdigit():
+                    return float(parts[1]) * 1024.0
+    return 0.0
+
+
+def _estimated_per_panel_rss_bytes(input_root: Path) -> float:
+    """Estimate the resident set of one in-memory sub-config panel.
+
+    The panel is built from a single staged sub-config's input JSONL; resident
+    bytes scale with the largest staged factor+label pack. A conservative
+    multiplier accounts for Python object overhead vs raw JSONL bytes, with a
+    floor so the planner never under-budgets a tiny synthetic input.
+    """
+
+    largest_bytes = 0
+    if input_root.is_dir():
+        for staged in input_root.rglob("*.jsonl"):
+            try:
+                largest_bytes = max(largest_bytes, staged.stat().st_size)
+            except OSError:  # pragma: no cover - transient stat failure
+                continue
+    estimate = float(largest_bytes) * PANEL_RSS_BYTES_PER_STAGED_INPUT_BYTE
+    return max(estimate, MIN_PER_PANEL_RSS_GB * _BYTES_PER_GB)
+
+
+def _plan_worker_budget(
+    *,
+    requested_workers: int,
+    spec_count: int,
+    config_count: int,
+    input_root: Path,
+    max_ram_gb: float | None,
+) -> tuple[int, int]:
+    """Return (spec_workers, config_workers) under CPU and RAM ceilings.
+
+    ``spec_workers`` parallelizes the embarrassingly-parallel per-sub-config
+    units inside ``calibrate_surrogate_fdr``. ``config_workers`` parallelizes
+    the perturbation-config axis only when whole CPU cores remain after the spec
+    axis is satisfied. The RAM planner caps how many panels may be resident at
+    once so ``concurrent_panels * per_panel_RSS`` never crosses the budget; this
+    is the lesson encoded from the DK-P03 OOM. Neither axis ever OOMs because the
+    panel-concurrency cap is enforced before any worker is spawned.
+    """
+
+    requested = max(1, requested_workers)
+    # ``--workers 1`` is the byte-for-byte single-threaded path: BOTH axes stay
+    # serial so the run matches the established behavior exactly. Any parallelism
+    # (including the second perturbation-config axis) is opt-in via workers > 1.
+    if requested <= 1:
+        return 1, 1
+
+    cpu_count = os.cpu_count() or 1
+    # CPU ceiling on the spec axis (never exceed the number of sub-configs).
+    spec_workers = max(1, min(requested, spec_count if spec_count > 0 else 1, cpu_count))
+
+    # RAM ceiling: bound the number of panels resident at once. Each spec worker
+    # holds one panel; a second concurrent perturbation config doubles resident
+    # panels, so the planner budgets against total concurrent panels.
+    per_panel = _estimated_per_panel_rss_bytes(input_root)
+    if max_ram_gb is not None and max_ram_gb > 0:
+        budget_bytes = max_ram_gb * _BYTES_PER_GB
+    else:
+        budget_bytes = max(_available_ram_bytes() - RAM_HEADROOM_GB * _BYTES_PER_GB, 0.0)
+    max_concurrent_panels = max(1, int(budget_bytes // per_panel))
+
+    spec_workers = max(1, min(spec_workers, max_concurrent_panels))
+
+    # Second axis: only run perturbation configs concurrently if whole cores AND
+    # RAM headroom remain after the spec axis. Running two configs doubles the
+    # resident panel count to 2 * spec_workers.
+    config_workers = 1
+    if (
+        config_count > 1
+        and spec_workers * 2 <= cpu_count
+        and spec_workers * 2 <= max_concurrent_panels
+    ):
+        config_workers = min(config_count, cpu_count // spec_workers)
+    return spec_workers, config_workers
+
+
+def _cleanup_staged_inputs(input_root: Path) -> None:
+    """Remove the staged input packs to reclaim VHDX space after a run.
+
+    Only the input packs under ``input_root`` are removed; the per-seed
+    ``study_outputs``/``surrogate_runs`` audit dirs (the durable parity and
+    rescore-scoring artifacts) live elsewhere in the namespace and are kept.
+    """
+
+    if not input_root.is_dir():
+        return
+    shutil.rmtree(input_root, ignore_errors=True)
 
 
 @dataclass(frozen=True, slots=True)

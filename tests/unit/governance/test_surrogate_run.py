@@ -273,6 +273,96 @@ def test_surrogate_calibration_fast_path_writes_no_per_seed_label_copies(
     assert len(tuple(namespace.glob("seed_*/study_outputs/diagnostic_summary.json"))) == 3
 
 
+def _surrun_record_hashes(namespace: Path) -> dict[str, str]:
+    return {
+        path.parent.parent.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(namespace.glob("seed_*/surrogate_runs/*.json"))
+    }
+
+
+def _diagnostic_summary_hashes(namespace: Path) -> dict[str, str]:
+    return {
+        path.parent.parent.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(namespace.glob("seed_*/study_outputs/diagnostic_summary.json"))
+    }
+
+
+@pytest.mark.parametrize("workers", (2, 4))
+def test_workers_N_matches_workers_1_byte_identical(
+    tmp_path: Path,
+    workers: int,
+) -> None:
+    """A calibration with workers>1 must be byte-identical to workers=1.
+
+    This is the accuracy guarantee for the surrogate-FDR verdict: the same
+    namespace + inputs run with extra worker processes must produce an identical
+    report (same per_run rows, same seeds, same surrogate-run record hashes,
+    same threshold_verdict) and identical on-disk diagnostic-summary SHAs. The
+    two runs share one namespace (a rerun overwrites the per-seed dirs) because
+    the namespace path feeds config_hash -> trial_id -> surrogate_id, so a fair
+    comparison must hold the namespace fixed and vary only ``workers``.
+    """
+
+    # Multiple distinct sub-configs (distinct factor series => distinct
+    # study_spec_id => distinct seed_* trees), mirroring the real calibration
+    # where every sub-config is instrument x year x factor distinct.
+    specs = tuple(_study_spec_with_offset(tmp_path, offset=offset) for offset in range(6))
+    assert len({spec.study_spec_id for spec in specs}) == len(specs)
+
+    namespace = tmp_path / "rigor_p05_surrogate_workers_parity"
+    namespace.mkdir()
+
+    serial_report = calibrate_surrogate_fdr(
+        specs,
+        run_budget=4,
+        base_seed=900,
+        namespace=namespace,
+        workers=1,
+    )
+    serial_record_hashes = _surrun_record_hashes(namespace)
+    serial_summary_hashes = _diagnostic_summary_hashes(namespace)
+
+    parallel_report = calibrate_surrogate_fdr(
+        specs,
+        run_budget=4,
+        base_seed=900,
+        namespace=namespace,
+        workers=workers,
+    )
+    parallel_record_hashes = _surrun_record_hashes(namespace)
+    parallel_summary_hashes = _diagnostic_summary_hashes(namespace)
+
+    # Whole-report byte identity (per_run rows, seeds, surrogate ids, verdict).
+    assert json.dumps(parallel_report.to_dict(), sort_keys=True) == json.dumps(
+        serial_report.to_dict(), sort_keys=True
+    )
+    assert parallel_report.per_run == serial_report.per_run
+    assert parallel_report.threshold_verdict == serial_report.threshold_verdict
+    assert parallel_report.run_count == len(specs) * 4
+    # Content-addressed surrogate-run records and diagnostic-summary SHAs match.
+    assert parallel_record_hashes == serial_record_hashes
+    assert len(parallel_record_hashes) == len(specs) * 4
+    assert parallel_summary_hashes == serial_summary_hashes
+    assert len(parallel_summary_hashes) == len(specs) * 4
+
+
+def test_workers_must_be_positive(tmp_path: Path) -> None:
+    namespace = tmp_path / "rigor_p05_surrogate_bad_workers"
+    namespace.mkdir()
+    spec = _study_spec(tmp_path, min_total=10)
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        calibrate_surrogate_fdr(
+            (spec,),
+            run_budget=1,
+            base_seed=100,
+            namespace=namespace,
+            workers=0,
+        )
+
+    assert exc_info.value.issues[0].code == "invalid_surrogate_workers"
+
+
 @pytest.mark.parametrize(
     "perturbation_type",
     (
@@ -531,6 +621,46 @@ def _study_spec(tmp_path: Path, *, min_total: int, multi_day: bool = False):
         tmp_path / f"labels-{min_total}.jsonl",
         _multi_day_label_rows((2, 2, 2)) if multi_day else _label_rows(),
     )
+    payload = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+    payload["dataset_scope"] = {
+        **payload["dataset_scope"],
+        "surrogate_fdr": {
+            "factor_id": "fixture_close_delta",
+            "factor_version": "v1",
+            "label_id": "forward_return_1m",
+            "label_version": "labels:v1",
+            "data_version": "data:v1",
+            "factor_values_path": factor_path.as_posix(),
+            "labels_path": label_path.as_posix(),
+            "horizon_seconds": 60,
+            "sample_size_thresholds": {"min_total": min_total},
+            "diagnostic_types": ["directional"],
+            "bucket_count": 2,
+        },
+    }
+    payload["study_spec_id"] = generate_study_spec_id(payload)
+    return validate_study_spec(payload)
+
+
+def _study_spec_with_offset(tmp_path: Path, *, offset: int, min_total: int = 10):
+    """Build a StudySpec whose factor series is offset so its id is distinct.
+
+    Each offset yields a distinct factor value series, hence a distinct
+    ``study_spec_id`` and a distinct ``seed_*`` directory tree, mirroring the
+    real calibration where each sub-config is instrument x year x factor
+    distinct. Used to exercise the multi-sub-config (parallelizable) path.
+    """
+
+    factor_rows = [
+        {
+            **row,
+            "value": float(row["value"]) + offset,
+            "normalized_value": float(row["value"]) + offset,
+        }
+        for row in _single_day_factor_rows()
+    ]
+    factor_path = _write_jsonl(tmp_path / f"factor-values-off-{offset}.jsonl", factor_rows)
+    label_path = _write_jsonl(tmp_path / f"labels-off-{offset}.jsonl", _label_rows())
     payload = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     payload["dataset_scope"] = {
         **payload["dataset_scope"],

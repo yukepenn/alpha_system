@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 import random
 import re
 import stat
 import tempfile
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -777,6 +779,113 @@ def _row_from_surrogate_result(
     }
 
 
+def _calibrate_one_spec(
+    study_spec: StudySpec,
+    *,
+    spec_index: int,
+    run_budget: int,
+    base_seed: int,
+    namespace: Path,
+    family_id: str,
+    perturbation_type: SurrogatePerturbationType,
+) -> list[dict[str, JsonValue]]:
+    """Return the ordered surrogate rows for one StudySpec sub-config.
+
+    This is the exact body of the ``calibrate_surrogate_fdr`` per-``spec_index``
+    loop: build the diagnostic panel once for the spec, then run its
+    ``run_budget`` seeded studies in seed order. On a panel-build failure it
+    emits ``run_budget`` error rows; otherwise it emits one row per seed (which
+    may itself be an error row). The returned list is the deterministic
+    contribution of this spec to the calibration, so the parent can run specs in
+    parallel and concatenate them in spec order for a byte-identical report.
+    """
+
+    rows: list[dict[str, JsonValue]] = []
+    first_seed = base_seed + spec_index * run_budget
+    try:
+        scope = _surrogate_scope(study_spec)
+        original_labels_path = _scope_path(scope, "labels_path")
+        labels = _read_required_label_rows(
+            original_labels_path,
+            missing_message=(
+                f"{perturbation_type.value} surrogate requires an "
+                "existing label JSONL file"
+            ),
+            empty_message=(
+                f"{perturbation_type.value} surrogate requires at "
+                "least one label row"
+            ),
+        )
+        panel_run_root = namespace / f"seed_{first_seed}"
+        panel_config = _study_config_for_surrogate(
+            study_spec,
+            scope=scope,
+            seed=first_seed,
+            shuffled_labels_path=(
+                panel_run_root
+                / "labels"
+                / _perturbation_output_name(perturbation_type)
+            ),
+            output_dir=panel_run_root / "study_outputs",
+        )
+        panel = _diagnostic_panel_for_surrogate(panel_config, labels)
+    except (
+        DiagnosticsError,
+        GovernanceSerializationError,
+        GovernanceValidationError,
+        OSError,
+        StudyConfigError,
+        StudyOutputError,
+        ValueError,
+    ) as exc:
+        for run_index in range(run_budget):
+            seed = base_seed + spec_index * run_budget + run_index
+            rows.append(
+                _error_row(
+                    study_spec,
+                    perturbation_type=perturbation_type,
+                    seed=seed,
+                    exc=exc,
+                )
+            )
+        return rows
+
+    for run_index in range(run_budget):
+        seed = base_seed + spec_index * run_budget + run_index
+        try:
+            result = _run_surrogate_study_from_panel(
+                study_spec,
+                seed=seed,
+                namespace=namespace,
+                family_id=family_id,
+                perturbation_type=perturbation_type,
+                scope=scope,
+                labels=labels,
+                panel=panel,
+            )
+        except (
+            DiagnosticsError,
+            GovernanceSerializationError,
+            GovernanceValidationError,
+            OSError,
+            StudyConfigError,
+            StudyOutputError,
+            ValueError,
+        ) as exc:
+            rows.append(
+                _error_row(
+                    study_spec,
+                    perturbation_type=perturbation_type,
+                    seed=seed,
+                    exc=exc,
+                )
+            )
+            continue
+        rows.append(_row_from_surrogate_result(study_spec, result, seed=seed))
+
+    return rows
+
+
 def calibrate_surrogate_fdr(
     study_specs: Iterable[StudySpec | Mapping[str, Any]],
     *,
@@ -785,13 +894,32 @@ def calibrate_surrogate_fdr(
     namespace: str | Path,
     family_id: str = DEFAULT_SURROGATE_FAMILY_ID,
     perturbation_type: SurrogatePerturbationType | str = SurrogatePerturbationType.LABEL_SHUFFLE,
+    workers: int = 1,
+    mp_start_method: str | None = None,
 ) -> SurrogateCalibrationReport:
-    """Run N seeded surrogate studies and aggregate a zero-pass verdict."""
+    """Run N seeded surrogate studies and aggregate a zero-pass verdict.
+
+    With ``workers == 1`` (the default) this runs the byte-for-byte single
+    threaded path: each StudySpec is processed in declared order on the calling
+    process. With ``workers > 1`` each StudySpec's per-spec unit (build panel +
+    run its seeds) is dispatched to a ``ProcessPoolExecutor``; the per-spec
+    units are order-independent because every seed is fully determined by
+    ``base_seed + spec_index * run_budget + run_index`` and each unit seeds its
+    own RNG locally. Results are concatenated in deterministic spec order before
+    report assembly, so the report is byte-identical to ``workers == 1``.
+
+    ``mp_start_method`` selects the multiprocessing start method for the spec
+    pool. ``None`` uses the platform default. Callers that launch this from
+    inside their own thread pool should pass ``"spawn"`` to avoid forking a
+    multi-threaded parent. The per-spec output is identical regardless of the
+    start method because ``_calibrate_one_spec`` is pure given its inputs.
+    """
 
     active_namespace = require_isolated_namespace(namespace)
     active_run_budget = _validate_run_budget(run_budget)
     active_base_seed = _validate_seed(base_seed)
     active_perturbation_type = SurrogatePerturbationType(perturbation_type)
+    active_workers = _validate_workers(workers)
     validated_specs = tuple(_coerce_study_spec(spec) for spec in study_specs)
     if not validated_specs:
         raise GovernanceValidationError(
@@ -804,91 +932,58 @@ def calibrate_surrogate_fdr(
             )
         )
 
-    rows: list[dict[str, JsonValue]] = []
-    for spec_index, study_spec in enumerate(validated_specs):
-        first_seed = active_base_seed + spec_index * active_run_budget
-        try:
-            scope = _surrogate_scope(study_spec)
-            original_labels_path = _scope_path(scope, "labels_path")
-            labels = _read_required_label_rows(
-                original_labels_path,
-                missing_message=(
-                    f"{active_perturbation_type.value} surrogate requires an "
-                    "existing label JSONL file"
-                ),
-                empty_message=(
-                    f"{active_perturbation_type.value} surrogate requires at "
-                    "least one label row"
-                ),
-            )
-            panel_run_root = active_namespace / f"seed_{first_seed}"
-            panel_config = _study_config_for_surrogate(
-                study_spec,
-                scope=scope,
-                seed=first_seed,
-                shuffled_labels_path=(
-                    panel_run_root
-                    / "labels"
-                    / _perturbation_output_name(active_perturbation_type)
-                ),
-                output_dir=panel_run_root / "study_outputs",
-            )
-            panel = _diagnostic_panel_for_surrogate(panel_config, labels)
-        except (
-            DiagnosticsError,
-            GovernanceSerializationError,
-            GovernanceValidationError,
-            OSError,
-            StudyConfigError,
-            StudyOutputError,
-            ValueError,
-        ) as exc:
-            for run_index in range(active_run_budget):
-                seed = active_base_seed + spec_index * active_run_budget + run_index
-                rows.append(
-                    _error_row(
-                        study_spec,
-                        perturbation_type=active_perturbation_type,
-                        seed=seed,
-                        exc=exc,
-                    )
-                )
-            continue
-
-        for run_index in range(active_run_budget):
-            seed = active_base_seed + spec_index * active_run_budget + run_index
-            try:
-                result = _run_surrogate_study_from_panel(
+    effective_workers = min(active_workers, len(validated_specs))
+    if effective_workers <= 1:
+        rows: list[dict[str, JsonValue]] = []
+        for spec_index, study_spec in enumerate(validated_specs):
+            rows.extend(
+                _calibrate_one_spec(
                     study_spec,
-                    seed=seed,
+                    spec_index=spec_index,
+                    run_budget=active_run_budget,
+                    base_seed=active_base_seed,
                     namespace=active_namespace,
                     family_id=family_id,
                     perturbation_type=active_perturbation_type,
-                    scope=scope,
-                    labels=labels,
-                    panel=panel,
                 )
-            except (
-                DiagnosticsError,
-                GovernanceSerializationError,
-                GovernanceValidationError,
-                OSError,
-                StudyConfigError,
-                StudyOutputError,
-                ValueError,
-            ) as exc:
-                rows.append(
-                    _error_row(
-                        study_spec,
-                        perturbation_type=active_perturbation_type,
-                        seed=seed,
-                        exc=exc,
-                    )
-                )
-                continue
-            rows.append(_row_from_surrogate_result(study_spec, result, seed=seed))
+            )
+        return surrogate_calibration_report_from_rows(rows)
 
-    return surrogate_calibration_report_from_rows(rows)
+    # Parallel path: dispatch each spec's per-spec unit, then reassemble the
+    # rows in deterministic spec order. The ordered placeholder list guarantees
+    # the concatenation order is independent of completion order, so the report
+    # is byte-identical to the workers == 1 path.
+    rows_by_spec: list[list[dict[str, JsonValue]] | None] = [None] * len(validated_specs)
+    # ``_calibrate_one_spec`` is pure given its picklable inputs and reseeds its
+    # own RNG locally, so the per-spec output is identical regardless of the
+    # multiprocessing start method. A caller running this from its own thread
+    # pool passes ``"spawn"`` to avoid forking a multi-threaded parent; otherwise
+    # the platform default (fork on Linux) is used, which the rest of this
+    # codebase relies on and which is fragile to ``spawn`` only for non-importable
+    # entry points such as a ``-c``/heredoc driver.
+    context = mp.get_context(mp_start_method) if mp_start_method else mp.get_context()
+    with ProcessPoolExecutor(max_workers=effective_workers, mp_context=context) as executor:
+        futures = {
+            executor.submit(
+                _calibrate_one_spec,
+                study_spec,
+                spec_index=spec_index,
+                run_budget=active_run_budget,
+                base_seed=active_base_seed,
+                namespace=active_namespace,
+                family_id=family_id,
+                perturbation_type=active_perturbation_type,
+            ): spec_index
+            for spec_index, study_spec in enumerate(validated_specs)
+        }
+        for future in futures:
+            rows_by_spec[futures[future]] = future.result()
+
+    ordered_rows: list[dict[str, JsonValue]] = []
+    for spec_rows in rows_by_spec:
+        assert spec_rows is not None
+        ordered_rows.extend(spec_rows)
+    return surrogate_calibration_report_from_rows(ordered_rows)
 
 
 def surrogate_calibration_report_from_rows(
@@ -2043,6 +2138,20 @@ def _validate_run_budget(value: Any) -> int:
                 field="run_budget",
                 code="invalid_surrogate_run_budget",
                 message="surrogate calibration run budget must be a positive integer",
+                expected="positive integer",
+                actual=str(value),
+            )
+        )
+    return value
+
+
+def _validate_workers(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="workers",
+                code="invalid_surrogate_workers",
+                message="surrogate calibration workers must be a positive integer",
                 expected="positive integer",
                 actual=str(value),
             )
