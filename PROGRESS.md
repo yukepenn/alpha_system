@@ -8,32 +8,25 @@ Project: `alpha_system`
 
 ## Current status
 
-Latest (Workflow 1): `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1` — **COMPLETE (PASS)**.
-The two pre-pilot data-access blockers are landed and verified on real local data:
-`FEATURE_LABEL_PARQUET_SINK_V1` (research-scale Parquet value sink/reader + registry
-pointer metadata via `core/value_store.py`, dual JSONL+Parquet operator, JSONL preserved
-as audit/small tier) and `SESSION_LABEL_GUARD_FIX_V1` (role-aware no-lookahead guard;
-session-context features `rth_flag`/`eth_flag`/`session_minute` now resolve via declared
-`SESSION_METADATA`, true labels still blocked). Real smoke materialized Parquet-backed
-session features + `fwd_ret_5m`; runtime smoke PASS; Agent Factory preflight PREFLIGHT_PASS
-on all four gates. `verify.py --all` = 2806 passed / 7 skipped; canaries PASS; artifact audit
-clean (no values/registries/Parquet committed). See
-`handoffs/PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1.md`. Next campaign (separately authorized):
-`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`.
+`DIFFERENTIATED_KILLSHOT_V1` (DK) is **COMPLETE 6/6** (2026-06-14) with **0 survivors**
+— the second clean kill-shot after `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`
+(FUTSUB). Track A (calendar/flow conditioning factors as main-effect context) is a
+WELL-POWERED CLEAN NULL (4 `ZERO_PASS_MET` mechanisms, all REJECT). Track B (the
+EXPLORATORY `context != trigger` conditional probe) is a SUBSTRATE-GAP, UNTESTED result
+— it ran on a single-class (degenerate) 120m `target_before_stop` slice, so it is not a
+null; it is a closable DATA_GAP. `roll_week` is an honest DATA_GAP.
 
-Previously (Workflow 1): `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1` —
-storage architecture converged (ADR-0006: JSONL audit tier now, Parquet
-research-scale deferred to `FEATURE_LABEL_PARQUET_SINK_V1`), a governed seed
-FeaturePack/LabelPack operator + canonical-Parquet loader were added, and the
-Research Runtime **real-data smoke now PASSES** against real Databento ES 2024
-seed packs (local-only). See
-`handoffs/POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1.md`. Next campaign:
-`ALPHA_AGENT_FACTORY_MVP`. (Note: the lines below predate the
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` and `ALPHA_RESEARCH_RUNTIME_MVP` campaigns,
-which are complete; this log is not the authoritative ledger.)
+Survivor gate = **0**. No promotion; no downstream factory module, no universe
+expansion, no paid data (all trigger-gated behind the survivor gate). Next: post-DK
+factory production-line adjudication → a narrow Track B substrate gap-closure (same
+SetupSpec, existing `ES_2020_120m` barrier-resolving slice, no new mechanisms/sweep/
+promotion) → a fresh narrow shot from a ranked MechanismCard queue. ES/NQ/RTY only.
 
-Workflow 2 is paused after `ALPHA_DATA_FOUNDATION_V1` completed all 25 phases.
-`ACTIVE_CAMPAIGN.md` points to current phase `none`.
+Earlier completed since the rigor/substrate work: `DISCOVERY_RIGOR_FLOOR_V1` (rigor
+floor 8/8 — VariantLedger, sealed-holdout, RANDOM_TARGET + planted-fake-alpha canary,
+surrogate-FDR/`ZERO_PASS_MET`), `STRATEGY_SHAPED_RESEARCH_LANE_V0` (SSRL 5/5 — the
+EXPLORATORY expression lane), and `SHIP_REFIT_V1`. The deep history below predates these
+and is not the authoritative ledger; for live status run `status-doctor`.
 
 ## Completed: ALPHA_SYSTEM_V1
 
@@ -85,7 +78,9 @@ claim. See `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO
 
 ## Next intended campaign
 
-ALPHA_FEATURE_LABEL_FOUNDATION_V1. Future feature/label work must consume only
-accepted DatasetVersions under the governance and partition-contamination rules;
-loading a DatasetVersion does not imply alpha value, profitability,
-tradability, broker readiness, paper/live readiness, or production readiness.
+Post-DK **factory production-line adjudication** (`ALPHA_FACTORY_PRODUCTION_LINE_ADJUDICATION_V1`)
+to charter the generic Idea → MechanismCard → testability gate → diagnostics → verdict
+→ rejected/survivor-memory line, then a narrow Track B substrate gap-closure on the
+existing `ES_2020_120m` slice. No broad mining, FactorLibrary, AlphaBook, sandbox, PA
+grammar, universe expansion, or paid data until the survivor gate (currently 0) earns
+them. Loading any DatasetVersion implies no alpha/tradability/profitability claim.

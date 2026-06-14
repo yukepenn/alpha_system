@@ -2,9 +2,25 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 
 from tools.frontier import status_doctor as sd
+
+
+def _make_run(runs_dir, name, *, status="STOPPED", lock=False, phases=None, events=None):
+    """Synthesize a runs/<name>/ dir with state.json (+ optional RUN.lock / events.jsonl)."""
+    run = runs_dir / name
+    run.mkdir(parents=True)
+    state = {"campaign_id": name.split("_", 1)[-1], "status": status, "phases": phases or []}
+    (run / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    if lock:
+        (run / "RUN.lock").write_text("pid 1\n", encoding="utf-8")
+    if events is not None:
+        (run / "events.jsonl").write_text(
+            "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+        )
+    return run
 
 
 def test_pyproject_requires_python_is_312() -> None:
@@ -98,3 +114,90 @@ def test_core_bare_true_is_hard_failure_in_temp_repo(tmp_path) -> None:
     sd.check_core_bare(report, root=tmp_path)
     assert report.has_fail
     assert any("git -C" in f.message and "config core.bare false" in f.message for f in report.findings)
+
+
+# --- stale RUNNING / lock guard --------------------------------------------------
+
+
+def test_stale_running_run_flagged_and_live_excluded(monkeypatch, tmp_path) -> None:
+    runs = tmp_path / "runs"
+    live = _make_run(runs, "2099Z_LIVE", status="RUNNING")
+    _make_run(runs, "2001Z_OLD", status="RUNNING", lock=True)
+    monkeypatch.setattr(sd, "RUNS", runs)
+    report = sd.Report()
+    sd.check_stale_running_runs(report, live)  # authoritative run excluded
+    assert report.has_warn
+    msgs = " ".join(f.message for f in report.findings)
+    assert "2001Z_OLD" in msgs
+    assert "2099Z_LIVE" not in msgs  # the live run is never flagged
+
+
+def test_run_lock_alone_flags_stale(monkeypatch, tmp_path) -> None:
+    runs = tmp_path / "runs"
+    _make_run(runs, "2001Z_LOCKED", status="STOPPED", lock=True)
+    monkeypatch.setattr(sd, "RUNS", runs)
+    report = sd.Report()
+    sd.check_stale_running_runs(report, None)
+    assert report.has_warn
+    assert any("RUN.lock present" in f.message for f in report.findings)
+
+
+def test_no_stale_runs_is_ok(monkeypatch, tmp_path) -> None:
+    runs = tmp_path / "runs"
+    _make_run(runs, "2001Z_DONE", status="COMPLETED")
+    _make_run(runs, "2002Z_STOPPED", status="STOPPED")
+    monkeypatch.setattr(sd, "RUNS", runs)
+    report = sd.Report()
+    sd.check_stale_running_runs(report, None)
+    assert not report.has_warn and not report.has_fail
+
+
+# --- state-surgery merge guard ---------------------------------------------------
+
+
+def test_surgery_merge_flagged_by_phase_id(tmp_path) -> None:
+    run = _make_run(
+        tmp_path / "runs",
+        "2099Z_DEMO",
+        phases=[
+            {"phase_id": "DEMO-P00", "merged": True},
+            {"phase_id": "DEMO-P01", "merged": True},  # hand-merged, no driver event
+        ],
+        events=[
+            {"event": "MERGED", "phase_id": "DEMO-P00", "pr_number": 1},
+            {"event": "PR_MERGED", "phase_id": "DEMO-P00", "pr_number": 1},
+        ],
+    )
+    state = sd.load_json(run / "state.json")
+    report = sd.Report()
+    sd.check_surgery_merges(report, run, state)
+    assert report.has_warn
+    msgs = " ".join(f.message for f in report.findings)
+    assert "DEMO-P01" in msgs and "surgery" in msgs.lower()
+    assert "DEMO-P00" not in msgs  # the driver-merged phase is not flagged
+
+
+def test_clean_driver_merges_not_flagged(tmp_path) -> None:
+    run = _make_run(
+        tmp_path / "runs",
+        "2099Z_CLEAN",
+        phases=[{"phase_id": "C-P00", "merged": True}],
+        events=[{"event": "PR_MERGED", "phase_id": "C-P00", "pr_number": 1}],
+    )
+    state = sd.load_json(run / "state.json")
+    report = sd.Report()
+    sd.check_surgery_merges(report, run, state)
+    assert not report.has_warn and not report.has_fail
+
+
+def test_surgery_check_quiet_without_events_log(tmp_path) -> None:
+    run = _make_run(
+        tmp_path / "runs",
+        "2099Z_NOEV",
+        phases=[{"phase_id": "N-P00", "merged": True}],
+        events=None,  # no events.jsonl -> cannot assess -> stay silent
+    )
+    state = sd.load_json(run / "state.json")
+    report = sd.Report()
+    sd.check_surgery_merges(report, run, state)
+    assert not report.findings
