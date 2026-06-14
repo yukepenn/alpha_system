@@ -6740,6 +6740,12 @@ def main(argv: list[str] | None = None) -> int:
     worktree_group = run_parser.add_mutually_exclusive_group()
     worktree_group.add_argument("--worktree-mode", action="store_true")
     worktree_group.add_argument("--no-worktree", action="store_true")
+    run_parser.add_argument(
+        "--force-new-run",
+        action="store_true",
+        help="Start a NEW run even if an incomplete run already exists for this "
+        "campaign (default REFUSES and points you to `resume`).",
+    )
     resume_parser = subparsers.add_parser("resume", help="Resume a stopped run or a Workflow 2 stage.")
     resume_parser.add_argument("--run-id")
     resume_parser.add_argument("--run-dir", type=Path)
@@ -6765,6 +6771,33 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        # Resume-safety guard: `run --campaign-id X` mints a FRESH run_id and
+        # re-executes the campaign from its first phase. If an incomplete run for
+        # X already exists, that silently re-builds and RE-MERGES already-done
+        # phases (regressing shared files). Refuse and point to `resume` unless
+        # the operator explicitly forces a new run.
+        if args.campaign_id and not args.force_new_run and not args.ledger_only:
+            existing = latest_campaign_run_dir(
+                args.campaign_id, provider_wired_only=bool(args.provider_wired)
+            )
+            if existing is not None:
+                try:
+                    existing_state = read_json(existing / "state.json")
+                except (OSError, json.JSONDecodeError):
+                    existing_state = {}
+                status = str(existing_state.get("status") or "?")
+                phase = str(existing_state.get("current_phase_id") or "?")
+                print(
+                    "RUN_REFUSED_INCOMPLETE_RUN_EXISTS: campaign "
+                    f"{args.campaign_id} already has an incomplete run "
+                    f"{existing.name} (status={status}, phase={phase}). `run` would "
+                    "start over from the first phase and re-execute/re-merge "
+                    "completed work.\n"
+                    "  Continue it:  python tools/frontier/ralph_driver.py resume "
+                    f"--run-dir {existing} --provider-wired\n"
+                    "  Start fresh anyway (rare): re-run with --force-new-run."
+                )
+                return 2
         _apply_scheduler_cli_env(args)
         return run_campaign(
             args.campaign_id,
