@@ -2,43 +2,44 @@
 
 Project: `alpha_system`
 
-Campaign: `campaigns/DIFFERENTIATED_KILLSHOT_V1` (COMPLETE 6/6)
+Campaign: `campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0`
 Workflow: `workflow2`
-Run: `complete` — DIFFERENTIATED_KILLSHOT_V1 finished 6/6 on 2026-06-14
-Status: `no live Workflow 2 run` — post-DK factory adjudication
+Run: `launching` — live `frontier-run-parallel` build (IVL-P00..P06)
+Status: `starting` — assembling the researcher idea→verdict product loop
 
-Current phase: `none` (no live run)
-Last completed phase: `DK-P05` — verdict aggregation + closeout
-Last completed status: `PASS_WITH_WARNINGS`
-Passing phases: `6/6`
+Current phase: `IVL-P00` — Role-Unification ADR + Canonical Idea-Object Schema Map
+Last completed phase: `none`
+Last completed status: `none`
+Passing phases: `0/7`
 
-## Post-DK state (verify live via `python tools/frontier/status_doctor.py`)
+## What this campaign is (verify live via `python tools/frontier/status_doctor.py`)
 
-DIFFERENTIATED_KILLSHOT_V1 is COMPLETE 6/6 with **0 survivors** — the second clean
-kill-shot after FUTSUB:
+`ALPHA_IDEA_TO_VERDICT_LOOP_V0` assembles the (already-trustworthy) governance/research
+backend into ONE researcher-facing **product loop**: any idea (PA / VWAP / IC / event /
+cross-market) → one canonical object → quick screen on a small EXISTING slice → testability
+gate BEFORE any real metric → human-readable governed verdict → memory. This is **ASSEMBLY +
+CONSOLIDATION over an intact reuse spine** — no new mechanism, feature, label, data, or
+downstream module.
 
-- **Track A** (calendar/flow conditioning factors as main-effect context):
-  WELL-POWERED CLEAN NULL — 4 mechanisms scored `ZERO_PASS_MET`, all REJECT.
-- **Track B** (`context != trigger` conditional probe, EXPLORATORY lane):
-  SUBSTRATE-GAP, UNTESTED — it ran on a single-class (degenerate) 120m
-  `target_before_stop` slice, so it is **not** a null; it is a closable DATA_GAP.
-- **roll_week**: honest DATA_GAP (`in_roll_window_flag` all-null).
+Canonical idea-object hierarchy: `idea.yaml` → **HypothesisCard → AlphaSpec (front-door
+trunk)** → MechanismCard + optional SetupSpec (emitted sub-objects, linked at the orchestration
+layer — frozen content-hashed schemas are NOT mutated) → StudySpec → verdict → memory. The
+optional `study_kind` discriminator lives only on a new IdeaDraft intake wrapper. Track-A
+doc-convention cards migrate into the canonical line (migrate-then-retire); no second card class.
 
-Survivor gate = **0**. No promotion. No downstream factory module (broad Mining V2,
-FactorLibrary as survivor memory, AlphaBook, Strategy Sandbox, PA grammar), no
-universe expansion, and no paid data are authorized — all remain trigger-gated
-behind the survivor gate.
+Phases (sequential, IVL-P00→P06): P00 role ADR + schema map · P01 `alpha idea validate` intake ·
+P02 executable testability gate + `alpha idea gate` (≥2-class non-degeneracy = the DK Track B fix) ·
+P03 fast exploratory lane bridge (`fast_probe` over an existing materialized slice) · P04 verdict
+`REPORT.md` renderer · P05 memory wiring + `alpha idea run` · P06 dogfood DK Track B through the loop.
 
-Next state: post-DK **factory production-line adjudication** (charter the generic
-Idea → MechanismCard/SetupSpec → testability gate → diagnostics/probe → verdict →
-rejected/survivor memory line), then a **narrow Track B substrate gap-closure**
-(same pre-registered SetupSpec, existing `ES_2020_120m` barrier-resolving slice,
-no new mechanisms, no geometry/horizon sweep, no promotion), then a fresh narrow
-shot from a ranked MechanismCard queue. ES/NQ/RTY existing data only.
+Lanes GREEN/YELLOW only. KEEP the entire trust spine + test suite (reuse, never rebuild). No
+downstream module (Mining V2 / FactorLibrary / AlphaBook / Sandbox / PA grammar), no universe
+expansion, no paid data, no broker/paper/live — all remain trigger-gated. Allowed verdicts only:
+REJECT / DATA_GAP / INCONCLUSIVE / WATCH / CANDIDATE_RESEARCH. No alpha/profitability/tradability
+claim. `runs/**` local-only; explicit staging only.
 
-Ralph updates this pointer through reviewed phase commits during a live Workflow 2
-run; between runs the coordinator keeps it synced to post-run truth.
+Prior: DIFFERENTIATED_KILLSHOT_V1 COMPLETE 6/6, **0 survivors** (Track A clean null; Track B
+substrate-gap DATA_GAP — now the IVL-P06 dogfood, not a standalone campaign).
 
-Broker/live trading, paper trading, order routing, raw data commits, heavy artifact
-commits, local DB commits, and alpha/tradability claims without evidence remain out
-of scope.
+Ralph updates this pointer through reviewed phase commits during the live run; between runs the
+coordinator keeps it synced to post-run truth.
