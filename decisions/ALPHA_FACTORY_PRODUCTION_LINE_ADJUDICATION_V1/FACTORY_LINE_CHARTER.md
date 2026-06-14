@@ -16,7 +16,7 @@ ENHANCE existing governance; never rebuild it. Every stage below cites the LIVE 
 
 ## 1. The production line (stage by stage)
 
-The canonical one-line pipeline is `docs/OPERATING_COMPASS_V4.md:925-938` §10 [v4.6]. Each stage entry gives: **(1) purpose, (2) LIVE component (file:line) or GAP + smallest upgrade, (3) entry/exit contract, (4) guard/canary covering it.**
+The canonical one-line pipeline is `docs/OPERATING_COMPASS.md` §3 (THE PRODUCTION LINE) + §4.1 (the layer model) [v4.6]. Each stage entry gives: **(1) purpose, (2) LIVE component (file:line) or GAP + smallest upgrade, (3) entry/exit contract, (4) guard/canary covering it.**
 
 ---
 
@@ -189,14 +189,14 @@ Two lanes with structurally different promotion semantics. **Neither lane change
 
 ## 3. Downstream modules are survivor-gated (FORBIDDEN to build now)
 
-**Current survivor gate = 0.** Two kill-shots have fired with 0 survivors (FUTSUB; DIFFERENTIATED_KILLSHOT_V1). The Stage-D survivor ladder is `docs/OPERATING_COMPASS_V4.md:417-466`; the layer-naming + anti-bloat LAW is §10 `:915-979` ("a name on this roadmap is permission to build it ONLY when its trigger fires, never by sequence/inertia," `:974-977`).
+**Current survivor gate = 0.** Two kill-shots have fired with 0 survivors (FUTSUB; DIFFERENTIATED_KILLSHOT_V1). The Stage-D survivor ladder is `docs/OPERATING_COMPASS.md` §4.2 Stage D + §3.5 (the survivor-gate rule); the layer-naming + anti-bloat LAW is §3.4 + §3.6 ("a name on this roadmap is permission to build it ONLY when its trigger fires, never by sequence/inertia").
 
 **Important adversarial caveat (verified):** the survivor-count ladder and the kill-shot readiness gate are **doc + human-judgement + REUSE-MAP discipline**, NOT executable counters. No module counts survivors and refuses to charter a downstream campaign; `experiments/survivors.py` + `experiments/candidate_policy.py:38` only gate a single *reviewed* candidate's management-grid eligibility. Enforcement of the table below therefore rests on review + compass-consistency + the absence of any built downstream module — not on a guard. Do not interpret "the gate is doc-only" as license to build; interpret it as a charter obligation.
 
 | Module — FORBIDDEN now | Compass stage / pointer | Exact trigger that earns it |
 |---|---|---|
-| **Mining V2** (broad search) | Stage F, `docs/OPERATING_COMPASS_V4.md:493` | ≥1 reviewed survivor through the gate (Stage D ladder satisfied). |
-| **FactorLibrary** (survivor memory ingestion) | Stage G, `:508-522`; explicitly "a MechanismCard/SetupSpec is NOT a FactorLibrary entry" `:964-967`; forbidden by `librarian.py:107` | ≥1 reviewed WATCH/CANDIDATE_RESEARCH survivor (the narrowed Stage-G trigger). |
+| **Mining V2** (broad search) | Stage F (`docs/OPERATING_COMPASS.md` §4.2 Stage F) | ≥1 reviewed survivor through the gate (Stage D ladder satisfied). |
+| **FactorLibrary** (survivor memory ingestion) | Stage G (`docs/OPERATING_COMPASS.md` §4.2 Stage G); explicitly "a MechanismCard/SetupSpec is NOT a FactorLibrary entry" (§3.4 layer-naming law); forbidden by `librarian.py:107` | ≥1 reviewed WATCH/CANDIDATE_RESEARCH survivor (the narrowed Stage-G trigger). |
 | **AlphaBook** | Stage J, `:557` | Stage E-J unlock: ≥3 low-correlation survivors OR ≥1 validated pooled ensemble (`:464-465`). |
 | **Strategy Sandbox / Strategy Reference** | Stage H, `:527` | ≥1 survivor → minimal CandidateRecord, Strategy Reference next (`:457-459`). |
 | **PA grammar substrate** (expression catalog) | §10 `:962-968` (PA_GRAMMAR_SUBSTRATE ≠ FactorLibrary; grammar is expression, not evidence) | A survivor whose mechanism demands sequenced/conditional encoding; never built by inertia. |
