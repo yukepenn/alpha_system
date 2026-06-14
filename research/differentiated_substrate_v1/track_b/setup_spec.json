@@ -1,0 +1,57 @@
+{
+  "allowed_variants": [
+    "baseline_range_contraction_failed_high_breakout"
+  ],
+  "confirmation": {
+    "fixed_before_readout": true,
+    "policy": "none_added_in_p04"
+  },
+  "entry_context": {
+    "bucket": "range_contraction_high",
+    "factor_id": "liquidity_structure_range_contraction",
+    "factor_version": "v1_es_2024_liquidity_structure_range_contraction",
+    "operator": ">=",
+    "signal_kind": "trailing_range_compression_regime_descriptor",
+    "threshold": 0.5,
+    "value_field": "normalized_value"
+  },
+  "event_trigger": {
+    "event": "prior_high_sweep_close_back_inside",
+    "factor_id": "liquidity_structure_failed_high_breakout_flag",
+    "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+    "operator": ">",
+    "signal_kind": "discrete_sweep_reclaim_event_flag",
+    "threshold": 0.0,
+    "value_field": "normalized_value"
+  },
+  "forbidden_post_hoc_changes": [
+    "No context bucket changes after outcome readout.",
+    "No trigger threshold changes after outcome readout.",
+    "No target or stop geometry changes inside P04."
+  ],
+  "hold_time": {
+    "horizon": "120m",
+    "max_minutes": 120
+  },
+  "horizon": "120m",
+  "invalidation": {
+    "fixed_before_readout": true,
+    "policy": "fixed_path_stop_binding"
+  },
+  "mechanism_id": "mech_651debd4497b065e1e121c3d",
+  "path_label": "lspec_9f0c3e7b99d146e4046e1b4b",
+  "regime_filter": {
+    "instrument_root": "ES",
+    "session": "RTH"
+  },
+  "setup_spec_id": "setup_c49fe5e7f8c17305db51a9bd",
+  "stamp": "EXPLORATORY",
+  "stop": {
+    "binding": "fixed_stop_from_path_label",
+    "geometry": "unchanged"
+  },
+  "target": {
+    "geometry": "unchanged",
+    "path_outcome": "target_before_stop"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "cost_sensitivity": {
+    "new_data": false,
+    "scope": "exploratory evidence only"
+  },
+  "duplicate_exposure": {
+    "family_id": "dk_p04_track_b_range_contraction_failed_high_breakout",
+    "status": "bounded",
+    "variant_id": "baseline_range_contraction_failed_high_breakout"
+  },
+  "expected_direction": "target-before-stop path outcome after the reclaim event",
+  "expected_mechanism": "The context factor reads trailing range compression and marks when the setup is relevant. The trigger factor reads a distinct prior-high sweep then close-back-inside event from a different feature family, and only fires the entry inside the compressed-range context bucket.",
+  "horizon": "120m",
+  "mechanism_id": "mech_651debd4497b065e1e121c3d",
+  "rationale": "A pre-declared range-contraction regime context can isolate sessions where a separate prior-high sweep then close-back-inside trigger is worth reading against a fixed 120m target-before-stop path outcome.",
+  "required_features": [
+    "liquidity_structure_range_contraction",
+    "liquidity_structure_failed_high_breakout_flag"
+  ],
+  "required_labels": [
+    "target_before_stop_120m_path_label"
+  ],
+  "session": "RTH",
+  "source": "DK-P04 Track B differentiated context-not-equal-trigger probe",
+  "stamp": "EXPLORATORY",
+  "variant_budget": 1
+}
