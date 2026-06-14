@@ -1,0 +1,232 @@
+{
+  "compiled_probe": {
+    "allowed_variants": [
+      "baseline_range_contraction_failed_high_breakout"
+    ],
+    "context": {
+      "factor_id": "liquidity_structure_range_contraction",
+      "factor_version": "v1_es_2024_liquidity_structure_range_contraction",
+      "operator": ">=",
+      "threshold": 0.5,
+      "value_field": "normalized_value"
+    },
+    "fixed_geometry": {
+      "hold_time": {
+        "horizon": "120m",
+        "max_minutes": 120
+      },
+      "horizon": "120m",
+      "stop": {
+        "binding": "fixed_stop_from_path_label",
+        "geometry": "unchanged"
+      },
+      "target": {
+        "geometry": "unchanged",
+        "path_outcome": "target_before_stop"
+      }
+    },
+    "path_label": "lspec_9f0c3e7b99d146e4046e1b4b",
+    "setup_spec_id": "setup_c49fe5e7f8c17305db51a9bd",
+    "stamp": "EXPLORATORY",
+    "trigger": {
+      "factor_id": "liquidity_structure_failed_high_breakout_flag",
+      "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+      "operator": ">",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    }
+  },
+  "created_at": "2026-06-14T12:00:00Z",
+  "diagnostics": {
+    "post_event_mfe_mae": {
+      "event_count": 131,
+      "mae_n": 131,
+      "mean_mae": -0.0011416108113074066,
+      "mean_mfe": 0.0014955403297349425,
+      "mfe_n": 131
+    },
+    "target_before_stop_probability": {
+      "event_count": 131,
+      "target_before_stop_probability": 0.0
+    }
+  },
+  "evidence_id": "tbrun_6161efcc7e6643f0715c5a17",
+  "family_budget": 1,
+  "family_id": "dk_p04_track_b_range_contraction_failed_high_breakout",
+  "manifest_state": {
+    "checked": true,
+    "manifests": {
+      "context_factor": {
+        "present": true,
+        "relative_path": "features/materialized/futures_substrate_scaleout_v1/regime_volatility_compression/feature_set_futures_scaleout_regime_volatility_compression/v1_es_2024_liquidity_structure_range_contraction/dsv_databento_ohlcv_05404069799decb0/ES_2024_full_year/values.parquet"
+      },
+      "path_label": {
+        "present": true,
+        "relative_path": "lcfp_p08_benchmark_20260610T170838Z/path/workers_1/labels/materialized/futures_substrate_scaleout_v1/path/lset_99a8f0764554bea7ff73f1c608a676f2e691603c4592b2eac910e64cd0b86ddd/dsv_databento_ohlcv_05404069799decb0/ES_2024_120m_lcfp_p08_es_202406/values.parquet"
+      },
+      "trigger_factor": {
+        "present": true,
+        "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2024_liquidity_structure_failed_high_breakout_flag/dsv_databento_ohlcv_05404069799decb0/ES_2024_full_year/values.parquet"
+      }
+    },
+    "root_policy": "ALPHA_DATA_ROOT"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "duplicate_exposure": {
+      "family_id": "dk_p04_track_b_range_contraction_failed_high_breakout",
+      "status": "bounded",
+      "variant_id": "baseline_range_contraction_failed_high_breakout"
+    },
+    "expected_direction": "target-before-stop path outcome after the reclaim event",
+    "expected_mechanism": "The context factor reads trailing range compression and marks when the setup is relevant. The trigger factor reads a distinct prior-high sweep then close-back-inside event from a different feature family, and only fires the entry inside the compressed-range context bucket.",
+    "horizon": "120m",
+    "mechanism_id": "mech_651debd4497b065e1e121c3d",
+    "rationale": "A pre-declared range-contraction regime context can isolate sessions where a separate prior-high sweep then close-back-inside trigger is worth reading against a fixed 120m target-before-stop path outcome.",
+    "required_features": [
+      "liquidity_structure_range_contraction",
+      "liquidity_structure_failed_high_breakout_flag"
+    ],
+    "required_labels": [
+      "target_before_stop_120m_path_label"
+    ],
+    "session": "RTH",
+    "source": "DK-P04 Track B differentiated context-not-equal-trigger probe",
+    "stamp": "EXPLORATORY",
+    "variant_budget": 1
+  },
+  "observation_counts": {
+    "aligned_observation_count": 25219,
+    "conditioned_observation_count": 2348,
+    "missing_context_count": 965,
+    "missing_trigger_count": 0
+  },
+  "outcome_caveats": {
+    "exploratory_only": true,
+    "note": "EXPLORATORY readout only. The materialized 120m target-before-stop slice (LCFP-P08 ES_2024 benchmark) is single-class (every outcome False under horizon_no_barrier), so the conditioned target-before-stop probability is degenerate; this is a substrate-coverage observation, not alpha, tradability, or profitability evidence.",
+    "promotion_eligible": false,
+    "single_class_path_outcome": true,
+    "target_before_stop_event_count": 131
+  },
+  "outcome_source": "materialized_path_labels",
+  "phase_id": "DK-P04",
+  "power": {
+    "estimator_formula": "SE(IC) ~= 1 / sqrt(N_eff - 1); MDE(|IC|) = z_multiple * SE(IC)",
+    "factor_id": "liquidity_structure_failed_high_breakout_flag",
+    "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+    "mde_abs_ic": 0.04045754506523575,
+    "minimum_detectable_abs_ic": 0.04045754506523575,
+    "n_eff": 2348,
+    "schema": "alpha_system.runtime.diagnostics.ic_power_statement.v1",
+    "scope": "per_factor",
+    "se_ic": 0.020641604625120283,
+    "statement": "Could have detected IC down to 0.040458 at N_eff = 2348 using z = 1.960000.",
+    "statistical_validity_claim": false,
+    "z_multiple": 1.96
+  },
+  "promotion_eligible": false,
+  "readout_id": "cprobe_0f1e4b3b2b2d1da8f5981f29",
+  "row_access": {
+    "fabricated_values": false,
+    "reason": "Materialized factor and path-label rows were loaded via core.value_store.load_parquet_values on the tools side and injected into the pure probe; only this value-free summary is committed.",
+    "status": "resolved_local_only"
+  },
+  "schema": "alpha_system.research.differentiated_substrate.track_b.v1",
+  "setup_spec": {
+    "allowed_variants": [
+      "baseline_range_contraction_failed_high_breakout"
+    ],
+    "confirmation": {
+      "fixed_before_readout": true,
+      "policy": "none_added_in_p04"
+    },
+    "entry_context": {
+      "bucket": "range_contraction_high",
+      "factor_id": "liquidity_structure_range_contraction",
+      "factor_version": "v1_es_2024_liquidity_structure_range_contraction",
+      "operator": ">=",
+      "signal_kind": "trailing_range_compression_regime_descriptor",
+      "threshold": 0.5,
+      "value_field": "normalized_value"
+    },
+    "event_trigger": {
+      "event": "prior_high_sweep_close_back_inside",
+      "factor_id": "liquidity_structure_failed_high_breakout_flag",
+      "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+      "operator": ">",
+      "signal_kind": "discrete_sweep_reclaim_event_flag",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    },
+    "forbidden_post_hoc_changes": [
+      "No context bucket changes after outcome readout.",
+      "No trigger threshold changes after outcome readout.",
+      "No target or stop geometry changes inside P04."
+    ],
+    "hold_time": {
+      "horizon": "120m",
+      "max_minutes": 120
+    },
+    "horizon": "120m",
+    "invalidation": {
+      "fixed_before_readout": true,
+      "policy": "fixed_path_stop_binding"
+    },
+    "mechanism_id": "mech_651debd4497b065e1e121c3d",
+    "path_label": "lspec_9f0c3e7b99d146e4046e1b4b",
+    "regime_filter": {
+      "instrument_root": "ES",
+      "session": "RTH"
+    },
+    "setup_spec_id": "setup_c49fe5e7f8c17305db51a9bd",
+    "stamp": "EXPLORATORY",
+    "stop": {
+      "binding": "fixed_stop_from_path_label",
+      "geometry": "unchanged"
+    },
+    "target": {
+      "geometry": "unchanged",
+      "path_outcome": "target_before_stop"
+    }
+  },
+  "stamp": "EXPLORATORY",
+  "status": "RECORDED",
+  "surrogate_fdr_gate": {
+    "error_count": 0,
+    "gate_pass_count": 0,
+    "gate_status": "PASSED",
+    "promotion_evidence": false,
+    "run_count": 64,
+    "threshold_verdict": "zero-pass-met"
+  },
+  "variant_id": "baseline_range_contraction_failed_high_breakout",
+  "variant_ledger_binding": {
+    "existing_record_count": 0,
+    "family_budget_check": {
+      "family_budget": 1,
+      "family_id": "dk_p04_track_b_range_contraction_failed_high_breakout",
+      "issues": [],
+      "observed_count": 1,
+      "overrun": false,
+      "overrun_by": 0,
+      "respected": true,
+      "status": "RESPECTED",
+      "variants_remaining": 0
+    },
+    "variant_record": {
+      "alpha_spec_id": "aspec_c7307c5ba7be4d5c852f7c22",
+      "attempt_count": 1,
+      "created_at": "2026-06-14T12:00:00Z",
+      "family_id": "dk_p04_track_b_range_contraction_failed_high_breakout",
+      "status": "COMPLETED",
+      "study_spec_id": "sspec_26b05c35e98c4b9b5832070c",
+      "trial_ids": [
+        "trial_fd1befc2b33a239f644e9974"
+      ],
+      "variant_id": "baseline_range_contraction_failed_high_breakout"
+    }
+  }
+}
