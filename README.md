@@ -7,13 +7,16 @@ and validating offline research substrate under Frontier Harness Generic
 ## Current Snapshot
 
 The active non-mock campaign is `ALPHA_IDEA_TO_VERDICT_LOOP_V0`, a seven-phase
-IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P01
-adds the front door:
+IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P02
+adds the executable pre-test gate:
 
 - `alpha idea validate <idea.yaml>` emits a value-free canonical object family:
   `IdeaDraft` lineage sidecar, HypothesisCard parent, AlphaSpec trunk, and an
   EXPLORATORY MechanismCard; a SetupSpec is emitted only for
   `study_kind=context_not_equal_trigger`.
+- `alpha idea testability <idea.yaml>` and alias
+  `alpha idea gate <idea.yaml> [--slice <id>]` return pre-test
+  PASS/FAIL/DATA_GAP checks before any probe shot is spent.
 - `src/alpha_system/governance/idea_draft.py` holds the intake-only
   `study_kind` discriminator and object lineage. The frozen governance schemas
   (`AlphaSpec`, `MechanismCard`, `SetupSpec`) remain byte-unchanged.
@@ -21,12 +24,19 @@ adds the front door:
   Track-A document cards into value-free canonical records under
   `research/idea_to_verdict_loop_v0/`, preserving each legacy slug as
   `source="track_a:<slug>"`.
+- `src/alpha_system/research_lane/testability_gate.py` lives outside
+  `research/` and checks materialized feature handles, label/path-label handles,
+  path-label class non-degeneracy, N_eff/MDE plus dedup declaration, and
+  available_ts plus surrogate-FDR readiness without loading values.
+- `src/alpha_system/research/conditional_probe.py` now has an additive
+  >=2-distinct-class guard for conditioned path-label rows.
 
-After IVL-P01, the next phase is IVL-P02, the executable testability gate. The
+After IVL-P02, the next phase is IVL-P03, the fast exploratory lane bridge. The
 campaign remains GREEN/YELLOW only and research-only: no alpha, profitability,
 tradability, or production claim; no second value/accounting truth; no broker,
 paper, live, order-routing, deployment, paid-data sourcing, or FactorLibrary
-promotion. FactorLibrary remains survivor-only.
+promotion. FactorLibrary remains survivor-only, and exploratory outputs keep
+`promotion_eligible` false.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the

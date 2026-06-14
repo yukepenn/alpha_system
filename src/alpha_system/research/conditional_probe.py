@@ -32,6 +32,10 @@ from alpha_system.research.events import (
     target_before_stop_probability,
 )
 from alpha_system.research.study_config import StudyConfig
+from alpha_system.runtime.diagnostics.label.runtime import (
+    _class_balance_summary,
+    _distribution_summary,
+)
 from alpha_system.runtime.diagnostics.power import (
     build_ic_power_statement,
     minimum_detectable_abs_ic,
@@ -302,6 +306,13 @@ def build_path_label_observation_set(
     if not conditioned:
         msg = "conditional probe context predicate selected no path-label rows"
         raise ConditionalProbeError(msg)
+    class_balance = _conditioned_class_balance(conditioned)
+    if int(class_balance["class_count"]) < 2:
+        msg = (
+            "conditional probe conditioned path-label rows must contain at least "
+            "two distinct classes"
+        )
+        raise ConditionalProbeError(msg)
     return ConditionalProbeObservationSet(
         aligned_observations=tuple(aligned),
         conditioned_observations=tuple(conditioned),
@@ -332,14 +343,6 @@ def evaluate_setup_conditional_probe(
     active_setup = _coerce_setup_spec(setup_spec)
     probe = compile_setup_spec_to_conditional_probe(active_setup)
     active_variant_id = _variant_id(variant_id, probe.allowed_variants)
-    observation_set = build_path_label_observation_set(
-        probe,
-        context_factor_values=context_factor_values,
-        trigger_factor_values=trigger_factor_values,
-        path_labels=path_labels,
-        label_version=label_version,
-        data_version=data_version,
-    )
     surrogate_gate = build_surrogate_zero_pass_gate(
         run_count=surrogate_run_count,
         gate_pass_count=surrogate_gate_pass_count,
@@ -357,6 +360,14 @@ def evaluate_setup_conditional_probe(
     if variant_binding["family_budget_check"]["status"] != StudyBudgetStatus.RESPECTED.value:
         msg = "conditional probe family budget is overrun"
         raise ConditionalProbeError(msg)
+    observation_set = build_path_label_observation_set(
+        probe,
+        context_factor_values=context_factor_values,
+        trigger_factor_values=trigger_factor_values,
+        path_labels=path_labels,
+        label_version=label_version,
+        data_version=data_version,
+    )
 
     conditioned = observation_set.conditioned_observations
     diagnostics: dict[str, JsonValue] = {
@@ -622,6 +633,13 @@ def _target_label_value(value: object) -> float | None:
     if value is None:
         return None
     return 1.0 if bool(value) else 0.0
+
+
+def _conditioned_class_balance(
+    observations: Iterable[Mapping[str, Any]],
+) -> dict[str, JsonValue]:
+    distribution = _distribution_summary(tuple(observations))
+    return _class_balance_summary(distribution)
 
 
 def _compare(left: float, operator: str, right: float) -> bool:

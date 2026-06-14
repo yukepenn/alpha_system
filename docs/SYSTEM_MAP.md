@@ -59,6 +59,7 @@
 | `portfolio` | Portfolio package placeholder. |
 | `reports` | Reports package placeholder. |
 | `research` | Research package placeholder. |
+| `research_lane` | Research-lane orchestration helpers outside the loader-free research package. |
 | `runtime` | Research runtime package surface. |
 | `signals` | Signals package placeholder. |
 | `strategies` | Strategies package placeholder. |
