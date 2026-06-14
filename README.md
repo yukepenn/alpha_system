@@ -7,9 +7,9 @@ and validating offline research substrate under Frontier Harness Generic
 ## Current Snapshot
 
 The active non-mock campaign is `ALPHA_IDEA_TO_VERDICT_LOOP_V0`, a seven-phase
-IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P03
-adds the generic fast exploratory lane bridge after IVL-P00..P02 established
-the role map, intake validator, and executable pre-test gate:
+IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P04 is
+complete after IVL-P00..P03 established the role map, intake validator,
+executable pre-test gate, and generic fast exploratory lane bridge:
 
 - `alpha idea validate <idea.yaml>` emits a value-free canonical object family:
   `IdeaDraft` lineage sidecar, HypothesisCard parent, AlphaSpec trunk, and an
@@ -36,16 +36,21 @@ the role map, intake validator, and executable pre-test gate:
   bounded slice with `core.value_store.load_parquet_values`, validates supplied
   pack refs through `FeatureLabelPackResolver`, maps rows to the governance
   row schema, and feeds the unchanged probe engines in memory.
+- `src/alpha_system/research_lane/verdict_report.py` renders a governed
+  human-readable `REPORT.md` from precomputed intake, testability, and fast
+  readout summaries; `alpha idea report <idea.yaml> --testability-json <path>
+  --fast-readout-json <path>` exposes the renderer without running a probe.
 - `src/alpha_system/research/conditional_probe.py` now has an additive
   >=2-distinct-class guard for conditioned path-label rows.
 
-After IVL-P03, the next phase is IVL-P04, the human-readable verdict
-`REPORT.md` renderer. The campaign remains GREEN/YELLOW only and research-only:
-no alpha, profitability, tradability, or production claim; no second
-value/accounting truth; `research/` imports no value engine; no materialize,
-scaleout-driver, paid-data, broker, paper, live, order-routing, deployment, or
-FactorLibrary promotion. FactorLibrary remains survivor-only, and exploratory
-outputs keep `promotion_eligible` false.
+After IVL-P04, the next phase is IVL-P05: memory wiring plus `alpha idea run`
+end-to-end orchestration. The campaign remains GREEN/YELLOW only and
+research-only: no alpha, profitability, tradability, or production claim; no
+second value/accounting truth; `research/` imports no value engine; exploratory
+readouts are never auto-promoted; no materialize, scaleout-driver, paid-data,
+broker, paper, live, order-routing, deployment, or FactorLibrary promotion.
+FactorLibrary remains survivor-only, and exploratory outputs keep
+`promotion_eligible` false.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
