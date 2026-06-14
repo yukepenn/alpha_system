@@ -1,0 +1,25 @@
+# Risk Register — DIFFERENTIATED_KILLSHOT_V1
+
+| Risk | Impact | Mitigation | Status |
+| --- | --- | --- | --- |
+| A real-data metric is inspected before the FDR surface is pre-registered (post-hoc budget) | HIGH — false discovery / p-hacking surface | DK-P00 commits the value-free FDR active-subset RESTATEMENT (predating any variant) and DK-P02 gates on surrogate-FDR `ZERO_PASS_MET` BEFORE DK-P03 inspects any metric; both are acceptance-blocking | Mitigated by phase order |
+| The brief's `BudgetAmendmentRecord` is mechanically impossible for a downward re-scope | MED — an invalid governance record, or silent budget reuse | `create_budget_amendment_record` enforces `new_budget > prior_budget`; a downward restatement is expressed as a value-free pre-registration NOTE + `family_budget` carried on the StudySpecs, NOT an amendment record (documented in DK-P00) | Mitigated by correct vehicle |
+| EXPLORATORY (Track B) output leaks into promotion evidence | HIGH — corrupts the trust boundary | `promotion_eligible` hard-coded False + `reject_exploratory_promotion_artifact` fail-closed + `forbidden_exploratory_promotion` canary; DK-P04 makes no PromotionDecision | Mitigated by gate |
+| A second PnL truth (research drives the reference sim / value engine) | HIGH — forbidden by AGENTS.md | `research/` imports zero `backtest/management/fast_path/value_store` (AST import guard #439 + `forbidden_second_pnl_truth` canary); values loaded by `tools/`/`runtime/` and INJECTED into the pure research probe; `core/value_store.py` in `forbidden_paths` | Mitigated by check + injection design |
+| Track A conditioning factor is skipped (`session_calendar_*` classified support) | MED — Track A cannot run | DK-P02 makes a minimal, mutation-tested admission of an EXPLICITLY-declared calendar-conditioning factor only; the support-family rule is otherwise unchanged; all gates preserved | Mitigated by scoped change |
+| New calendar flag introduces lookahead / parity drift | HIGH — truth-chain break | flags are `live=True`/CAUSAL/known-ahead (`available_ts <= row.available_ts`); double-implemented under the auto-derived fast-vs-reference parity gate; no-lookahead audits each phase; no offline `bars_to_roll`/`minutes_to_roll` | Mitigated by parity + audit |
+| month/quarter-end "session" needs a complete holiday calendar the repo lacks | MED — incorrect or out-of-window flags | Defined as last TRADING session within the committed calendar's covered window (2024–2026, the data window), fail-absent outside coverage, carrying the non-exchange-official / not-holiday-complete non-claim (alt: calendar-end) | Mitigated + disclosed |
+| in_roll_window / third-Friday are analytic approximations, not exchange-final | LOW — research-only diagnostics | Flags carry the approximate-roll / holiday-edge non-claim; research-only language; not exchange splice truth | Accepted + disclosed |
+| Track B real slice hits the same `DATA_GAP` as SSRL first-light (no reader) | MED — INCONCLUSIVE instead of real evidence | DK-P04 wires a `tools/runtime` loader (`load_parquet_values`) and INJECTS rows; if no row path resolves, records honest `DATA_GAP` (no fabricated values, C2) — still a valid outcome | Mitigated + honest fallback |
+| Mechanisms are N_eff-limited (≈8–16 events/yr) → underpowered | MED — INCONCLUSIVE-underpowered | Instrument-pooling (ES/NQ/RTY) is mandatory; every readout carries an N_eff/power/MDE statement; an honest INCONCLUSIVE+code is a valid, conclusive outcome (not a failure) | Accepted + instrumented |
+| Capability runs but nothing survives (the honest null) | MED — sunk cost framing | Framed as a CONCLUSIVE kill-shot, not an alpha bet; 0 survivors with no substrate excuse is success; survivor gate forbids factory-by-inertia | Accepted |
+| Per-instrument split or horizon sweep silently inflates the surface | MED — multiple-testing | Instrument-pooled + fixed per-card horizons pre-registered; any split/sweep requires a (strictly-increasing) `BudgetAmendmentRecord` | Mitigated by budget rules |
+| Touching FUTSUB / core-pilot artifacts or the single-factor template | MED — regression / scope creep | `research/futures_substrate_scaleout_v1/**`, `research/futures_core_alpha_pilot_v1/**`, `strategies/templates.py`, `core/value_store.py` all in `forbidden_paths`; additive-only acceptance invariant | Mitigated by contract |
+| Committing runs/ or data during evidence phases | MED | `git ls-files runs` check every phase; `never_commit` anchor; value-free + local-only materialization | Mitigated by check |
+
+## Hard stops (escalate to user, do not auto-proceed)
+New paid data / feed (incl. onboarding `fomc/cpi`); broker/live/order/capital; non-regenerable
+deletion; committing raw/canonical/Parquet/SQLite/secrets/local registries; weakening any truth-chain
+/ no-lookahead / ledger / holdout / FDR / no-second-PnL invariant; a major Compass-level route change;
+building the overnight family or a sequence/geometry engine (deferred); promoting any survivor (a
+survivor is SURFACED for the survivor-gate decision, never auto-promoted).
