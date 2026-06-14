@@ -69,15 +69,27 @@ class CommandResult:
 class ProviderWatchdogConfig:
     """Progress watchdog for long provider subprocesses.
 
-    Defaults implement the phase contract: sample about every 30s; kill only
-    after wall-clock exceeds 60s, the process-group CPU tick delta is exactly
-    zero (`cpu_tick_epsilon=0`), and the run events file has not grown.
+    Kills the provider process group only after a SUSTAINED no-progress window:
+    ``hang_after_seconds`` of CONTINUOUS time during which the process-group CPU
+    tick delta stayed at or below ``cpu_tick_epsilon`` AND the run events file
+    did not grow. Any CPU advance or event growth resets the stall timer.
+
+    This continuous-stall rule (vs. the older "single zero-CPU sample after 60s
+    wall") is deliberate: a legitimate long provider call — e.g. a large Codex
+    ``exec`` doing high-effort server-side reasoning — blocks on the network
+    socket with ZERO local CPU and emits no run events for the duration of a
+    reasoning round-trip. A single such sample is normal liveness, not a hang;
+    only a process that makes NO progress for the full window is hung. A genuine
+    deadlock stays at zero CPU forever and is still caught (after the window).
+
+    The window defaults generous (10 min) so reasoning gaps never false-trip; it
+    is overridable per run via ``provider_watchdog_config`` (env knobs).
     """
 
     events_path: Path | None
     event_writer: Callable[[str, Mapping[str, Any]], None] | None = None
     sample_interval_seconds: float = 30.0
-    hang_after_seconds: float = 60.0
+    hang_after_seconds: float = 600.0
     cpu_tick_epsilon: int = 0
     kill_grace_seconds: float = 5.0
     event_name: str = "PROVIDER_HANG_DETECTED"
@@ -276,6 +288,11 @@ class _ProviderWatchdog:
         last_ticks = _cpu_ticks_for_process_group(self.process.pid)
         last_events = _event_snapshot(self.config.events_path)
         last_event_growth = started
+        # Continuous-stall timer: the last moment we observed liveness (CPU
+        # advance or events growth). Killing requires this to stay unchanged for
+        # the full hang_after_seconds window — a single quiet sample (e.g. a
+        # provider blocked on a long reasoning round-trip) does NOT count.
+        last_progress = started
         interval = max(0.01, float(self.config.sample_interval_seconds))
         while not self._stop.wait(interval):
             if self.process.poll() is not None:
@@ -289,13 +306,19 @@ class _ProviderWatchdog:
             cpu_delta: int | None = None
             if ticks is not None and last_ticks is not None:
                 cpu_delta = ticks - last_ticks
-            wall_seconds = now - started
-            frozen_cpu = cpu_delta is not None and cpu_delta <= self.config.cpu_tick_epsilon
-            if wall_seconds > self.config.hang_after_seconds and frozen_cpu and not event_growth:
+            cpu_advanced = cpu_delta is not None and cpu_delta > self.config.cpu_tick_epsilon
+            # Fail-open: if CPU ticks are unreadable we cannot prove a stall, so
+            # treat the sample as progress rather than risk killing a live provider.
+            cpu_unknown = cpu_delta is None
+            if cpu_advanced or event_growth or cpu_unknown:
+                last_progress = now
+            stall_seconds = now - last_progress
+            if stall_seconds >= self.config.hang_after_seconds:
                 details = {
                     "pid": self.process.pid,
                     "pgid": _safe_getpgid(self.process.pid),
-                    "wall_seconds": round(wall_seconds, 3),
+                    "wall_seconds": round(now - started, 3),
+                    "stall_seconds": round(stall_seconds, 3),
                     "cpu_delta": cpu_delta,
                     "last_event_age_seconds": round(now - last_event_growth, 3),
                     "events_path": str(self.config.events_path) if self.config.events_path is not None else None,
