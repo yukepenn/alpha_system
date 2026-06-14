@@ -1,0 +1,145 @@
+{
+  "canonical": {
+    "alpha_spec": {
+      "alpha_spec_id": "aspec_1bb4d087ab0406488a094c00",
+      "cost_assumptions": {
+        "cost_sensitivity": {
+          "cost_model": "Future diagnostics must reject interpretation if any OPEX-day readout only survives before fees, slippage, and spread assumptions.",
+          "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+        },
+        "scope": "research planning only; no execution or tradability claim"
+      },
+      "created_at": "2026-06-14T00:00:00Z",
+      "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "data_assumptions": {
+        "data_dependency_class": "derivable_from_exchange_calendar",
+        "data_dependency_detail": "OPEX (third-Friday) and quad-witching (quarterly) dates are deterministic calendar rules requiring no external feed. This is the lowest-data-dependency card. Strike-level options data (open interest, pin strikes) is paid data and is explicitly OUT OF SCOPE for this card.",
+        "legacy_source": "track_a:opex_pinning",
+        "migration_route": "data_gap_requeue_candidate",
+        "missing_feature_candidates": [
+          "is_opex_day_flag",
+          "is_quad_witch_day_flag"
+        ],
+        "missing_label_candidates": "No new label candidates are declared by this legacy card."
+      },
+      "exclusion_rules": [
+        "Restrict the conditioner to known-ahead calendar flags and time-to-RTH-close / time-to-expiration clocks. Any strike-level or open-interest input is out of scope here (needs paid options data) and would require its own card and point-in-time guard.",
+        "Do not test needs_paid_data records in V0; paid-data sourcing is RED-deferred.",
+        "Do not edit or delete the legacy Track-A card until a later retirement phase is authorized."
+      ],
+      "expected_failure_modes": [
+        "Conditioning on a deterministic options-expiration calendar is structurally distinct from the rejected realized-price/quote main effects. Because the hypothesized 'pinning' is a price-path outcome, the OUTCOME measurement may overlap with vwap_session/return_to_vwap dynamics; orthogonality of the OUTCOME must be checked, but the CONDITIONER is independent of any dead-mechanism input.",
+        "Residualize forward outcomes against vwap_session and regime factors before scoring the OPEX-day conditioner; report marginal contribution. Cross-check that OPEX flag is not merely a proxy for day_of_week or month-end already captured elsewhere.",
+        "OPEX (third-Friday) and quad-witching (quarterly) dates are deterministic calendar rules requiring no external feed. This is the lowest-data-dependency card. Strike-level options data (open interest, pin strikes) is paid data and is explicitly OUT OF SCOPE for this card."
+      ],
+      "factor_inputs": [
+        "session_calendar_roll_day_of_week",
+        "session_calendar_roll_minutes_to_expiration",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_session_id"
+      ],
+      "hypothesis_id": "hyp_6c0574ede12a9d3dac1bda37",
+      "label_references": [
+        "lspec_5f11dcb81e0766f9f9924369",
+        "lspec_339c9cc1797b247dc792c055",
+        "lspec_cdf35b8393eeea447cae0f79"
+      ],
+      "promotion_criteria": [
+        "Any future WATCH or CANDIDATE routing requires reviewer-gated evidence and must preserve EXPLORATORY promotion guards.",
+        "Any future diagnostic must pass no-lookahead, duplicate-exposure, and testability checks before interpretation."
+      ],
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "timestamp_assumptions": {
+        "lookahead_description": "OPEX/quad-witching dates are fully deterministic from the exchange calendar and known years ahead, so the calendar conditioner itself carries little lookahead hazard. The hazard appears only if strike/open-interest 'pin' levels are introduced (those require point-in-time options data and could leak realized positioning).",
+        "lookahead_level": "low lookahead risk declared by the legacy Track-A card",
+        "post_event_knowable_features": [
+          "realized_pin_strike",
+          "expiry_open_interest_concentration"
+        ],
+        "pre_event_knowable_features": [
+          "is_opex_day_flag",
+          "is_quad_witch_day_flag",
+          "session_calendar_roll_minutes_to_rth_close"
+        ]
+      }
+    },
+    "hypothesis_card": {
+      "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "created_at": "2026-06-14T00:00:00Z",
+      "expected_mechanism": "On scheduled options-expiration (OPEX) and quad-witching sessions, we test whether intraday forward behavior conditioned on the known-ahead OPEX-day flag and time-to-expiration differs from non-OPEX sessions (a 'pinning'-type conditioning hypothesis). Falsifiable; not a profitability claim.",
+      "falsification_criteria": [
+        "Reject or requeue this migrated record if required governed features or labels are unavailable before diagnostics.",
+        "Block any later verdict if no-lookahead controls or duplicate exposure checks fail before a metric is inspected."
+      ],
+      "family": "track_a_main_effect_migration",
+      "hypothesis_id": "hyp_6c0574ede12a9d3dac1bda37",
+      "rationale": "Dealer hedging of expiring options positions can concentrate flow near large open-interest strikes into the expiration; whether this produces a measurable conditional forward pattern is an empirical question the diagnostics resolve. The strike/open-interest detail is NOT assumed here; the conditioner is the calendar position alone unless paid options data is approved.",
+      "risks": [
+        "OPEX/quad-witching dates are fully deterministic from the exchange calendar and known years ahead, so the calendar conditioner itself carries little lookahead hazard. The hazard appears only if strike/open-interest 'pin' levels are introduced (those require point-in-time options data and could leak realized positioning).",
+        "Conditioning on a deterministic options-expiration calendar is structurally distinct from the rejected realized-price/quote main effects. Because the hypothesized 'pinning' is a price-path outcome, the OUTCOME measurement may overlap with vwap_session/return_to_vwap dynamics; orthogonality of the OUTCOME must be checked, but the CONDITIONER is independent of any dead-mechanism input.",
+        "OPEX (third-Friday) and quad-witching (quarterly) dates are deterministic calendar rules requiring no external feed. This is the lowest-data-dependency card. Strike-level options data (open interest, pin strikes) is paid data and is explicitly OUT OF SCOPE for this card."
+      ],
+      "title": "Track-A migrated main-effect hypothesis: opex_pinning"
+    },
+    "idea_draft": {
+      "alpha_spec_id": "aspec_1bb4d087ab0406488a094c00",
+      "hypothesis_id": "hyp_6c0574ede12a9d3dac1bda37",
+      "mechanism_id": "mech_5eccdd9d5407e44382d461e7",
+      "setup_spec_id": null,
+      "source": "track_a:opex_pinning",
+      "study_kind": "main_effect"
+    },
+    "mechanism_card": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any OPEX-day readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "day_of_week_effect",
+          "month_end_flow"
+        ],
+        "note": "Duplicate exposure must be checked against calendar-seasonality and VWAP/session outcome adjacency before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "expected_direction": "reversion",
+      "expected_mechanism": "On scheduled options-expiration (OPEX) and quad-witching sessions, we test whether intraday forward behavior conditioned on the known-ahead OPEX-day flag and time-to-expiration differs from non-OPEX sessions (a 'pinning'-type conditioning hypothesis). Falsifiable; not a profitability claim.",
+      "horizon": "30m",
+      "mechanism_id": "mech_5eccdd9d5407e44382d461e7",
+      "rationale": "Dealer hedging of expiring options positions can concentrate flow near large open-interest strikes into the expiration; whether this produces a measurable conditional forward pattern is an empirical question the diagnostics resolve. The strike/open-interest detail is NOT assumed here; the conditioner is the calendar position alone unless paid options data is approved.",
+      "required_features": [
+        "session_calendar_roll_day_of_week",
+        "session_calendar_roll_minutes_to_expiration",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_session_id"
+      ],
+      "required_labels": [
+        "fixed_horizon",
+        "midprice_forward",
+        "event:return_to_vwap"
+      ],
+      "session": "RTH",
+      "source": "track_a:opex_pinning",
+      "stamp": "EXPLORATORY",
+      "variant_budget": 1
+    },
+    "setup_spec": null
+  },
+  "legacy": {
+    "data_dependency_class": "derivable_from_exchange_calendar",
+    "mechanism_id": "opex_pinning",
+    "path": "research/differentiated_substrate_v1/cards/opex_pinning.json"
+  },
+  "migration": {
+    "campaign": "ALPHA_IDEA_TO_VERDICT_LOOP_V0",
+    "lineage_source": "track_a:opex_pinning",
+    "migration_route": "data_gap_requeue_candidate",
+    "phase": "IVL-P01",
+    "selected_horizon": "30m",
+    "study_kind": "main_effect"
+  }
+}

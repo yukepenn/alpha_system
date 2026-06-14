@@ -1,0 +1,135 @@
+{
+  "canonical": {
+    "alpha_spec": {
+      "alpha_spec_id": "aspec_e52d9949114574942455b319",
+      "cost_assumptions": {
+        "cost_sensitivity": {
+          "cost_model": "Future diagnostics must reject interpretation if any roll-window readout only survives before fees, slippage, and spread assumptions.",
+          "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+        },
+        "scope": "research planning only; no execution or tradability claim"
+      },
+      "created_at": "2026-06-14T00:00:00Z",
+      "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "data_assumptions": {
+        "data_dependency_class": "derivable_from_exchange_calendar",
+        "data_dependency_detail": "Quarterly roll dates are deterministic from the existing CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID roll calendar already used by the roll guard; no external feed required. The roll-window classification logic already exists labels-side and is reused, not rebuilt.",
+        "legacy_source": "track_a:roll_week_flow",
+        "migration_route": "data_gap_requeue_candidate",
+        "missing_feature_candidates": [
+          "in_roll_window_flag"
+        ],
+        "missing_label_candidates": "No new label candidates are declared by this legacy card."
+      },
+      "exclusion_rules": [
+        "Condition only on a known-ahead, backward-looking roll-window membership flag derived from the existing quarterly roll calendar (not the offline countdown features). Critically, the OUTCOME labels must be passed through the existing evaluate_roll_guard (RollCrossPolicy.DROP default, with TRUNCATE/FLAG options and a safe DROP default when the calendar is missing or ambiguous) so any forward window that crosses the roll splice is dropped/truncated rather than silently splicing two contracts.",
+        "Do not test needs_paid_data records in V0; paid-data sourcing is RED-deferred.",
+        "Do not edit or delete the legacy Track-A card until a later retirement phase is authorized."
+      ],
+      "expected_failure_modes": [
+        "Roll-window membership is a deterministic calendar position derived from the quarterly roll policy, structurally independent of the realized-price/quote main effects the dead mechanisms conditioned on. Residual non-orthogonality risk is redundancy with the existing expiration-proximity / session-position features rather than with the dead price-action factors; this must be checked.",
+        "Residualize forward outcomes against the dead-mechanism factors (regime/vwap_session/bbo_tradability/liquidity_pa) before scoring the roll-window conditioner. Separately confirm the roll-window flag is not merely a proxy for the existing minutes_to_expiration feature or for the month-end / opex calendar flags from the other cards (the quarterly roll window can be temporally adjacent to quad-witching).",
+        "Quarterly roll dates are deterministic from the existing CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID roll calendar already used by the roll guard; no external feed required. The roll-window classification logic already exists labels-side and is reused, not rebuilt."
+      ],
+      "factor_inputs": [
+        "session_calendar_roll_day_of_week",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_session_id"
+      ],
+      "hypothesis_id": "hyp_3eefd7e1a4b5bde0b7970663",
+      "label_references": [
+        "lspec_5f11dcb81e0766f9f9924369",
+        "lspec_339c9cc1797b247dc792c055"
+      ],
+      "promotion_criteria": [
+        "Any future WATCH or CANDIDATE routing requires reviewer-gated evidence and must preserve EXPLORATORY promotion guards.",
+        "Any future diagnostic must pass no-lookahead, duplicate-exposure, and testability checks before interpretation."
+      ],
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "timestamp_assumptions": {
+        "lookahead_description": "Two hazards: (1) the existing bars_to_roll / minutes_to_roll session features are explicitly OFFLINE-ONLY future-window countdowns (live=False) and must NOT be repurposed as live conditioners; (2) the roll DATE is calendar-derivable and known-ahead, but a forward outcome label entered inside the roll window can have its horizon SPAN the roll splice, which is a known leakage path.",
+        "lookahead_level": "medium lookahead risk declared by the legacy Track-A card",
+        "post_event_knowable_features": "The legacy card declares no post-event knowable feature list.",
+        "pre_event_knowable_features": [
+          "in_roll_window_flag"
+        ]
+      }
+    },
+    "hypothesis_card": {
+      "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "created_at": "2026-06-14T00:00:00Z",
+      "expected_mechanism": "During the known-ahead quarterly futures roll window (the days surrounding the front-to-next contract roll), we test whether intraday forward behavior conditioned on roll-window membership and proximity-to-roll differs from non-roll sessions. This is a falsifiable calendar-flow conditioning hypothesis, not a profitability claim.",
+      "falsification_criteria": [
+        "Reject or requeue this migrated record if required governed features or labels are unavailable before diagnostics.",
+        "Block any later verdict if no-lookahead controls or duplicate exposure checks fail before a metric is inspected."
+      ],
+      "family": "track_a_main_effect_migration",
+      "hypothesis_id": "hyp_3eefd7e1a4b5bde0b7970663",
+      "rationale": "Calendar spread trading and the migration of open interest from the expiring to the deferred contract concentrate predictable flow into the roll window; whether this produces a measurable conditional forward pattern in the continuous front-contract series is an empirical question the diagnostics resolve.",
+      "risks": [
+        "Two hazards: (1) the existing bars_to_roll / minutes_to_roll session features are explicitly OFFLINE-ONLY future-window countdowns (live=False) and must NOT be repurposed as live conditioners; (2) the roll DATE is calendar-derivable and known-ahead, but a forward outcome label entered inside the roll window can have its horizon SPAN the roll splice, which is a known leakage path.",
+        "Roll-window membership is a deterministic calendar position derived from the quarterly roll policy, structurally independent of the realized-price/quote main effects the dead mechanisms conditioned on. Residual non-orthogonality risk is redundancy with the existing expiration-proximity / session-position features rather than with the dead price-action factors; this must be checked.",
+        "Quarterly roll dates are deterministic from the existing CME_EQUITY_INDEX_QUARTERLY_ROLL_POLICY_ID roll calendar already used by the roll guard; no external feed required. The roll-window classification logic already exists labels-side and is reused, not rebuilt."
+      ],
+      "title": "Track-A migrated main-effect hypothesis: roll_week_flow"
+    },
+    "idea_draft": {
+      "alpha_spec_id": "aspec_e52d9949114574942455b319",
+      "hypothesis_id": "hyp_3eefd7e1a4b5bde0b7970663",
+      "mechanism_id": "mech_b0754b224cb47b92335ed6ca",
+      "setup_spec_id": null,
+      "source": "track_a:roll_week_flow",
+      "study_kind": "main_effect"
+    },
+    "mechanism_card": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any roll-window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "minutes_to_expiration",
+          "opex_pinning"
+        ],
+        "note": "Duplicate exposure must be checked against expiration-proximity and other calendar-window records before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "expected_direction": "undirected",
+      "expected_mechanism": "During the known-ahead quarterly futures roll window (the days surrounding the front-to-next contract roll), we test whether intraday forward behavior conditioned on roll-window membership and proximity-to-roll differs from non-roll sessions. This is a falsifiable calendar-flow conditioning hypothesis, not a profitability claim.",
+      "horizon": "30m",
+      "mechanism_id": "mech_b0754b224cb47b92335ed6ca",
+      "rationale": "Calendar spread trading and the migration of open interest from the expiring to the deferred contract concentrate predictable flow into the roll window; whether this produces a measurable conditional forward pattern in the continuous front-contract series is an empirical question the diagnostics resolve.",
+      "required_features": [
+        "session_calendar_roll_day_of_week",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_session_id"
+      ],
+      "required_labels": [
+        "fixed_horizon",
+        "midprice_forward"
+      ],
+      "session": "RTH",
+      "source": "track_a:roll_week_flow",
+      "stamp": "EXPLORATORY",
+      "variant_budget": 1
+    },
+    "setup_spec": null
+  },
+  "legacy": {
+    "data_dependency_class": "derivable_from_exchange_calendar",
+    "mechanism_id": "roll_week_flow",
+    "path": "research/differentiated_substrate_v1/cards/roll_week_flow.json"
+  },
+  "migration": {
+    "campaign": "ALPHA_IDEA_TO_VERDICT_LOOP_V0",
+    "lineage_source": "track_a:roll_week_flow",
+    "migration_route": "data_gap_requeue_candidate",
+    "phase": "IVL-P01",
+    "selected_horizon": "30m",
+    "study_kind": "main_effect"
+  }
+}

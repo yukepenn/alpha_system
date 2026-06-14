@@ -1,0 +1,143 @@
+{
+  "canonical": {
+    "alpha_spec": {
+      "alpha_spec_id": "aspec_cb6eb2a28fccbc645a6bbab2",
+      "cost_assumptions": {
+        "cost_sensitivity": {
+          "cost_model": "Future diagnostics must reject interpretation if any event-window readout only survives before fees, slippage, and spread assumptions.",
+          "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+        },
+        "scope": "research planning only; no execution or tradability claim"
+      },
+      "created_at": "2026-06-14T00:00:00Z",
+      "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "data_assumptions": {
+        "data_dependency_class": "needs_paid_data",
+        "data_dependency_detail": "FOMC scheduled meeting dates/times are publicly available and could be encoded as a small known-ahead calendar; FOMC SURPRISE magnitudes require an external economic-data feed. No event-calendar data source exists in the repo today (zero hits for fomc/cpi/nfp). Sourcing any external macro feed is deferred.",
+        "legacy_source": "track_a:fomc_drift",
+        "migration_route": "record_only_red_deferred",
+        "missing_feature_candidates": [
+          "minutes_to_scheduled_event",
+          "in_fomc_event_window_flag"
+        ],
+        "missing_label_candidates": "No new label candidates are declared by this legacy card."
+      },
+      "exclusion_rules": [
+        "Scheduled times use the existing point-in-time metadata pattern with the _require_metadata_known_as_of guard (metadata.available_ts <= row.available_ts). Surprise magnitude, if used at all, is an OFFLINE diagnostic conditioner / labels-only split and is excluded from any live feature contract.",
+        "Do not test needs_paid_data records in V0; paid-data sourcing is RED-deferred.",
+        "Do not edit or delete the legacy Track-A card until a later retirement phase is authorized."
+      ],
+      "expected_failure_modes": [
+        "The conditioner is a known-ahead calendar position, not a price/quote-derived state; it is structurally distinct from the rejected price-action (regime, vwap_session) and BBO (bbo_tradability, liquidity_pa) main effects, which condition on realized price/quote dynamics. Expected-orthogonal by construction; the diagnostic, not this statement, decides.",
+        "Residualize forward outcomes against the dead-mechanism factors (regime/vwap_session/bbo_tradability/liquidity_pa) before scoring the event conditioner, and report the conditioner's marginal relationship on the residual.",
+        "FOMC scheduled meeting dates/times are publicly available and could be encoded as a small known-ahead calendar; FOMC SURPRISE magnitudes require an external economic-data feed. No event-calendar data source exists in the repo today (zero hits for fomc/cpi/nfp). Sourcing any external macro feed is deferred."
+      ],
+      "factor_inputs": [
+        "session_calendar_roll_day_of_week",
+        "session_calendar_roll_minutes_from_rth_open",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_session_id"
+      ],
+      "hypothesis_id": "hyp_722ce5d1f489154c6922bb05",
+      "label_references": [
+        "lspec_5f11dcb81e0766f9f9924369",
+        "lspec_339c9cc1797b247dc792c055",
+        "lspec_cdf35b8393eeea447cae0f79"
+      ],
+      "promotion_criteria": [
+        "Any future WATCH or CANDIDATE routing requires reviewer-gated evidence and must preserve EXPLORATORY promotion guards.",
+        "Any future diagnostic must pass no-lookahead, duplicate-exposure, and testability checks before interpretation."
+      ],
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "timestamp_assumptions": {
+        "lookahead_description": "Two distinct hazards: (1) the scheduled FOMC TIME must be carried as known-ahead metadata, not back-filled from realized volatility; (2) any FOMC SURPRISE magnitude (decision vs consensus, dot-plot deltas) is only knowable AFTER the release and must never become a live feature.",
+        "lookahead_level": "high lookahead risk declared by the legacy Track-A card",
+        "post_event_knowable_features": [
+          "fomc_decision_surprise_magnitude",
+          "dot_plot_delta"
+        ],
+        "pre_event_knowable_features": [
+          "minutes_to_scheduled_fomc_event",
+          "in_fomc_event_window_flag"
+        ]
+      }
+    },
+    "hypothesis_card": {
+      "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "created_at": "2026-06-14T00:00:00Z",
+      "expected_mechanism": "Conditional on a scheduled FOMC statement/press-conference window, intraday forward behavior over short horizons may differ systematically from non-event sessions; we test whether the pre-event-knowable proximity-to-scheduled-FOMC conditioner relates to forward outcomes. This is a falsifiable conditioning hypothesis, not a profitability claim.",
+      "falsification_criteria": [
+        "Reject or requeue this migrated record if required governed features or labels are unavailable before diagnostics.",
+        "Block any later verdict if no-lookahead controls or duplicate exposure checks fail before a metric is inspected."
+      ],
+      "family": "track_a_main_effect_migration",
+      "hypothesis_id": "hyp_722ce5d1f489154c6922bb05",
+      "rationale": "Scheduled monetary-policy information arrival concentrates positioning and hedging flow into a known window; behavior in that window is plausibly governed by a different process than ambient price action. Diagnostics decide whether any relationship exists.",
+      "risks": [
+        "Two distinct hazards: (1) the scheduled FOMC TIME must be carried as known-ahead metadata, not back-filled from realized volatility; (2) any FOMC SURPRISE magnitude (decision vs consensus, dot-plot deltas) is only knowable AFTER the release and must never become a live feature.",
+        "The conditioner is a known-ahead calendar position, not a price/quote-derived state; it is structurally distinct from the rejected price-action (regime, vwap_session) and BBO (bbo_tradability, liquidity_pa) main effects, which condition on realized price/quote dynamics. Expected-orthogonal by construction; the diagnostic, not this statement, decides.",
+        "FOMC scheduled meeting dates/times are publicly available and could be encoded as a small known-ahead calendar; FOMC SURPRISE magnitudes require an external economic-data feed. No event-calendar data source exists in the repo today (zero hits for fomc/cpi/nfp). Sourcing any external macro feed is deferred."
+      ],
+      "title": "Track-A migrated main-effect hypothesis: fomc_drift"
+    },
+    "idea_draft": {
+      "alpha_spec_id": "aspec_cb6eb2a28fccbc645a6bbab2",
+      "hypothesis_id": "hyp_722ce5d1f489154c6922bb05",
+      "mechanism_id": "mech_a549aa340f619377a1c67d9d",
+      "setup_spec_id": null,
+      "source": "track_a:fomc_drift",
+      "study_kind": "main_effect"
+    },
+    "mechanism_card": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any event-window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "scheduled macro-event conditioning"
+        ],
+        "note": "Duplicate exposure must be checked against other event-window and dead-mechanism residual factors before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "expected_direction": "undirected",
+      "expected_mechanism": "Conditional on a scheduled FOMC statement/press-conference window, intraday forward behavior over short horizons may differ systematically from non-event sessions; we test whether the pre-event-knowable proximity-to-scheduled-FOMC conditioner relates to forward outcomes. This is a falsifiable conditioning hypothesis, not a profitability claim.",
+      "horizon": "30m",
+      "mechanism_id": "mech_a549aa340f619377a1c67d9d",
+      "rationale": "Scheduled monetary-policy information arrival concentrates positioning and hedging flow into a known window; behavior in that window is plausibly governed by a different process than ambient price action. Diagnostics decide whether any relationship exists.",
+      "required_features": [
+        "session_calendar_roll_day_of_week",
+        "session_calendar_roll_minutes_from_rth_open",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_session_id"
+      ],
+      "required_labels": [
+        "fixed_horizon",
+        "midprice_forward",
+        "event:return_to_vwap"
+      ],
+      "session": "event_window",
+      "source": "track_a:fomc_drift",
+      "stamp": "EXPLORATORY",
+      "variant_budget": 1
+    },
+    "setup_spec": null
+  },
+  "legacy": {
+    "data_dependency_class": "needs_paid_data",
+    "mechanism_id": "fomc_drift",
+    "path": "research/differentiated_substrate_v1/cards/fomc_drift.json"
+  },
+  "migration": {
+    "campaign": "ALPHA_IDEA_TO_VERDICT_LOOP_V0",
+    "lineage_source": "track_a:fomc_drift",
+    "migration_route": "record_only_red_deferred",
+    "phase": "IVL-P01",
+    "selected_horizon": "30m",
+    "study_kind": "main_effect"
+  }
+}

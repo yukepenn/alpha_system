@@ -1,0 +1,142 @@
+{
+  "canonical": {
+    "alpha_spec": {
+      "alpha_spec_id": "aspec_7a781ac4bd1998308d11c51e",
+      "cost_assumptions": {
+        "cost_sensitivity": {
+          "cost_model": "Future diagnostics must reject interpretation if any open-or-close window readout only survives before fees, slippage, and spread assumptions.",
+          "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+        },
+        "scope": "research planning only; no execution or tradability claim"
+      },
+      "created_at": "2026-06-14T00:00:00Z",
+      "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "data_assumptions": {
+        "data_dependency_class": "existing_substrate",
+        "data_dependency_detail": "Fully covered by the existing minutes_from_rth_open / minutes_to_rth_close / rth_segment_flag session features; no new FeatureRequest and no external feed required for the clock-position conditioner. A literal auction-imbalance feed (MOC/LOC imbalance, opening imbalance) is paid data and is explicitly OUT OF SCOPE / deferred for this card.",
+        "legacy_source": "track_a:open_close_auction_flow",
+        "migration_route": "existing_substrate_record_not_selected",
+        "missing_feature_candidates": "No new feature candidates are declared by this legacy card.",
+        "missing_label_candidates": "No new label candidates are declared by this legacy card."
+      },
+      "exclusion_rules": [
+        "Define the open/close proximity windows as thresholds on the existing minutes_from_rth_open / minutes_to_rth_close features (which already account for the actual session window via the session template and SessionWindowState classification), NOT as fixed wall-clock times, so EARLY_CLOSE sessions are handled correctly. No new feature and no metadata surface is required; the windows are pure thresholds on existing point-in-time clocks.",
+        "Do not test needs_paid_data records in V0; paid-data sourcing is RED-deferred.",
+        "Do not edit or delete the legacy Track-A card until a later retirement phase is authorized."
+      ],
+      "expected_failure_modes": [
+        "Conditioning on a known-ahead session-clock position is structurally distinct from the realized-price/quote main effects the dead mechanisms conditioned on. The MAIN orthogonality risk here is that vwap_session (a dead mechanism) is itself session-anchored, so an into-the-close effect could be adjacent to vwap_session dynamics; orthogonality must be demonstrated, not assumed. This is the weakest-orthogonality intraday card.",
+        "Residualize forward outcomes against the vwap_session and regime dead-mechanism factors before scoring the open/close-proximity conditioner, and report the conditioner's marginal contribution on the residual. Confirm the open and close windows are tested as one pre-registered conditioner (two thresholds), not split into two separate hypotheses, to avoid inflating the surface.",
+        "Fully covered by the existing minutes_from_rth_open / minutes_to_rth_close / rth_segment_flag session features; no new FeatureRequest and no external feed required for the clock-position conditioner. A literal auction-imbalance feed (MOC/LOC imbalance, opening imbalance) is paid data and is explicitly OUT OF SCOPE / deferred for this card."
+      ],
+      "factor_inputs": [
+        "session_calendar_roll_minutes_from_rth_open",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_rth_segment_flag",
+        "session_calendar_roll_session_id",
+        "session_calendar_roll_day_of_week"
+      ],
+      "hypothesis_id": "hyp_feaece44cc90ac17a0376218",
+      "label_references": [
+        "lspec_5f11dcb81e0766f9f9924369",
+        "lspec_339c9cc1797b247dc792c055"
+      ],
+      "promotion_criteria": [
+        "Any future WATCH or CANDIDATE routing requires reviewer-gated evidence and must preserve EXPLORATORY promotion guards.",
+        "Any future diagnostic must pass no-lookahead, duplicate-exposure, and testability checks before interpretation."
+      ],
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "timestamp_assumptions": {
+        "lookahead_description": "The open/close proximity windows are derived entirely from the existing point-in-time minutes_from_rth_open / minutes_to_rth_close clocks, which are known-ahead given the published session template. The hazard is using a fixed wall-clock cutoff that is wrong on EARLY_CLOSE sessions, where the close shifts earlier.",
+        "lookahead_level": "low lookahead risk declared by the legacy Track-A card",
+        "post_event_knowable_features": [
+          "closing_auction_imbalance",
+          "opening_auction_imbalance"
+        ],
+        "pre_event_knowable_features": [
+          "session_calendar_roll_minutes_from_rth_open",
+          "session_calendar_roll_minutes_to_rth_close",
+          "session_calendar_roll_rth_segment_flag"
+        ]
+      }
+    },
+    "hypothesis_card": {
+      "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "created_at": "2026-06-14T00:00:00Z",
+      "expected_mechanism": "We test whether intraday forward behavior conditioned on the known-ahead intraday session-position windows around the RTH open and the RTH close (the first/last minutes of the regular session, where auction-adjacent flow concentrates) differs from the mid-session. This is a falsifiable intraday-seasonality conditioning hypothesis, not a profitability claim.",
+      "falsification_criteria": [
+        "Reject or requeue this migrated record if required governed features or labels are unavailable before diagnostics.",
+        "Block any later verdict if no-lookahead controls or duplicate exposure checks fail before a metric is inspected."
+      ],
+      "family": "track_a_main_effect_migration",
+      "hypothesis_id": "hyp_feaece44cc90ac17a0376218",
+      "rationale": "Auction-adjacent flow (opening price discovery, closing-auction imbalance into MOC/LOC orders) concentrates at deterministic, known-ahead points of the regular session clock; whether the minutes adjacent to those windows carry a measurable conditional forward pattern is an empirical question the diagnostics resolve. The closing-auction itself is not directly observed without paid imbalance data; the conditioner here is calendar/clock position alone.",
+      "risks": [
+        "The open/close proximity windows are derived entirely from the existing point-in-time minutes_from_rth_open / minutes_to_rth_close clocks, which are known-ahead given the published session template. The hazard is using a fixed wall-clock cutoff that is wrong on EARLY_CLOSE sessions, where the close shifts earlier.",
+        "Conditioning on a known-ahead session-clock position is structurally distinct from the realized-price/quote main effects the dead mechanisms conditioned on. The MAIN orthogonality risk here is that vwap_session (a dead mechanism) is itself session-anchored, so an into-the-close effect could be adjacent to vwap_session dynamics; orthogonality must be demonstrated, not assumed. This is the weakest-orthogonality intraday card.",
+        "Fully covered by the existing minutes_from_rth_open / minutes_to_rth_close / rth_segment_flag session features; no new FeatureRequest and no external feed required for the clock-position conditioner. A literal auction-imbalance feed (MOC/LOC imbalance, opening imbalance) is paid data and is explicitly OUT OF SCOPE / deferred for this card."
+      ],
+      "title": "Track-A migrated main-effect hypothesis: open_close_auction_flow"
+    },
+    "idea_draft": {
+      "alpha_spec_id": "aspec_7a781ac4bd1998308d11c51e",
+      "hypothesis_id": "hyp_feaece44cc90ac17a0376218",
+      "mechanism_id": "mech_617acb41bcf7f4b0609b1883",
+      "setup_spec_id": null,
+      "source": "track_a:open_close_auction_flow",
+      "study_kind": "main_effect"
+    },
+    "mechanism_card": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any open-or-close window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "vwap_session",
+          "session position"
+        ],
+        "note": "Duplicate exposure must be checked against VWAP/session and session-clock factors before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "expected_direction": "undirected",
+      "expected_mechanism": "We test whether intraday forward behavior conditioned on the known-ahead intraday session-position windows around the RTH open and the RTH close (the first/last minutes of the regular session, where auction-adjacent flow concentrates) differs from the mid-session. This is a falsifiable intraday-seasonality conditioning hypothesis, not a profitability claim.",
+      "horizon": "30m",
+      "mechanism_id": "mech_617acb41bcf7f4b0609b1883",
+      "rationale": "Auction-adjacent flow (opening price discovery, closing-auction imbalance into MOC/LOC orders) concentrates at deterministic, known-ahead points of the regular session clock; whether the minutes adjacent to those windows carry a measurable conditional forward pattern is an empirical question the diagnostics resolve. The closing-auction itself is not directly observed without paid imbalance data; the conditioner here is calendar/clock position alone.",
+      "required_features": [
+        "session_calendar_roll_minutes_from_rth_open",
+        "session_calendar_roll_minutes_to_rth_close",
+        "session_calendar_roll_rth_segment_flag",
+        "session_calendar_roll_session_id",
+        "session_calendar_roll_day_of_week"
+      ],
+      "required_labels": [
+        "fixed_horizon",
+        "midprice_forward"
+      ],
+      "session": "RTH",
+      "source": "track_a:open_close_auction_flow",
+      "stamp": "EXPLORATORY",
+      "variant_budget": 1
+    },
+    "setup_spec": null
+  },
+  "legacy": {
+    "data_dependency_class": "existing_substrate",
+    "mechanism_id": "open_close_auction_flow",
+    "path": "research/differentiated_substrate_v1/cards/open_close_auction_flow.json"
+  },
+  "migration": {
+    "campaign": "ALPHA_IDEA_TO_VERDICT_LOOP_V0",
+    "lineage_source": "track_a:open_close_auction_flow",
+    "migration_route": "existing_substrate_record_not_selected",
+    "phase": "IVL-P01",
+    "selected_horizon": "30m",
+    "study_kind": "main_effect"
+  }
+}

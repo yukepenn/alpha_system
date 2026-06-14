@@ -1,0 +1,91 @@
+{
+  "alpha_spec": {
+    "cost_assumptions": {
+      "model": "Research planning must reject any future readout that only survives before fees, slippage, and spread assumptions.",
+      "scope": "Value-free intake validation only; no execution cost estimate is produced."
+    },
+    "created_at": "2026-06-14T00:00:00Z",
+    "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+    "data_assumptions": {
+      "coverage": "Existing session-calendar features are required before any diagnostic can be considered.",
+      "source": "Fixture mirrors the day_of_week_effect legacy card without loading market data."
+    },
+    "exclusion_rules": [
+      "Exclude rows where the session calendar fields are unavailable before decision time.",
+      "Do not interpret any future readout before duplicate-exposure and no-lookahead checks pass."
+    ],
+    "expected_failure_modes": [
+      "The weekday conditioner may duplicate generic session-position effects.",
+      "The required existing labels may be unavailable for a bounded future slice."
+    ],
+    "factor_inputs": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_minutes_to_rth_close"
+    ],
+    "label_references": [
+      "lspec_d3c81d3601f3b4b30c08a9a6"
+    ],
+    "promotion_criteria": [
+      "Any future WATCH or CANDIDATE routing requires reviewer-gated evidence.",
+      "Any future diagnostic must pass no-lookahead, duplicate-exposure, and testability checks before interpretation."
+    ],
+    "target_instruments": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "timestamp_assumptions": {
+      "availability": "Day-of-week and session-position features must be known before decision time.",
+      "timezone": "Timestamps retain explicit timezone information in later slices."
+    }
+  },
+  "hypothesis_card": {
+    "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+    "created_at": "2026-06-14T00:00:00Z",
+    "expected_mechanism": "The proposed mechanism is that known-ahead weekday and session-position context may condition later intraday behavior, subject to future diagnostics.",
+    "falsification_criteria": [
+      "Reject the idea if required session-calendar features are unavailable before decision time.",
+      "Block the idea if future diagnostics cannot separate weekday context from generic session-position effects."
+    ],
+    "family": "track_a_main_effect_migration",
+    "rationale": "Calendar-driven flow can cluster by weekday for structural reasons, but intake validation records only the hypothesis and not an empirical result.",
+    "risks": [
+      "The weekday context may duplicate existing session-position effects.",
+      "Future labels may be unavailable for the bounded slice selected by later phases."
+    ],
+    "title": "Day-of-week intake validation fixture"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "cost_model": "Future diagnostics must reject interpretation if any weekday-conditioned readout only survives before costs.",
+      "scope": "Value-free intake validation only; no execution cost estimate is produced."
+    },
+    "duplicate_exposure": {
+      "known_adjacencies": [
+        "session position",
+        "generic calendar conditioning"
+      ],
+      "note": "Duplicate exposure must be checked before any future diagnostic interpretation.",
+      "status": "requires_pre_metric_duplicate_exposure_check"
+    },
+    "expected_direction": "undirected",
+    "expected_mechanism": "We test whether intraday forward behavior conditioned on the known-ahead calendar day-of-week differs across weekdays without making a result claim.",
+    "horizon": "30m",
+    "rationale": "Calendar-driven flow can cluster by weekday for structural reasons, but whether the pattern is measurable is reserved for later diagnostics.",
+    "required_features": [
+      "session_calendar_roll_day_of_week",
+      "session_calendar_roll_minutes_from_rth_open",
+      "session_calendar_roll_minutes_to_rth_close"
+    ],
+    "required_labels": [
+      "fixed_horizon",
+      "midprice_forward"
+    ],
+    "session": "RTH",
+    "source": "manual:day_of_week_effect_fixture",
+    "variant_budget": 1
+  },
+  "source": "research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml",
+  "study_kind": "main_effect"
+}
