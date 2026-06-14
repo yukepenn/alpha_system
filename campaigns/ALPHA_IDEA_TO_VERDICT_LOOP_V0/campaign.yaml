@@ -1,0 +1,546 @@
+campaign_id: ALPHA_IDEA_TO_VERDICT_LOOP_V0
+campaign_name: >-
+  Idea-to-verdict loop V0: assemble the trustworthy governance/research backend into one
+  researcher-facing product loop where ANY idea (PA / VWAP / IC / event / cross-market) is
+  handed in as a single canonical object (idea.yaml -> AlphaSpec front-door trunk that EMITS a
+  value-free EXPLORATORY MechanismCard, plus an optional shape-bearing SetupSpec), quick-screened
+  on a small EXISTING materialized slice via a generic fast exploratory lane, gated for
+  testability BEFORE any real metric, rendered as a human-readable governed verdict REPORT.md,
+  and routed to memory (graveyard / requeue / reviewer-gated promotion). This is ASSEMBLY +
+  CONSOLIDATION over an intact reuse spine -- no new mechanism, feature, label, data, or
+  downstream module. The optional study_kind discriminator (main_effect | context_not_equal_trigger)
+  lives ONLY on a new intake wrapper, never mutating the frozen governance dataclasses. Migrate the
+  8 legacy Track-A doc-convention cards into the canonical line (migrate-then-retire with tests).
+  Research-only: no alpha / profitability / tradability / production claim, no second PnL truth, no
+  auto-promotion, no new paid data, no broker, no live.
+repo_name: alpha_system
+repo_path: ~/projects/alpha_system
+project: alpha_system
+profile: trading_research
+workflow: workflow2
+driver: ralph_frontier_strict
+default_lane: yellow
+status: draft
+owner: human
+created_from_template: 3.0.0
+
+project_profile:
+  profile: trading_research
+  mode: research
+  layer: idea_to_verdict_loop
+  default_branch: main
+  primary_language: python
+  automation_lane: supervised
+  risk_level: high
+  human_review_required: true
+  trading_enabled: true
+  broker_enabled: false
+  description: >-
+    Research-only assembly of the canonical idea-object hierarchy and the missing front-door /
+    fast-lane / verdict / memory wiring. The front door (a new cli/idea.py + a new IdeaDraft intake
+    wrapper) ALWAYS mints an AlphaSpec as the governance trunk (the "most ideas killed" kill-trunk
+    that TrialLedger / RejectedIdea / PromotionDecision already key off via alpha_spec_id) and EMITS
+    a value-free EXPLORATORY MechanismCard (plus an optional SetupSpec for context!=trigger ideas)
+    as lineage sidecars. A generic fast_probe bridge (in a NEW research_lane package OUTSIDE
+    research/ to keep the no-second-PnL boundary test green) loads a bounded EXISTING materialized
+    slice via core.value_store.load_parquet_values + FeatureLabelPackResolver (tools/runtime-only
+    loader; research/ never imports it) and feeds the unchanged loader-free probe engines
+    (build_factor_diagnostics_run | evaluate_setup_conditional_probe) in-memory. A testability gate
+    returns PASS / FAIL / DATA_GAP BEFORE any real metric (DATA_GAP is a PRE-TEST verdict, the shot
+    is not spent). HARD INVARIANTS: (a) study_kind lives only on the new intake wrapper, never on the
+    frozen MechanismCard / SetupSpec / AlphaSpec closed-schema dataclasses (mutating them re-hashes
+    locked content-hash ids); (b) the fast-lane bridge lives OUTSIDE src/alpha_system/research/ and
+    research/ imports zero value engine; (c) promotion_eligible stays False on every exploratory
+    readout and reject_exploratory_promotion_artifact fails closed; (d) the front door always mints an
+    AlphaSpec so REJECT -> graveyard writes via alpha_spec_id; (e) no materialize / recompute / scaleout
+    driver call and no second value loader. NOT a strategy backtester, NOT FactorLibrary / AlphaBook /
+    Mining V2 / PA grammar / Strategy Sandbox, NOT paper / live / broker, NOT new paid data. FUTSUB and
+    differentiated-killshot artifacts are a STOPPED campaign and are read-only / do-not-touch. Allowed
+    outputs: REJECT / DATA_GAP / INCONCLUSIVE / WATCH / CANDIDATE only.
+
+workflow:
+  active: workflow2
+  workflow1:
+    description: Human-gated phase loop; available, not the default for this campaign.
+  workflow2:
+    description: >-
+      Ralph strict autonomous loop, dag_wave + serial merge. The 7 IVL phases form a strictly linear
+      dependency chain (IVL-P00 -> IVL-P01 -> IVL-P02 -> IVL-P03 -> IVL-P04 -> IVL-P05 -> IVL-P06)
+      with overlapping src/ footprints in cli/governance/research_lane, so the DAG linearizes to a
+      sequential 7-wave run for merge-safety.
+    state_order:
+    - RUN_INIT
+    - CAMPAIGN_LOAD
+    - PHASE_SELECT
+    - SPEC_GENERATE
+    - SPEC_VALIDATE
+    - WORKTREE_CREATE
+    - CODEX_EXECUTE
+    - CHECKS_RUN
+    - HANDOFF_VALIDATE
+    - CLAUDE_REVIEW
+    - VERDICT_PARSE
+    - PR_CREATE
+    - CI_WAIT
+    - MERGE_GATE
+    - MERGE
+    - DONE_CHECK
+    - NEXT_PHASE
+    - CAMPAIGN_DONE_CHECK
+    - RUN_SUMMARY
+
+workflow2:
+  scheduler:
+    mode: dag_wave
+    parallel_execution: true
+    max_parallel_phases: 1
+    merge_queue: serial
+
+runtime:
+  python: '3.12'
+  smoke_command: python tools/verify.py --smoke
+  all_command: python tools/verify.py --all
+  canary_command: python tools/hooks/canary_runner.py
+
+automation:
+  auto_generate_phase_specs: true
+  auto_execute: true
+  auto_repair: true
+  auto_review: true
+  auto_pr: true
+  auto_merge: true
+  strict_micro_loop: true
+  ralph_required: true
+
+limits:
+  max_phases: 7
+  max_micro_loops_per_phase: 3
+  max_run_minutes: 720
+
+review:
+  green_requires_claude_review: false
+  yellow_requires_claude_review: true
+  red_requires_claude_review: true
+
+merge:
+  green_auto_merge: true
+  yellow_auto_merge: true
+  red_auto_merge: false
+  require_ci: true
+  require_verdict_json: true
+
+lanes:
+  green:
+    description: Low-risk automatic work (none in this campaign; all phases are material).
+    merge_policy:
+      review_required: false
+  yellow:
+    description: Material engineering/research; fresh Claude Opus review required before merge.
+    merge_policy:
+      review_required: true
+  red:
+    description: External/destructive/live/broker. NOT used by this campaign.
+    merge_policy:
+      review_required: true
+
+forbidden_paths: &forbidden_paths
+- src/alpha_system/execution/**
+- src/alpha_system/broker/**
+- src/alpha_system/live/**
+- src/alpha_system/portfolio/**
+- src/alpha_system/management/**
+- src/alpha_system/backtest/**
+- src/alpha_system/l2/**
+- src/alpha_system/agent_factory/**
+- src/alpha_system/core/value_store.py
+- src/alpha_system/strategies/templates.py
+- src/alpha_system/research/track_a_scorer.py
+- src/alpha_system/research/first_light.py
+- research/futures_substrate_scaleout_v1/**
+- research/futures_core_alpha_pilot_v1/**
+- tools/differentiated_killshot_v1/**
+- data/raw/**
+- data/canonical/**
+- data/factors/**
+- data/labels/**
+- data/cache/**
+- metadata/*.sqlite
+- metadata/*.db
+- registry/*.sqlite
+- artifacts/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+
+never_commit: &never_commit
+- runs/**
+- '**/*.parquet'
+- '**/*.arrow'
+- '**/*.feather'
+- '**/*.dbn'
+- '**/*.zst'
+- '**/*.sqlite'
+- '**/*.db'
+- data/raw/**
+- data/canonical/**
+- secrets/**
+- '**/*.key'
+
+acceptance_invariants:
+- The optional study_kind discriminator (main_effect | context_not_equal_trigger) lives ONLY on the new IdeaDraft intake wrapper; the frozen closed-schema dataclasses MechanismCard / SetupSpec / AlphaSpec are byte-UNCHANGED (adding a field re-hashes their deterministic content-hash id and breaks every locked id). study_kind is greenfield-additive (confirmed absent in governance/).
+- The front door ALWAYS mints an AlphaSpec as the trunk (even for shape-bearing ideas); MechanismCard (+ optional SetupSpec) ride as lineage sidecars emitted at the orchestration layer (cli/idea.py + the IdeaDraft wrapper), never by mutating a governance schema. REJECT -> graveyard therefore writes via alpha_spec_id (RejectedIdea accepts only AlphaSpec / HypothesisCard ids), and IVL-P05 asserts an AlphaSpec id exists before any graveyard write (fail closed otherwise).
+- The fast exploratory lane bridge lives in a NEW package OUTSIDE src/alpha_system/research/ (e.g. src/alpha_system/research_lane/). research/ imports zero value engine -- the boundary test tests/unit/research/test_research_no_value_engine.py (rglob over research/ forbids core.value_store imports and the load_parquet_values token) stays green. The bridge imports load_parquet_values, maps to governance rows, and INJECTS in-memory rows into the unchanged loader-free probe engines.
+- Exploratory readouts are NEVER auto-promoted -- promotion_eligible stays False on every fast readout, evaluate_setup_conditional_probe keeps its hardcoded promotion_eligible=False, and reject_exploratory_promotion_artifact fails closed on any EXPLORATORY-stamped artifact reaching a trusted promotion input (forbidden_exploratory_promotion canary stays green). WATCH / CANDIDATE require a reviewer_verdict_id-gated create_promotion_decision and are surfaced, never auto-promoted; FactorLibrary stays survivor-only (count 0 today).
+- The testability gate returns PASS / FAIL / DATA_GAP BEFORE any real metric; DATA_GAP is a PRE-TEST verdict and the shot is NOT spent. A >=2-distinct-class precondition is added to conditional_probe.py empty-set guards (reusing the label-runtime class-balance summary class_count / majority / minority logic); a degenerate single-class slice fails the gate as DATA_GAP rather than producing a metric.
+- The surrogate ZERO_PASS_MET gate inside evaluate_setup_conditional_probe and the family / variant budget gate are HARD preconditions and are not bypassed; the fast lane runs the label-shuffle surrogate (run_count>0, 0 passes, 0 errors) or the probe raises.
+- No new runtime dependency (numpy / pandas stay unimportable; polars is only the optional dependency that load_parquet_values already requires, and the lane fails closed with a clear DATA_GAP / dependency error -- never fabricated values -- when polars or ALPHA_DATA_ROOT is absent). No materialize / recompute / scaleout driver call; no second value loader (factors/io.py JSONL/CSV readers are NOT reused for Parquet). No new paid data.
+- The 8 legacy Track-A doc-convention cards (research/differentiated_substrate_v1/cards/*.json) are migrate-then-retire: their content maps into the canonical MechanismCard + AlphaSpec (no second card class). The canonical mechanism_id is a fresh content-hash mech_<hex>; the kebab slug becomes MechanismCard.source (e.g. track_a:day_of_week_effect) so the STOPPED DK tooling's study_spec.dataset_scope['mechanism_id'] linkage is not broken. cards/*.json are read-only references this round and are NOT deleted until the canonical line reproduces them AND a parity test passes.
+- IVL-P01 fails closed when any canonical field with no doc-card source (source, cost_sensitivity, variant_budget, duplicate_exposure) cannot be populated. All 8 cards migrate as study_kind=main_effect (single-conditioner); existing_substrate (day_of_week_effect) is the sole live exemplar, the 5 derivable-calendar cards return DATA_GAP/requeue (new FeatureRequest unmaterialized), and the 2 needs_paid_data cards (fomc_drift, cpi_surprise_reversion) migrate as records only and are NEVER tested (RED-deferred, out of V0 scope -- IVL charters NO FeatureRequest implementation or paid-data sourcing).
+- FUTSUB / core-pilot / differentiated-killshot research artifacts and tools are a STOPPED campaign and are read-only / do-not-touch (in forbidden_paths). Reading already-materialized ES_2020 / ES_2024 packs is load-only (no recompute, no materialize, no registry write). The IVL-P06 dogfood tolerates an honest DATA_GAP when ALPHA_DATA_ROOT is unset and never fabricates values.
+- git ls-files runs == empty; explicit staging only (no git add . / git add -A); no force push; no edits under forbidden_paths. Allowed outputs only -- REJECT / DATA_GAP / INCONCLUSIVE / WATCH / CANDIDATE. No alpha / profitability / tradability / production claim; no FactorLibrary promotion; no downstream module charter; no second PnL truth.
+
+phases:
+- id: IVL-P00
+  name: Role-Unification ADR + Canonical Idea-Object Schema Map
+  lane: YELLOW
+  dependencies: []
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Write the canonical idea-object hierarchy as an ADR + schema map (AlphaSpec front-door trunk; MechanismCard / SetupSpec emitted sub-objects linked at the orchestration layer, not by schema mutation; study_kind on a new intake wrapper only; Track-A cards marked migrate-then-retire) so no later phase rebuilds machinery, mutates a frozen schema, or invents a second card class. Doc/ADR only, NO behavior change.
+  scope:
+  - Write decisions/ADR-IVL-0001-role-unification.md recording the canonical role of each object (idea.yaml/IdeaDraft, AlphaSpec front-door trunk, MechanismCard EXPLORATORY sub-object, optional SetupSpec, FeatureRequest/LabelSpec, StudySpec, EvidenceBundle/ReviewerVerdict/TrialLedger, Rejected/Requeue/Candidate/FactorLibrary) and the 3 conflict resolutions verified against live code (study_kind on the new wrapper only; AlphaSpec always minted so StudySpec has an alpha_spec_id and the graveyard key resolves; no link from MechanismCard->SetupSpec into StudySpec in V0).
+  - Write docs/IDEA_TO_VERDICT_SCHEMA_MAP.md pinning each role contract + the full Track-A card -> canonical field map (hypothesis.economic_rationale->rationale; hypothesis.statement->expected_mechanism; expected_sign->expected_direction; expected_horizon[list]->horizon[str] collapse rule; expected_session->session; required_features.existing->required_features[list]; required_labels.existing->required_labels[list]; lookahead/orthogonality/conditioning -> AlphaSpec.timestamp_assumptions/exclusion_rules/expected_failure_modes/promotion_criteria + data_assumptions) and the 4 fail-closed gaps (source, cost_sensitivity, variant_budget, duplicate_exposure) + the mech_<hex> id / kebab-slug-to-source lineage rule + the data_dependency.class partition (existing_substrate / derivable_from_exchange_calendar / needs_paid_data).
+  - Confirm a REUSE-MAP -- verify each reused symbol exists in current code (validate/create_mechanism_card, validate/create_setup_spec, validate_alpha_spec, generate_mechanism_id, create_rejected_idea_record, validate_requeued_verdict_record, create_promotion_decision, reject_exploratory_promotion_artifact, _class_balance_summary, build_factor_diagnostics_run, evaluate_setup_conditional_probe, load_parquet_values, FeatureLabelPackResolver, verdict_reason_code) and record the explicit OUT-of-scope list (no downstream module; no FeatureRequest implementation; no paid data; no schema mutation; no FUTSUB/DK edit).
+  non_goals:
+  - Any code; any engine change; any schema mutation; any CLI; any real-data metric, IC, return, or diagnostic value.
+  checks:
+  - test -f campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0/GOAL.md
+  - test -f campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0/campaign.yaml
+  - python -c "import yaml; yaml.safe_load(open('campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0/campaign.yaml'))"
+  - test -f decisions/ADR-IVL-0001-role-unification.md
+  - test -f docs/IDEA_TO_VERDICT_SCHEMA_MAP.md
+  - grep -q "ALPHA_IDEA_TO_VERDICT_LOOP_V0" ACTIVE_CAMPAIGN.md
+  - python tools/verify.py --smoke
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: true
+  conflicts_with: []
+  resource_class: []
+  merge_group: bootstrap
+  allowed_paths:
+  - decisions/ADR-IVL-0001-role-unification.md
+  - docs/IDEA_TO_VERDICT_SCHEMA_MAP.md
+  - campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0/**
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P00.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P00/**
+  - runs/**
+  - ACTIVE_CAMPAIGN.md
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [role-unification ADR + schema map + REUSE-MAP, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - ADR-IVL-0001 records front-door=AlphaSpec, the 3 conflict resolutions, the per-object role contract, study_kind-on-wrapper-only, and the full Track-A field map + 4 fail-closed gaps + mech-id lineage rule + data_dependency partition; schema map committed; REUSE-MAP confirms each cited symbol exists in current code; git diff --stat touches only decisions/ + docs/ (no behavior change); pointer set; YAML parses; smoke + canaries pass; runs/ untracked.
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P00.md
+  review: yellow lane; fresh Claude Opus review of the ADR + schema map + REUSE-MAP required.
+
+- id: IVL-P01
+  name: Intake Validator + `alpha idea validate` (Canonical Object Emit + study_kind + Track-A Migration)
+  lane: YELLOW
+  dependencies: [IVL-P00]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build the front door -- a new IdeaDraft intake wrapper (carrying the optional study_kind discriminator + lineage) and `alpha idea validate <idea.yaml>` that emits a canonical AlphaSpec + EXPLORATORY MechanismCard (plus a SetupSpec when shape-bearing), fails closed when canonical fields cannot populate, and migrates the 8 Track-A doc-convention cards into the canonical line as the main_effect exemplar.
+  scope:
+  - Author src/alpha_system/governance/idea_draft.py -- a new IdeaDraft intake wrapper holding the optional study_kind discriminator (main_effect | context_not_equal_trigger) + lineage references, validated greenfield. study_kind lives ONLY here; the frozen MechanismCard / SetupSpec / AlphaSpec dataclasses are NOT mutated.
+  - Author src/alpha_system/cli/idea.py (mirror cli/study.py register_subparser exactly) + register it in cli/main.py build_parser(). `alpha idea validate <idea.yaml>` always mints an AlphaSpec trunk (via validate_alpha_spec) and EMITS a value-free EXPLORATORY MechanismCard (create_mechanism_card, minting a fresh mech_<hex> id) plus an optional SetupSpec (create_setup_spec) when study_kind=context_not_equal_trigger; fails closed (exit 2) when any of source / cost_sensitivity / variant_budget / duplicate_exposure cannot be populated.
+  - Migrate the 8 Track-A cards' content into canonical fields per the IVL-P00 field map (slug -> MechanismCard.source for lineage; existing_substrate day_of_week_effect as the live main_effect exemplar) and add a canonical-vs-card parity test. Migration outputs land under a NEW canonical dir; cards/*.json are read-only references and are NOT edited or deleted this phase.
+  non_goals:
+  - Mutating MechanismCard / SetupSpec / AlphaSpec schemas; any real-data metric; the fast-lane bridge (IVL-P03); implementing any FeatureRequest or sourcing paid data; deleting cards/*.json; editing FUTSUB / DK tooling.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "idea or idea_draft or mechanism_card or setup_spec or alpha_spec or track_a or migration" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas must NOT import') for m in ('numpy','pandas') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: front_door
+  allowed_paths:
+  - src/alpha_system/cli/idea.py
+  - src/alpha_system/cli/main.py
+  - src/alpha_system/governance/idea_draft.py
+  - src/alpha_system/governance/track_a_migration.py
+  - tests/unit/cli/test_idea_cli.py
+  - tests/unit/governance/test_idea_draft.py
+  - tests/unit/governance/test_track_a_migration.py
+  - research/idea_to_verdict_loop_v0/**
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [IdeaDraft wrapper + cli/idea.py + main.py registration + Track-A migration mapper + parity/cli/wrapper tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - "`alpha idea validate <idea.yaml>` emits AlphaSpec + EXPLORATORY MechanismCard (+ SetupSpec when shape-bearing) and registers in build_parser(); study_kind validated on the IdeaDraft wrapper (frozen schemas byte-unchanged); all 8 Track-A cards migrate (day_of_week main_effect exemplar; mech_<hex> minted; slug->source) with a passing canonical-vs-card parity test; fails closed when source/cost_sensitivity/variant_budget/duplicate_exposure cannot populate; cards/*.json unedited; tests pass; canaries PASS; runs/ untracked."
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01.md
+  review: yellow lane; fresh Claude Opus review required (no schema mutation + study_kind placement + fail-closed migration fidelity).
+
+- id: IVL-P02
+  name: Executable Testability Gate + `alpha idea testability` (PASS / FAIL / DATA_GAP, Pre-Test)
+  lane: YELLOW
+  dependencies: [IVL-P01]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build the pre-test testability gate -- `alpha idea testability <idea.yaml>` running 5 fail-closed checks that return PASS / FAIL / DATA_GAP BEFORE any real metric is computed (DATA_GAP is a PRE-TEST verdict, the shot is not spent), and add the missing >=2-distinct-class precondition to the conditional probe.
+  scope:
+  - Author src/alpha_system/research_lane/testability_gate.py (a NEW package OUTSIDE research/) implementing the 5 fail-closed checks -- (1) features materialized; (2) labels / path-labels exist; (3) path-label >=2-class NON-degeneracy; (4) N_eff/MDE plausible and dedup known; (5) no-lookahead/available_ts satisfiable and surrogate-FDR requirement known -- each resolving to PASS / FAIL / DATA_GAP, with DATA_GAP explicitly a PRE-TEST outcome (no metric inspected, shot not spent).
+  - Add the >=2-distinct-class precondition to src/alpha_system/research/conditional_probe.py empty-set guards (currently only empty-set guards exist), reusing the label-runtime class-balance summary logic (_distribution_summary / _class_balance_summary emit class_count / majority_class_count / minority_class_count) so a degenerate single-class slice is caught as DATA_GAP rather than producing a metric.
+  - Wire `alpha idea testability` into cli/idea.py (mirror the validate handler; delegate to the gate; wrap domain errors -> exit 2).
+  non_goals:
+  - Computing any real-data IC / return / diagnostic value; the fast probe itself (IVL-P03); any promotion; editing the value engine or any FUTSUB / DK artifact.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "testability_gate or conditional_probe or class_guard or idea" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas must NOT import') for m in ('numpy','pandas') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: gate
+  allowed_paths:
+  - src/alpha_system/cli/idea.py
+  - src/alpha_system/research_lane/testability_gate.py
+  - src/alpha_system/research/conditional_probe.py
+  - tests/unit/research_lane/test_testability_gate.py
+  - tests/unit/research/test_conditional_probe_class_guard.py
+  - tests/unit/cli/test_idea_cli.py
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P02.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P02/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [testability gate (research_lane) + conditional_probe >=2-class guard + cli testability handler + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - "`alpha idea testability` returns PASS / FAIL / DATA_GAP across the 5 checks with DATA_GAP a PRE-TEST verdict (shot not spent); the gate orchestrator lives in research_lane/ (NOT research/); the >=2-distinct-class precondition is added to conditional_probe.py reusing the class-balance summary logic; tests cover degenerate single-class -> DATA_GAP and a healthy two-class -> PASS; canaries PASS; numpy/pandas absent; runs/ untracked."
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P02.md
+  review: yellow lane; fresh Claude Opus review required (pre-test DATA_GAP semantics + class-guard correctness + boundary placement).
+
+- id: IVL-P03
+  name: Fast Exploratory Lane Bridge -- Generic `fast_probe(card, setup, slice_spec)`
+  lane: YELLOW
+  dependencies: [IVL-P02]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build ONE generic, slice-bounded fast exploratory lane bridge that loads a bounded EXISTING materialized slice via core.value_store.load_parquet_values + FeatureLabelPackResolver and feeds the unchanged loader-free probe engines in-memory, generalizing the frozen first_light.py and folding the hardcoded dk_p04 bridge -- without materialization, scaleout-driver calls, a second value loader, or breaking the research/ no-value-engine boundary.
+  scope:
+  - Author src/alpha_system/research_lane/slice_spec.py (a bounded slice descriptor parameterizing root + pack-refs / rel-paths + instrument / session + label-version map -- de-hardcoding the ES_2024 constants from dk_p04_track_b_probe.py and the frozen FIRST_LIGHT_* constants) and src/alpha_system/research_lane/fast_probe.py exposing fast_probe(card, setup, slice_spec).
+  - fast_probe resolves governed pack-refs via FeatureLabelPackResolver, loads the bounded EXISTING slice via core.value_store.load_parquet_values, maps the value-store schema onto governance rows, and feeds build_factor_diagnostics_run (main_effect) | evaluate_setup_conditional_probe (context_not_equal_trigger) IN-MEMORY (Iterable[Mapping]). promotion_eligible stays False; the engines are byte-unchanged. The label-shuffle surrogate (run_count>0, 0 passes, 0 errors) feeds the hard ZERO_PASS_MET gate inside evaluate; no bypass.
+  - Fail closed with a clear DATA_GAP / dependency error (the first_light build_*_data_gap_evidence pattern) when polars or ALPHA_DATA_ROOT is absent or rows are unloadable -- NEVER fabricate values. The bridge lives OUTSIDE research/ so the boundary test stays green; factors/io.py JSONL/CSV readers are NOT reused for Parquet.
+  non_goals:
+  - Any materialize / recompute / scaleout driver call; a second value loader; editing conditional_probe.py / build_factor_diagnostics_run / first_light.py / dk_p04 (USE them); deleting the bespoke bridges this phase (retire only after IVL-P06 subsumption); any promotion.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "fast_probe or slice_spec or research_no_value_engine or research_lane" -q
+  - python -m pytest tests/unit/research/test_research_no_value_engine.py -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas must NOT import') for m in ('numpy','pandas') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: fast_lane
+  allowed_paths:
+  - src/alpha_system/research_lane/fast_probe.py
+  - src/alpha_system/research_lane/slice_spec.py
+  - tests/unit/research_lane/test_fast_probe.py
+  - tests/unit/research_lane/test_slice_spec.py
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P03.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P03/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [generic fast_probe bridge (research_lane) + slice_spec descriptor + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - One generic fast_probe(card, setup, slice_spec) lives in research_lane/ (OUTSIDE research/), loads a bounded EXISTING slice via load_parquet_values + FeatureLabelPackResolver and feeds the byte-unchanged probe engines in-memory; promotion_eligible=False; the ZERO_PASS_MET surrogate gate is honored (not bypassed); no materialize / scaleout / second-loader; fails closed with honest DATA_GAP (no fabricated values) when polars / ALPHA_DATA_ROOT absent; test_research_no_value_engine.py stays GREEN; canaries PASS; numpy/pandas absent; runs/ untracked.
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P03.md
+  review: yellow lane; fresh Claude Opus review required (boundary placement + no-second-PnL + de-hardcoding fidelity + fail-closed DATA_GAP).
+
+- id: IVL-P04
+  name: Human-Readable Verdict REPORT.md Renderer
+  lane: YELLOW
+  dependencies: [IVL-P03]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Build the human-readable governed verdict REPORT.md renderer that turns a fast readout + gate outcomes into one legible, research-only verdict document, reusing the closed VerdictReasonCode taxonomy.
+  scope:
+  - Author src/alpha_system/research_lane/verdict_report.py rendering REPORT.md with idea summary, study_kind, slice, data/features/labels used, dedup outcome, the 5 gate verdicts, the fast readout (including class_count / minority_count so a single-class slice is self-evident), N_eff / MDE, surrogate state, and the verdict (REJECT / DATA_GAP / INCONCLUSIVE / WATCH / CANDIDATE) + why + next action, citing VerdictReasonCode.
+  - Add a golden-file test over a fixed readout (and a degenerate single-class readout) asserting the rendered REPORT.md is deterministic and research-only (no alpha / profitability / tradability / production language).
+  non_goals:
+  - Computing any new metric; any promotion; memory wiring (IVL-P05); editing the verdict_reason_code enum; any FUTSUB / DK edit.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "verdict_report or verdict_reason or report or research_lane" -q
+  - python tools/hooks/canary_runner.py
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: report
+  allowed_paths:
+  - src/alpha_system/research_lane/verdict_report.py
+  - tests/unit/research_lane/test_verdict_report.py
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P04.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P04/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [verdict REPORT.md renderer (research_lane) + golden-file test, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - verdict_report.py renders a deterministic, research-only REPORT.md with idea summary / study_kind / slice / data-features-labels / dedup / 5 gate verdicts / fast readout (with class_count + minority_count) / N_eff-MDE / surrogate state / verdict + why + next action, verdict reason citing VerdictReasonCode; golden-file test green for a healthy and a single-class readout; canaries PASS; runs/ untracked.
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P04.md
+  review: yellow lane; fresh Claude Opus review required (legibility + research-only language + single-class self-evidence).
+
+- id: IVL-P05
+  name: Memory Wiring + `alpha idea run` End-to-End
+  lane: YELLOW
+  dependencies: [IVL-P04]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Wire the verdict into memory and assemble `alpha idea run` end-to-end (validate -> testability -> fast probe -> report -> memory) so a verdict routes to the graveyard / requeue / reviewer-gated promotion, with exploratory readouts NEVER auto-promoted.
+  scope:
+  - Author src/alpha_system/research_lane/memory_router.py mapping verdict -> memory action -- REJECT -> create_rejected_idea_record (via the always-minted alpha_spec_id, asserted present, fail closed otherwise); DATA_GAP -> validate_requeued_verdict_record (requeue); WATCH / CANDIDATE -> create_promotion_decision (requires reviewer_verdict_id, never auto). FactorLibrary stays survivor-only; the exploratory readout is never auto-promoted (reject_exploratory_promotion_artifact fails closed on any EXPLORATORY-stamped artifact reaching a trusted promotion input).
+  - Wire `alpha idea run` into cli/idea.py composing validate -> testability -> fast_probe -> verdict_report -> memory_router; wrap domain errors -> exit 2.
+  non_goals:
+  - Auto-promotion of any kind; building FactorLibrary / any downstream module; new metric computation; editing promotion / rejected_idea / requeue governance modules beyond calling them; any FUTSUB / DK edit.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests -k "memory_router or idea or promotion or rejected_idea or requeue or exploratory" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas must NOT import') for m in ('numpy','pandas') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: memory
+  allowed_paths:
+  - src/alpha_system/cli/idea.py
+  - src/alpha_system/research_lane/memory_router.py
+  - tests/unit/cli/test_idea_cli.py
+  - tests/unit/research_lane/test_memory_router.py
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P05.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P05/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [memory router (research_lane) + `alpha idea run` end-to-end handler + tests, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - "`alpha idea run` composes validate -> testability -> fast_probe -> report -> memory; REJECT -> rejected_idea graveyard (asserts alpha_spec_id present, fail closed); DATA_GAP -> requeue; WATCH / CANDIDATE -> reviewer_verdict_id-gated create_promotion_decision (never auto); FactorLibrary stays survivor-only; reject_exploratory_promotion_artifact fails closed (forbidden_exploratory_promotion canary green); promotion_eligible=false throughout; tests pass; canaries PASS; runs/ untracked."
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P05.md
+  review: yellow lane; fresh Claude Opus review required (never-auto-promote rail + graveyard key fail-closed + end-to-end composition).
+
+- id: IVL-P06
+  name: Dogfood DK Track B Through the Loop (No New Mechanism / Feature / Label / Data, No Promotion)
+  lane: YELLOW
+  dependencies: [IVL-P05]
+  spec_required: true
+  executor: Codex GPT-5.5 high
+  reviewer: Claude Opus 4.8 xhigh
+  verifier: Claude Sonnet 4.6
+  purpose: Dogfood the assembled loop end-to-end on the DK Track B context!=trigger idea -- proving the testability gate returns DATA_GAP PRE-TEST on the burned single-class slice (shot not spent) and PASS on the barrier-resolving two-class slice, with a real probe readout + REPORT.md + memory write and promotion_eligible=false throughout -- adding NO new mechanism / feature / label / data, no geometry sweep, no promotion.
+  scope:
+  - Run `alpha idea gate` (the testability gate) on the burned single-class ES_2024 120m slice -> expect Check-3 (>=2-class non-degeneracy) DATA_GAP as a PRE-TEST verdict (shot NOT spent) -> requeue. Then run on the barrier-resolving ES_2020_120m slice (verified two-class, row_count 313156 in the FUTSUB coverage matrix, load-only / no recompute) -> expect Check-3 PASS -> `alpha idea run` emits a real probe readout + verdict REPORT.md + memory write.
+  - Author tests/integration/test_ivl_dogfood_track_b.py and docs/IDEA_TO_VERDICT_DOGFOOD.md (runbook). Dogfood outputs (readout / REPORT) land under research/idea_to_verdict_loop_v0/dogfood/** (local-or-fixture; never commit data). The test MUST tolerate an honest DATA_GAP if ALPHA_DATA_ROOT is unset in the executor (the first_light DATA_GAP branch) and never fabricate values.
+  non_goals:
+  - Any new mechanism / feature / label / data; any materialize / recompute / scaleout driver call; any geometry / horizon sweep; any promotion; editing tools/differentiated_killshot_v1/** or research/futures_substrate_scaleout_v1/** (STOPPED -- read-only); fabricating values on a missing data root.
+  checks:
+  - python tools/verify.py --smoke
+  - python -m pytest tests/integration/test_ivl_dogfood_track_b.py -q
+  - python -m pytest tests -k "dogfood or idea or fast_probe or testability_gate" -q
+  - python tools/hooks/canary_runner.py
+  - python -c "import importlib,sys; [sys.exit('numpy/pandas must NOT import') for m in ('numpy','pandas') if importlib.util.find_spec(m)]"
+  - git ls-files runs
+  handoff_required: true
+  review_required: true
+  auto_pr: true
+  auto_merge: true
+  parallel_safe: false
+  must_run_alone: false
+  conflicts_with: []
+  resource_class: []
+  merge_group: dogfood
+  allowed_paths:
+  - tests/integration/test_ivl_dogfood_track_b.py
+  - research/idea_to_verdict_loop_v0/**
+  - docs/IDEA_TO_VERDICT_DOGFOOD.md
+  - handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P06.md
+  - reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P06/**
+  - runs/**
+  forbidden_paths: *forbidden_paths
+  artifact_policy:
+    commit_only: [dogfood integration test + runbook + value-free dogfood readout/REPORT fixtures, commit-eligible handoff]
+    never_commit: *never_commit
+    explicit_staging_only: true
+  done_criteria:
+  - "`alpha idea gate` returns Check-3 DATA_GAP PRE-TEST on the degenerate single-class ES_2024 120m slice (shot not spent) -> requeue; PASS on the two-class ES_2020_120m slice (load-only, no recompute) -> `alpha idea run` emits a real probe readout + REPORT.md + memory write; promotion_eligible=false throughout; the test tolerates an honest DATA_GAP when ALPHA_DATA_ROOT is unset (no fabricated values); no new mechanism/feature/label/data, no sweep, no promotion; FUTSUB / DK artifacts untouched; canaries PASS; runs/ untracked."
+  handoff: handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P06.md
+  review: yellow lane; fresh Claude Opus review required (DATA_GAP-on-degenerate / PASS-on-two-class + no-fabrication + STOPPED-campaign read-only discipline).
