@@ -6,34 +6,27 @@ and validating offline research substrate under Frontier Harness Generic
 
 ## Current Snapshot
 
-The repository-level campaign pointer targets `DIFFERENTIATED_KILLSHOT_V1`,
-which is **COMPLETE 6/6** (2026-06-14) with **0 survivors** — the second clean
-kill-shot after FUTSUB. Campaign state is tracked in `ACTIVE_CAMPAIGN.md`, which
-is coordinator-owned between Workflow 2 runs.
+The active non-mock campaign is `ALPHA_IDEA_TO_VERDICT_LOOP_V0`, a seven-phase
+IVL-P00..P06 assembly of the researcher-facing idea-to-verdict loop. IVL-P01
+adds the front door:
 
-- **Track A** (calendar/flow conditioning factors as main-effect context) is a
-  WELL-POWERED CLEAN NULL: 4 mechanisms scored `ZERO_PASS_MET`, all REJECT.
-- **Track B** (the EXPLORATORY `context != trigger` conditional probe) is a
-  SUBSTRATE-GAP, UNTESTED result: it ran on a single-class (degenerate) 120m
-  `target_before_stop` slice, so it is **not** a null — it is a closable DATA_GAP.
-- `roll_week` is an honest DATA_GAP (`in_roll_window_flag` all-null).
+- `alpha idea validate <idea.yaml>` emits a value-free canonical object family:
+  `IdeaDraft` lineage sidecar, HypothesisCard parent, AlphaSpec trunk, and an
+  EXPLORATORY MechanismCard; a SetupSpec is emitted only for
+  `study_kind=context_not_equal_trigger`.
+- `src/alpha_system/governance/idea_draft.py` holds the intake-only
+  `study_kind` discriminator and object lineage. The frozen governance schemas
+  (`AlphaSpec`, `MechanismCard`, `SetupSpec`) remain byte-unchanged.
+- `src/alpha_system/governance/track_a_migration.py` migrates the eight legacy
+  Track-A document cards into value-free canonical records under
+  `research/idea_to_verdict_loop_v0/`, preserving each legacy slug as
+  `source="track_a:<slug>"`.
 
-The survivor gate is at **0**: there is no promotion, and no downstream factory
-module (broad Mining V2, FactorLibrary as survivor memory, AlphaBook, Strategy
-Sandbox, PA grammar), no universe expansion, and no paid data are authorized —
-all remain trigger-gated behind the survivor gate. The next state is a post-DK
-**factory production-line adjudication** (charter the generic
-Idea → MechanismCard → testability gate → diagnostics → verdict → rejected/
-survivor memory line), followed by a NARROW Track B substrate gap-closure (same
-pre-registered SetupSpec, existing `ES_2020_120m` barrier-resolving slice, no new
-mechanisms, no geometry/horizon sweep, no promotion), then a fresh narrow shot
-from a ranked MechanismCard queue. ES/NQ/RTY existing data only.
-
-Safety boundaries are unchanged: this is research-only; no alpha/profitability/
-tradability claim, no second value/accounting truth, no research-to-reference-sim
-bridge, no value-engine edit, no new dependency, no new paid data, no live
-trading, no paper trading, no broker operation, no order routing, and no
-deployment. `fomc`, `cpi`, and the overnight family remain deferred (paid data).
+After IVL-P01, the next phase is IVL-P02, the executable testability gate. The
+campaign remains GREEN/YELLOW only and research-only: no alpha, profitability,
+tradability, or production claim; no second value/accounting truth; no broker,
+paper, live, order-routing, deployment, paid-data sourcing, or FactorLibrary
+promotion. FactorLibrary remains survivor-only.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -42,10 +35,10 @@ run-local state owned by Ralph.
 ## Source Of Truth
 
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
-- Active campaign bundle: `campaigns/DIFFERENTIATED_KILLSHOT_V1/`
-- Campaign overview docs: `docs/differentiated_killshot_v1/`
-- Value-free research prep root: `research/differentiated_substrate_v1/`
-- Commit-eligible handoffs: `handoffs/DIFFERENTIATED_KILLSHOT_V1/`
+- Active campaign bundle: `campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0/`
+- Canonical IVL map: `docs/IDEA_TO_VERDICT_SCHEMA_MAP.md`
+- Value-free IVL migration root: `research/idea_to_verdict_loop_v0/`
+- Commit-eligible handoffs: `handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/`
 - Strategy and roadmap compass: `docs/OPERATING_COMPASS_V4.md`
 
 ## Safety Boundaries

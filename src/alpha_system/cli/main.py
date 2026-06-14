@@ -11,6 +11,7 @@ from alpha_system.cli.factor import register_subparser as register_factor_subpar
 from alpha_system.cli.feature import register_subparser as register_feature_subparser
 from alpha_system.cli.governance import register_subparser as register_governance_subparser
 from alpha_system.cli.grid import register_subparser as register_grid_subparser
+from alpha_system.cli.idea import register_subparser as register_idea_subparser
 from alpha_system.cli.label import register_subparser as register_label_subparser
 from alpha_system.cli.management import register_subparser as register_management_subparser
 from alpha_system.cli.ml import register_subparser as register_ml_subparser
@@ -38,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_feature_subparser(subparsers)
     register_governance_subparser(subparsers)
     register_grid_subparser(subparsers)
+    register_idea_subparser(subparsers)
     register_label_subparser(subparsers)
     register_management_subparser(subparsers)
     register_ml_subparser(subparsers)

@@ -1,0 +1,145 @@
+{
+  "canonical": {
+    "alpha_spec": {
+      "alpha_spec_id": "aspec_e5c73fa3cc94a292b203f5d7",
+      "cost_assumptions": {
+        "cost_sensitivity": {
+          "cost_model": "Future diagnostics must reject interpretation if any candidate relationship only survives before fees, slippage, and spread assumptions.",
+          "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+        },
+        "scope": "research planning only; no execution or tradability claim"
+      },
+      "created_at": "2026-06-14T00:00:00Z",
+      "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "data_assumptions": {
+        "data_dependency_class": "needs_paid_data",
+        "data_dependency_detail": "CPI scheduled release dates/times are public and small to encode; CPI surprise/actual values require an external economic-data feed. No economic-calendar source exists in the repo. External macro feed deferred.",
+        "legacy_source": "track_a:cpi_surprise_reversion",
+        "migration_route": "record_only_red_deferred",
+        "missing_feature_candidates": [
+          "minutes_since_scheduled_event"
+        ],
+        "missing_label_candidates": [
+          "event_window_forward_return"
+        ]
+      },
+      "exclusion_rules": [
+        "Scheduled release time carried as known-ahead point-in-time metadata (_require_metadata_known_as_of guard). Surprise magnitude is used only as an OFFLINE diagnostic split / labels-only conditioning, never wired into a live (causal) feature contract.",
+        "Do not test needs_paid_data records in V0; paid-data sourcing is RED-deferred.",
+        "Do not edit or delete the legacy Track-A card until a later retirement phase is authorized."
+      ],
+      "expected_failure_modes": [
+        "Conditioning on a scheduled-release clock is structurally distinct from realized-price-action and BBO-state conditioning used by the rejected mechanisms. The reversion-vs-continuation OUTCOME may overlap with vwap_session/sweep dynamics, so the orthogonality claim is weaker than for fomc_drift and must be checked, not assumed.",
+        "Residualize forward outcomes against the vwap_session and regime dead-mechanism factors before scoring the CPI-window conditioner; report the conditioner's marginal contribution and an explicit overlap diagnostic.",
+        "CPI scheduled release dates/times are public and small to encode; CPI surprise/actual values require an external economic-data feed. No economic-calendar source exists in the repo. External macro feed deferred."
+      ],
+      "factor_inputs": [
+        "session_calendar_roll_session_id",
+        "session_calendar_roll_minutes_from_rth_open",
+        "session_calendar_roll_day_of_week"
+      ],
+      "hypothesis_id": "hyp_d3f996fc53b72d5873ed9d9d",
+      "label_references": [
+        "lspec_5f11dcb81e0766f9f9924369",
+        "lspec_339c9cc1797b247dc792c055",
+        "lspec_cdf35b8393eeea447cae0f79",
+        "lspec_6ccac60da37c9eb5a04c22c1"
+      ],
+      "promotion_criteria": [
+        "Any future WATCH or CANDIDATE routing requires reviewer-gated evidence and must preserve EXPLORATORY promotion guards.",
+        "Any future diagnostic must pass no-lookahead, duplicate-exposure, and testability checks before interpretation."
+      ],
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "timestamp_assumptions": {
+        "lookahead_description": "CPI SURPRISE (actual vs consensus) is the natural conditioner but is knowable ONLY after the release. Using it as a live feature would be lookahead. Scheduled release time is known ahead and is safe.",
+        "lookahead_level": "high lookahead risk declared by the legacy Track-A card",
+        "post_event_knowable_features": [
+          "cpi_surprise_magnitude",
+          "cpi_actual_minus_consensus"
+        ],
+        "pre_event_knowable_features": [
+          "minutes_to_scheduled_cpi_release",
+          "minutes_since_scheduled_cpi_release",
+          "in_cpi_event_window_flag"
+        ]
+      }
+    },
+    "hypothesis_card": {
+      "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P01",
+      "created_at": "2026-06-14T00:00:00Z",
+      "expected_mechanism": "Around scheduled CPI releases, we test whether forward intraday behavior conditioned on the post-release window (and, as an offline-only split, on surprise magnitude) shows a measurable reversion-versus-continuation pattern relative to non-event sessions. Falsifiable conditioning hypothesis; not a profitability claim.",
+      "falsification_criteria": [
+        "Reject or requeue this migrated record if required governed features or labels are unavailable before diagnostics.",
+        "Block any later verdict if no-lookahead controls or duplicate exposure checks fail before a metric is inspected."
+      ],
+      "family": "track_a_main_effect_migration",
+      "hypothesis_id": "hyp_d3f996fc53b72d5873ed9d9d",
+      "rationale": "Scheduled inflation-print information arrival can trigger an initial impulse followed by liquidity-provision dynamics; whether the post-impulse path reverts or continues is an empirical question the diagnostics resolve.",
+      "risks": [
+        "CPI SURPRISE (actual vs consensus) is the natural conditioner but is knowable ONLY after the release. Using it as a live feature would be lookahead. Scheduled release time is known ahead and is safe.",
+        "Conditioning on a scheduled-release clock is structurally distinct from realized-price-action and BBO-state conditioning used by the rejected mechanisms. The reversion-vs-continuation OUTCOME may overlap with vwap_session/sweep dynamics, so the orthogonality claim is weaker than for fomc_drift and must be checked, not assumed.",
+        "CPI scheduled release dates/times are public and small to encode; CPI surprise/actual values require an external economic-data feed. No economic-calendar source exists in the repo. External macro feed deferred."
+      ],
+      "title": "Track-A migrated main-effect hypothesis: cpi_surprise_reversion"
+    },
+    "idea_draft": {
+      "alpha_spec_id": "aspec_e5c73fa3cc94a292b203f5d7",
+      "hypothesis_id": "hyp_d3f996fc53b72d5873ed9d9d",
+      "mechanism_id": "mech_a3e42c7741202202d0b5531f",
+      "setup_spec_id": null,
+      "source": "track_a:cpi_surprise_reversion",
+      "study_kind": "main_effect"
+    },
+    "mechanism_card": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any candidate relationship only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "event:return_to_vwap outcome adjacency"
+        ],
+        "note": "Duplicate exposure must be checked against VWAP/session and macro-event condition families before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "expected_direction": "reversion",
+      "expected_mechanism": "Around scheduled CPI releases, we test whether forward intraday behavior conditioned on the post-release window (and, as an offline-only split, on surprise magnitude) shows a measurable reversion-versus-continuation pattern relative to non-event sessions. Falsifiable conditioning hypothesis; not a profitability claim.",
+      "horizon": "30m",
+      "mechanism_id": "mech_a3e42c7741202202d0b5531f",
+      "rationale": "Scheduled inflation-print information arrival can trigger an initial impulse followed by liquidity-provision dynamics; whether the post-impulse path reverts or continues is an empirical question the diagnostics resolve.",
+      "required_features": [
+        "session_calendar_roll_session_id",
+        "session_calendar_roll_minutes_from_rth_open",
+        "session_calendar_roll_day_of_week"
+      ],
+      "required_labels": [
+        "fixed_horizon",
+        "midprice_forward",
+        "event:return_to_vwap",
+        "event:sweep_outcome"
+      ],
+      "session": "event_window",
+      "source": "track_a:cpi_surprise_reversion",
+      "stamp": "EXPLORATORY",
+      "variant_budget": 1
+    },
+    "setup_spec": null
+  },
+  "legacy": {
+    "data_dependency_class": "needs_paid_data",
+    "mechanism_id": "cpi_surprise_reversion",
+    "path": "research/differentiated_substrate_v1/cards/cpi_surprise_reversion.json"
+  },
+  "migration": {
+    "campaign": "ALPHA_IDEA_TO_VERDICT_LOOP_V0",
+    "lineage_source": "track_a:cpi_surprise_reversion",
+    "migration_route": "record_only_red_deferred",
+    "phase": "IVL-P01",
+    "selected_horizon": "30m",
+    "study_kind": "main_effect"
+  }
+}

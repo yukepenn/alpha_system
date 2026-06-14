@@ -1,0 +1,170 @@
+{
+  "cards": {
+    "cpi_surprise_reversion": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any candidate relationship only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "event:return_to_vwap outcome adjacency"
+        ],
+        "note": "Duplicate exposure must be checked against VWAP/session and macro-event condition families before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "day_of_week_effect": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any weekday-conditioned readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "session position",
+          "generic calendar conditioning"
+        ],
+        "note": "Duplicate exposure must be checked against existing session-position features and rejected dead-mechanism factors before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "fomc_drift": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any event-window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "scheduled macro-event conditioning"
+        ],
+        "note": "Duplicate exposure must be checked against other event-window and dead-mechanism residual factors before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "month_end_flow": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any month-end readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "day_of_week_effect",
+          "month_end_rebalance_flow"
+        ],
+        "note": "Duplicate exposure must be checked against the other calendar-seasonality records before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "month_end_rebalance_flow": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any month-end close-window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "month_end_flow",
+          "minutes_to_rth_close"
+        ],
+        "note": "Duplicate exposure must be checked against month-end and close-proximity condition families before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "open_close_auction_flow": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any open-or-close window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "vwap_session",
+          "session position"
+        ],
+        "note": "Duplicate exposure must be checked against VWAP/session and session-clock factors before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "opex_pinning": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any OPEX-day readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "day_of_week_effect",
+          "month_end_flow"
+        ],
+        "note": "Duplicate exposure must be checked against calendar-seasonality and VWAP/session outcome adjacency before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    },
+    "roll_week_flow": {
+      "cost_sensitivity": {
+        "cost_model": "Future diagnostics must reject interpretation if any roll-window readout only survives before fees, slippage, and spread assumptions.",
+        "scope": "Value-free migration metadata only; no execution cost estimate is produced."
+      },
+      "duplicate_exposure": {
+        "known_adjacencies": [
+          "minutes_to_expiration",
+          "opex_pinning"
+        ],
+        "note": "Duplicate exposure must be checked against expiration-proximity and other calendar-window records before any future diagnostic interpretation.",
+        "status": "requires_pre_metric_duplicate_exposure_check"
+      },
+      "primary_horizon": "30m",
+      "target_instruments": [
+        "ES",
+        "NQ",
+        "RTY"
+      ],
+      "variant_budget": 1
+    }
+  }
+}
