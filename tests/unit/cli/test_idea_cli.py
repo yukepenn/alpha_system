@@ -28,6 +28,15 @@ def test_idea_gate_alias_is_registered() -> None:
     assert exc_info.value.code == 0
 
 
+def test_idea_run_command_is_registered() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["idea", "run", "--help"])
+
+    assert exc_info.value.code == 0
+
+
 def test_idea_validate_cli_emits_canonical_bundle(capsys) -> None:
     status = main(["idea", "validate", FIXTURE_IDEA.as_posix()])
     captured = capsys.readouterr()
@@ -87,3 +96,45 @@ def test_idea_validate_cli_fails_closed_on_missing_mechanism_gap_fields(
     assert error["error"] == "idea_validation_failed"
     assert error["issues"][0]["code"] == "missing_required_field"
     assert error["issues"][0]["field"] == gap_field
+
+
+def test_idea_run_fixture_short_circuits_data_gap_to_requeue(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    report_path = tmp_path / "REPORT.md"
+
+    status = main(
+        [
+            "idea",
+            "run",
+            FIXTURE_IDEA.as_posix(),
+            "--report-output",
+            report_path.as_posix(),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert status == 0
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["promotion_eligible"] is False
+    assert payload["testability"]["overall_status"] == "DATA_GAP"
+    assert payload["testability"]["shot_spent"] is False
+    assert payload["testability"]["probe_invoked"] is False
+    assert payload["fast_readout"]["issue_code"] == "DATA_GAP"
+    assert payload["fast_readout"]["promotion_eligible"] is False
+    assert payload["fast_readout"]["row_access"]["fabricated_values"] is False
+    assert payload["memory"]["action"] == "requeue"
+    assert payload["memory"]["record_type"] == "RequeuedVerdictRecord"
+    assert payload["memory"]["memory_record"]["requeue_reason"] == (
+        "UNDERPOWERED_EVIDENCE_ACCRUAL"
+    )
+    assert payload["memory"]["probe_spent"] is False
+    assert payload["memory"]["promotion_eligible"] is False
+    assert payload["memory"]["exploratory_refusal"]["status"] == "refused"
+    assert payload["report_path"] == report_path.as_posix()
+    report = report_path.read_text(encoding="utf-8")
+    assert report == payload["report"]
+    assert "## Final Verdict" in report
+    assert "- verdict: DATA_GAP" in report
