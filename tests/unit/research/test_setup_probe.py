@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import ast
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -117,18 +117,94 @@ def test_setup_probe_fails_closed_without_surrogate_zero_pass() -> None:
         )
 
 
+# Reference simulation / value-accounting engines that the research package must
+# never import — directly or by-name. Guards the "no second PnL/value truth" rail
+# (AGENTS.md Hard Constraints): value/accounting math lives only in the sanctioned
+# reference engine, and research/ imports zero backtest/management/fast_path engines
+# nor the sanctioned value sink (core.value_store). Matched on dotted module-path
+# *components* and imported *names*, so dotted submodules
+# (`import alpha_system.backtest.fast_path`), the value sink
+# (`from alpha_system.core import value_store`), aliased, and parenthesized
+# multi-line import forms are all caught.
+_FORBIDDEN_ENGINE_MODULES = frozenset(
+    {"backtest", "management", "fast_path", "value_store"}
+)
+
+
+def _forbidden_engine_imports(source: str) -> list[str]:
+    """Return import statements in ``source`` that pull in a reference sim/value engine.
+
+    AST-based rather than line-regex based: a regex over import lines silently
+    misses dotted submodules (``import alpha_system.backtest.fast_path``),
+    parent-imports of the engine name (``from alpha_system.core import value_store``),
+    ``as`` aliases, and parenthesized multi-line imports. Parsing the module catches
+    every import syntax by construction.
+    """
+    offenders: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if set(alias.name.split(".")) & _FORBIDDEN_ENGINE_MODULES:
+                    offenders.append(f"import {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            imported = {alias.name for alias in node.names}
+            if (set(module.split(".")) & _FORBIDDEN_ENGINE_MODULES) or (
+                imported & _FORBIDDEN_ENGINE_MODULES
+            ):
+                offenders.append(f"from {module} import {', '.join(sorted(imported))}")
+    return offenders
+
+
 def test_research_package_has_no_sim_bridge_imports() -> None:
-    pattern = re.compile(
-        r"import +(alpha_system\.)?(backtest|management|fast_path)(\s|,|$)"
-        r"|from +(alpha_system\.)?(backtest|management|fast_path)(\.|\s+import)"
-    )
     offenders: list[str] = []
     for path in Path("src/alpha_system/research").rglob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        if pattern.search(text):
-            offenders.append(str(path))
+        for statement in _forbidden_engine_imports(path.read_text(encoding="utf-8")):
+            offenders.append(f"{path}: {statement}")
 
     assert offenders == []
+
+
+# Regression pins for the guard itself: a future edit must not silently narrow it
+# back to the line-regex coverage gap that let dotted submodules and the value sink
+# evade detection (the V0-(A) rail gap found auditing the strategy-shaped lane).
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "import alpha_system.backtest.fast_path",
+        "import alpha_system.backtest",
+        "import alpha_system.management",
+        "import alpha_system.fast_path",
+        "import alpha_system.value_store",
+        "import alpha_system.core.value_store",
+        "import alpha_system.backtest as bt",
+        "from alpha_system import backtest",
+        "from alpha_system import value_store",
+        "from alpha_system.core import value_store",
+        "from alpha_system.backtest import management",
+        "from alpha_system.backtest.fast_path import run_engine",
+        "from alpha_system.research import (\n    foo,\n    value_store,\n)",
+    ],
+)
+def test_sim_bridge_guard_catches_reference_engine_imports(snippet: str) -> None:
+    assert _forbidden_engine_imports(snippet), snippet
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "from alpha_system.research.conditional_probe import "
+        "compile_setup_spec_to_conditional_probe",
+        "from alpha_system.governance.setup_spec import SetupSpec",
+        "import alpha_system.research.first_light",
+        # forbidden token only as a substring of a legitimately-named symbol/module
+        "from alpha_system.research import backtest_summary",
+        "import alpha_system.core.value_store_helpers",
+        "x = 'this module does not import the backtest engine'",
+    ],
+)
+def test_sim_bridge_guard_ignores_legitimate_imports(snippet: str) -> None:
+    assert _forbidden_engine_imports(snippet) == [], snippet
 
 
 def _setup_spec(
