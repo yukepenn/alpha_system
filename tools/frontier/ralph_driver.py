@@ -494,6 +494,18 @@ def append_event(run_dir: Path, state: dict[str, Any], event: str, **details: An
             handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
+def _watchdog_env_seconds(name: str, default: float) -> float:
+    """Positive-float env override for a watchdog timing knob (else the default)."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 def provider_watchdog_config(
     run_dir: Path,
     state: dict[str, Any],
@@ -508,7 +520,21 @@ def provider_watchdog_config(
             payload["phase_id"] = phase.get("phase_id")
         append_event(run_dir, state, event, provider=provider, stage=stage, **payload)
 
-    return ProviderWatchdogConfig(events_path=run_dir / "events.jsonl", event_writer=write_watchdog_event)
+    # Continuous-stall window is operator-tunable per run: a phase with very long
+    # high-effort provider executes can widen the window; defaults (10 min stall,
+    # 30s sampling) live on ProviderWatchdogConfig.
+    return ProviderWatchdogConfig(
+        events_path=run_dir / "events.jsonl",
+        event_writer=write_watchdog_event,
+        sample_interval_seconds=_watchdog_env_seconds(
+            "FRONTIER_PROVIDER_WATCHDOG_SAMPLE_SECONDS",
+            ProviderWatchdogConfig.sample_interval_seconds,
+        ),
+        hang_after_seconds=_watchdog_env_seconds(
+            "FRONTIER_PROVIDER_WATCHDOG_HANG_SECONDS",
+            ProviderWatchdogConfig.hang_after_seconds,
+        ),
+    )
 
 
 def unique_executor_notes_path(phase_dir: Path, source: Path) -> Path:
@@ -1461,7 +1487,8 @@ def ready_wave_phases(
         return []
     wave_ids = list(plan.waves[0].phase_ids)
     by_id = {p["phase_id"]: p for p in state.get("phases", [])}
-    return [by_id[pid] for pid in wave_ids if pid in by_id]
+    # Never schedule an already-merged phase into a wave (resume safety).
+    return [by_id[pid] for pid in wave_ids if pid in by_id and not by_id[pid].get("merged")]
 
 
 def active_campaign_phase_label(phase: dict[str, Any] | None) -> str:
@@ -5373,6 +5400,10 @@ def prepare_wave_worktrees(run_dir: Path, state: dict[str, Any], wave: list[dict
 
 
 def _build_wave_phase(run_dir: Path, state: dict[str, Any], phase: dict[str, Any]) -> bool:
+    if phase.get("merged"):
+        # Resume safety: never re-build an already-merged phase. A lingering
+        # worktree/branch must not trigger a re-PR/re-merge of finished work.
+        return True
     try:
         return execute_provider_phase(run_dir, state, phase, defer_merge=True)
     except Exception as error:  # defensive: keep one phase's crash from killing the wave
@@ -5419,6 +5450,13 @@ def finalize_merge_for_phase(
     phase: dict[str, Any],
 ) -> bool:
     """Serial merge of one MERGE_READY phase, reconstructing context from artifacts."""
+
+    if phase.get("merged"):
+        # Resume safety: an already-merged phase must NEVER be re-PR'd or re-merged.
+        # A lingering phase branch (old base) re-merged onto newer main regresses
+        # files later phases updated — the SSRL-P00 #434 stale-branch regression.
+        append_event(run_dir, state, "MERGE_SKIPPED_ALREADY_MERGED", phase_id=phase["phase_id"])
+        return True
 
     phase_dir = provider_phase_dir(run_dir, phase)
     config = load_config(ROOT / "frontier.yaml")
@@ -5475,7 +5513,7 @@ def run_wave_merge(
 ) -> None:
     """Merge build-complete (MERGE_READY) phases one at a time, in queue order."""
 
-    merge_ready = [p for p in wave if p.get("status") == MERGE_READY]
+    merge_ready = [p for p in wave if p.get("status") == MERGE_READY and not p.get("merged")]
     if not merge_ready:
         return
     order = serial_merge_order(merge_ready)
@@ -6702,6 +6740,12 @@ def main(argv: list[str] | None = None) -> int:
     worktree_group = run_parser.add_mutually_exclusive_group()
     worktree_group.add_argument("--worktree-mode", action="store_true")
     worktree_group.add_argument("--no-worktree", action="store_true")
+    run_parser.add_argument(
+        "--force-new-run",
+        action="store_true",
+        help="Start a NEW run even if an incomplete run already exists for this "
+        "campaign (default REFUSES and points you to `resume`).",
+    )
     resume_parser = subparsers.add_parser("resume", help="Resume a stopped run or a Workflow 2 stage.")
     resume_parser.add_argument("--run-id")
     resume_parser.add_argument("--run-dir", type=Path)
@@ -6727,6 +6771,33 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        # Resume-safety guard: `run --campaign-id X` mints a FRESH run_id and
+        # re-executes the campaign from its first phase. If an incomplete run for
+        # X already exists, that silently re-builds and RE-MERGES already-done
+        # phases (regressing shared files). Refuse and point to `resume` unless
+        # the operator explicitly forces a new run.
+        if args.campaign_id and not args.force_new_run and not args.ledger_only:
+            existing = latest_campaign_run_dir(
+                args.campaign_id, provider_wired_only=bool(args.provider_wired)
+            )
+            if existing is not None:
+                try:
+                    existing_state = read_json(existing / "state.json")
+                except (OSError, json.JSONDecodeError):
+                    existing_state = {}
+                status = str(existing_state.get("status") or "?")
+                phase = str(existing_state.get("current_phase_id") or "?")
+                print(
+                    "RUN_REFUSED_INCOMPLETE_RUN_EXISTS: campaign "
+                    f"{args.campaign_id} already has an incomplete run "
+                    f"{existing.name} (status={status}, phase={phase}). `run` would "
+                    "start over from the first phase and re-execute/re-merge "
+                    "completed work.\n"
+                    "  Continue it:  python tools/frontier/ralph_driver.py resume "
+                    f"--run-dir {existing} --provider-wired\n"
+                    "  Start fresh anyway (rare): re-run with --force-new-run."
+                )
+                return 2
         _apply_scheduler_cli_env(args)
         return run_campaign(
             args.campaign_id,
