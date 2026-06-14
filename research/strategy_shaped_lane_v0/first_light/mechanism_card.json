@@ -1,0 +1,27 @@
+{
+  "cost_sensitivity": {
+    "new_data": false,
+    "scope": "exploratory evidence only"
+  },
+  "duplicate_exposure": {
+    "family_id": "ssrl_p03_first_light_range_contraction_failed_high_breakout",
+    "status": "bounded",
+    "variant_id": "baseline_range_contraction_failed_high_breakout"
+  },
+  "expected_direction": "target-before-stop path outcome after reclaim event",
+  "expected_mechanism": "The context identifies compressed auction state before the event. The trigger is a distinct prior-high sweep and close-back-inside event read from a different factor family.",
+  "horizon": "120m",
+  "mechanism_id": "mech_4bbed592080b923a2e9a6ae4",
+  "rationale": "A pre-declared range-contraction context can isolate sessions where a separate failed-high-breakout trigger is worth reading against a fixed path outcome.",
+  "required_features": [
+    "liquidity_structure_range_contraction",
+    "liquidity_structure_failed_high_breakout_flag"
+  ],
+  "required_labels": [
+    "target_before_stop_120m_path_label"
+  ],
+  "session": "RTH",
+  "source": "SSRL-P03 first-light worked example",
+  "stamp": "EXPLORATORY",
+  "variant_budget": 1
+}

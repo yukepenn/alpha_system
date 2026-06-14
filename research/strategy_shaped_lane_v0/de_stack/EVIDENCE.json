@@ -1,0 +1,47 @@
+{
+  "created_at": "2026-06-13T22:30:00Z",
+  "evidence_id": "dstk_c41c190fabba6d340c35ff9d",
+  "factor_family": "vwap_session",
+  "factor_id": "factor_session_minute",
+  "factor_reference": "vwap_session.factor_session_minute",
+  "factor_version": "settler_flagged_isolated_v1",
+  "isolated_read": {
+    "ic": 0.068,
+    "observation_count": 6862,
+    "source": "SHIP_REFIT settler flag carried into SSRL-P03",
+    "stacked_context": "diluted_when_read_with_siblings"
+  },
+  "phase_id": "SSRL-P03",
+  "power": {
+    "estimator_formula": "SE(IC) ~= 1 / sqrt(N_eff - 1); MDE(|IC|) = z_multiple * SE(IC)",
+    "factor_id": "vwap_session.factor_session_minute",
+    "factor_version": "settler_flagged_isolated_v1",
+    "mde_abs_ic": 0.023662594516346006,
+    "n_eff": 6862,
+    "schema": "alpha_system.runtime.diagnostics.ic_power_statement.v1",
+    "scope": "per_factor",
+    "se_ic": 0.012072752304258166,
+    "statement": "Could have detected IC down to 0.023663 at N_eff = 6862 using z = 1.960000.",
+    "statistical_validity_claim": false,
+    "z_multiple": 1.96
+  },
+  "promotion_eligible": false,
+  "schema": "alpha_system.research.strategy_shaped_lane.de_stack.v1",
+  "single_factor_engine": {
+    "engine_changed": false,
+    "sample_signal_type": "entry",
+    "strategy_id": "ssrl_p03_de_stack_factor_session_minute",
+    "strategy_version": "v1",
+    "template": "single_factor_threshold"
+  },
+  "stamp": "EXPLORATORY",
+  "status": "RECORDED",
+  "surrogate_fdr_gate": {
+    "error_count": 0,
+    "gate_pass_count": 0,
+    "gate_status": "PASSED",
+    "promotion_evidence": false,
+    "run_count": 1,
+    "threshold_verdict": "zero-pass-met"
+  }
+}

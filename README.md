@@ -10,11 +10,17 @@ The repository-level campaign pointer targets
 `STRATEGY_SHAPED_RESEARCH_LANE_V0`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-`SSRL-P02` adds the additive context != trigger conditional template, the
-`SetupSpec` -> conditional probe compiler over materialized path labels, and the
-EXPLORATORY promotion-refusal guard/canary. After this phase merges, campaign
-progress is `3/5` phases complete. The next phase is `SSRL-P03` -- first-light
-strategy-shaped example plus de-stack probe, YELLOW.
+`SSRL-P03` adds the first-light worked example for the strategy-shaped lane: a
+range-contraction context plus a separate failed-high-breakout trigger declared
+as `MechanismCard` -> `SetupSpec`, compiled through the unchanged SSRL-P02
+conditional probe path, and stamped EXPLORATORY. The executor recorded an honest
+`DATA_GAP` for the real row slice because matching local materialization
+manifests were present but no sanctioned Parquet reader module was importable in
+the sandbox. `SSRL-P03` also records the value-free de-stack read for
+`vwap_session.factor_session_minute` through the unchanged single-factor
+template. After this phase merges, campaign progress is `4/5` phases complete.
+The next phase is `SSRL-P04` -- trusted-handoff scaffold, AI-researcher
+happy-path, and `PA_GRAMMAR_SUBSTRATE_V1` naming docs, YELLOW.
 
 Durable docs added by `SSRL-P00` are
 `docs/strategy_shaped_lane/REUSE_MAP.md` and
@@ -27,7 +33,10 @@ Durable governance modules added by `SSRL-P01` are
 `src/alpha_system/strategies/templates.py`,
 `src/alpha_system/research/conditional_probe.py`,
 `docs/strategy_shaped_lane/CONDITIONAL_PROBE.md`, and the
-`forbidden_exploratory_promotion` canary.
+`forbidden_exploratory_promotion` canary. Durable `SSRL-P03` surfaces are
+`src/alpha_system/research/first_light.py`,
+`docs/strategy_shaped_lane/FIRST_LIGHT.md`, and the value-free evidence under
+`research/strategy_shaped_lane_v0/`.
 
 Safety boundaries are unchanged: EXPLORATORY output is not promotion evidence;
 the trusted promotion path refuses EXPLORATORY-stamped artifacts; there is no
@@ -44,18 +53,19 @@ run-local state owned by Ralph.
 ## Source Of Truth
 
 - Root campaign pointer: `ACTIVE_CAMPAIGN.md`
-- Active campaign bundle: `campaigns/SHIP_REFIT_V1/`
-- Campaign overview docs: `docs/ship_refit_v1/`
+- Active campaign bundle: `campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0/`
+- Campaign overview docs: `docs/strategy_shaped_lane/`
 - Value-free research evidence root:
-  `research/ship_refit_v1/`
-- Commit-eligible handoffs: `handoffs/SHIP_REFIT_V1/`
+  `research/strategy_shaped_lane_v0/`
+- Commit-eligible handoffs: `handoffs/STRATEGY_SHAPED_RESEARCH_LANE_V0/`
 - Strategy and roadmap compass: `docs/OPERATING_COMPASS_V4.md`
 
 ## Safety Boundaries
 
-The project remains research-only and local-first. `SHIP_REFIT_V1` authorizes
-harness and diagnostics hardening only. It does not authorize live trading,
-paper trading, broker operations, order routing, deployment, account operations,
+The project remains research-only and local-first.
+`STRATEGY_SHAPED_RESEARCH_LANE_V0` authorizes the governed EXPLORATORY
+strategy-shaped research lane only. It does not authorize live trading, paper
+trading, broker operations, order routing, deployment, account operations,
 funding decisions, or autonomous trading behavior.
 
 Artifact discipline is unchanged: explicit staging only and value-free evidence
@@ -63,9 +73,9 @@ only. `runs/**` is local-only and never committed. Raw or canonical data,
 feature or label values, provider responses, heavy artifacts, local databases,
 logs, caches, secrets, and credentials are never committed.
 
-The refit does not authorize new alpha ideation, FactorLibrary ingestion,
-AlphaBook construction, paper/live behavior, broker access, deployment,
-profitability claims, tradability claims, or execution-readiness claims.
+The strategy-shaped lane does not authorize FactorLibrary ingestion, AlphaBook
+construction, paper/live behavior, broker access, deployment, profitability
+claims, tradability claims, or execution-readiness claims.
 `pyproject.toml` dependencies remain empty, so numpy, pandas, and polars stay
 absent. Truth-chain invariants are preserved, including the sanctioned reference
 engine as the only value/accounting truth. Workflow 2 orchestration, validation
