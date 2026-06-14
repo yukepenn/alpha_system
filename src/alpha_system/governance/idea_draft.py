@@ -62,6 +62,18 @@ IDEA_BUNDLE_INPUT_FIELDS = (
     "mechanism_card",
     "setup_spec",
 )
+IDEA_BUNDLE_SLICE_PASSTHROUGH_FIELDS = frozenset(
+    {
+        "testability_slice",
+        "testability_slices",
+        "slice_spec",
+        "slice_specs",
+        "fast_probe_slice",
+        "fast_probe_slice_spec",
+        "slice",
+        "slices",
+    }
+)
 
 _MECHANISM_INPUT_REQUIRED_FIELDS = tuple(
     field
@@ -355,6 +367,7 @@ def _reject_unknown_bundle_fields(mapping: Mapping[str, Any]) -> None:
         )
         for field in mapping
         if field not in IDEA_BUNDLE_INPUT_FIELDS
+        and field not in IDEA_BUNDLE_SLICE_PASSTHROUGH_FIELDS
     ]
     if issues:
         raise GovernanceValidationError(issues)
@@ -487,6 +500,7 @@ __all__ = [
     "ALLOWED_STUDY_KINDS",
     "CONTEXT_NOT_EQUAL_TRIGGER",
     "IDEA_DRAFT_FIELDS",
+    "IDEA_BUNDLE_SLICE_PASSTHROUGH_FIELDS",
     "IdeaDraft",
     "IdeaValidationBundle",
     "MAIN_EFFECT",

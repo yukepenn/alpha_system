@@ -6,6 +6,7 @@ import pytest
 
 from alpha_system.governance.idea_draft import (
     CONTEXT_NOT_EQUAL_TRIGGER,
+    IDEA_BUNDLE_SLICE_PASSTHROUGH_FIELDS,
     MAIN_EFFECT,
     build_idea_validation_bundle,
     validate_idea_draft,
@@ -41,6 +42,39 @@ def test_build_idea_validation_bundle_emits_setup_for_context_not_equal_trigger(
     assert bundle.setup_spec.mechanism_id == bundle.mechanism_card.mechanism_id
     assert bundle.idea_draft.setup_spec_id == bundle.setup_spec.setup_spec_id
     assert "study_kind" not in bundle.setup_spec.to_dict()
+
+
+def test_build_idea_validation_bundle_ignores_slice_passthrough_for_ids() -> None:
+    base_payload = valid_idea_payload()
+    base_payload["study_kind"] = CONTEXT_NOT_EQUAL_TRIGGER
+    base_payload["setup_spec"] = valid_setup_payload()
+    passthrough_payload = deepcopy(base_payload)
+    passthrough_payload.update(_slice_passthrough_payloads())
+
+    base = build_idea_validation_bundle(base_payload, source="fixture:context")
+    with_slice = build_idea_validation_bundle(passthrough_payload, source="fixture:context")
+
+    assert with_slice.hypothesis_card.hypothesis_id == base.hypothesis_card.hypothesis_id
+    assert with_slice.alpha_spec.alpha_spec_id == base.alpha_spec.alpha_spec_id
+    assert with_slice.mechanism_card.mechanism_id == base.mechanism_card.mechanism_id
+    assert with_slice.setup_spec is not None
+    assert base.setup_spec is not None
+    assert with_slice.setup_spec.setup_spec_id == base.setup_spec.setup_spec_id
+    for field in IDEA_BUNDLE_SLICE_PASSTHROUGH_FIELDS:
+        assert field not in with_slice.alpha_spec.to_dict()
+        assert field not in with_slice.mechanism_card.to_dict()
+        assert field not in with_slice.setup_spec.to_dict()
+
+
+def test_build_idea_validation_bundle_rejects_non_slice_unknown_field() -> None:
+    payload = valid_idea_payload()
+    payload["slice_typo"] = {"slice_id": "typo"}
+
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        build_idea_validation_bundle(payload, source="fixture:idea")
+
+    assert exc_info.value.issues[0].code == "unknown_field"
+    assert exc_info.value.issues[0].field == "slice_typo"
 
 
 def test_validate_study_kind_rejects_unknown_value() -> None:
@@ -211,3 +245,49 @@ def valid_label_spec_id() -> str:
 
 def cloned_valid_idea_payload() -> dict[str, object]:
     return deepcopy(valid_idea_payload())
+
+
+def _slice_passthrough_payloads() -> dict[str, object]:
+    testability_slice = {
+        "slice_id": "passthrough-testability",
+        "dataset_version_id": "dsv_passthrough",
+        "partition_id": "partition_passthrough",
+        "path_label_class_counts": {"false": 2, "true": 1},
+    }
+    fast_probe_slice = {
+        "slice_id": "passthrough-fast-probe",
+        "study_kind": CONTEXT_NOT_EQUAL_TRIGGER,
+        "dataset_version_id": "dsv_passthrough",
+        "partition_id": "partition_passthrough",
+        "instrument_id": "SYNTH",
+        "session_id": "TEST:SYNTH:RTH",
+        "data_version": "dsv_passthrough",
+        "features": [
+            {
+                "role": "context",
+                "factor_id": "known_ahead_context",
+                "factor_version": "ctx:v1",
+                "relative_path": "features/context.parquet",
+                "pack_ref": "fver_" + "a" * 64,
+            }
+        ],
+        "labels": [
+            {
+                "role": "path",
+                "label_id": valid_label_spec_id(),
+                "relative_path": "labels/path.parquet",
+                "pack_ref": "lver_" + "b" * 64,
+                "label_spec_id": valid_label_spec_id(),
+            }
+        ],
+    }
+    return {
+        "testability_slice": testability_slice,
+        "testability_slices": {"default": testability_slice},
+        "slice_spec": fast_probe_slice,
+        "slice_specs": {"default": fast_probe_slice},
+        "fast_probe_slice": fast_probe_slice,
+        "fast_probe_slice_spec": fast_probe_slice,
+        "slice": fast_probe_slice,
+        "slices": {"default": fast_probe_slice},
+    }

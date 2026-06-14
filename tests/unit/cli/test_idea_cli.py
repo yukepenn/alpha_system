@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from alpha_system.cli import idea as idea_cli
 from alpha_system.cli.main import build_parser, main
+from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
+DATASET_VERSION_ID = "dsv_cli_resolving_slice"
+PARTITION_ID = "ES_2020_120m"
+FEATURE_VERSION_ID = "fver_" + "1" * 64
+LABEL_VERSION_ID = "lver_" + "2" * 64
+FEATURE_REQUEST_ID = "freq_" + "3" * 24
+BASE_TS = datetime(2026, 1, 2, 14, 30, tzinfo=UTC)
 
 
 def test_idea_command_is_registered() -> None:
@@ -138,3 +149,348 @@ def test_idea_run_fixture_short_circuits_data_gap_to_requeue(
     assert report == payload["report"]
     assert "## Final Verdict" in report
     assert "- verdict: DATA_GAP" in report
+
+
+def test_idea_gate_and_run_consume_embedded_resolving_slice(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    payload = _context_idea_payload_with_slice()
+    idea_path = tmp_path / "resolving-slice.idea.yaml"
+    report_path = tmp_path / "REPORT.md"
+    idea_path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    resolver_obj = _Resolver(label_spec_id=_path_label_id())
+    fast_probe_calls: list[str] = []
+
+    def fake_resolver():
+        return resolver_obj
+
+    def fake_fast_probe(card, setup, slice_spec, *, resolver):
+        fast_probe_calls.append(slice_spec.slice_id)
+        assert slice_spec.slice_id == "resolving-slice"
+        assert resolver is resolver_obj
+        return {
+            "schema": "alpha_system.research_lane.fast_probe.v1",
+            "status": "RECORDED",
+            "study_kind": "context_not_equal_trigger",
+            "stamp": "EXPLORATORY",
+            "promotion_eligible": False,
+            "mechanism_card": card.to_dict(),
+            "setup_spec": setup.to_dict(),
+            "slice_spec": slice_spec.to_dict(),
+            "row_access": {
+                "status": "resolved_local_only",
+                "reason": "unit-test resolver supplied value-free handles",
+                "fabricated_values": False,
+                "row_counts": {
+                    "feature_rows": {"context": 4, "trigger": 4},
+                    "label_rows": {"path": 12},
+                },
+            },
+            "surrogate_fdr_gate": {
+                "threshold_verdict": "zero-pass-met",
+                "gate_status": "PASSED",
+                "run_count": 8,
+                "gate_pass_count": 0,
+                "error_count": 0,
+            },
+            "power": {
+                "n_eff": 4,
+                "minimum_detectable_abs_ic": 1.0,
+            },
+            "readout": {
+                "counts": {"conditioned_observation_count": 4},
+                "promotion_eligible": False,
+            },
+            "verdict": "REJECT",
+            "reason_code": "DATA_QUALITY",
+            "why": "Deterministic regression readout carries no interpretation.",
+            "next_action": "Keep the fixture value-free.",
+            "readout_id": "readout_cli_resolving_slice",
+        }
+
+    monkeypatch.setattr(idea_cli, "FeatureLabelPackResolver", fake_resolver)
+    monkeypatch.setattr(idea_cli, "fast_probe", fake_fast_probe)
+
+    validate_status = main(["idea", "validate", idea_path.as_posix()])
+    validate_out = json.loads(capsys.readouterr().out)
+    gate_status = main(["idea", "gate", idea_path.as_posix()])
+    gate_out = json.loads(capsys.readouterr().out)
+    run_status = main(
+        [
+            "idea",
+            "run",
+            idea_path.as_posix(),
+            "--report-output",
+            report_path.as_posix(),
+        ]
+    )
+    run_out = json.loads(capsys.readouterr().out)
+
+    assert validate_status == 0
+    assert gate_status == 0
+    assert run_status == 0
+    assert validate_out["alpha_spec"]["alpha_spec_id"] == run_out["idea_draft"]["alpha_spec_id"]
+    assert validate_out["mechanism_card"]["mechanism_id"] == (
+        run_out["idea_draft"]["mechanism_id"]
+    )
+    assert validate_out["setup_spec"]["setup_spec_id"] == run_out["idea_draft"]["setup_spec_id"]
+    assert gate_out["overall_status"] == "PASS"
+    assert gate_out["slice_id"] == "resolving-slice"
+    assert gate_out["probe_invoked"] is False
+    assert gate_out["shot_spent"] is False
+    assert run_out["testability"]["overall_status"] == "PASS"
+    assert run_out["testability"]["slice_id"] == "resolving-slice"
+    assert run_out["promotion_eligible"] is False
+    assert run_out["fast_readout"]["promotion_eligible"] is False
+    assert run_out["fast_readout"]["row_access"]["fabricated_values"] is False
+    assert run_out["memory"]["action"] == "graveyard"
+    assert run_out["memory"]["promotion_eligible"] is False
+    assert run_out["memory"]["probe_spent"] is False
+    assert report_path.read_text(encoding="utf-8") == run_out["report"]
+    assert "- verdict: REJECT" in run_out["report"]
+    assert fast_probe_calls == ["resolving-slice"]
+    assert resolver_obj.feature_calls == [FEATURE_VERSION_ID, FEATURE_VERSION_ID]
+    assert resolver_obj.label_calls == [LABEL_VERSION_ID, LABEL_VERSION_ID]
+
+
+def _context_idea_payload_with_slice() -> dict[str, Any]:
+    path_label_id = _path_label_id()
+    return {
+        "source": "unit:embedded_resolving_slice",
+        "study_kind": "context_not_equal_trigger",
+        "hypothesis_card": {
+            "title": "Embedded resolving slice CLI fixture",
+            "family": "idea_to_verdict_fixture",
+            "rationale": (
+                "A value-free fixture can prove the front door preserves slice "
+                "metadata for downstream gates."
+            ),
+            "expected_mechanism": (
+                "A declared context and separate trigger may be evaluated only "
+                "after the embedded slice passes pre-test checks."
+            ),
+            "falsification_criteria": [
+                "Fail the fixture if the embedded slice cannot satisfy pre-test checks.",
+                "Block the fixture if the context and trigger are not declared separately.",
+            ],
+            "risks": [
+                "The fixture has no empirical interpretation.",
+                "Future rows must remain unavailable until a governed slice is selected.",
+            ],
+            "author": "codex-fixture",
+            "created_at": "2026-06-14T00:00:00Z",
+        },
+        "alpha_spec": {
+            "target_instruments": ["ES"],
+            "data_assumptions": {
+                "coverage": "Unit-test slice metadata is supplied in the idea file.",
+                "source": "No market data is loaded by this CLI regression.",
+            },
+            "factor_inputs": ["context_factor", "trigger_factor"],
+            "label_references": [path_label_id],
+            "exclusion_rules": [
+                "Exclude rows where context or trigger availability is unknown.",
+                "Do not interpret any readout from this unit-test fixture.",
+            ],
+            "timestamp_assumptions": {
+                "availability": "Fixture context and trigger handles are point-in-time.",
+                "timezone": "Fixture timestamps use UTC.",
+            },
+            "cost_assumptions": {
+                "model": "No execution cost estimate is produced by this fixture.",
+                "scope": "Value-free regression only.",
+            },
+            "expected_failure_modes": [
+                "The bounded slice may be unavailable in a real executor.",
+                "Duplicate exposure could block later interpretation.",
+            ],
+            "promotion_criteria": [
+                "No promotion is allowed from this exploratory fixture.",
+                "Reviewer-gated evidence would be required for future routing.",
+            ],
+            "created_by": "codex-fixture",
+            "created_at": "2026-06-14T00:00:00Z",
+        },
+        "mechanism_card": {
+            "source": "unit:embedded_resolving_slice",
+            "rationale": "A declared context and separate trigger remain value-free inputs.",
+            "expected_mechanism": (
+                "The context gates rows while the trigger marks a separate event."
+            ),
+            "expected_direction": "undirected",
+            "horizon": "120m",
+            "session": "RTH",
+            "required_features": ["context_factor", "trigger_factor"],
+            "required_labels": ["target_before_stop"],
+            "cost_sensitivity": {"scope": "value-free regression"},
+            "variant_budget": 1,
+            "duplicate_exposure": {
+                "status": "bounded",
+                "family_id": "embedded_resolving_slice_fixture",
+                "variant_id": "baseline",
+            },
+        },
+        "setup_spec": {
+            "entry_context": {
+                "factor_id": "context_factor",
+                "factor_version": "ctx:v1",
+                "value_field": "normalized_value",
+                "operator": ">=",
+                "threshold": 0.5,
+            },
+            "event_trigger": {
+                "factor_id": "trigger_factor",
+                "factor_version": "trg:v1",
+                "value_field": "normalized_value",
+                "operator": ">",
+                "threshold": 0.0,
+            },
+            "regime_filter": {"session": "RTH", "policy": "unit fixture"},
+            "confirmation": {"policy": "no additional confirmation beyond declared trigger"},
+            "invalidation": {"policy": "fixed path"},
+            "stop": {"binding": "fixed stop"},
+            "target": {"binding": "fixed target"},
+            "hold_time": {"max_minutes": 120, "horizon": "120m"},
+            "horizon": "120m",
+            "path_label": path_label_id,
+            "allowed_variants": ["baseline"],
+            "forbidden_post_hoc_changes": ["No changes after readout."],
+        },
+        "slices": {
+            "resolving-slice": {
+                "slice_id": "resolving-slice",
+                "study_kind": "context_not_equal_trigger",
+                "dataset_version_id": DATASET_VERSION_ID,
+                "partition_id": PARTITION_ID,
+                "instrument_id": "ES",
+                "session_id": "ES:RTH",
+                "data_version": DATASET_VERSION_ID,
+                "feature_pack_refs": [FEATURE_VERSION_ID],
+                "label_pack_refs": [LABEL_VERSION_ID],
+                "feature_request_ids": [FEATURE_REQUEST_ID],
+                "label_spec_ids": [path_label_id],
+                "path_label_class_counts": {"false": 2, "true": 2},
+                "n_eff": 4,
+                "minimum_detectable_effect": 1.0,
+                "available_ts_satisfiable": True,
+                "surrogate_fdr_requirement": "zero-pass-met",
+                "features": [
+                    {
+                        "role": "context",
+                        "factor_id": "context_factor",
+                        "factor_version": "ctx:v1",
+                        "relative_path": "features/context.parquet",
+                        "pack_ref": FEATURE_VERSION_ID,
+                        "feature_request_id": FEATURE_REQUEST_ID,
+                    },
+                    {
+                        "role": "trigger",
+                        "factor_id": "trigger_factor",
+                        "factor_version": "trg:v1",
+                        "relative_path": "features/trigger.parquet",
+                        "pack_ref": FEATURE_VERSION_ID,
+                        "feature_request_id": FEATURE_REQUEST_ID,
+                    },
+                ],
+                "labels": [
+                    {
+                        "role": "path",
+                        "label_id": path_label_id,
+                        "relative_path": "labels/path.parquet",
+                        "pack_ref": LABEL_VERSION_ID,
+                        "label_spec_id": path_label_id,
+                    }
+                ],
+                "label_version_map": {
+                    LABEL_VERSION_ID: ["target_before_stop", "bool"],
+                },
+                "horizon_seconds": 7200,
+                "required_future_bars": 120,
+                "materialized_label_version": LABEL_VERSION_ID,
+                "surrogate_run_count": 8,
+                "surrogate_base_seed": 0,
+                "family_id": "embedded_resolving_slice_fixture",
+                "family_budget": 1,
+                "variant_id": "baseline",
+                "created_at": "2026-06-14T00:00:00Z",
+            }
+        },
+    }
+
+
+def _path_label_id() -> str:
+    return generate_governance_id(
+        GovernanceIdKind.LABEL_SPEC,
+        {"family": "fixture_path", "name": "target_before_stop", "version": 1},
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _FeatureHandle:
+    feature_version_id: str = FEATURE_VERSION_ID
+    feature_request_id: str = FEATURE_REQUEST_ID
+    feature_set_id: str = "fset_cli"
+    feature_set_version: str = "1"
+    dataset_version_id: str = DATASET_VERSION_ID
+    partition_id: str = PARTITION_ID
+    materialization_plan_id: str = "feature_plan_cli"
+    first_event_ts: str = BASE_TS.isoformat()
+    last_event_ts: str = (BASE_TS + timedelta(minutes=4)).isoformat()
+    first_available_ts: str = (BASE_TS + timedelta(seconds=1)).isoformat()
+    last_available_ts: str = (BASE_TS + timedelta(minutes=4, seconds=1)).isoformat()
+    lifecycle_state: str = "REGISTERED"
+
+
+@dataclass(frozen=True, slots=True)
+class _LabelHandle:
+    label_spec_id: str
+    label_version_id: str = LABEL_VERSION_ID
+    label_id: str = "path_target_before_stop"
+    dataset_version_id: str = DATASET_VERSION_ID
+    partition_id: str = PARTITION_ID
+    materialization_plan_id: str = "label_plan_cli"
+    first_event_ts: str = BASE_TS.isoformat()
+    last_event_ts: str = (BASE_TS + timedelta(minutes=4)).isoformat()
+    first_label_available_ts: str = (BASE_TS + timedelta(minutes=120)).isoformat()
+    last_label_available_ts: str = (BASE_TS + timedelta(minutes=124)).isoformat()
+    lifecycle_state: str = "REGISTERED"
+
+
+class _Resolver:
+    def __init__(self, *, label_spec_id: str) -> None:
+        self.label_spec_id = label_spec_id
+        self.feature_calls: list[str] = []
+        self.label_calls: list[str] = []
+
+    def resolve_feature_packs(
+        self,
+        refs,
+        *,
+        expected_dataset_version_id,
+        expected_feature_request_ids,
+        partition_id,
+    ):
+        assert expected_dataset_version_id == DATASET_VERSION_ID
+        assert tuple(expected_feature_request_ids) == (FEATURE_REQUEST_ID,)
+        assert partition_id == PARTITION_ID
+        self.feature_calls.extend(refs)
+        return tuple(_FeatureHandle(feature_version_id=ref) for ref in refs)
+
+    def resolve_label_packs(
+        self,
+        refs,
+        *,
+        expected_dataset_version_id,
+        expected_label_spec_ids,
+        partition_id,
+    ):
+        assert expected_dataset_version_id == DATASET_VERSION_ID
+        assert self.label_spec_id in expected_label_spec_ids
+        assert partition_id == PARTITION_ID
+        self.label_calls.extend(refs)
+        return tuple(
+            _LabelHandle(label_version_id=ref, label_spec_id=self.label_spec_id)
+            for ref in refs
+        )
