@@ -41,5 +41,5 @@ REVISE / no blockers).
   line-number anchors may drift by a few lines as code changes — treat the **symbol name** as
   the durable anchor and grep if a line number does not match.
 
-These are decisions, not live status. The compass (`docs/OPERATING_COMPASS_V4.md`) and
+These are decisions, not live status. The compass (`docs/OPERATING_COMPASS.md`) and
 `AGENTS.md` remain the binding policy; this bundle is consistent with both.

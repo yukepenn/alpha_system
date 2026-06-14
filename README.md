@@ -77,7 +77,7 @@ run-local state owned by Ralph.
 - Dogfood runbook: `docs/IDEA_TO_VERDICT_DOGFOOD.md`
 - Value-free IVL migration root: `research/idea_to_verdict_loop_v0/`
 - Commit-eligible handoffs: `handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/`
-- Strategy and roadmap compass: `docs/OPERATING_COMPASS_V4.md`
+- Strategy and roadmap compass: `docs/OPERATING_COMPASS.md`
 
 ## Safety Boundaries
 

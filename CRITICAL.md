@@ -3,10 +3,25 @@
 This file is the agent entry point. It exists so Claude/Codex land on the
 invariants and the live truth without spelunking stale docs. It is short on
 purpose. `AGENTS.md` is the full constitution; this is the pre-flight card.
-Strategy/roadmap canon: `docs/OPERATING_COMPASS_V4.md` (v4.1) — the stage-gated
-route (kill-shot → survivor gate → conditional factory), target calibration,
-and the REUSE-MAP / verdict-first operating rules. Read it before proposing
-any new campaign or mechanism.
+Strategy/roadmap canon: `docs/OPERATING_COMPASS.md` (fixed name, internal version
+v5.0) — the autonomy-first goal, production line, idea-object hierarchy, survivor
+gate, trigger-gated route, target calibration, and the REUSE-MAP / verdict-first
+operating rules. Read it before proposing any new campaign or mechanism.
+
+## DOC MAP — where the one truth for each question lives
+
+| Question | Source of truth |
+| --- | --- |
+| Goal / vision / production-line / route | `docs/OPERATING_COMPASS.md` (fixed name) |
+| Policy / boundaries / lanes / trust boundary | `AGENTS.md` (+ `CLAUDE.md`, `frontier.yaml`) |
+| Persistent decisions / charters | `decisions/**` (e.g. `ALPHA_FACTORY_PRODUCTION_LINE_ADJUDICATION_V1/`) |
+| LIVE run / phase status | `python tools/frontier/status_doctor.py` (+ `runs/<id>/state.json`) |
+| Repository structure / modules | `docs/SYSTEM_MAP.md` (generated; `just system-map`) |
+| Current campaign pointer (lags) | `ACTIVE_CAMPAIGN.md` |
+
+Committed prose lags live runs; `status_doctor` is the arbiter. There is exactly
+one compass at the fixed name — no versioned `OPERATING_COMPASS_V*.md` copies
+(enforced by `tests/tools/test_operating_compass_guard.py`).
 
 ## Where am I? (live truth, not committed prose)
 
