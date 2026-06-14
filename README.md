@@ -10,20 +10,23 @@ The repository-level campaign pointer targets
 `DIFFERENTIATED_KILLSHOT_V1`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-`DK-P00` lands the bootstrap and value-free FDR-before-metric gate for the
-differentiated-substrate kill-shot. It adds
-`research/differentiated_substrate_v1/FDR_ACTIVE_SUBSET_RESTATEMENT.md`, which
-pins the active pooled surface before any metric, and
-`docs/differentiated_killshot_v1/{REUSE_MAP.md,SCOPE.md}`, which lock reuse and
-scope boundaries. Campaign progress is `1/6` planned phases complete after
-merge. Next is `DK-P01`, the zero-feed calendar substrate phase.
+`DK-P01` adds five zero-feed, known-ahead `SESSION_CALENDAR_ROLL` flags as
+strictly additive members of the existing session family:
+`is_opex_day_flag`, `is_quad_witch_day_flag`,
+`is_month_end_session_flag`, `is_quarter_end_session_flag`, and
+`in_roll_window_flag`. The flags are wired through the reference family and
+fast-path pack, with APPROVED FeatureRequest declarations and provenance under
+`research/differentiated_substrate_v1/feature_requests/`. Campaign progress is
+`2/6` planned phases complete after merge. Next is `DK-P02`, Track A StudySpecs
+plus declared-conditioning-factor admission and surrogate-FDR zero-pass.
 
 Safety boundaries are unchanged: this is research-only; there is no real-data
-metric in DK-P00, no alpha/profitability/tradability claim, no second
+metric in DK-P01, no alpha/profitability/tradability claim, no second
 value/accounting truth, no research-to-reference-sim bridge, no single-factor
-template edit, no FUTSUB/core-pilot artifact edit, no new paid data, no live
-trading, no paper trading, no broker operation, no order routing, and no
-deployment.
+template edit, no value-engine edit, no FUTSUB/core-pilot artifact edit, no new
+dependency, no new paid data, no live trading, no paper trading, no broker
+operation, no order routing, and no deployment. `fomc`, `cpi`, and the
+overnight family remain deferred.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the

@@ -5,20 +5,19 @@ from collections import defaultdict
 import pytest
 
 from alpha_system.features.contracts import FeatureSetSpec, FeatureValueRecord
-from alpha_system.features.fast import (
-    SESSION_CALENDAR_ROLL_FEATURE_IDS,
-    PackMaterializer,
-    build_fast_feature_pack,
-)
 from alpha_system.features.families.session import (
     SessionFeatureDefinition,
     SessionFeatureName,
     build_session_feature_definition,
     compute_session_feature,
 )
+from alpha_system.features.fast import (
+    SESSION_CALENDAR_ROLL_FEATURE_IDS,
+    PackMaterializer,
+    build_fast_feature_pack,
+)
 from tests.fixtures.feature_compute_fast_path.session_calendar_roll import (
     DATASET_ID,
-    PARTITION_ID,
     SYNTHETIC_NO_TRADE_INDEX,
     session_calendar_roll_pack_records,
     session_calendar_roll_pack_rows,
@@ -108,6 +107,11 @@ def _assert_fixture_coverage(
         1,
         0,
         0,
+        1,
+        1,
+        1,
+        1,
+        1,
     ]
     assert [record.value for record in reference_records[SessionFeatureName.ETH_SEGMENT_FLAG]] == [
         1,
@@ -118,15 +122,20 @@ def _assert_fixture_coverage(
         0,
         1,
         1,
+        0,
+        0,
+        0,
+        0,
+        0,
     ]
     assert [
         record.value
         for record in reference_records[SessionFeatureName.MINUTES_FROM_RTH_OPEN]
-    ] == [None, None, 0, 1, 2, 389, None, None]
+    ] == [None, None, 0, 1, 2, 389, None, None, 0, 0, 0, 0, 0]
     assert [
         record.value
         for record in reference_records[SessionFeatureName.MINUTES_TO_RTH_CLOSE]
-    ] == [None, None, 390, 389, 388, 1, None, None]
+    ] == [None, None, 390, 389, 388, 1, None, None, 390, 390, 390, 390, 390]
     assert reference_records[SessionFeatureName.SESSION_ID][1].value == "ES_c_0:2024-01-02:ETH"
     assert reference_records[SessionFeatureName.SESSION_ID][2].value == "ES_c_0:2024-01-02:RTH"
     assert reference_records[SessionFeatureName.SESSION_ID][7].value == "ES_c_0:2024-01-02:ETH"
@@ -160,6 +169,35 @@ def _assert_fixture_coverage(
         record.value is None and "status_metadata_absent" in record.quality_flags
         for record in reference_records[SessionFeatureName.HALT_STATUS_FLAG]
     )
+    assert [record.value for record in reference_records[SessionFeatureName.IS_OPEX_DAY_FLAG]] == [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+    ]
+    assert [
+        record.value for record in reference_records[SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG]
+    ] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+    assert [
+        record.value
+        for record in reference_records[SessionFeatureName.IS_MONTH_END_SESSION_FLAG]
+    ] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1]
+    assert [
+        record.value
+        for record in reference_records[SessionFeatureName.IS_QUARTER_END_SESSION_FLAG]
+    ] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+    assert [
+        record.value for record in reference_records[SessionFeatureName.IN_ROLL_WINDOW_FLAG]
+    ] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
 
 
 def _records_by_feature_version(

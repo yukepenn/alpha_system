@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -42,6 +44,14 @@ from alpha_system.governance.feature_request import (
 )
 
 ALPHA_SPEC_ID = "aspec_af848bc999a4c4b11a421bd0"
+DK_P01_FEATURE_REQUEST_DIR = Path("research/differentiated_substrate_v1/feature_requests")
+DK_P01_CALENDAR_FLAGS = (
+    SessionFeatureName.IS_OPEX_DAY_FLAG,
+    SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG,
+    SessionFeatureName.IS_MONTH_END_SESSION_FLAG,
+    SessionFeatureName.IS_QUARTER_END_SESSION_FLAG,
+    SessionFeatureName.IN_ROLL_WINDOW_FLAG,
+)
 
 
 class EmptyRegistryReader:
@@ -104,6 +114,8 @@ def test_all_session_features_are_gated_versioned_and_available() -> None:
         _definition(definitions, SessionFeatureName.DAY_OF_WEEK).spec,
         CalendarFeatureSpec,
     )
+    for feature in DK_P01_CALENDAR_FLAGS:
+        assert isinstance(_definition(definitions, feature).spec, CalendarFeatureSpec)
     assert isinstance(
         _definition(definitions, SessionFeatureName.BARS_TO_ROLL).spec,
         RollFeatureSpec,
@@ -127,6 +139,17 @@ def test_all_session_features_are_gated_versioned_and_available() -> None:
     assert results[SessionFeatureName.RTH_SEGMENT_FLAG][1].value == 1
     assert results[SessionFeatureName.ETH_SEGMENT_FLAG][0].value == 1
     assert results[SessionFeatureName.DAY_OF_WEEK][1].value == 1
+    assert all(record.value == 0 for record in results[SessionFeatureName.IS_OPEX_DAY_FLAG])
+    assert all(record.value == 0 for record in results[SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG])
+    assert all(
+        record.value == 0
+        for record in results[SessionFeatureName.IS_MONTH_END_SESSION_FLAG]
+    )
+    assert all(
+        record.value == 0
+        for record in results[SessionFeatureName.IS_QUARTER_END_SESSION_FLAG]
+    )
+    assert all(record.value == 0 for record in results[SessionFeatureName.IN_ROLL_WINDOW_FLAG])
     assert results[SessionFeatureName.BARS_TO_ROLL][0].value == 3
     assert results[SessionFeatureName.BARS_TO_ROLL][2].value == 1
     assert results[SessionFeatureName.BARS_TO_ROLL][3].value is None
@@ -268,6 +291,83 @@ def test_missing_available_ts_fails_closed() -> None:
         compute_session_feature(definition, rows)
 
 
+def test_dk_p01_calendar_flags_are_zero_feed_known_ahead_and_fail_absent() -> None:
+    rows = _dk_p01_calendar_rows()
+    registry = EmptyRegistryReader()
+    definitions = {
+        feature: build_session_feature_definition(
+            feature,
+            _approved_request(feature),
+            registry,
+            dataset_version_ids=("dsv_synthetic_session",),
+        )
+        for feature in DK_P01_CALENDAR_FLAGS
+    }
+
+    records = {
+        feature: compute_session_feature(definition, rows)
+        for feature, definition in definitions.items()
+    }
+
+    for feature, definition in definitions.items():
+        assert definition.spec.live is True
+        assert definition.spec.window.kind is WindowKind.POINT_IN_TIME
+        assert definition.spec.window.causality is WindowCausality.CAUSAL
+        assert definition.spec.window.offline_only is False
+        assert [record.available_ts for record in records[feature]] == [
+            row.available_ts for row in rows
+        ]
+        parameters = definition.spec.transform.parameters.to_dict()
+        assert parameters["feature_name"] == feature.value
+        assert parameters["calendar_derivation"] == "zero_feed_session_local_calendar_arithmetic"
+        assert "bars_to_roll" not in str(parameters).lower()
+        assert "minutes_to_roll" not in str(parameters).lower()
+
+    assert [record.value for record in records[SessionFeatureName.IS_OPEX_DAY_FLAG]] == [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+    ]
+    assert [record.value for record in records[SessionFeatureName.IS_QUAD_WITCH_DAY_FLAG]] == [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+    ]
+    assert [record.value for record in records[SessionFeatureName.IS_MONTH_END_SESSION_FLAG]] == [
+        0,
+        1,
+        0,
+        0,
+        1,
+        None,
+    ]
+    assert [
+        record.value for record in records[SessionFeatureName.IS_QUARTER_END_SESSION_FLAG]
+    ] == [0, 0, 0, 0, 1, None]
+    assert [record.value for record in records[SessionFeatureName.IN_ROLL_WINDOW_FLAG]] == [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+    ]
+    assert (
+        "session_calendar_coverage_absent"
+        in records[SessionFeatureName.IS_MONTH_END_SESSION_FLAG][-1].quality_flags
+    )
+    assert (
+        "session_calendar_coverage_absent"
+        in records[SessionFeatureName.IS_QUARTER_END_SESSION_FLAG][-1].quality_flags
+    )
+
+
 def test_feature_request_gate_is_required_and_fail_closed() -> None:
     registry = EmptyRegistryReader()
 
@@ -280,6 +380,40 @@ def test_feature_request_gate_is_required_and_fail_closed() -> None:
             _request(SessionFeatureName.SESSION_ID, FeatureRequestApprovalStatus.PENDING),
             registry,
         )
+    for feature in DK_P01_CALENDAR_FLAGS:
+        with pytest.raises(FeatureRequestGateError):
+            build_session_feature_definition(feature, None, registry)
+        with pytest.raises(FeatureRequestGateError):
+            build_session_feature_definition(
+                feature,
+                _request(feature, FeatureRequestApprovalStatus.PENDING),
+                registry,
+            )
+
+
+def test_dk_p01_feature_request_artifacts_are_approved_and_admit_flags() -> None:
+    registry = EmptyRegistryReader()
+
+    for feature in DK_P01_CALENDAR_FLAGS:
+        request = _dk_p01_feature_request(feature)
+        definition = build_session_feature_definition(
+            feature,
+            request,
+            registry,
+            dataset_version_ids=("dsv_synthetic_session",),
+        )
+
+        assert request.feature_request_id.startswith("freq_")
+        assert request.approval_status == FeatureRequestApprovalStatus.APPROVED.value
+        assert definition.request_gate_decision.feature_request is not None
+        assert (
+            definition.request_gate_decision.feature_request.feature_request_id
+            == request.feature_request_id
+        )
+        assert definition.spec.feature_request_id.startswith("freq_")
+        assert definition.request_gate_decision.implementation_allowed is True
+        assert definition.spec.live is True
+
 
 
 @pytest.mark.parametrize(
@@ -328,6 +462,17 @@ def _fixture_rows() -> tuple[OHLCVInputRow | DenseGridBarRecord, ...]:
         _ohlcv_row(rth + timedelta(minutes=1), "RTH", contract_id="ESM4"),
         _ohlcv_row(rth + timedelta(minutes=2), "RTH", contract_id="ESU4"),
         _dense_no_trade_row(rth + timedelta(minutes=3), contract_id="ESU4"),
+    )
+
+
+def _dk_p01_calendar_rows() -> tuple[OHLCVInputRow, ...]:
+    return (
+        _ohlcv_row(_dt("2024-01-19T14:30:00+00:00"), "RTH", contract_id="ESU4"),
+        _ohlcv_row(_dt("2024-01-31T14:30:00+00:00"), "RTH", contract_id="ESU4"),
+        _ohlcv_row(_dt("2024-03-07T14:30:00+00:00"), "RTH", contract_id="ESU4"),
+        _ohlcv_row(_dt("2024-03-15T13:30:00+00:00"), "RTH", contract_id="ESU4"),
+        _ohlcv_row(_dt("2024-03-28T13:30:00+00:00"), "RTH", contract_id="ESU4"),
+        _ohlcv_row(_dt("2027-01-29T14:30:00+00:00"), "RTH", contract_id="ESZ6"),
     )
 
 
@@ -430,6 +575,11 @@ def _request(
         },
         approval_status=approval_status,
     )
+
+
+def _dk_p01_feature_request(feature: SessionFeatureName) -> FeatureRequest:
+    path = DK_P01_FEATURE_REQUEST_DIR / f"{feature.value}.json"
+    return FeatureRequest.from_mapping(json.loads(path.read_text(encoding="utf-8")))
 
 
 def _dt(value: str) -> datetime:
