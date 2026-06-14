@@ -12,55 +12,50 @@ Project: `alpha_system`
 - Template version: `3.0.0`
 - Generated: `2026-05-31T21:48:47+00:00`
 - Workflow 1: available
-- Workflow 2: provider-wired conductor available; currently paused after
-  `ALPHA_AGENT_FACTORY_MVP` closeout
+- Workflow 2: provider-wired conductor available; **no live run** — paused after
+  `DIFFERENTIATED_KILLSHOT_V1` closeout (post-DK factory adjudication)
 - Auto-merge: enabled through the protected-branch PR path when `FRONTIER_ALLOW_AUTOMERGE=1`
-- Active campaign pointer: `ALPHA_AGENT_FACTORY_MVP` complete (`26/26`,
-  `COMPLETE_WITH_WARNINGS`, current phase `none`)
+- Active campaign pointer: `DIFFERENTIATED_KILLSHOT_V1` COMPLETE (`6/6`,
+  `PASS_WITH_WARNINGS`, current phase `none`, **0 survivors** — see post-DK note below)
 - Current phase pointer: `ACTIVE_CAMPAIGN.md`
 - Latest local run summary: `runs/<run_id>/RUN_SUMMARY.md`
 - Canonical repo path: `~/projects/alpha_system`
 - Required filesystem: WSL2 Linux filesystem
 
-Post-closeout status:
+### Post-DK research state (0 survivors — second clean kill-shot)
 
-- Completed baselines: `ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`,
-  `ALPHA_RESEARCH_GOVERNANCE_MVP`, `ALPHA_DATA_FOUNDATION_V1`,
-  `ALPHA_FEATURE_LABEL_FOUNDATION_V1`, `ALPHA_RESEARCH_RUNTIME_MVP`,
-  `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1`,
-  `ALPHA_AGENT_FACTORY_MVP`, and `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1`.
-- Latest completed campaign (Workflow 1): `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1`
-  (**PASS**) — landed both pre-pilot data-access blockers:
-  `FEATURE_LABEL_PARQUET_SINK_V1` (research-scale Parquet value sink/reader +
-  registry pointer metadata; JSONL preserved as audit/small tier) and
-  `SESSION_LABEL_GUARD_FIX_V1` (role-aware no-lookahead guard;
-  `rth_flag`/`eth_flag`/`session_minute` unblocked as declared `SESSION_METADATA`).
-  Real local Parquet + session-context smoke PASS; Agent Factory preflight
-  PREFLIGHT_PASS on all four gates; `verify.py --all` green; artifact audit clean.
-  Next (separately authorized): `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1`.
-- Prior completed campaign: `ALPHA_AGENT_FACTORY_MVP`
-  (`COMPLETE_WITH_WARNINGS`, `AGENT-P00` through `AGENT-P25`, `26/26` passing;
-  the controlled AI Alpha Research Team contract layer — contracts only, no
-  autonomous agent instantiated; live run `2026-06-06T193514Z`, PRs #182–#208).
-- Post-closeout data work completed across two providers with distinct roles:
-  - IBKR (read-only broker-validation source, ~2 years of available depth):
-    Task 1A connector/smoke (PR #96) and Task 1B resumable backfill/materialize
-    with the first real local-only DatasetVersion
-    `dsv_ibkr_es_nq_rty_eth_20260603_v1` (PR #97).
-  - Databento (primary deep-history research source): Phase B complete
-    (PR #107) — full GLBX.MDP3 ES/NQ/RTY continuous OHLCV-1m + BBO-1m history
-    (2018-01-01 → 2026-06-01) pulled, canonicalized (sparse provider truth plus
-    a derived dense research grid), quality/coverage-gated, and registered as
-    27 local-only DatasetVersions across development/validation/locked-test
-    partitions, kept separate from the IBKR DatasetVersions. See
-    `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
+`DIFFERENTIATED_KILLSHOT_V1` is COMPLETE 6/6 with **0 survivors**:
+
+- **Track A** (calendar/flow conditioning factors as main-effect context):
+  WELL-POWERED CLEAN NULL — 4 mechanisms `ZERO_PASS_MET`, all REJECT.
+- **Track B** (EXPLORATORY `context != trigger` conditional probe):
+  SUBSTRATE-GAP, UNTESTED — ran on a single-class (degenerate) 120m
+  `target_before_stop` slice; not a null, a closable DATA_GAP.
+- `roll_week`: honest DATA_GAP (`in_roll_window_flag` all-null).
+
+Survivor gate = **0**: no promotion; no downstream factory module (broad Mining V2,
+FactorLibrary as survivor memory, AlphaBook, Strategy Sandbox, PA grammar), no
+universe expansion, and no paid data are authorized — all trigger-gated behind the
+survivor gate. Next: post-DK factory production-line adjudication → a narrow Track B
+substrate gap-closure (same pre-registered SetupSpec, existing `ES_2020_120m`
+barrier-resolving slice, no new mechanisms/sweep/promotion) → a fresh narrow shot from
+a ranked MechanismCard queue. ES/NQ/RTY existing data only.
+
+### Completed campaigns (chronological; the deep history above/below is not the live ledger)
+
+`ALPHA_SYSTEM_V1`, `ASV1_RELEASE_HYGIENE`, `ALPHA_RESEARCH_GOVERNANCE_MVP`,
+`ALPHA_DATA_FOUNDATION_V1`, `ALPHA_FEATURE_LABEL_FOUNDATION_V1`,
+`ALPHA_RESEARCH_RUNTIME_MVP`, `POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1`,
+`ALPHA_AGENT_FACTORY_MVP`, `PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1`,
+`ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` (INCONCLUSIVE substrate-coverage),
+`ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` (FUTSUB — 0 survivors),
+`DISCOVERY_RIGOR_FLOOR_V1` (rigor floor 8/8), `SHIP_REFIT_V1`,
+`STRATEGY_SHAPED_RESEARCH_LANE_V0` (SSRL 5/5), and `DIFFERENTIATED_KILLSHOT_V1`
+(DK 6/6, 0 survivors).
+
 - All raw/canonical data, registries, and reports remain local-only under
   `ALPHA_DATA_ROOT`; nothing is committed. Loading any DatasetVersion implies no
   alpha, tradability, profitability, paper/live, broker, or production readiness.
-- Workflow 2 is paused; no phase is currently selected.
-- True next intended campaign: `ALPHA_FUTURES_CORE_ALPHA_PILOT_V1` (a separate,
-  separately authorized campaign that may consume the Agent Factory contract
-  layer; its existence is not an alpha/tradability claim).
 
 `ACTIVE_CAMPAIGN.md` is the tracked phase-progress pointer that Ralph updates through reviewed phase commits. This file is a stable project orientation note, not the authoritative live ledger.
 
