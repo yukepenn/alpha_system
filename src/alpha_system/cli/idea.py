@@ -11,6 +11,12 @@ from typing import Any
 
 from alpha_system.governance.idea_draft import build_idea_validation_bundle
 from alpha_system.governance.validation import GovernanceValidationError, require_mapping
+from alpha_system.research_lane.testability_gate import (
+    TestabilityGateError,
+    evaluate_testability_gate,
+    slice_spec_from_idea_payload,
+)
+from alpha_system.runtime.input_resolver import FeatureLabelPackResolver
 
 
 def run_idea_validate(args: argparse.Namespace) -> int:
@@ -49,6 +55,51 @@ def run_idea_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_idea_testability(args: argparse.Namespace) -> int:
+    """Run ``alpha idea testability`` / ``alpha idea gate`` as a pre-test gate."""
+
+    try:
+        idea_path = Path(args.idea_yaml)
+        payload = load_idea_document(idea_path)
+        bundle = build_idea_validation_bundle(payload, source=idea_path.as_posix())
+        slice_spec = slice_spec_from_idea_payload(payload, slice_id=args.slice)
+        result = evaluate_testability_gate(
+            bundle.idea_draft,
+            alpha_spec=bundle.alpha_spec,
+            mechanism_card=bundle.mechanism_card,
+            setup_spec=bundle.setup_spec,
+            slice_spec=slice_spec,
+            resolver=FeatureLabelPackResolver(),
+        )
+    except GovernanceValidationError as exc:
+        print(
+            json.dumps(
+                {
+                    "error": "idea_testability_failed",
+                    "issues": [issue.to_dict() for issue in exc.issues],
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, ValueError, TestabilityGateError) as exc:
+        print(
+            json.dumps(
+                {
+                    "error": "idea_testability_failed",
+                    "message": str(exc),
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    print(json.dumps(result.to_dict(), ensure_ascii=True, indent=2, sort_keys=True))
+    return 0
+
+
 def load_idea_document(path: Path) -> Mapping[str, Any]:
     """Load an idea document from JSON or YAML without adding a hard dependency."""
 
@@ -79,6 +130,21 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     )
     validate_parser.set_defaults(handler=run_idea_validate)
 
+    testability_parser = idea_subparsers.add_parser(
+        "testability",
+        aliases=["gate"],
+        help="Run the pre-test idea testability gate.",
+    )
+    testability_parser.add_argument(
+        "idea_yaml",
+        help="Path to an idea YAML or JSON-subset YAML document.",
+    )
+    testability_parser.add_argument(
+        "--slice",
+        help="Optional embedded slice id to select for the pre-test gate.",
+    )
+    testability_parser.set_defaults(handler=run_idea_testability)
+
 
 def _load_yaml_if_available(text: str, *, path: Path) -> Any:
     try:
@@ -90,4 +156,9 @@ def _load_yaml_if_available(text: str, *, path: Path) -> Any:
     return yaml.safe_load(text)
 
 
-__all__ = ["load_idea_document", "register_subparser", "run_idea_validate"]
+__all__ = [
+    "load_idea_document",
+    "register_subparser",
+    "run_idea_testability",
+    "run_idea_validate",
+]

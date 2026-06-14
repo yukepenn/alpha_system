@@ -184,9 +184,10 @@ def _label_rows(
 
 
 def _injected_with_variance() -> InjectedRows:
-    # The context (>= 0.5) perfectly predicts the target outcome among events, so
-    # the observed conditional uplift is maximal and no label shuffle can strictly
-    # exceed it -> 0 surrogate passes -> ZERO_PASS_MET. All rows fire the trigger.
+    # The context (>= 0.5) leaves two target classes in the conditioned rows, so
+    # the conditional-probe class guard is satisfied while this deterministic
+    # fixture still yields zero strict label-shuffle passes. All rows fire the
+    # trigger.
     path_label = path_label_governance_id()
     return InjectedRows(
         context_factor_values=_factor_rows(
@@ -197,7 +198,7 @@ def _injected_with_variance() -> InjectedRows:
         ),
         path_labels=_label_rows(
             path_label,
-            target_values=(True, True, False, True),
+            target_values=(True, False, True, False),
             mfe_values=(0.05, 0.02, 0.01, 0.03),
             mae_values=(-0.01, -0.03, -0.02, -0.04),
         ),

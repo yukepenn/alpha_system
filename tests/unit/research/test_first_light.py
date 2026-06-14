@@ -143,14 +143,14 @@ def test_first_light_exploratory_readout_is_refused_by_promotion_guard() -> None
         context_factor_values=_factor_rows(
             FIRST_LIGHT_CONTEXT_FACTOR_ID,
             FIRST_LIGHT_CONTEXT_FACTOR_VERSION,
-            (0.9,),
+            (0.9, 0.8, 0.7),
         ),
         trigger_factor_values=_factor_rows(
             FIRST_LIGHT_TRIGGER_FACTOR_ID,
             FIRST_LIGHT_TRIGGER_FACTOR_VERSION,
-            (1.0,),
+            (1.0, 1.0, 1.0),
         ),
-        path_labels=_path_label_rows(setup.path_label, count=1),
+        path_labels=_path_label_rows(setup.path_label, count=3),
         surrogate_run_count=3,
         created_at="2026-06-13T22:30:00Z",
     )
