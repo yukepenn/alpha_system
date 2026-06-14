@@ -196,3 +196,52 @@ def test_watchdog_first_light_preflight_uses_resolver_smoke_and_canaries(tmp_pat
         ralph_driver.FIRST_LIGHT_CANARY_COMMAND,
     ]
     assert "First-Light Preflight" in text
+
+
+def test_watchdog_does_not_kill_provider_with_intermittent_progress(tmp_path, monkeypatch) -> None:
+    # CPU advances on every other sample, so the continuous-stall window never
+    # fills even though total runtime far exceeds hang_after_seconds. The OLD
+    # single-zero-CPU-sample rule killed exactly this shape (a provider blocked
+    # on a long reasoning round-trip between bursts); the continuous-stall rule
+    # must not. This is the SSRL-P03 false-positive-hang regression test.
+    events_path = tmp_path / "events.jsonl"
+    events_path.write_text("", encoding="utf-8")
+    records: list[dict[str, object]] = []
+    counter = {"n": 0}
+
+    def intermittent_ticks(pid: int) -> int:
+        counter["n"] += 1
+        return counter["n"] // 2  # 0,1,1,2,2,3,... -> cpu_delta alternates 1,0,1,0
+
+    monkeypatch.setattr(command_runner, "_cpu_ticks_for_process_group", intermittent_ticks)
+
+    result = CommandRunner(tmp_path).run(
+        [sys.executable, "-c", "import time; time.sleep(0.4); print('finished')"],
+        timeout_seconds=3,
+        provider_watchdog=_fast_watchdog(
+            events_path,
+            lambda event, details: records.append({"event": event, **dict(details)}),
+        ),
+    )
+
+    assert result.return_code == 0
+    assert result.stdout.strip() == "finished"
+    assert records == []  # never killed despite runtime >> hang_after_seconds
+
+
+def test_finalize_merge_skips_already_merged_phase(tmp_path) -> None:
+    # Resume safety: an already-merged phase must NEVER be re-PR'd or re-merged.
+    # finalize_merge_for_phase must short-circuit before any git/gh work. This is
+    # the SSRL-P00 #434 stale-branch re-merge regression test.
+    run_dir = tmp_path
+    state = {"last_event_id": 0, "phases": []}
+    phase = {"phase_id": "SSRL-P00", "status": "PASS_WITH_WARNINGS", "merged": True}
+
+    ok = ralph_driver.finalize_merge_for_phase(run_dir, state, phase)
+
+    assert ok is True
+    last_event = json.loads(
+        (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+    )
+    assert last_event["event"] == "MERGE_SKIPPED_ALREADY_MERGED"
+    assert last_event["phase_id"] == "SSRL-P00"

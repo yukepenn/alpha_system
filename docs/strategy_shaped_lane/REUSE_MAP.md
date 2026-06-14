@@ -1,8 +1,9 @@
 # Strategy-Shaped Research Lane V0 Reuse Map
 
-This map locks what `STRATEGY_SHAPED_RESEARCH_LANE_V0` reuses. It is
-documentation only: no source code, engine behavior, data contract, dependency,
-or runtime path is changed by `SSRL-P00`.
+This map locks what STRATEGY_SHAPED_RESEARCH_LANE_V0 reuses. Later phases add
+small, bounded strategy-shaped research contracts and probes around these
+surfaces; they do not rebuild them, fork them, or create a second value or PnL
+truth.
 
 This document is value-free. It makes no alpha, profitability, tradability,
 deployment, paper-trading, live-trading, or broker-readiness claim.
@@ -19,40 +20,38 @@ The six-file campaign bundle is present under
 - `RISK_REGISTER.md`
 - `RUNBOOK.md`
 
-`ACTIVE_CAMPAIGN.md` names `STRATEGY_SHAPED_RESEARCH_LANE_V0`. The coordinator
-owns that pointer; this phase confirms it and does not repoint it.
+`ACTIVE_CAMPAIGN.md` points at
+`campaigns/STRATEGY_SHAPED_RESEARCH_LANE_V0`. The coordinator owns that pointer;
+this phase only confirms it.
 
-## Reused Engines
+## Reused Anchors
 
-The anchors below were re-verified against the current tree on 2026-06-13.
-Line ranges are convenience pointers to the checked code; symbols and paths are
-the durable reuse contract.
-
-| Surface | Verified current anchor | Reuse lock |
+| Capability | Verified current anchor | Reuse lock |
 | --- | --- | --- |
-| Path-outcome diagnostics dispatch | `src/alpha_system/research/diagnostics.py:450-458` wires the existing `events` diagnostics block, including `target_before_stop_probability` and `post_event_mfe_mae`. | Later SSRL probes must consume the existing path-outcome diagnostics surface, not add a second path-outcome diagnostics engine. |
-| Path-label optional fields in diagnostic rows | `src/alpha_system/research/diagnostics.py:940-970` maps optional governed labels into MFE, MAE, target-before-stop, stop-before-target, and liquidity fields; `src/alpha_system/research/diagnostics.py:973-991` performs the same mapping for supplied label values. | V0 outcomes come through materialized path-label fields already understood by the diagnostics panel. |
-| Current context==trigger collapse | `src/alpha_system/research/diagnostics.py:1039-1053` builds an observation from one factor/label pair and sets both `regime_filter` and `event_trigger` from the same numeric factor predicate. | The V0 capability target is to add a bounded context!=trigger path later without rewriting this existing observation path in P00. |
-| Single-factor strategy template | `src/alpha_system/strategies/templates.py:25` declares `SINGLE_FACTOR_THRESHOLD_TEMPLATE`; `src/alpha_system/strategies/templates.py:28-71` builds the one-factor template; `src/alpha_system/strategies/templates.py:74-151` evaluates and guards it as exactly one declared factor dependency. | Later strategy-shaped work adds alongside the single-factor template. It must not modify, weaken, or duplicate the single-factor path. |
-| StudySpec governance chain | `src/alpha_system/governance/study_spec.py:31-65` declares fields and states; `src/alpha_system/governance/study_spec.py:127-181` defines the typed record; `src/alpha_system/governance/study_spec.py:184-229` creates validated records and deterministic IDs; `src/alpha_system/governance/study_spec.py:232-360` validates and gates diagnostics. | `SetupSpec` and `MechanismCard` compose/link the existing spec chain. They do not duplicate `AlphaSpec` or `StudySpec`. |
-| Shared governance conventions | `src/alpha_system/governance/ids.py:24-69` reserves governance ID kinds and prefixes, including `MechanismCard` and `SetupSpec`; `src/alpha_system/governance/ids.py:114-144` generates deterministic IDs; `src/alpha_system/governance/serialization.py:43-90` provides canonical serialization and hashing; `src/alpha_system/governance/validation.py:52-173` provides fail-closed validation primitives. | New V0 contract objects reuse the existing identity, serialization, and validation conventions instead of creating parallel conventions. |
-| Variant ledger and family budget | `src/alpha_system/governance/variant_ledger.py:47-89` declares record/amendment schemas; `src/alpha_system/governance/variant_ledger.py:126-209` defines records and budget amendments; `src/alpha_system/governance/variant_ledger.py:212-281` defines family-budget and validation-result metadata; `src/alpha_system/governance/variant_ledger.py:684-823` enforces variant and family budgets fail-closed. | Strategy-shaped exploratory variants are bounded through the existing `VariantLedger` and family-budget machinery. No parallel ledger is introduced. |
-| Rejected-idea ledger | `src/alpha_system/governance/rejected_idea.py:97-139` declares closed rejection categories, including duplicate, weak evidence, leakage, cost, failed diagnostics, and out-of-scope; `src/alpha_system/governance/rejected_idea.py:142-192` defines `RejectedIdeaRecord`; `src/alpha_system/governance/rejected_idea.py:238-391` provides append-only ledger operations. | Rejected, duplicate, leaky, weak, or out-of-scope exploratory setups reuse the existing research graveyard model. |
-| Surrogate-FDR zero-pass gate | `src/alpha_system/governance/surrogate_run.py:780-891` calibrates surrogate runs; `src/alpha_system/governance/surrogate_run.py:894-917` aggregates rows and returns `ZERO_PASS_MET` only when no statistic passes and no calibration error blocks the report. | V0 keeps surrogate-FDR as an existing governance gate and does not add a separate multiple-testing engine. |
-| Detection power helpers | `src/alpha_system/runtime/diagnostics/power.py:21-40` estimates IC standard error and minimum detectable absolute IC; `src/alpha_system/runtime/diagnostics/power.py:43-109` builds value-free stacked and per-factor power reports; `src/alpha_system/governance/detection_statistic.py:57-86` attaches those reports to the diagnostic-layer detection statistic. | Per-factor MDE/power statements reuse the existing helper shape. |
-| Path-label family exports | `src/alpha_system/labels/families/path/__init__.py:3-29` exports the path label family API. | V0 binds to the existing path label family and does not create a new outcome family. |
-| Path-label definitions | `src/alpha_system/labels/families/path/family.py:47-54` declares MFE, MAE, target-before-stop, and triple-barrier labels; `src/alpha_system/labels/families/path/family.py:126-222` exposes supported labels and binds definitions to governed `LabelSpec` records. | V0 path outcomes are governed label outcomes only. |
-| Path-label computation | `src/alpha_system/labels/families/path/family.py:244-284` computes path label records; `src/alpha_system/labels/families/path/family.py:287-351` resolves MFE, MAE, target-before-stop, and triple-barrier outcomes; `src/alpha_system/labels/families/path/family.py:354-383` guards path windows; `src/alpha_system/labels/families/path/family.py:466-494` emits records with `label_available_ts`. | V0 does not implement target/stop simulation, a geometry sweep engine, or a research-to-reference-sim bridge; it consumes these label values. |
+| Path-outcome diagnostics dispatch | `src/alpha_system/research/diagnostics.py:445-453` wires the `events` readouts, including `target_before_stop_probability` and `post_event_mfe_mae`. | Later SSRL probes consume this diagnostics surface. They do not introduce a new diagnostics engine for path outcomes. |
+| Path-label optional indexing for diagnostic rows | `src/alpha_system/research/diagnostics.py:925-955` maps governed optional labels into MFE, MAE, target-before-stop, stop-before-target, and liquidity fields. | V0 outcomes come from materialized path labels through the existing diagnostic row model. |
+| Path-label relabeling support for diagnostic panels | `src/alpha_system/research/diagnostics.py:958-991` applies supplied label values for the same optional path-label fields. | Surrogate and relabeling flows reuse this existing path-label value plumbing. |
+| Single-factor template path | `src/alpha_system/strategies/templates.py:24` declares `SINGLE_FACTOR_THRESHOLD_TEMPLATE`; `src/alpha_system/strategies/templates.py:27-70` builds the one-factor template; `src/alpha_system/strategies/templates.py:73-137` evaluates it; `src/alpha_system/strategies/templates.py:140-150` enforces exactly one declared factor dependency. | V0 is additive only. Later phases may add a separate conditional template alongside this path, but must not weaken or modify the single-factor template semantics. |
+| StudySpec contract and deterministic identity | `src/alpha_system/governance/study_spec.py:31-65` declares required fields and states; `src/alpha_system/governance/study_spec.py:127-181` defines the typed record and serialization; `src/alpha_system/governance/study_spec.py:184-215` constructs a validated record; `src/alpha_system/governance/study_spec.py:218-229` generates deterministic IDs. | `SetupSpec`/`MechanismCard` should compose with this governance chain rather than duplicate `StudySpec` or `AlphaSpec`. |
+| StudySpec validation and variant budget accounting | `src/alpha_system/governance/study_spec.py:232-322` validates the schema and checks declared variant budgets. | V0 variant accounting reuses the existing budget semantics and remains bounded. |
+| Variant ledger records and budget amendments | `src/alpha_system/governance/variant_ledger.py:47-89` declares record and amendment fields; `src/alpha_system/governance/variant_ledger.py:125-209` defines validated record types; `src/alpha_system/governance/variant_ledger.py:211-281` defines family-budget result metadata. | Strategy-shaped exploratory variants are ledgered through the existing ledger model. |
+| Variant ledger persistence and summaries | `src/alpha_system/governance/variant_ledger.py:284-410` provides append-friendly JSONL loading, appending, family checks, and value-free summaries; `src/alpha_system/governance/variant_ledger.py:413-426` requires an explicit ledger path. | SSRL does not add a parallel variant ledger. Family-budget checks stay fail-closed and explicit. |
+| Rejected idea / research graveyard records | `src/alpha_system/governance/rejected_idea.py:34-79` declares rejected-idea and reconsideration fields; `src/alpha_system/governance/rejected_idea.py:97-139` declares closed reason categories; `src/alpha_system/governance/rejected_idea.py:142-192` defines the typed rejected record; `src/alpha_system/governance/rejected_idea.py:238-380` defines append-only ledger operations. | V0 rejected or weak exploratory setups should reuse this graveyard model instead of inventing a second rejection memory. |
+| IC detection-power helpers | `src/alpha_system/runtime/diagnostics/power.py:21-40` estimates IC standard error and MDE; `src/alpha_system/runtime/diagnostics/power.py:43-79` builds one power statement; `src/alpha_system/runtime/diagnostics/power.py:81-109` builds stacked and per-factor reports. | Per-factor MDE/power statements for readouts reuse this helper. |
+| Detection statistic power integration | `src/alpha_system/governance/detection_statistic.py:57-86` attaches detection-power reporting to the shared diagnostic-layer detection statistic. | V0 readouts reuse the existing value-free power reporting shape. |
+| Surrogate-FDR zero-pass machinery | `src/alpha_system/governance/surrogate_run.py:780-891` calibrates surrogate runs; `src/alpha_system/governance/surrogate_run.py:894-917` aggregates rows and returns `ZERO_PASS_MET` only when no statistic passes and no errors block calibration. | V0 keeps surrogate-FDR as an existing governance gate and does not add a separate multiple-testing engine. |
+| Path label family exports | `src/alpha_system/labels/families/path/__init__.py:3-29` exports the path label family API. | Later phases bind to the existing path label family rather than creating a new label family. |
+| Path label definitions | `src/alpha_system/labels/families/path/family.py:47-54` declares MFE, MAE, target-before-stop, and triple-barrier labels; `src/alpha_system/labels/families/path/family.py:126-140` exposes supported labels and definition building; `src/alpha_system/labels/families/path/family.py:141-222` binds definitions to governed `LabelSpec` records. | V0 path outcomes must remain governed label outcomes. |
+| Path label computation and guarded path windows | `src/alpha_system/labels/families/path/family.py:244-284` computes path label records; `src/alpha_system/labels/families/path/family.py:287-351` resolves MFE, MAE, target-before-stop, and triple-barrier outcomes; `src/alpha_system/labels/families/path/family.py:354-383` guards path windows. | V0 does not implement target/stop simulation or a research-to-reference-sim bridge; it consumes these path-label values. |
 
-## Non-Reimplementation Rules
+## Explicit Non-Reuse Boundaries
 
-- Do not rebuild path labels, path-outcome diagnostics, the governance spec
-  chain, the variant ledger, the rejected-idea ledger, or the single-factor
-  template.
-- Do not rebuild surrogate-FDR or detection-power reporting.
-- Do not create a second PnL or value-accounting truth.
-- Do not add a research-to-reference-sim bridge.
-- Do not modify `SINGLE_FACTOR_THRESHOLD_TEMPLATE`; later templates must be
-  additive.
-- Do not introduce a new runtime dependency, new paid data, live/paper/broker
-  workflow, order routing, deployment behavior, or promotion evidence.
+- No source changes in this phase.
+- No second diagnostics engine for path outcomes.
+- No second PnL or value-accounting truth.
+- No research-to-reference-sim bridge.
+- No changes to `SINGLE_FACTOR_THRESHOLD_TEMPLATE`.
+- No new label family for MFE, MAE, target-before-stop, or triple-barrier.
+- No new surrogate-FDR or power-reporting engine.
+- No new dependency, new paid data, live trading, paper trading, broker operation,
+  order routing, deployment, or production behavior.
