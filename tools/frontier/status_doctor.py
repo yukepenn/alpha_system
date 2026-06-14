@@ -42,6 +42,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 RUNS = ROOT / "runs"
 
+RUN_LOCK_NAME = "RUN.lock"
+# Events the Ralph driver emits when IT performs a merge. A phase whose merged=True
+# was written by hand (state surgery) has no such event recorded for its phase_id.
+DRIVER_MERGE_EVENTS = frozenset({"MERGED", "PR_MERGED"})
+
 # Pointers that are allowed to describe live status. Anything else that hardcodes
 # a "Current phase" / "Next campaign" is flagged as a stale-status hazard.
 ACTIVE_POINTER = ROOT / "ACTIVE_CAMPAIGN.md"
@@ -234,6 +239,100 @@ def check_stale_pointers(report: Report, live_phase: str | None) -> None:
                 )
 
 
+def stale_running_runs(live_run_dir: Path | None) -> list[tuple[str, str | None, str]]:
+    """Run dirs that *look* live -- state.json status RUNNING or a RUN.lock present --
+    but are not the authoritative in-flight run. A hand-left lock or a crashed run
+    misleads any tool that scans for an active run. The authoritative run is excluded
+    (it is allowed to be RUNNING/locked)."""
+    out: list[tuple[str, str | None, str]] = []
+    if not RUNS.is_dir():
+        return out
+    live = live_run_dir.resolve() if live_run_dir is not None else None
+    for p in sorted((d for d in RUNS.iterdir() if d.is_dir()), key=lambda d: d.name):
+        if not (p / "state.json").exists():
+            continue
+        if live is not None and p.resolve() == live:
+            continue
+        st = load_json(p / "state.json") or {}
+        reasons = []
+        if st.get("status") == "RUNNING":
+            reasons.append("status=RUNNING")
+        if (p / RUN_LOCK_NAME).exists():
+            reasons.append("RUN.lock present")
+        if reasons:
+            out.append((p.name, st.get("campaign_id"), ", ".join(reasons)))
+    return out
+
+
+def check_stale_running_runs(report: Report, live_run_dir: Path | None) -> None:
+    stale = stale_running_runs(live_run_dir)
+    if not stale:
+        report.ok("No stale RUNNING/locked runs (no non-live run dir looks active).")
+        return
+    for name, camp, why in stale:
+        report.warn(
+            f"Stale run dir {name} ({camp}) looks live ({why}) but is not the authoritative "
+            f"run. A hand-left lock or crashed run misleads run scans. Fix: remove "
+            f"runs/{name}/{RUN_LOCK_NAME} and set its state.json status to STOPPED/COMPLETED "
+            f"(runs/ is local-only; never commit)."
+        )
+
+
+def driver_merged_phase_ids(run_dir: Path) -> set[str] | None:
+    """Phase IDs the Ralph driver actually merged, read from events.jsonl. Returns None
+    when there is no events log to assess (cannot tell -> stay quiet)."""
+    ev = run_dir / "events.jsonl"
+    if not ev.exists():
+        return None
+    merged: set[str] = set()
+    try:
+        with ev.open(encoding="utf-8") as fh:
+            for line in fh:
+                if "_MERGED" not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if rec.get("event") in DRIVER_MERGE_EVENTS and rec.get("phase_id"):
+                    merged.add(rec["phase_id"])
+    except OSError:
+        return None
+    return merged
+
+
+def check_surgery_merges(report: Report, run_dir: Path, state: dict) -> None:
+    """Flag phases marked merged=True that have NO driver merge event for their phase_id
+    -- i.e. hand-merged + state-written (state surgery). The WF2 driver must own
+    PR/CI/MERGE; heavy or coordinator-executed phases hand back via the driver's
+    `resume --from-stage merge_gate`, they are not flipped merged=True by hand."""
+    phases = state.get("phases") or []
+    merged_ids = [
+        p.get("phase_id")
+        for p in phases
+        if isinstance(p, dict) and p.get("merged") and p.get("phase_id")
+    ]
+    if not merged_ids:
+        return
+    driver_ids = driver_merged_phase_ids(run_dir)
+    if driver_ids is None:
+        return  # no events log -> cannot assess
+    surgeried = [pid for pid in merged_ids if pid not in driver_ids]
+    if surgeried:
+        report.warn(
+            f"Possible state-surgery merges in {run_dir.name}: {len(surgeried)} phase(s) "
+            f"{surgeried} are merged=True with no driver MERGED/PR_MERGED event. The WF2 "
+            f"driver must own PR/CI/MERGE; heavy or coordinator-executed phases hand back via "
+            f"`ralph_driver.py resume --run-dir <run> --phase-id <PID> --from-stage merge_gate "
+            f"--provider-wired` rather than being hand-merged + state-written. Verify provenance."
+        )
+    else:
+        report.ok(
+            f"Merge provenance OK: all {len(merged_ids)} merged phase(s) carry a driver "
+            f"MERGED/PR_MERGED event (no state-surgery signal)."
+        )
+
+
 def build_report(strict: bool) -> Report:
     report = Report()
     check_core_bare(report)
@@ -245,6 +344,7 @@ def build_report(strict: bool) -> Report:
     report.ok(f"Active campaign (committed pointer): {campaign_id}")
 
     run_dir = latest_run_dir(campaign_id)
+    check_stale_running_runs(report, run_dir)
     if run_dir is None:
         report.warn(f"No run dir with state.json found for {campaign_id}; no live run to reconcile.")
         check_runtime(report, campaign_id)
@@ -288,6 +388,7 @@ def build_report(strict: bool) -> Report:
         )
         (report.fail if strict else report.warn)(msg)
 
+    check_surgery_merges(report, run_dir, state)
     check_stale_pointers(report, live_phase)
     check_runtime(report, campaign_id)
     return report
