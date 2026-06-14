@@ -245,3 +245,46 @@ def test_finalize_merge_skips_already_merged_phase(tmp_path) -> None:
     )
     assert last_event["event"] == "MERGE_SKIPPED_ALREADY_MERGED"
     assert last_event["phase_id"] == "SSRL-P00"
+
+
+def test_run_refuses_when_incomplete_run_exists(tmp_path, monkeypatch, capsys) -> None:
+    # `run --campaign-id X` mints a fresh run that re-executes from the first
+    # phase; if an incomplete run exists it must REFUSE and point to `resume`
+    # (the footgun that produced duplicate phase merges this session).
+    fake_run = tmp_path / "2026X_DEMO"
+    fake_run.mkdir()
+    (fake_run / "state.json").write_text(
+        json.dumps({"status": "STOPPED", "current_phase_id": "SSRL-P03", "campaign_id": "DEMO"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ralph_driver, "latest_campaign_run_dir", lambda cid, **k: fake_run)
+
+    rc = ralph_driver.main(["run", "--campaign-id", "DEMO", "--provider-wired"])
+
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "RUN_REFUSED_INCOMPLETE_RUN_EXISTS" in out
+    assert "resume --run-dir" in out
+
+
+def test_run_force_new_run_bypasses_incomplete_guard(tmp_path, monkeypatch) -> None:
+    fake_run = tmp_path / "2026X_DEMO"
+    fake_run.mkdir()
+    (fake_run / "state.json").write_text(
+        json.dumps({"status": "STOPPED", "campaign_id": "DEMO"}), encoding="utf-8"
+    )
+    monkeypatch.setattr(ralph_driver, "latest_campaign_run_dir", lambda cid, **k: fake_run)
+    called: dict[str, bool] = {}
+
+    def fake_run_campaign(*args, **kwargs):
+        called["ran"] = True
+        return 0
+
+    monkeypatch.setattr(ralph_driver, "run_campaign", fake_run_campaign)
+
+    rc = ralph_driver.main(
+        ["run", "--campaign-id", "DEMO", "--provider-wired", "--force-new-run"]
+    )
+
+    assert rc == 0
+    assert called.get("ran") is True
