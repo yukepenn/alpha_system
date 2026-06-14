@@ -45,8 +45,11 @@ calibration `ZERO_PASS_MET` for every study (reports value-free: ids/counts/seed
 **no real-data metric inspected**; canaries PASS.
 
 ### DK-P03 (YELLOW) — Track A evidence + verdict
-All five mechanisms scored on real data (post-gate); each has `primary_state + reason_code +
-N_eff/power`; `verdict_refresh.md` committed (research-only language, no tradability claim); a
+The **4 gated** mechanisms scored on real data (post-gate) — opex, month_end, day_of_week,
+open_close (those that reached `ZERO_PASS_MET` in DK-P02); **roll_week carried as `DATA_GAP` /
+excluded from real-metric inspection** (degenerate/all-null `in_roll_window_flag`). Each scored
+mechanism has `primary_state + reason_code + N_eff/power`; `verdict_refresh.md` committed
+(research-only language, no tradability claim); a
 `WATCH/CANDIDATE_RESEARCH` survivor carries a `reviewer_verdict` artifact + reason_code and is
 surfaced; `research/` imports no value engine; canaries PASS.
 
@@ -58,7 +61,9 @@ binding + power (or honest `DATA_GAP`, no fabricated values — C2); promotion p
 `conditional_probe.py` byte-unchanged; `research/` import-clean; canaries PASS.
 
 ### DK-P05 (YELLOW) — verdict + survivor gate
-`CAMPAIGN_VERDICT.md` aggregates all five Track A + Track B items with `primary_state + reason_code`;
+`CAMPAIGN_VERDICT.md` aggregates all 5 Track A mechanisms (= 4 scored: opex, month_end,
+day_of_week, open_close + 1 `DATA_GAP`: roll_week `INCONCLUSIVE`/`DATA_GAP`, excluded from
+real-metric inspection per DK-P02) + Track B item with `primary_state + reason_code`;
 survivor gate applied (0 survivors documented as conclusive, or survivor surfaced with reviewer
 verdict, no factory by inertia); evidence summary + `RUN_SUMMARY` written; research-only language;
 no promotion; canaries PASS.
