@@ -10,17 +10,15 @@ The repository-level campaign pointer targets
 `STRATEGY_SHAPED_RESEARCH_LANE_V0`. Campaign state is tracked in
 `ACTIVE_CAMPAIGN.md`, which is coordinator-owned in Workflow 2.
 
-`SSRL-P03` adds the first-light worked example for the strategy-shaped lane: a
-range-contraction context plus a separate failed-high-breakout trigger declared
-as `MechanismCard` -> `SetupSpec`, compiled through the unchanged SSRL-P02
-conditional probe path, and stamped EXPLORATORY. The executor recorded an honest
-`DATA_GAP` for the real row slice because matching local materialization
-manifests were present but no sanctioned Parquet reader module was importable in
-the sandbox. `SSRL-P03` also records the value-free de-stack read for
-`vwap_session.factor_session_minute` through the unchanged single-factor
-template. After this phase merges, campaign progress is `4/5` phases complete.
-The next phase is `SSRL-P04` -- trusted-handoff scaffold, AI-researcher
-happy-path, and `PA_GRAMMAR_SUBSTRATE_V1` naming docs, YELLOW.
+`SSRL-P04` completes the final planned implementation phase for the
+strategy-shaped lane. It adds a trusted-handoff scaffold that reads an
+EXPLORATORY probe artifact and emits missing `AlphaSpec`, `StudySpec`,
+`FeatureRequest`, and `LabelSpec` fields for a separate trusted rerun. The
+handoff stays EXPLORATORY and is still refused by the promotion path. Campaign
+progress is `5/5` planned phases complete after merge. Next is Ralph-owned
+campaign `RUN_SUMMARY` / close-out; sequence logic, geometry sweeps,
+research-to-reference-sim bridge, and feature fast lane remain deferred behind
+their later trigger.
 
 Durable docs added by `SSRL-P00` are
 `docs/strategy_shaped_lane/REUSE_MAP.md` and
@@ -36,15 +34,19 @@ Durable governance modules added by `SSRL-P01` are
 `forbidden_exploratory_promotion` canary. Durable `SSRL-P03` surfaces are
 `src/alpha_system/research/first_light.py`,
 `docs/strategy_shaped_lane/FIRST_LIGHT.md`, and the value-free evidence under
-`research/strategy_shaped_lane_v0/`.
+`research/strategy_shaped_lane_v0/`. Durable `SSRL-P04` surfaces are
+`src/alpha_system/governance/trusted_handoff.py`,
+`docs/strategy_shaped_lane/AI_RESEARCHER_HAPPY_PATH.md`,
+`docs/strategy_shaped_lane/PA_GRAMMAR_SUBSTRATE_V1.md`, and the value-free
+example gap report under `research/strategy_shaped_lane_v0/trusted_handoff/`.
 
 Safety boundaries are unchanged: EXPLORATORY output is not promotion evidence;
 the trusted promotion path refuses EXPLORATORY-stamped artifacts; there is no
-research-to-reference-sim bridge and no second PnL truth; the single-factor path
+research-to-reference-sim bridge and no second value/accounting truth; the single-factor path
 remains byte-unchanged and additive-only; outcomes come from path labels only;
 there is no new runtime dependency, engine change, live trading, paper trading,
-broker operation, order routing, deployment, new paid data, or promotion
-eligibility.
+broker operation, order routing, deployment, new paid data, trusted rerun, PA
+grammar pack, or promotion eligibility.
 
 The committed campaign pointer and README are snapshots. For authoritative
 in-flight Workflow 2 state, use `python tools/frontier/status_doctor.py` or the
@@ -74,8 +76,8 @@ feature or label values, provider responses, heavy artifacts, local databases,
 logs, caches, secrets, and credentials are never committed.
 
 The strategy-shaped lane does not authorize FactorLibrary ingestion, AlphaBook
-construction, paper/live behavior, broker access, deployment, profitability
-claims, tradability claims, or execution-readiness claims.
+construction, paper/live behavior, broker access, deployment, economic-use
+claims, or execution-readiness claims.
 `pyproject.toml` dependencies remain empty, so numpy, pandas, and polars stay
 absent. Truth-chain invariants are preserved, including the sanctioned reference
 engine as the only value/accounting truth. Workflow 2 orchestration, validation

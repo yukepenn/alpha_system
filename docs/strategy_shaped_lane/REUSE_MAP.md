@@ -2,11 +2,11 @@
 
 This map locks what STRATEGY_SHAPED_RESEARCH_LANE_V0 reuses. Later phases add
 small, bounded strategy-shaped research contracts and probes around these
-surfaces; they do not rebuild them, fork them, or create a second value or PnL
-truth.
+surfaces; they do not rebuild them, fork them, or create a second
+value/accounting truth.
 
-This document is value-free. It makes no alpha, profitability, tradability,
-deployment, paper-trading, live-trading, or broker-readiness claim.
+This document is value-free. It makes no alpha-quality, economic-usefulness,
+deployment, paper-run, live-use, or broker-readiness claim.
 
 ## Campaign Bundle
 
@@ -48,7 +48,7 @@ this phase only confirms it.
 
 - No source changes in this phase.
 - No second diagnostics engine for path outcomes.
-- No second PnL or value-accounting truth.
+- No second value/accounting truth.
 - No research-to-reference-sim bridge.
 - No changes to `SINGLE_FACTOR_THRESHOLD_TEMPLATE`.
 - No new label family for MFE, MAE, target-before-stop, or triple-barrier.

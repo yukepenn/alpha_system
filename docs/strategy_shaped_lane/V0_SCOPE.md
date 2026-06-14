@@ -2,9 +2,9 @@
 
 STRATEGY_SHAPED_RESEARCH_LANE_V0 is a capability-investment bootstrap. It makes
 strategy-shaped hypotheses expressible, bounded, ledgered, and honestly
-rejectable as exploratory research artifacts. It does not claim alpha,
-profitability, tradability, deployment readiness, paper-trading readiness,
-live-trading readiness, or broker readiness.
+rejectable as exploratory research artifacts. It does not claim alpha quality,
+economic usefulness, deployment readiness, paper-run readiness, live-use
+readiness, or broker readiness.
 
 ## In Scope For V0
 
@@ -40,15 +40,15 @@ These are explicitly deferred behind a later trigger and are not part of V0:
 - New paid data.
 - New runtime dependency.
 - Any change to the existing single-factor study path.
-- Any new PnL or value-accounting implementation.
+- Any new value-accounting implementation.
 - Any grid search surface outside the pre-registered bounded variant budget.
 
 ## Hard Invariants
 
 1. EXPLORATORY != promotion evidence. The trusted and promotion paths must refuse
    exploratory artifacts; exploratory readouts are not evidence for promotion.
-2. No research-to-reference-sim bridge and no second PnL truth. The sanctioned
-   reference engine remains the only value/accounting truth; V0 outcomes come
+2. No research-to-reference-sim bridge and no second value/accounting truth. The
+   sanctioned reference engine remains the only value/accounting truth; V0 outcomes come
    from materialized path labels and diagnostics readouts.
 3. The single-factor path is additive-only and unchanged. New conditional
    capability can be added alongside `SINGLE_FACTOR_THRESHOLD_TEMPLATE`, but the

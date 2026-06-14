@@ -19,6 +19,7 @@ __all__ = [
     "setup_spec",
     "study_spec",
     "surrogate_run",
+    "trusted_handoff",
     "validation",
     "verdict_reason_code",
     "variant_ledger",

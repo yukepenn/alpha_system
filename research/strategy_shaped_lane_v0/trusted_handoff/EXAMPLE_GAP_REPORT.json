@@ -1,0 +1,257 @@
+{
+  "checklist": [
+    "Author an AlphaSpec with pre-registered hypothesis, instruments, inputs, label references, assumptions, exclusions, failure modes, and promotion criteria.",
+    "Author FeatureRequest metadata for the context and trigger inputs, including availability assumptions and duplicate or equivalent exposure notes.",
+    "Author a LabelSpec for the trusted path-label binding, including horizon, path rules, target/stop rules, availability time, and leakage checks.",
+    "Author a StudySpec linking AlphaSpec and LabelSpec with dataset scope, split protocol, metrics, assumptions, variant budget, locked-test policy, negative controls, and stopping rules.",
+    "Run the trusted rerun separately; this EXPLORATORY handoff is only a gap report."
+  ],
+  "promotion_eligible": false,
+  "promotion_evidence": false,
+  "required_trusted_objects": [
+    {
+      "missing_fields": [
+        "alpha_spec_id",
+        "hypothesis_id",
+        "target_instruments",
+        "data_assumptions",
+        "factor_inputs",
+        "label_references",
+        "exclusion_rules",
+        "timestamp_assumptions",
+        "cost_assumptions",
+        "expected_failure_modes",
+        "promotion_criteria",
+        "created_by",
+        "created_at"
+      ],
+      "object_identifier": "missing_alpha_spec_for_setup_67b5e4fac7b7c4bae9332471",
+      "object_name": "AlphaSpec",
+      "object_present": false,
+      "present_fields": [],
+      "required_fields": [
+        "alpha_spec_id",
+        "hypothesis_id",
+        "target_instruments",
+        "data_assumptions",
+        "factor_inputs",
+        "label_references",
+        "exclusion_rules",
+        "timestamp_assumptions",
+        "cost_assumptions",
+        "expected_failure_modes",
+        "promotion_criteria",
+        "created_by",
+        "created_at"
+      ],
+      "source_links": [
+        {
+          "probe_field": "mechanism_card.mechanism_id",
+          "probe_identifier": "mech_4bbed592080b923a2e9a6ae4",
+          "trusted_field": "hypothesis_id"
+        },
+        {
+          "probe_field": "setup_spec.entry_context.factor_id",
+          "probe_identifier": "liquidity_structure_range_contraction",
+          "probe_version": "v1_es_2024_liquidity_structure_range_contraction",
+          "trusted_field": "factor_inputs"
+        },
+        {
+          "probe_field": "setup_spec.event_trigger.factor_id",
+          "probe_identifier": "liquidity_structure_failed_high_breakout_flag",
+          "probe_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+          "trusted_field": "factor_inputs"
+        },
+        {
+          "probe_field": "setup_spec.path_label",
+          "probe_identifier": "lspec_9b1d49df8ff366677cb6f7bd",
+          "trusted_field": "label_references"
+        },
+        {
+          "probe_field": "mechanism_card.cost_sensitivity",
+          "probe_identifier": [
+            "new_data",
+            "scope"
+          ],
+          "trusted_field": "cost_assumptions"
+        }
+      ],
+      "status": "MISSING_FOR_TRUSTED_RERUN"
+    },
+    {
+      "missing_fields": [
+        "study_spec_id",
+        "alpha_spec_id",
+        "label_spec_id",
+        "dataset_scope",
+        "split_protocol",
+        "metrics",
+        "cost_assumptions",
+        "variant_budget",
+        "locked_test_policy",
+        "negative_controls",
+        "stopping_rules"
+      ],
+      "object_identifier": "missing_study_spec_for_setup_67b5e4fac7b7c4bae9332471",
+      "object_name": "StudySpec",
+      "object_present": false,
+      "present_fields": [],
+      "required_fields": [
+        "study_spec_id",
+        "alpha_spec_id",
+        "label_spec_id",
+        "dataset_scope",
+        "split_protocol",
+        "metrics",
+        "cost_assumptions",
+        "variant_budget",
+        "locked_test_policy",
+        "negative_controls",
+        "stopping_rules"
+      ],
+      "source_links": [
+        {
+          "probe_field": "setup_spec.path_label",
+          "probe_identifier": "lspec_9b1d49df8ff366677cb6f7bd",
+          "trusted_field": "label_spec_id"
+        },
+        {
+          "probe_field": "setup_spec.regime_filter",
+          "probe_identifier": [
+            "instrument_root",
+            "session"
+          ],
+          "trusted_field": "dataset_scope"
+        },
+        {
+          "probe_field": "mechanism_card.variant_budget",
+          "probe_identifier": 1,
+          "trusted_field": "variant_budget"
+        },
+        {
+          "probe_field": "mechanism_card.variant_budget",
+          "probe_identifier": 1,
+          "trusted_field": "family_budget"
+        }
+      ],
+      "status": "MISSING_FOR_TRUSTED_RERUN"
+    },
+    {
+      "missing_fields": [
+        "feature_request_id",
+        "alpha_spec_id",
+        "requested_inputs",
+        "formula_sketch",
+        "availability_assumptions",
+        "duplicate_or_equivalent_exposure_notes",
+        "data_requirements",
+        "approval_status"
+      ],
+      "object_identifier": "missing_feature_request_for_setup_67b5e4fac7b7c4bae9332471",
+      "object_name": "FeatureRequest",
+      "object_present": false,
+      "present_fields": [],
+      "required_fields": [
+        "feature_request_id",
+        "alpha_spec_id",
+        "requested_inputs",
+        "formula_sketch",
+        "availability_assumptions",
+        "duplicate_or_equivalent_exposure_notes",
+        "data_requirements",
+        "approval_status"
+      ],
+      "source_links": [
+        {
+          "probe_field": "setup_spec.entry_context.factor_id",
+          "probe_identifier": "liquidity_structure_range_contraction",
+          "probe_version": "v1_es_2024_liquidity_structure_range_contraction",
+          "trusted_field": "requested_inputs"
+        },
+        {
+          "probe_field": "setup_spec.event_trigger.factor_id",
+          "probe_identifier": "liquidity_structure_failed_high_breakout_flag",
+          "probe_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+          "trusted_field": "requested_inputs"
+        },
+        {
+          "probe_field": "mechanism_card.duplicate_exposure",
+          "probe_identifier": [
+            "family_id",
+            "status",
+            "variant_id"
+          ],
+          "trusted_field": "duplicate_or_equivalent_exposure_notes"
+        }
+      ],
+      "status": "MISSING_FOR_TRUSTED_RERUN"
+    },
+    {
+      "missing_fields": [
+        "label_spec_id",
+        "horizon",
+        "path_rules",
+        "cost_model",
+        "target_stop_rules",
+        "availability_time",
+        "forbidden_feature_overlap",
+        "leakage_checks"
+      ],
+      "object_identifier": "missing_label_spec_for_setup_67b5e4fac7b7c4bae9332471",
+      "object_name": "LabelSpec",
+      "object_present": false,
+      "present_fields": [],
+      "required_fields": [
+        "label_spec_id",
+        "horizon",
+        "path_rules",
+        "cost_model",
+        "target_stop_rules",
+        "availability_time",
+        "forbidden_feature_overlap",
+        "leakage_checks"
+      ],
+      "source_links": [
+        {
+          "probe_field": "setup_spec.horizon",
+          "probe_identifier": "120m",
+          "trusted_field": "horizon"
+        },
+        {
+          "probe_field": "setup_spec.path_label",
+          "probe_identifier": "lspec_9b1d49df8ff366677cb6f7bd",
+          "trusted_field": "path_rules"
+        },
+        {
+          "probe_field": "setup_spec.target",
+          "probe_identifier": "target_before_stop",
+          "trusted_field": "target_stop_rules"
+        },
+        {
+          "probe_field": "setup_spec.stop",
+          "probe_identifier": "fixed_stop_from_path_label",
+          "trusted_field": "target_stop_rules"
+        }
+      ],
+      "status": "MISSING_FOR_TRUSTED_RERUN"
+    }
+  ],
+  "schema": "alpha_system.governance.trusted_handoff_gap_report.v1",
+  "source_provenance": {
+    "context_factor_id": "liquidity_structure_range_contraction",
+    "horizon": "120m",
+    "mechanism_id": "mech_4bbed592080b923a2e9a6ae4",
+    "path_label": "lspec_9b1d49df8ff366677cb6f7bd",
+    "setup_spec_id": "setup_67b5e4fac7b7c4bae9332471",
+    "source_artifact_id": "flgap_9073662102c5720b5de2dc9e",
+    "source_phase_id": "SSRL-P03",
+    "source_schema": "alpha_system.research.strategy_shaped_lane.first_light.v1",
+    "stamp": "EXPLORATORY",
+    "trigger_factor_id": "liquidity_structure_failed_high_breakout_flag",
+    "variant_budget": 1
+  },
+  "stamp": "EXPLORATORY",
+  "status": "TRUSTED_RERUN_GAPS_ONLY",
+  "trusted_handoff_id": "thgap_8ed759b450387a062ce1489b",
+  "trusted_rerun_required": true
+}

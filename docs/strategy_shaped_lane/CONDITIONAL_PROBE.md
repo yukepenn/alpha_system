@@ -17,6 +17,6 @@ The probe contract is intentionally narrow:
 - Every readout carries a VariantLedger/family-budget binding, a surrogate-FDR
   zero-pass gate, and a per-factor IC MDE/power statement.
 
-This is not a strategy backtester, simulation bridge, promotion path, alpha
-claim, profitability claim, tradability claim, paper/live/broker workflow, or
+This is not a strategy backtester, simulation bridge, promotion path,
+alpha-quality claim, economic-usefulness claim, paper/live/broker workflow, or
 deployment path.
