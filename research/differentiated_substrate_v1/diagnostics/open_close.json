@@ -1,0 +1,195 @@
+{
+  "budget_amendment_authored": false,
+  "family_budget": 4,
+  "family_budget_check": {
+    "family_budget": 4,
+    "family_id": "flow-seasonality",
+    "issues": [],
+    "observed_count": 2,
+    "overrun": false,
+    "overrun_by": 0,
+    "respected": true,
+    "status": "RESPECTED",
+    "variants_remaining": 2
+  },
+  "family_id": "flow-seasonality",
+  "mechanism_id": "open_close_auction_flow",
+  "no_tradability_or_profitability_or_alpha_claim": true,
+  "observed_variants": 2,
+  "per_instrument_split": false,
+  "pooled_as_one_test_per_horizon": true,
+  "schema": "alpha_system.tools.differentiated_killshot_v1.track_a_run.v1",
+  "scored_at": "2026-06-14T13:35:56Z",
+  "statistical_validity_claim": false,
+  "study_spec_id": "sspec_0c3386a2dd45451970547acd",
+  "tests": [
+    {
+      "diagnostics": {
+        "bucket_count": 5,
+        "bucket_direction": "mixed",
+        "bucket_is_monotonic": false,
+        "bucket_populated_count": 5,
+        "caveats": [
+          "Secondary declared conditioning feature(s) session_calendar_roll_minutes_to_rth_close are within-mechanism near-duplicate exposures folded into the single pooled hypothesis (not independent confirmations)."
+        ],
+        "coverage_ratio": 1.0,
+        "factor_id": "session_calendar_roll_minutes_from_rth_open",
+        "ic_power_statement": {
+          "estimator_formula": "SE(IC) ~= 1 / sqrt(N_eff - 1); MDE(|IC|) = z_multiple * SE(IC)",
+          "factor_id": "session_calendar_roll_minutes_from_rth_open",
+          "mde_abs_ic": 0.002985970156949058,
+          "n_eff": 430866,
+          "schema": "alpha_system.runtime.diagnostics.ic_power_statement.v1",
+          "scope": "stacked",
+          "se_ic": 0.0015234541617087031,
+          "statement": "Could have detected IC down to 0.002986 at N_eff = 430866 using z = 1.960000.",
+          "statistical_validity_claim": false,
+          "z_multiple": 1.96
+        },
+        "is_survivor": false,
+        "mde_abs_ic": 0.002985970156949058,
+        "mechanism_id": "open_close_auction_flow@5m",
+        "n_eff": 430866,
+        "n_eff_report": {
+          "conservatism_direction": "purge/embargo gaps are removed before the supplied overlap discount and n_eff is never reported above rows",
+          "embargo_gap": 0,
+          "estimator_formula": "n_eff = floor(max(rows - purge_gap - embargo_gap, 0) / discount_factor), bounded to [0, rows]",
+          "n_eff": 430866,
+          "overlap_metadata": {
+            "discount_factor": 5.0,
+            "horizon": 300.0,
+            "horizon_unit": "seconds",
+            "implied_discount_factor": 5.0,
+            "metadata_source": "dk_p03_forward_return_first_order_overlap",
+            "overlap_fraction": 0.8,
+            "sampling_cadence": 60.0,
+            "sampling_cadence_unit": "seconds"
+          },
+          "purge_embargo_removed_rows": 0,
+          "purge_gap": 0,
+          "rows": 2154332,
+          "rows_after_purge_embargo": 2154332,
+          "rows_are_not_independent_samples": true,
+          "statistical_validity_claim": false
+        },
+        "pearson_ic": 0.0008235970107422157,
+        "primary_state": "REJECT",
+        "rank_ic": -0.003937549185881916,
+        "reason_code": null,
+        "rejection_reason_codes": [],
+        "requires_reviewer_verdict": false,
+        "runtime_state": "DIAGNOSTICS_COMPLETE",
+        "schema": "alpha_system.research.track_a_scorer.mechanism_diagnostics.v1",
+        "se_ic": 0.0015234541617087031,
+        "statistical_validity_claim": false,
+        "total_observations": 2154332,
+        "usable_pair_count": 2154332
+      },
+      "excluded_partition_count": 0,
+      "horizon": "5m",
+      "partition_count": 24,
+      "primary_factor_id": "session_calendar_roll_minutes_from_rth_open",
+      "secondary_factor_ids": [
+        "session_calendar_roll_minutes_to_rth_close"
+      ]
+    },
+    {
+      "diagnostics": {
+        "bucket_count": 5,
+        "bucket_direction": "mixed",
+        "bucket_is_monotonic": false,
+        "bucket_populated_count": 5,
+        "caveats": [
+          "Secondary declared conditioning feature(s) session_calendar_roll_minutes_to_rth_close are within-mechanism near-duplicate exposures folded into the single pooled hypothesis (not independent confirmations)."
+        ],
+        "coverage_ratio": 1.0,
+        "factor_id": "session_calendar_roll_minutes_from_rth_open",
+        "ic_power_statement": {
+          "estimator_formula": "SE(IC) ~= 1 / sqrt(N_eff - 1); MDE(|IC|) = z_multiple * SE(IC)",
+          "factor_id": "session_calendar_roll_minutes_from_rth_open",
+          "mde_abs_ic": 0.007367536035174392,
+          "n_eff": 70774,
+          "schema": "alpha_system.runtime.diagnostics.ic_power_statement.v1",
+          "scope": "stacked",
+          "se_ic": 0.0037589469567216286,
+          "statement": "Could have detected IC down to 0.007368 at N_eff = 70774 using z = 1.960000.",
+          "statistical_validity_claim": false,
+          "z_multiple": 1.96
+        },
+        "is_survivor": false,
+        "mde_abs_ic": 0.007367536035174392,
+        "mechanism_id": "open_close_auction_flow@30m",
+        "n_eff": 70774,
+        "n_eff_report": {
+          "conservatism_direction": "purge/embargo gaps are removed before the supplied overlap discount and n_eff is never reported above rows",
+          "embargo_gap": 0,
+          "estimator_formula": "n_eff = floor(max(rows - purge_gap - embargo_gap, 0) / discount_factor), bounded to [0, rows]",
+          "n_eff": 70774,
+          "overlap_metadata": {
+            "discount_factor": 30.0,
+            "horizon": 1800.0,
+            "horizon_unit": "seconds",
+            "implied_discount_factor": 30.0,
+            "metadata_source": "dk_p03_forward_return_first_order_overlap",
+            "overlap_fraction": 0.9666666666666667,
+            "sampling_cadence": 60.0,
+            "sampling_cadence_unit": "seconds"
+          },
+          "purge_embargo_removed_rows": 0,
+          "purge_gap": 0,
+          "rows": 2123235,
+          "rows_after_purge_embargo": 2123235,
+          "rows_are_not_independent_samples": true,
+          "statistical_validity_claim": false
+        },
+        "pearson_ic": -0.0008327013140142399,
+        "primary_state": "REJECT",
+        "rank_ic": -0.0106301547641793,
+        "reason_code": null,
+        "rejection_reason_codes": [],
+        "requires_reviewer_verdict": false,
+        "runtime_state": "DIAGNOSTICS_COMPLETE",
+        "schema": "alpha_system.research.track_a_scorer.mechanism_diagnostics.v1",
+        "se_ic": 0.0037589469567216286,
+        "statistical_validity_claim": false,
+        "total_observations": 2123235,
+        "usable_pair_count": 2123235
+      },
+      "excluded_partition_count": 0,
+      "horizon": "30m",
+      "partition_count": 24,
+      "primary_factor_id": "session_calendar_roll_minutes_from_rth_open",
+      "secondary_factor_ids": [
+        "session_calendar_roll_minutes_to_rth_close"
+      ]
+    }
+  ],
+  "variant_budget": 2,
+  "variant_budget_respected": true,
+  "variant_ledger_records": [
+    {
+      "alpha_spec_id": "aspec_ed7aa1188b1df0683bee6352",
+      "attempt_count": 1,
+      "created_at": "2026-06-14T13:35:19Z",
+      "family_id": "flow-seasonality",
+      "status": "COMPLETED",
+      "study_spec_id": "sspec_0c3386a2dd45451970547acd",
+      "trial_ids": [
+        "trial_55134a1504dee1068ee39cdf"
+      ],
+      "variant_id": "sspec_0c3386a2dd45451970547acd:5m"
+    },
+    {
+      "alpha_spec_id": "aspec_ed7aa1188b1df0683bee6352",
+      "attempt_count": 1,
+      "created_at": "2026-06-14T13:35:19Z",
+      "family_id": "flow-seasonality",
+      "status": "COMPLETED",
+      "study_spec_id": "sspec_0c3386a2dd45451970547acd",
+      "trial_ids": [
+        "trial_938e3fd9cdbb5f174635b2d5"
+      ],
+      "variant_id": "sspec_0c3386a2dd45451970547acd:30m"
+    }
+  ]
+}
