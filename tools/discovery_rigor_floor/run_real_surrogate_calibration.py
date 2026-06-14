@@ -59,6 +59,8 @@ SUPPORTED_FORWARD_HORIZONS: dict[str, tuple[int, str]] = {
 }
 PARTITION_RE = re.compile(r"^(?P<symbol>[A-Z0-9]+)_(?P<year>\d{4})_")
 SUPPORT_FEATURE_FAMILIES = frozenset({"base_ohlcv", "session_calendar_maintenance"})
+DECLARED_CONDITIONING_FEATURE_FAMILY_KEY = "declared_conditioning_feature_family"
+DECLARED_CONDITIONING_FEATURE_IDS_KEY = "declared_conditioning_feature_ids"
 STAGING_MANIFEST_SCHEMA = "real_surrogate_calibration_staging_manifest_v1"
 STAGING_MANIFEST_NAME = "staging_manifest.json"
 DEFAULT_RUNS_PER_CONFIG_CAP = 60
@@ -546,11 +548,23 @@ def _select_label_locks(
 
 def _declared_feature_family(scope: Mapping[str, Any]) -> str:
     locks = _mapping_sequence(scope.get("feature_pack_locks"), "feature_pack_locks")
+    declared_family = _declared_conditioning_feature_family(scope)
     candidate_families = _unique_in_order(
         _lock_text(lock, "feature_family", "feature lock")
         for lock in locks
-        if not _support_feature_family(_lock_text(lock, "feature_family", "feature lock"))
+        if (
+            _lock_text(lock, "feature_family", "feature lock") == declared_family
+            if declared_family is not None
+            else not _support_feature_family(
+                _lock_text(lock, "feature_family", "feature lock")
+            )
+        )
     )
+    if declared_family is not None:
+        _raise_if_non_declared_signal_family_present(
+            locks,
+            declared_feature_family=declared_family,
+        )
     if len(candidate_families) != 1:
         raise GovernanceValidationError(
             ValidationIssue(
@@ -561,14 +575,103 @@ def _declared_feature_family(scope: Mapping[str, Any]) -> str:
                     else "declared_factor_family_ambiguous"
                 ),
                 message=(
-                    "StudySpec must expose exactly one non-support feature family "
+                    "StudySpec must expose exactly one declared signal feature family "
                     "for real surrogate calibration"
                 ),
-                expected="one non-support feature_family",
+                expected="one declared signal feature_family",
                 actual=", ".join(candidate_families) if candidate_families else "none",
             )
         )
     return candidate_families[0]
+
+
+def _declared_conditioning_feature_family(scope: Mapping[str, Any]) -> str | None:
+    value = scope.get(DECLARED_CONDITIONING_FEATURE_FAMILY_KEY)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"dataset_scope.{DECLARED_CONDITIONING_FEATURE_FAMILY_KEY}",
+                code="invalid_declared_conditioning_feature_family",
+                message="declared conditioning feature family must be non-empty text",
+                expected="feature_family",
+                actual=type(value).__name__,
+            )
+        )
+    return value.strip()
+
+
+def _raise_if_non_declared_signal_family_present(
+    locks: Sequence[Mapping[str, Any]],
+    *,
+    declared_feature_family: str,
+) -> None:
+    incidental_signal_families = _unique_in_order(
+        _lock_text(lock, "feature_family", "feature lock")
+        for lock in locks
+        if _lock_text(lock, "feature_family", "feature lock") != declared_feature_family
+        and not _support_feature_family(_lock_text(lock, "feature_family", "feature lock"))
+    )
+    if not incidental_signal_families:
+        return
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="dataset_scope.feature_pack_locks",
+            code="declared_factor_family_ambiguous",
+            message=(
+                "StudySpec declared a conditioning feature family but also locks "
+                "non-support signal families"
+            ),
+            expected=f"only declared feature_family={declared_feature_family}",
+            actual=", ".join(incidental_signal_families),
+        )
+    )
+
+
+def _declared_conditioning_feature_ids(scope: Mapping[str, Any]) -> tuple[str, ...]:
+    value = scope.get(DECLARED_CONDITIONING_FEATURE_IDS_KEY)
+    if value is None:
+        return ()
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"dataset_scope.{DECLARED_CONDITIONING_FEATURE_IDS_KEY}",
+                code="invalid_declared_conditioning_feature_ids",
+                message="declared conditioning feature ids must be a non-empty list",
+                expected="list of feature ids",
+                actual=type(value).__name__,
+            )
+        )
+    ids = _unique_in_order(
+        _non_empty_text(item, DECLARED_CONDITIONING_FEATURE_IDS_KEY)
+        for item in value
+    )
+    if not ids:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"dataset_scope.{DECLARED_CONDITIONING_FEATURE_IDS_KEY}",
+                code="invalid_declared_conditioning_feature_ids",
+                message="declared conditioning feature ids must be a non-empty list",
+                expected="at least one feature id",
+                actual="empty",
+            )
+        )
+    return ids
+
+
+def _non_empty_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=f"dataset_scope.{field}",
+                code="invalid_declared_conditioning_feature_ids",
+                message="declared conditioning feature id must be non-empty text",
+                expected="feature_id",
+                actual=type(value).__name__ if value is not None else "missing",
+            )
+        )
+    return value.strip()
 
 
 def _declared_factor_ids(
@@ -577,10 +680,15 @@ def _declared_factor_ids(
     declared_feature_family: str,
 ) -> tuple[str, ...]:
     locks = _mapping_sequence(scope.get("feature_pack_locks"), "feature_pack_locks")
+    declared_feature_ids = _declared_conditioning_feature_ids(scope)
     factor_ids = _unique_in_order(
         _lock_text(lock, "feature_id", "feature lock")
         for lock in locks
         if _lock_text(lock, "feature_family", "feature lock") == declared_feature_family
+        and (
+            not declared_feature_ids
+            or _lock_text(lock, "feature_id", "feature lock") in declared_feature_ids
+        )
     )
     if not factor_ids:
         raise GovernanceValidationError(
@@ -620,6 +728,7 @@ def _declared_feature_locks_for_label(
     declared_feature_family: str,
 ) -> tuple[Mapping[str, Any], ...]:
     locks = _mapping_sequence(scope.get("feature_pack_locks"), "feature_pack_locks")
+    declared_feature_ids = _declared_conditioning_feature_ids(scope)
     label_partition = str(label_lock.get("partition", ""))
     label_match = PARTITION_RE.match(label_partition)
     expected_partition = ""
@@ -631,6 +740,10 @@ def _declared_feature_locks_for_label(
         lock
         for lock in locks
         if _lock_text(lock, "feature_family", "feature lock") == declared_feature_family
+        and (
+            not declared_feature_ids
+            or _lock_text(lock, "feature_id", "feature lock") in declared_feature_ids
+        )
         and (not expected_partition or str(lock.get("partition")) == expected_partition)
     )
     if not candidates:
