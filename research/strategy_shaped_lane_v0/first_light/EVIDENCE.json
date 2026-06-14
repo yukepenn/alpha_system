@@ -1,0 +1,177 @@
+{
+  "compiled_probe": {
+    "allowed_variants": [
+      "baseline_range_contraction_failed_high_breakout"
+    ],
+    "context": {
+      "factor_id": "liquidity_structure_range_contraction",
+      "factor_version": "v1_es_2024_liquidity_structure_range_contraction",
+      "operator": ">=",
+      "threshold": 0.75,
+      "value_field": "normalized_value"
+    },
+    "fixed_geometry": {
+      "hold_time": {
+        "horizon": "120m",
+        "max_minutes": 120
+      },
+      "horizon": "120m",
+      "stop": {
+        "binding": "fixed_stop_from_path_label",
+        "geometry": "unchanged"
+      },
+      "target": {
+        "geometry": "unchanged",
+        "path_outcome": "target_before_stop"
+      }
+    },
+    "path_label": "lspec_9b1d49df8ff366677cb6f7bd",
+    "setup_spec_id": "setup_67b5e4fac7b7c4bae9332471",
+    "stamp": "EXPLORATORY",
+    "trigger": {
+      "factor_id": "liquidity_structure_failed_high_breakout_flag",
+      "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+      "operator": ">",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    }
+  },
+  "created_at": "2026-06-13T22:30:00Z",
+  "evidence_id": "flgap_9073662102c5720b5de2dc9e",
+  "family_budget": 1,
+  "family_id": "ssrl_p03_first_light_range_contraction_failed_high_breakout",
+  "issue_code": "DATA_GAP",
+  "manifest_state": {
+    "checked": true,
+    "manifests": {
+      "context_factor": {
+        "present": true,
+        "relative_path": "features/materialized/futures_substrate_scaleout_v1/regime_volatility_compression/feature_set_futures_scaleout_regime_volatility_compression/v1_es_2024_liquidity_structure_range_contraction/dsv_databento_ohlcv_05404069799decb0/ES_2024_full_year/values.parquet.manifest.json"
+      },
+      "path_label": {
+        "present": true,
+        "relative_path": "lcfp_p08_benchmark_20260610T170838Z/path/workers_1/labels/materialized/futures_substrate_scaleout_v1/path/lset_99a8f0764554bea7ff73f1c608a676f2e691603c4592b2eac910e64cd0b86ddd/dsv_databento_ohlcv_05404069799decb0/ES_2024_120m_lcfp_p08_es_202406/values.parquet.manifest.json"
+      },
+      "trigger_factor": {
+        "present": true,
+        "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2024_liquidity_structure_failed_high_breakout_flag/dsv_databento_ohlcv_05404069799decb0/ES_2024_full_year/values.parquet.manifest.json"
+      }
+    },
+    "root_policy": "ALPHA_DATA_ROOT"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "duplicate_exposure": {
+      "family_id": "ssrl_p03_first_light_range_contraction_failed_high_breakout",
+      "status": "bounded",
+      "variant_id": "baseline_range_contraction_failed_high_breakout"
+    },
+    "expected_direction": "target-before-stop path outcome after reclaim event",
+    "expected_mechanism": "The context identifies compressed auction state before the event. The trigger is a distinct prior-high sweep and close-back-inside event read from a different factor family.",
+    "horizon": "120m",
+    "mechanism_id": "mech_4bbed592080b923a2e9a6ae4",
+    "rationale": "A pre-declared range-contraction context can isolate sessions where a separate failed-high-breakout trigger is worth reading against a fixed path outcome.",
+    "required_features": [
+      "liquidity_structure_range_contraction",
+      "liquidity_structure_failed_high_breakout_flag"
+    ],
+    "required_labels": [
+      "target_before_stop_120m_path_label"
+    ],
+    "session": "RTH",
+    "source": "SSRL-P03 first-light worked example",
+    "stamp": "EXPLORATORY",
+    "variant_budget": 1
+  },
+  "outcome_source": "materialized_path_labels",
+  "phase_id": "SSRL-P03",
+  "power": {
+    "estimator_formula": "SE(IC) ~= 1 / sqrt(N_eff - 1); MDE(|IC|) = z_multiple * SE(IC)",
+    "factor_id": "liquidity_structure_failed_high_breakout_flag",
+    "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+    "mde_abs_ic": null,
+    "n_eff": 0,
+    "schema": "alpha_system.runtime.diagnostics.ic_power_statement.v1",
+    "scope": "per_factor",
+    "se_ic": null,
+    "statement": "Could have detected IC down to unresolved at N_eff = 0; SE(IC) requires N_eff > 1.",
+    "statistical_validity_claim": false,
+    "z_multiple": 1.96
+  },
+  "promotion_eligible": false,
+  "row_access": {
+    "fabricated_values": false,
+    "reason": "Local materializations are Parquet-backed and no sanctioned Parquet reader module is importable in this executor.",
+    "status": "unavailable_in_executor"
+  },
+  "schema": "alpha_system.research.strategy_shaped_lane.first_light.v1",
+  "setup_spec": {
+    "allowed_variants": [
+      "baseline_range_contraction_failed_high_breakout"
+    ],
+    "confirmation": {
+      "fixed_before_readout": true,
+      "policy": "none_added_in_p03"
+    },
+    "entry_context": {
+      "bucket": "range_contraction_high",
+      "factor_id": "liquidity_structure_range_contraction",
+      "factor_version": "v1_es_2024_liquidity_structure_range_contraction",
+      "operator": ">=",
+      "threshold": 0.75,
+      "value_field": "normalized_value"
+    },
+    "event_trigger": {
+      "event": "prior_high_sweep_close_back_inside",
+      "factor_id": "liquidity_structure_failed_high_breakout_flag",
+      "factor_version": "v1_es_2024_liquidity_structure_failed_high_breakout_flag",
+      "operator": ">",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    },
+    "forbidden_post_hoc_changes": [
+      "No context bucket changes after outcome readout.",
+      "No trigger threshold changes after outcome readout.",
+      "No target or stop geometry changes inside P03."
+    ],
+    "hold_time": {
+      "horizon": "120m",
+      "max_minutes": 120
+    },
+    "horizon": "120m",
+    "invalidation": {
+      "fixed_before_readout": true,
+      "policy": "fixed_path_stop_binding"
+    },
+    "mechanism_id": "mech_4bbed592080b923a2e9a6ae4",
+    "path_label": "lspec_9b1d49df8ff366677cb6f7bd",
+    "regime_filter": {
+      "instrument_root": "ES",
+      "session": "RTH"
+    },
+    "setup_spec_id": "setup_67b5e4fac7b7c4bae9332471",
+    "stamp": "EXPLORATORY",
+    "stop": {
+      "binding": "fixed_stop_from_path_label",
+      "geometry": "unchanged"
+    },
+    "target": {
+      "geometry": "unchanged",
+      "path_outcome": "target_before_stop"
+    }
+  },
+  "stamp": "EXPLORATORY",
+  "status": "INCONCLUSIVE",
+  "surrogate_fdr_gate": {
+    "error_count": 0,
+    "gate_pass_count": 0,
+    "gate_status": "BLOCKED",
+    "promotion_evidence": false,
+    "run_count": 0,
+    "threshold_verdict": "CALIBRATION_BLOCKED"
+  },
+  "variant_id": "baseline_range_contraction_failed_high_breakout"
+}
