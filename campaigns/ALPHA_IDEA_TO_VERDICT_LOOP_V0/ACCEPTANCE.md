@@ -152,7 +152,13 @@
 - New tests under `tests/unit/cli/` + `tests/unit/research_lane/` pass; `verify.py --smoke` +
   canaries PASS.
 
-### IVL-P06 (YELLOW) — Dogfood DK Track B through the loop
+### IVL-P06 (YELLOW) — Front-door slice passthrough fix + Dogfood DK Track B through the loop
+- **Front-door slice passthrough fix:** the intake validator (`governance/idea_draft.py`) accepts an
+  idea document carrying recognized slice-passthrough keys (`testability_slice`/`slice_spec`/
+  `fast_probe_slice`/`slices` and related), validated-and-ignored by the governance bundle and consumed
+  downstream by the gate/probe, **never** folded into the frozen content-hashed AlphaSpec/MechanismCard/
+  SetupSpec (ids byte-identical), while every other undeclared key is still rejected; an end-to-end
+  regression test drives a **resolving embedded slice** through `alpha idea gate` + `alpha idea run`.
 - No new mechanism / feature / label / data; no geometry sweep; no promotion; no
   materialize / recompute of any FUTSUB or DK producer.
 - `alpha idea gate` on the burned **single-class ES_2024 120m** slice → **Check-3 DATA_GAP**

@@ -37,7 +37,7 @@ Wave 2 : IVL-P02  Executable Testability Gate + `alpha idea testability` — 5 f
 Wave 3 : IVL-P03  Fast exploratory lane bridge — one generic fast_probe(card, setup, slice_spec), outside research/ (YELLOW)
 Wave 4 : IVL-P04  Human-readable verdict REPORT.md renderer (YELLOW)
 Wave 5 : IVL-P05  Memory wiring + `alpha idea run` end-to-end (YELLOW)
-Wave 6 : IVL-P06  Dogfood DK Track B through the loop — degenerate→DATA_GAP, ES_2020_120m→PASS (YELLOW)
+Wave 6 : IVL-P06  Front-door slice passthrough fix + Dogfood DK Track B — degenerate→DATA_GAP, ES_2020_120m→PASS (YELLOW)
 ```
 
 ## Phase contracts
@@ -315,14 +315,26 @@ Wave 6 : IVL-P06  Dogfood DK Track B through the loop — degenerate→DATA_GAP,
 - **Review requirement:** `reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P05/` (fresh Claude review, YELLOW)
 - **Auto-merge eligibility:** no auto-merge; YELLOW requires fresh Claude review before merge.
 
-### IVL-P06 — Dogfood DK Track B through the loop (YELLOW)
+### IVL-P06 — Front-Door Slice Passthrough Fix + Dogfood DK Track B through the loop (YELLOW)
 
 - **Lane:** yellow
 - **Dependencies:** IVL-P05
-- **Purpose:** prove the assembled loop on a real, pre-existing slice **without** adding any new
+- **Purpose:** first close the verified front-door slice-passthrough gap this dogfood surfaced (any
+  slice-bearing `idea.yaml` dies at intake because the validator rejects the slice keys the gate/probe
+  read), then prove the assembled loop on a real, pre-existing slice **without** adding any new
   mechanism, feature, label, data, geometry sweep, or promotion — and demonstrate that the testability
   gate spends DATA_GAP on a degenerate slice (shot not spent) and PASSES on a barrier-resolving slice.
 - **Scope:**
+  - **Front-door slice passthrough fix** (`src/alpha_system/governance/idea_draft.py`): the intake
+    validator `_reject_unknown_bundle_fields` rejects every top-level field outside
+    `IDEA_BUNDLE_INPUT_FIELDS`, but the slice extractors read top-level slice keys
+    (`testability_slice`/`testability_slices`/`slice_spec`/`slice_specs`/`fast_probe_slice`/
+    `fast_probe_slice_spec`/`slice`/`slices`) and `cli/idea.py` validates **before** extracting → a
+    slice-bearing idea dies at intake. Add a **recognized slice-passthrough field set** so the bundle
+    validates-and-ignores those keys (consumed downstream by the gate/probe), **never** folds them into
+    the frozen content-hashed AlphaSpec/MechanismCard/SetupSpec (ids byte-identical), and still rejects
+    every other undeclared key. Add an **end-to-end regression test** driving a *resolving embedded
+    slice* through `alpha idea gate` + `alpha idea run` (the coverage gap this dogfood proved missing).
   - Run `alpha idea gate` on the burned single-class ES_2024 120m slice → expect **Check-3 DATA_GAP
     PRE-TEST** → requeue (shot not spent).
   - Run on the barrier-resolving **ES_2020_120m** slice (verified two-class; coverage matrix records
@@ -332,10 +344,16 @@ Wave 6 : IVL-P06  Dogfood DK Track B through the loop — degenerate→DATA_GAP,
     DATA_GAP branch); never fabricate values; never materialize/recompute any FUTSUB producer.
 - **Non-goals:**
   - No new mechanism/feature/label/data; no geometry sweep; no promotion.
+  - No mutation of the frozen content-hashed MechanismCard/SetupSpec/AlphaSpec dataclasses or folding
+    slice metadata into them; no weakening of the intake unknown-field rejection for any non-slice key;
+    no edit to the value engine / probe engines / a second value loader.
   - No edit to `tools/differentiated_killshot_v1/**` or `research/futures_substrate_scaleout_v1/**`
     (STOPPED campaigns — load-only reads of materialized ES_2020/ES_2024 packs are permitted; no
     recompute, no materialize, no registry write).
 - **Expected files:**
+  - `src/alpha_system/governance/idea_draft.py` (front-door slice-passthrough fix)
+  - `tests/unit/governance/test_idea_draft.py`, `tests/unit/cli/test_idea_cli.py` (passthrough +
+    end-to-end resolving-slice regression tests)
   - `tests/integration/test_ivl_dogfood_track_b.py`
   - `research/idea_to_verdict_loop_v0/dogfood/**` (readout/REPORT outputs; local-or-fixture, no
     committed Parquet/sqlite/data)
@@ -347,12 +365,16 @@ Wave 6 : IVL-P06  Dogfood DK Track B through the loop — degenerate→DATA_GAP,
   `python tools/verify.py --smoke`; `python tools/hooks/canary_runner.py`; `git ls-files runs` empty.
 - **Artifact policy:** commit the integration test, the runbook doc, and value-free readout fixtures
   only; no Parquet/sqlite/data.
-- **Done criteria:** gate returns DATA_GAP on the degenerate slice (shot not spent, requeued); gate
-  PASSES on ES_2020_120m; `alpha idea run` emits a real readout + verdict + `REPORT.md`; memory written;
-  `promotion_eligible=false` throughout; honest DATA_GAP tolerated when `ALPHA_DATA_ROOT` unset; no
-  FUTSUB producer touched; canaries green; handoff + review present.
+- **Done criteria:** the intake validator accepts an idea carrying recognized slice-passthrough keys
+  (not folded into the frozen schemas, ids byte-identical) while still rejecting any other undeclared
+  key, and an end-to-end test drives a resolving embedded slice through `alpha idea gate` + `run`; gate
+  returns DATA_GAP on the degenerate slice (shot not spent, requeued); gate PASSES on ES_2020_120m;
+  `alpha idea run` emits a real readout + verdict + `REPORT.md`; memory written; `promotion_eligible=false`
+  throughout; honest DATA_GAP tolerated when `ALPHA_DATA_ROOT` unset; no FUTSUB producer touched;
+  canaries green; handoff + review present.
 - **Reuse vs build-new:** **Reuse:** the entire IVL-P01…P05 loop + the existing local ES_2020_120m
-  Parquet (load-only). **Build-new:** the dogfood integration test + the runbook doc.
+  Parquet (load-only). **Build-new:** the front-door slice-passthrough fix (single-file, additive) + its
+  end-to-end regression test + the dogfood integration test + the runbook doc.
 - **Handoff requirement:** `handoffs/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P06.md`
 - **Review requirement:** `reviews/ALPHA_IDEA_TO_VERDICT_LOOP_V0/IVL-P06/` (fresh Claude review, YELLOW)
 - **Auto-merge eligibility:** no auto-merge; YELLOW requires fresh Claude review before merge.
