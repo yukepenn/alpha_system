@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.governance.idea_draft import build_idea_validation_bundle
+from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.governance.requeue import REQUEUE_REASON
 from alpha_system.governance.validation import GovernanceValidationError
 from alpha_system.research_lane import memory_router as memory_router_module
@@ -83,6 +83,32 @@ def test_data_gap_routes_to_valid_requeue_without_spending_probe() -> None:
     assert payload["memory_record"]["requeue_reason"] == REQUEUE_REASON
     assert payload["memory_record"]["eligible"] is False
     assert payload["memory_record"]["original_verdict_ref"] == "readout:unit_readout"
+    assert payload["probe_spent"] is False
+    assert payload["promotion_eligible"] is False
+
+
+def test_inconclusive_routes_to_requeue_preserving_verdict_label() -> None:
+    # INCONCLUSIVE (real probe ran, clean surrogate, but underpowered / no establishable
+    # effect) routes to a reason-coded requeue like DATA_GAP, but the honest verdict label
+    # is preserved on the result (not relabeled DATA_GAP).
+    bundle = _bundle()
+
+    result = route_verdict_to_memory(
+        {
+            "verdict": "INCONCLUSIVE",
+            "reason_code": "UNDERPOWERED",
+            "why": "Real probe ran with a clean surrogate gate but the effect is underpowered.",
+        },
+        bundle.idea_draft,
+        _readout(bundle),
+        created_at=TIMESTAMP,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "requeue"
+    assert payload["verdict"] == "INCONCLUSIVE"
+    assert payload["record_type"] == "RequeuedVerdictRecord"
+    assert payload["memory_record"]["eligible"] is False
     assert payload["probe_spent"] is False
     assert payload["promotion_eligible"] is False
 
