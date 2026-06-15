@@ -278,6 +278,7 @@ def _run_main_effect(
             "factor_id": feature.factor_id,
             "slice_id": slice_spec.slice_id,
         },
+        horizon_overlap_metadata=_main_effect_overlap_metadata(slice_spec),
     )
     report_payload = result.report.to_dict()
     payload: dict[str, JsonValue] = {
@@ -299,6 +300,29 @@ def _run_main_effect(
     }
     payload["readout_id"] = _readout_id("fpmain", payload)
     return payload
+
+
+def _main_effect_overlap_metadata(slice_spec: SliceSpec) -> dict[str, JsonValue] | None:
+    """Label-horizon overlap metadata for honest IC-power N_eff, or None.
+
+    The main-effect probe stacks one observation per bar against a forward label
+    that spans ``required_future_bars`` bars, so consecutive observations overlap
+    ~that many bars and the raw row count overstates the independent sample. We
+    hand the sanctioned overlap-aware estimator a discount equal to the forward
+    horizon in bars (bar-spaced sampling). When the horizon is unknown or <= 1
+    bar there is no overlap to discount, so we return None and preserve the raw
+    count.
+    """
+
+    horizon_bars = slice_spec.required_future_bars
+    if horizon_bars is None or horizon_bars <= 1:
+        return None
+    return {
+        "horizon_bars": horizon_bars,
+        "sampling_cadence_bars": 1,
+        "discount_factor": horizon_bars,
+        "metadata_source": "fast_probe_main_effect_label_horizon",
+    }
 
 
 def _run_context_not_equal_trigger(
