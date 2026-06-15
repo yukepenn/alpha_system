@@ -48,9 +48,96 @@ _FACTOR_KEYS = (
 )
 _TIME_UNIT_SECONDS = {"seconds": 1.0, "minutes": 60.0}
 
+# Forward-overlapping outcome label families. A label whose value looks ``N``
+# bars ahead (a forward/excursion/barrier horizon) makes consecutive bar-spaced
+# observations overlap ~N-fold, so the raw row count badly overstates the
+# independent sample (the ratified #474 law). Classification is by label *type*
+# (intrinsic to the outcome) so the overlap discount can never be silently
+# skipped just because an OPTIONAL horizon field was left unset: a
+# forward-overlapping label MUST carry an overlap-discounted N_eff or fail loud.
+# Match is by prefix family (e.g. ``forward_return_5m``, ``fwd_ret_30m``,
+# ``cost_adjusted_forward_return``, ``mfe_by_horizon``, ``triple_barrier_*``).
+_FORWARD_OVERLAPPING_OUTCOME_PREFIXES: tuple[str, ...] = (
+    "forward_return",
+    "fwd_ret",
+    "cost_adjusted",
+    "cost_adj",
+    "mfe",
+    "mae",
+    "triple_barrier",
+    "net_excursion",
+)
+
 
 class NEffSampleReportingError(ValueError):
     """Raised when N_eff reporting would be missing or misleading."""
+
+
+def is_forward_overlapping_outcome(outcome_label_type: str | None) -> bool:
+    """Return True when the outcome label spans a forward horizon (overlaps).
+
+    A forward-overlapping outcome (forward/cost-adjusted return, mfe/mae
+    excursion, triple-barrier, derived net_excursion) looks several bars ahead,
+    so consecutive bar-spaced observations overlap and the raw row count
+    overstates the independent sample. Such an outcome MUST be discounted via the
+    overlap-aware estimator; a non-overlapping outcome (e.g. the binary
+    contemporaneous ``target_before_stop`` with ``outcome_label_type`` None) is
+    not discounted.
+    """
+
+    if outcome_label_type is None:
+        return False
+    text = str(outcome_label_type).strip().lower()
+    if not text:
+        return False
+    return any(text.startswith(prefix) for prefix in _FORWARD_OVERLAPPING_OUTCOME_PREFIXES)
+
+
+def forward_overlap_block_size(
+    outcome_label_type: str | None,
+    *,
+    required_future_bars: int | None = None,
+    horizon_seconds: float | None = None,
+    cadence_seconds: float | None = None,
+) -> int:
+    """Derive the overlap block size (in bars) for an outcome label, fail-closed.
+
+    For a NON forward-overlapping outcome this returns 1 (no overlap to
+    discount). For a forward-overlapping outcome the block size is the forward
+    horizon in bars, derived from (in order):
+
+    1. ``required_future_bars`` when it is a positive integer; otherwise
+    2. ``floor(horizon_seconds / cadence_seconds)`` when both are positive.
+
+    If the outcome is forward-overlapping but neither path can derive the
+    horizon, this RAISES ``NEffSampleReportingError`` -- it NEVER silently
+    returns 1 (which would mean raw, un-discounted rows and resurrect the #474
+    regression). A genuinely single-bar-ahead forward label (block size 1) is a
+    legitimate no-overlap case and is returned as 1.
+    """
+
+    if not is_forward_overlapping_outcome(outcome_label_type):
+        return 1
+    if required_future_bars is not None:
+        bars = int(required_future_bars)
+        if bars >= 1:
+            return bars
+        raise NEffSampleReportingError(
+            "forward-overlapping outcome "
+            f"{outcome_label_type!r} has non-positive required_future_bars "
+            f"({required_future_bars!r}); cannot derive overlap block size"
+        )
+    if horizon_seconds is not None and cadence_seconds is not None:
+        horizon = float(horizon_seconds)
+        cadence = float(cadence_seconds)
+        if math.isfinite(horizon) and math.isfinite(cadence) and horizon > 0 and cadence > 0:
+            return max(1, math.floor(horizon / cadence))
+    raise NEffSampleReportingError(
+        "forward-overlapping outcome "
+        f"{outcome_label_type!r} cannot derive an overlap block size: set "
+        "required_future_bars or supply horizon_seconds and cadence_seconds. "
+        "Refusing to fall back to raw rows / discount_factor=1 (the #474 law)."
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -601,4 +688,6 @@ __all__ = [
     "build_session_day_aggregation",
     "coerce_horizon_overlap_metadata",
     "estimate_n_eff",
+    "forward_overlap_block_size",
+    "is_forward_overlapping_outcome",
 ]

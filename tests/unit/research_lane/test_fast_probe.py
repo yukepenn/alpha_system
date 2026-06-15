@@ -238,7 +238,7 @@ def test_fast_probe_source_has_no_materialization_or_scaleout_driver_call() -> N
 
 def test_main_effect_overlap_metadata_uses_label_horizon_bars() -> None:
     meta = fast_probe_module._main_effect_overlap_metadata(
-        SimpleNamespace(required_future_bars=60)
+        SimpleNamespace(required_future_bars=60, label_version_bindings=())
     )
 
     assert meta == {
@@ -249,20 +249,36 @@ def test_main_effect_overlap_metadata_uses_label_horizon_bars() -> None:
     }
 
 
-def test_main_effect_overlap_metadata_none_when_no_forward_overlap() -> None:
-    # No forward horizon, or a single-bar horizon, means no overlap to discount.
-    assert (
-        fast_probe_module._main_effect_overlap_metadata(
-            SimpleNamespace(required_future_bars=None)
-        )
-        is None
+def test_main_effect_overlap_metadata_single_bar_label_has_no_discount() -> None:
+    # A genuinely single-bar-ahead forward label has no overlap to discount, so
+    # block size 1 / discount_factor 1 is honest -- but the metadata is still
+    # supplied (never None / raw rows): the discount path is exercised, the
+    # discount just happens to be 1.
+    meta = fast_probe_module._main_effect_overlap_metadata(
+        SimpleNamespace(required_future_bars=1, label_version_bindings=())
     )
-    assert (
+
+    assert meta == {
+        "horizon_bars": 1,
+        "sampling_cadence_bars": 1,
+        "discount_factor": 1,
+        "metadata_source": "fast_probe_main_effect_label_horizon",
+    }
+
+
+def test_main_effect_overlap_metadata_fails_closed_when_horizon_unknown() -> None:
+    # The main-effect outcome is forward-overlapping by construction. When the
+    # forward horizon cannot be derived (required_future_bars unset) the helper
+    # MUST fail closed rather than silently fall back to raw rows / discount 1
+    # (the ratified #474 law) -- the latent silent-raw regression.
+    import pytest
+
+    from alpha_system.runtime.diagnostics.splits.n_eff import NEffSampleReportingError
+
+    with pytest.raises(NEffSampleReportingError):
         fast_probe_module._main_effect_overlap_metadata(
-            SimpleNamespace(required_future_bars=1)
+            SimpleNamespace(required_future_bars=None, label_version_bindings=())
         )
-        is None
-    )
 
 
 def _autocorrelated_overlap_injected(setup: SetupSpec, *, n_bars: int, horizon_bars: int):

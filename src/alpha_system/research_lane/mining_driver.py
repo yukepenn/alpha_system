@@ -319,6 +319,7 @@ def run_multi_partition_pool(
         coverage=coverage,
         outcomes=outcomes,
         alpha_spec_id=alpha_spec_id,
+        mechanism_card=mechanism_card,
     )
     pooled_verdict, reason_code = _pooled_verdict(pooled_study_kind, outcomes)
     route = route_verdict_to_memory(
@@ -603,6 +604,22 @@ def _build_pooled_record(
     return validate_pooled_hypothesis_record(payload)
 
 
+def _mechanism_required_features(mechanism_card: Any) -> list[str]:
+    """The mechanism's required-feature identity (factor identity for routing).
+
+    A pooled signal's factor identity is the pooling mechanism's required
+    features (the same factor across the pooled partitions). The memory router
+    fails loud rather than fabricate an identity, so the pooled readout must
+    carry the real mechanism_card identity it pools.
+    """
+
+    if isinstance(mechanism_card, Mapping):
+        required = mechanism_card.get("required_features") or ()
+    else:
+        required = getattr(mechanism_card, "required_features", None) or ()
+    return [str(feature) for feature in required]
+
+
 def _build_pooled_readout(
     *,
     study_kind: str,
@@ -610,6 +627,7 @@ def _build_pooled_readout(
     coverage: PartitionCoverage,
     outcomes: tuple[PartitionOutcome, ...],
     alpha_spec_id: str,
+    mechanism_card: Any,
 ) -> dict[str, JsonValue]:
     """Build a typed-contract-valid pooled FastReadout for the memory router.
 
@@ -619,6 +637,8 @@ def _build_pooled_readout(
     the family-FDR gate sees the conservative pooled surrogate evidence). It is
     promotion-ineligible and value-free, and it explicitly carries the partition
     coverage so the routed verdict is never mistaken for single-partition evidence.
+    It carries the pooling mechanism's required-feature identity so the router can
+    name the signal's factor without fabricating an "unknown_factor" identity.
     """
 
     representative = _representative_gate(outcomes)
@@ -629,6 +649,7 @@ def _build_pooled_readout(
         "study_kind": study_kind,
         "stamp": "EXPLORATORY",
         "promotion_eligible": False,
+        "mechanism_card": {"required_features": _mechanism_required_features(mechanism_card)},
         "slice_spec": _pooled_slice_spec(study_kind, coverage),
         "row_access": {
             "status": "resolved_local_only",
