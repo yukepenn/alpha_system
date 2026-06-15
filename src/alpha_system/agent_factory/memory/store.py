@@ -42,6 +42,10 @@ ACTION_LEDGERS: dict[str, str] = {
 }
 # independent-reviewer adjudications layered over the signal shelf (append-only)
 REVIEWER_ADJUDICATION_LEDGER = "reviewer_adjudications.jsonl"
+# cross-idea family-wise multiplicity (FDR) accumulator (append-only; local-only).
+# CROSS_IDEA_FDR_BUDGET_V1 Stage B records each setup-lane idea's per-test surrogate
+# p here, keyed by its co-mined batch, so the family correction can refine across runs.
+FAMILY_FDR_LEDGER = "family_fdr_ledger.jsonl"
 
 
 class ResearchMemoryStoreError(ValueError):
@@ -65,6 +69,27 @@ def resolve_research_memory_dir(
     active_env = os.environ if env is None else env
     root = active_env.get("ALPHA_DATA_ROOT") or DEFAULT_ALPHA_DATA_ROOT
     return Path(root).expanduser() / RESEARCH_MEMORY_SUBDIR
+
+
+def ensure_family_fdr_ledger_path(
+    override: str | os.PathLike[str] | None = None,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> Path:
+    """Resolve and ensure the local family-FDR ledger file exists (append-only).
+
+    The ``FamilyFdrLedger`` is fail-closed: it requires an existing writable file.
+    This creates the research-memory directory and an empty ledger file when needed
+    so the Stage-B family-wise multiplicity accumulator can record/correct across
+    ``alpha idea run`` invocations. Local-only, never committed.
+    """
+
+    directory = resolve_research_memory_dir(override, env=env)
+    directory.mkdir(parents=True, exist_ok=True)
+    ledger_path = directory / FAMILY_FDR_LEDGER
+    if not ledger_path.exists():
+        ledger_path.touch()
+    return ledger_path
 
 
 def build_research_memory_row(
@@ -284,10 +309,12 @@ def _main_effect_quality(readout: Mapping[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "ACTION_LEDGERS",
+    "FAMILY_FDR_LEDGER",
     "RESEARCH_MEMORY_SCHEMA",
     "REVIEWER_ADJUDICATION_LEDGER",
     "ResearchMemoryStoreError",
     "build_research_memory_row",
+    "ensure_family_fdr_ledger_path",
     "pending_signals",
     "persist_reviewer_adjudication",
     "persist_route",

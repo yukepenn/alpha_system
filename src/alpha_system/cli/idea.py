@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from alpha_system.agent_factory.memory.store import (
+    ensure_family_fdr_ledger_path,
     pending_signals,
     persist_reviewer_adjudication,
     persist_route,
@@ -201,6 +202,13 @@ def run_idea_run(args: argparse.Namespace) -> int:
             report_path.write_text(report, encoding="utf-8")
         verdict = _final_verdict_from_report(report)
         created_at = _created_at_from_bundle(bundle)
+        # CROSS_IDEA_FDR_BUDGET_V1 Stage B: wire the append-only family-FDR accumulator
+        # so a setup-lane SIGNAL_PENDING_REVIEWER signal is gated on the family-wise
+        # multiplicity correction across its co-mined batch. Skipped for --no-persist
+        # dry runs (the accumulator is a persistent side effect, like the route ledgers).
+        family_fdr_ledger_path = (
+            None if args.no_persist else ensure_family_fdr_ledger_path(args.memory_dir)
+        )
         memory = route_verdict_to_memory(
             verdict,
             bundle.idea_draft,
@@ -211,6 +219,7 @@ def run_idea_run(args: argparse.Namespace) -> int:
             created_at=created_at,
             report_ref=report_path.as_posix() if report_path is not None else None,
             probe_spent=probe_spent,
+            family_fdr_ledger_path=family_fdr_ledger_path,
         )
         memory_path = None
         if not args.no_persist:
