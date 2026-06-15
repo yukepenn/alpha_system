@@ -215,6 +215,21 @@ def family_fdr_budget_canary() -> Canary:
     )
 
 
+def pooled_se_poolkind_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.pooled_se_poolkind import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "pooled_se_poolkind",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -411,6 +426,7 @@ def scenarios() -> list[Canary]:
         true_alpha_detection_canary("weak", expected_detection=False),
         fast_readout_routing_canary(),
         family_fdr_budget_canary(),
+        pooled_se_poolkind_canary(),
     ]
 
 

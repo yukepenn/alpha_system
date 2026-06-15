@@ -242,45 +242,117 @@ def test_metrics_started_marker_enforces_pre_metric_ordering(tmp_path: Path) -> 
     assert exc_info.value.issues[0].code == "pooled_registration_after_metrics_started"
 
 
+def _effect_components() -> tuple[dict[str, object], ...]:
+    return (
+        {
+            "component_ref": RERUN_STUDY_IDS[0],
+            "metric_name": "synthetic_effect_size",
+            "point_estimate": 0.3,
+            "standard_error": 0.09,
+            "n_eff": 100,
+            "metadata": {"source": "component-a"},
+        },
+        {
+            "component_ref": RERUN_STUDY_IDS[1],
+            "metric_name": "synthetic_effect_size",
+            "point_estimate": 0.6,
+            "standard_error": 0.12,
+            "n_eff": 90,
+            "metadata": {"source": "component-b"},
+        },
+        {
+            "component_ref": RERUN_STUDY_IDS[2],
+            "metric_name": "synthetic_effect_size",
+            "point_estimate": 0.0,
+            "standard_error": 0.15,
+            "n_eff": 80,
+            "metadata": {"source": "component-c"},
+        },
+    )
+
+
 def test_equal_weight_aggregation_reports_pool_and_components() -> None:
+    # Genuinely-independent pool (rho=0) reproduces the historical independent
+    # numbers exactly: back-compat for a pool whose components truly are
+    # uncorrelated.
     payload = pooled_payload(members=RERUN_STUDY_IDS[:3])
     result = aggregate_pooled_metric(
         payload,
-        (
-            {
-                "component_ref": RERUN_STUDY_IDS[0],
-                "metric_name": "synthetic_effect_size",
-                "point_estimate": 0.3,
-                "standard_error": 0.09,
-                "n_eff": 100,
-                "metadata": {"source": "component-a"},
-            },
-            {
-                "component_ref": RERUN_STUDY_IDS[1],
-                "metric_name": "synthetic_effect_size",
-                "point_estimate": 0.6,
-                "standard_error": 0.12,
-                "n_eff": 90,
-                "metadata": {"source": "component-b"},
-            },
-            {
-                "component_ref": RERUN_STUDY_IDS[2],
-                "metric_name": "synthetic_effect_size",
-                "point_estimate": 0.0,
-                "standard_error": 0.15,
-                "n_eff": 80,
-                "metadata": {"source": "component-c"},
-            },
-        ),
+        _effect_components(),
+        pooled_correlation=0.0,
     )
 
     assert result.metric_name == "synthetic_effect_size"
     assert result.point_estimate == pytest.approx(0.3)
     assert result.standard_error == pytest.approx(math.sqrt(0.09**2 + 0.12**2 + 0.15**2) / 3)
     assert result.n_eff == 270
+    assert result.assumed_correlation == pytest.approx(0.0)
     payload_dict = result.to_dict()
     assert payload_dict["pooled_result"]["point_estimate"] == pytest.approx(0.3)
+    assert payload_dict["assumed_correlation"] == pytest.approx(0.0)
+    assert payload_dict["pool_kind"] == "cross_symbol"
     assert len(payload_dict["components"]) == 3
+
+
+def test_cross_horizon_default_uses_worst_case_correlation() -> None:
+    # CROSS_HORIZON pools overlap on the same bars; the default is the worst-case
+    # rho=1.0, so the pooled SE equals mean(se_i) and is STRICTLY LARGER than the
+    # naive sqrt(sum se^2)/K, and n_eff is floored at the weakest component.
+    horizon_members = tuple(
+        f"{RERUN_STUDY_IDS[0]}#horizon={horizon}" for horizon in ("60m", "120m", "240m")
+    )
+    payload = pooled_payload(
+        pool_kind="cross_horizon",
+        members=horizon_members,
+        horizons=("60m", "120m", "240m"),
+        symbols=("ES",),
+        variant_id="pooled-cross-horizon-overlap",
+    )
+    components = tuple(
+        {**component, "component_ref": ref}
+        for component, ref in zip(_effect_components(), horizon_members, strict=True)
+    )
+    result = aggregate_pooled_metric(payload, components)
+
+    naive_se = math.sqrt(0.09**2 + 0.12**2 + 0.15**2) / 3
+    mean_se = (0.09 + 0.12 + 0.15) / 3
+    assert result.assumed_correlation == pytest.approx(1.0)
+    assert result.standard_error == pytest.approx(mean_se)
+    assert result.standard_error > naive_se  # rail is no longer understated
+    # rho=1 -> n_eff floored at min(n_eff_i)=80, never the naive sum of 270.
+    assert result.n_eff == 80
+
+
+def test_cross_symbol_default_between_independent_and_worst_case() -> None:
+    # CROSS_SYMBOL default rho=0.6 sits strictly between the independent SE
+    # (rho=0) and the fully-redundant worst case (rho=1).
+    payload = pooled_payload(members=RERUN_STUDY_IDS[:3])
+    components = _effect_components()
+    independent = aggregate_pooled_metric(payload, components, pooled_correlation=0.0)
+    worst_case = aggregate_pooled_metric(payload, components, pooled_correlation=1.0)
+    result = aggregate_pooled_metric(payload, components)  # default 0.6
+
+    assert result.assumed_correlation == pytest.approx(0.6)
+    assert independent.standard_error < result.standard_error < worst_case.standard_error
+    # n_eff is discounted, not summed, and never exceeds the independent sum.
+    assert independent.n_eff == 270
+    assert independent.n_eff >= result.n_eff >= worst_case.n_eff
+
+
+def test_worst_case_correlation_collapses_se_to_mean() -> None:
+    payload = pooled_payload(members=RERUN_STUDY_IDS[:3])
+    result = aggregate_pooled_metric(
+        payload, _effect_components(), pooled_correlation=1.0
+    )
+    assert result.standard_error == pytest.approx((0.09 + 0.12 + 0.15) / 3)
+    assert result.n_eff == 80  # floored at min(n_eff_i)
+
+
+def test_pooled_correlation_must_be_in_unit_interval() -> None:
+    payload = pooled_payload(members=RERUN_STUDY_IDS[:3])
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        aggregate_pooled_metric(payload, _effect_components(), pooled_correlation=1.5)
+    assert exc_info.value.issues[0].code == "invalid_pooled_correlation"
 
 
 def test_aggregation_rejects_dropped_or_extra_components() -> None:

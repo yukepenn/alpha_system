@@ -176,10 +176,15 @@ def test_multi_partition_pool_aggregates_equal_weight_mean(monkeypatch) -> None:
     )
 
     assert calls == ["ES_2020_120m", "ES_2021_120m", "ES_2022_120m"]
-    # equal-weight mean of 0.01, 0.03, 0.05 == 0.03; n_eff sums (100+200+300) == 600.
+    # Equal-weight mean of 0.01, 0.03, 0.05 == 0.03. The effective N is now
+    # correlation-DISCOUNTED, not summed: this is a CROSS_SYMBOL pool, so
+    # aggregate_pooled_metric applies the conservative default rho=0.6 ->
+    # n_eff = sum(100+200+300) / (1 + (3-1)*0.6) = 600 / 2.2 -> floor 272.
+    # (Summing to 600 overstated power on correlated index partitions; see the
+    # pooled_se_poolkind fix to governance/pooled_hypothesis.py.)
     assert result.pooled_metric is not None
     assert result.pooled_metric["pooled_result"]["point_estimate"] == pytest.approx(0.03)
-    assert result.pooled_metric["pooled_result"]["n_eff"] == 600
+    assert result.pooled_metric["pooled_result"]["n_eff"] == 272
     assert result.coverage.present_count == 3
     assert result.coverage.is_multi_partition is True
     assert result.pooled_hypothesis_id is not None
@@ -204,7 +209,11 @@ def test_pool_two_partitions_matches_aggregate_pooled_metric(monkeypatch) -> Non
     )
 
     assert result.pooled_metric["pooled_result"]["point_estimate"] == pytest.approx(-0.003)
-    assert result.pooled_metric["pooled_result"]["n_eff"] == 800
+    # CROSS_SYMBOL pool -> correlation-discounted effective N at the conservative
+    # default rho=0.6: n_eff = sum(412+388) / (1 + (2-1)*0.6) = 800 / 1.6 == 500.
+    # (Summing to 800 overstated power on correlated ES/NQ partitions; see the
+    # pooled_se_poolkind fix to governance/pooled_hypothesis.py.)
+    assert result.pooled_metric["pooled_result"]["n_eff"] == 500
     assert result.coverage.present == ("ES_2020_120m", "NQ_2020_120m")
 
 
