@@ -187,7 +187,7 @@
       "minimum_detectable_effect": 0.0384,
       "horizon_seconds": 7200,
       "required_future_bars": 120,
-      "surrogate_run_count": 64,
+      "surrogate_run_count": 1000,
       "surrogate_base_seed": 0,
       "available_ts_satisfiable": true,
       "surrogate_fdr_requirement": "zero-pass-met",

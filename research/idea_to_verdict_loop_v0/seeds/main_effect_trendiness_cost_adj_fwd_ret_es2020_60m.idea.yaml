@@ -142,7 +142,7 @@
       "horizon_seconds": 3600,
       "required_future_bars": 60,
       "materialized_label_version": "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c",
-      "surrogate_run_count": 64,
+      "surrogate_run_count": 1000,
       "surrogate_base_seed": 0,
       "family_id": "tier1_main_effect_continuous_ic",
       "family_budget": 1,

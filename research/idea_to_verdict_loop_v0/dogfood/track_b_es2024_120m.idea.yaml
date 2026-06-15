@@ -205,7 +205,7 @@
       "horizon_seconds": 7200,
       "required_future_bars": 120,
       "materialized_label_version": "lver_7e78a10cb7b539444d99456553b968086375f79ce7a4924616e5d83985d34e22",
-      "surrogate_run_count": 64,
+      "surrogate_run_count": 1000,
       "surrogate_base_seed": 0,
       "family_id": "dk_p04_track_b_range_contraction_failed_high_breakout",
       "family_budget": 1,

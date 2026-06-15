@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
+import os
 import random
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,6 +50,29 @@ from alpha_system.runtime.input_resolver import (
 )
 
 FAST_PROBE_SCHEMA = "alpha_system.research_lane.fast_probe.v1"
+
+# Resolution-adequate standing surrogate budget. The cross-idea FDR gate needs
+# ``run_count >= ceil(m / alpha) - 1`` to resolve an FDR-corrected p-value; the
+# ``family_fdr_budget`` canary proves the historical hardcoded 64 cannot resolve
+# a corrected p (resolution-inadequate). At ``alpha = 0.10`` a run_count of 1000
+# is resolution-adequate for family sizes up to ~100. Committed PRODUCTION idea
+# YAMLs set ``surrogate_run_count`` to this value; small test fixtures override
+# it downward for speed (the count is a configuration knob, not a statistical
+# result, so the gate verdict for a given seed/run_count is unaffected).
+RESOLUTION_ADEQUATE_SURROGATE_RUNS = 1000
+
+# RAM headroom reserved (bytes) so heavy parallel re-probes do not OOM the box.
+# Per the never-idle / RAM-safety doctrine we keep ~12 GiB free; the auto worker
+# resolver caps workers so reserved-headroom / (estimated per-worker footprint)
+# is respected on top of the CPU cap.
+_SURROGATE_RAM_RESERVE_BYTES = 12 * 1024 * 1024 * 1024
+# Conservative per-worker resident estimate for one re-probe unit. Used only to
+# derive an upper worker bound from available RAM; the true footprint is bounded
+# by a single materialized row-set, not the full 1000.
+_SURROGATE_PER_WORKER_BYTES = 1024 * 1024 * 1024
+# CPU headroom: leave this many cores for the parent + OS so the box stays
+# responsive and other harness compute is not starved.
+_SURROGATE_CPU_HEADROOM = 2
 
 
 class FastProbeError(ValueError):
@@ -191,6 +217,7 @@ def run_label_shuffle_surrogate(
     base_seed: int,
     outcome_label_type: str | None = None,
     block_size: int = 1,
+    workers: int | None = None,
 ) -> dict[str, JsonValue]:
     """Run the bounded label-shuffle ZERO_PASS surrogate calibration.
 
@@ -209,6 +236,19 @@ def run_label_shuffle_surrogate(
     NON-OVERLAPPING FIXED-LENGTH BLOCKS instead of individual rows, preserving the
     within-block autocorrelation. When ``block_size <= 1`` this is byte-identical
     to the historical row-level shuffle (the non-overlapping path is unchanged).
+
+    Determinism + parallelism: every surrogate iteration seeds its own RNG with
+    ``random.Random(base_seed + run_index)`` — a pure function of ``run_index``
+    that is independent of execution order or worker count. The per-surrogate
+    unit (block-shuffle + re-probe + effect) is therefore a pure function of the
+    immutable inputs and ``run_index``. ``workers`` selects how that map is run:
+    ``workers == 1`` runs the byte-for-byte serial loop on the calling process;
+    ``workers > 1`` (or ``None`` for the auto cap) dispatches the units across a
+    ``ProcessPoolExecutor`` and aggregates the per-run ``(pass, error)``
+    increments in ``run_index`` order. Because each unit reseeds locally and the
+    pass/error increments are summed in run_index order, the aggregate gate
+    (``gate_pass_count``, ``run_count``, ``error_count``, ``observed_effect``,
+    ``threshold_verdict``) is byte-identical regardless of ``workers``.
     """
 
     active_setup = _coerce_setup(setup)
@@ -225,19 +265,6 @@ def run_label_shuffle_surrogate(
     # rather than one label_type.
     shuffle_label_types = _shuffle_label_types(outcome_label_type)
 
-    def effect(observation_set: Any) -> float | None:
-        if outcome_label_type is None:
-            return _conditional_uplift(
-                observation_set.conditioned_observations,
-                observation_set.aligned_observations,
-            )
-        lift = continuous_outcome_mean_lift(
-            observation_set.conditioned_observations,
-            observation_set.aligned_observations,
-            outcome_label_type=outcome_label_type,
-        )["mean_lift"]
-        return None if lift is None else float(lift)
-
     observed = build_path_label_observation_set(
         probe,
         context_factor_values=context_rows,
@@ -245,7 +272,7 @@ def run_label_shuffle_surrogate(
         path_labels=path_rows,
         outcome_label_type=outcome_label_type,
     )
-    observed_uplift = effect(observed)
+    observed_uplift = _surrogate_effect(observed, outcome_label_type)
     active_block_size = max(int(block_size), 1)
     # A single-label outcome (binary or one continuous label_type) under the
     # row-level path (block_size <= 1) preserves the historical ORIGINAL-ORDER
@@ -273,38 +300,31 @@ def run_label_shuffle_surrogate(
         if row.get("label_type") == shuffle_label_types[0]
     ]
 
-    pass_count = 0
-    error_count = 0
-    for run_index in range(surrogate_runs):
-        rng = random.Random(base_seed + run_index)
-        if legacy_single_label_row_shuffle:
-            rebuilt = _rebuild_legacy_row_shuffle(path_rows, legacy_target_rows, rng)
-        else:
-            rebuilt = _rebuild_surrogate_path_rows(
-                path_rows,
-                target_rows_by_type=target_rows_by_type,
-                shared_event_count=shared_event_count,
-                block_size=active_block_size,
-                rng=rng,
-            )
-        try:
-            surrogate_observations = build_path_label_observation_set(
-                probe,
-                context_factor_values=context_rows,
-                trigger_factor_values=trigger_rows,
-                path_labels=rebuilt,
-                outcome_label_type=outcome_label_type,
-            )
-            surrogate_uplift = effect(surrogate_observations)
-        except ConditionalProbeError:
-            error_count += 1
-            continue
-        if (
-            surrogate_uplift is not None
-            and observed_uplift is not None
-            and abs(surrogate_uplift) > abs(observed_uplift)
-        ):
-            pass_count += 1
+    context = _SurrogateContext(
+        probe=probe,
+        context_rows=tuple(dict(row) for row in context_rows),
+        trigger_rows=tuple(dict(row) for row in trigger_rows),
+        path_rows=tuple(dict(row) for row in path_rows),
+        legacy_target_rows=tuple(
+            (index, dict(row)) for index, row in legacy_target_rows
+        ),
+        target_rows_by_type={
+            label_type: tuple((index, dict(row)) for index, row in rows)
+            for label_type, rows in target_rows_by_type.items()
+        },
+        shared_event_count=shared_event_count,
+        active_block_size=active_block_size,
+        legacy_single_label_row_shuffle=legacy_single_label_row_shuffle,
+        outcome_label_type=outcome_label_type,
+        observed_uplift=observed_uplift,
+        base_seed=base_seed,
+    )
+
+    pass_count, error_count = _run_surrogate_map(
+        context,
+        surrogate_runs=surrogate_runs,
+        workers=workers,
+    )
 
     gate = build_surrogate_zero_pass_gate(
         run_count=surrogate_runs,
@@ -333,6 +353,220 @@ def run_label_shuffle_surrogate(
     gate["conditioned_n_eff"] = conditioned_n_eff
     gate["observed_effect"] = None if observed_uplift is None else float(observed_uplift)
     return gate
+
+
+def _surrogate_effect(observation_set: Any, outcome_label_type: str | None) -> float | None:
+    """The conditioned effect statistic for one observation set.
+
+    Binary outcome (``outcome_label_type`` None) uses the ``target_before_stop``
+    probability-share delta; a continuous outcome uses the conditioned-mean lift
+    of that float path outcome. Top-level (not a closure) so the parallel worker
+    can call it without capturing the calling frame.
+    """
+
+    if outcome_label_type is None:
+        return _conditional_uplift(
+            observation_set.conditioned_observations,
+            observation_set.aligned_observations,
+        )
+    lift = continuous_outcome_mean_lift(
+        observation_set.conditioned_observations,
+        observation_set.aligned_observations,
+        outcome_label_type=outcome_label_type,
+    )["mean_lift"]
+    return None if lift is None else float(lift)
+
+
+@dataclass(frozen=True, slots=True)
+class _SurrogateContext:
+    """Immutable, picklable inputs shared by every surrogate iteration.
+
+    Every field is plain data (the compiled ``ConditionalProbeSpec`` is a frozen
+    dataclass of plain values; the row collections are tuples of dicts), so the
+    whole context pickles cleanly to a ``ProcessPoolExecutor`` worker exactly
+    once via the pool initializer. Per-iteration RNG state is NOT stored here: a
+    surrogate is reseeded from ``base_seed + run_index`` inside the unit, which
+    is what keeps the result independent of worker count and order.
+    """
+
+    probe: Any
+    context_rows: tuple[Mapping[str, Any], ...]
+    trigger_rows: tuple[Mapping[str, Any], ...]
+    path_rows: tuple[Mapping[str, Any], ...]
+    legacy_target_rows: tuple[tuple[int, Mapping[str, Any]], ...]
+    target_rows_by_type: Mapping[str, tuple[tuple[int, Mapping[str, Any]], ...]]
+    shared_event_count: int
+    active_block_size: int
+    legacy_single_label_row_shuffle: bool
+    outcome_label_type: str | None
+    observed_uplift: float | None
+    base_seed: int
+
+
+def _compute_one_surrogate(context: _SurrogateContext, run_index: int) -> tuple[int, int]:
+    """One surrogate unit: ``(pass_increment, error_increment)`` for ``run_index``.
+
+    Pure given ``(context, run_index)``: the RNG is reseeded locally from
+    ``base_seed + run_index`` so the block-shuffle, re-probe, and exceedance test
+    are identical regardless of which worker (or the serial caller) runs it.
+    """
+
+    rng = random.Random(context.base_seed + run_index)
+    if context.legacy_single_label_row_shuffle:
+        rebuilt = _rebuild_legacy_row_shuffle(
+            context.path_rows, context.legacy_target_rows, rng
+        )
+    else:
+        rebuilt = _rebuild_surrogate_path_rows(
+            context.path_rows,
+            target_rows_by_type=context.target_rows_by_type,
+            shared_event_count=context.shared_event_count,
+            block_size=context.active_block_size,
+            rng=rng,
+        )
+    try:
+        surrogate_observations = build_path_label_observation_set(
+            context.probe,
+            context_factor_values=context.context_rows,
+            trigger_factor_values=context.trigger_rows,
+            path_labels=rebuilt,
+            outcome_label_type=context.outcome_label_type,
+        )
+        surrogate_uplift = _surrogate_effect(
+            surrogate_observations, context.outcome_label_type
+        )
+    except ConditionalProbeError:
+        return (0, 1)
+    if (
+        surrogate_uplift is not None
+        and context.observed_uplift is not None
+        and abs(surrogate_uplift) > abs(context.observed_uplift)
+    ):
+        return (1, 0)
+    return (0, 0)
+
+
+# Worker-process global set once by the pool initializer so the (potentially
+# large) context is pickled to each worker exactly once rather than per task.
+_WORKER_SURROGATE_CONTEXT: _SurrogateContext | None = None
+
+
+def _init_surrogate_worker(context: _SurrogateContext) -> None:
+    global _WORKER_SURROGATE_CONTEXT
+    _WORKER_SURROGATE_CONTEXT = context
+
+
+def _compute_one_surrogate_worker(run_index: int) -> tuple[int, int]:
+    """Pool-mapped entry point reading the worker-global context.
+
+    Top-level + argument is a single int, so the only per-task payload is the
+    run_index; the shared context travels once through the initializer.
+    """
+
+    assert _WORKER_SURROGATE_CONTEXT is not None
+    return _compute_one_surrogate(_WORKER_SURROGATE_CONTEXT, run_index)
+
+
+def _run_surrogate_map(
+    context: _SurrogateContext,
+    *,
+    surrogate_runs: int,
+    workers: int | None,
+) -> tuple[int, int]:
+    """Aggregate ``(pass_count, error_count)`` over all surrogate runs.
+
+    Serial (``effective_workers <= 1``) calls the unit in ``run_index`` order on
+    the calling process. Parallel maps the unit across a ``ProcessPoolExecutor``
+    in chunks and consumes results in ``run_index`` order (``executor.map`` is
+    order-preserving). Either way the pass/error increments are summed in
+    run_index order, so the totals are byte-identical to the serial path.
+    """
+
+    if surrogate_runs <= 0:
+        return (0, 0)
+
+    effective_workers = _resolve_surrogate_workers(workers, surrogate_runs)
+    if effective_workers <= 1:
+        pass_count = 0
+        error_count = 0
+        for run_index in range(surrogate_runs):
+            pass_inc, error_inc = _compute_one_surrogate(context, run_index)
+            pass_count += pass_inc
+            error_count += error_inc
+        return (pass_count, error_count)
+
+    # Chunk so a worker pulls a contiguous run of indices per dispatch; this
+    # keeps memory bounded (each worker materializes one re-probe row-set at a
+    # time, never all ``surrogate_runs`` at once) while amortizing dispatch.
+    chunksize = max(1, surrogate_runs // (effective_workers * 4))
+    mp_context = mp.get_context()
+    pass_count = 0
+    error_count = 0
+    with ProcessPoolExecutor(
+        max_workers=effective_workers,
+        mp_context=mp_context,
+        initializer=_init_surrogate_worker,
+        initargs=(context,),
+    ) as executor:
+        for pass_inc, error_inc in executor.map(
+            _compute_one_surrogate_worker,
+            range(surrogate_runs),
+            chunksize=chunksize,
+        ):
+            pass_count += pass_inc
+            error_count += error_inc
+    return (pass_count, error_count)
+
+
+def _resolve_surrogate_workers(workers: int | None, surrogate_runs: int) -> int:
+    """Resolve the effective worker count under CPU + RAM headroom caps.
+
+    ``workers == 1`` forces the serial path (debugging / tests). An explicit
+    ``workers > 1`` is honored but still clamped to ``surrogate_runs`` and the
+    CPU cap. ``workers is None`` auto-selects ``cpu_count - headroom`` clamped by
+    a RAM-derived bound (reserved headroom / per-worker estimate) and by
+    ``surrogate_runs`` so a tiny calibration never spins up more workers than
+    units. The auto cap can never exceed the explicit/CPU bound, so it only ever
+    reduces parallelism for safety; it does not change the result.
+    """
+
+    if workers is not None:
+        if workers <= 1:
+            return 1
+        return max(1, min(workers, surrogate_runs))
+
+    cpu_total = os.cpu_count() or 1
+    cpu_cap = max(1, cpu_total - _SURROGATE_CPU_HEADROOM)
+    ram_cap = _ram_worker_cap()
+    return max(1, min(cpu_cap, ram_cap, surrogate_runs))
+
+
+def _ram_worker_cap() -> int:
+    """Upper worker bound from available RAM, or the CPU cap when unknown.
+
+    Uses ``/proc/meminfo`` MemAvailable (Linux/WSL2) to bound workers so heavy
+    parallel re-probes keep ~``_SURROGATE_RAM_RESERVE_BYTES`` free. When the
+    figure is unavailable the RAM cap is non-binding (returns the CPU total) and
+    the CPU headroom cap governs.
+    """
+
+    cpu_total = os.cpu_count() or 1
+    try:
+        with open("/proc/meminfo", encoding="ascii") as handle:
+            available_kib = 0
+            for line in handle:
+                if line.startswith("MemAvailable:"):
+                    available_kib = int(line.split()[1])
+                    break
+    except (OSError, ValueError, IndexError):
+        return cpu_total
+    if available_kib <= 0:
+        return cpu_total
+    available_bytes = available_kib * 1024
+    usable = available_bytes - _SURROGATE_RAM_RESERVE_BYTES
+    if usable <= 0:
+        return 1
+    return max(1, usable // _SURROGATE_PER_WORKER_BYTES)
 
 
 def _shuffle_label_types(outcome_label_type: str | None) -> tuple[str, ...]:
@@ -1128,6 +1362,7 @@ _DATA_GAP_EXCEPTIONS = (
 
 __all__ = [
     "FAST_PROBE_SCHEMA",
+    "RESOLUTION_ADEQUATE_SURROGATE_RUNS",
     "FastProbeError",
     "InjectedRows",
     "ResolvedSliceHandles",
