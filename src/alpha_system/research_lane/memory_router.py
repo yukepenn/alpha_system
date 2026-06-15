@@ -36,7 +36,8 @@ MEMORY_ROUTER_SCHEMA = "alpha_system.research_lane.memory_router.v1"
 ROUTE_REJECT = "graveyard"
 ROUTE_REQUEUE = "requeue"
 ROUTE_PROMOTION_REVIEW = "reviewer_gated_promotion"
-ALLOWED_MEMORY_VERDICTS = frozenset({"REJECT", "DATA_GAP", "WATCH", "CANDIDATE"})
+ALLOWED_MEMORY_VERDICTS = frozenset({"REJECT", "DATA_GAP", "INCONCLUSIVE", "WATCH", "CANDIDATE"})
+_REQUEUE_VERDICTS = frozenset({"DATA_GAP", "INCONCLUSIVE"})
 _PROMOTION_VERDICTS = frozenset({"WATCH", "CANDIDATE"})
 _DEFAULT_REVIEWER = "alpha_idea_run"
 
@@ -113,7 +114,10 @@ def route_verdict_to_memory(
             created_at=timestamp,
             report_ref=report_ref,
         )
-    if normalized_verdict == "DATA_GAP":
+    if normalized_verdict in _REQUEUE_VERDICTS:
+        # DATA_GAP (missing substrate) and INCONCLUSIVE (ran but underpowered / no
+        # establishable effect) both route to a reason-coded requeue (revisit when
+        # data/power improves); the honest verdict label is preserved on the result.
         return _route_requeue(
             idea,
             verdict_payload,
@@ -124,6 +128,7 @@ def route_verdict_to_memory(
             prior_power_estimate=prior_power_estimate,
             new_power_estimate=new_power_estimate,
             data_accrued_months=data_accrued_months,
+            requeue_verdict=normalized_verdict,
         )
     if normalized_verdict in _PROMOTION_VERDICTS:
         return _route_promotion_review(
@@ -184,6 +189,7 @@ def _route_requeue(
     prior_power_estimate: float,
     new_power_estimate: float,
     data_accrued_months: int,
+    requeue_verdict: str = "DATA_GAP",
 ) -> MemoryRouteResult:
     alpha_spec_id = _require_alpha_spec_id(idea)
     record = validate_requeued_verdict_record(
@@ -203,7 +209,7 @@ def _route_requeue(
         }
     )
     return MemoryRouteResult(
-        verdict="DATA_GAP",
+        verdict=requeue_verdict,
         action=ROUTE_REQUEUE,
         record_type="RequeuedVerdictRecord",
         memory_record=record.to_dict(),
