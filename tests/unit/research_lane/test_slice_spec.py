@@ -25,10 +25,23 @@ def test_slice_spec_from_mapping_round_trips_de_hardcoded_inputs() -> None:
     assert spec.label_version_map["lver_target"].label_type == "target_before_stop"
     assert spec.label_version_map["lver_target"].value_type == "bool"
 
+    # The outcome selector defaults to None (binary target_before_stop path).
+    assert spec.outcome_label_type is None
+
     payload = spec.to_dict()
     assert payload["instrument_id"] == "SYNTH"
     assert payload["session_id"] == "TEST:SYNTH:RTH"
     assert payload["label_version_map"]["lver_mfe"]["label_type"] == "mfe_by_horizon"
+    assert payload["outcome_label_type"] is None
+
+
+def test_slice_spec_round_trips_continuous_outcome_label_type() -> None:
+    spec = SliceSpec.from_mapping({**_slice_payload(), "outcome_label_type": "mfe_by_horizon"})
+
+    assert spec.outcome_label_type == "mfe_by_horizon"
+    assert spec.to_dict()["outcome_label_type"] == "mfe_by_horizon"
+    # The selector survives a from_mapping(to_dict()) round trip.
+    assert SliceSpec.from_mapping(spec.to_dict()).outcome_label_type == "mfe_by_horizon"
 
 
 def test_slice_spec_is_immutable_and_resolves_root_without_io(tmp_path: Path) -> None:

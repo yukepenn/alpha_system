@@ -11,6 +11,7 @@ from alpha_system.research.conditional_probe import (
     ConditionalProbeError,
     ConditionalProbeSpec,
     build_path_label_observation_set,
+    continuous_outcome_mean_lift,
 )
 
 PATH_LABEL = generate_governance_id(
@@ -39,6 +40,90 @@ def test_conditional_probe_accepts_two_class_conditioned_path_labels() -> None:
 
     assert len(observation_set.aligned_observations) == 3
     assert len(observation_set.conditioned_observations) == 3
+
+
+def test_continuous_outcome_extraction_returns_raw_floats() -> None:
+    observation_set = build_path_label_observation_set(
+        _probe(),
+        context_factor_values=_factor_rows((1.0, 1.0, 1.0)),
+        trigger_factor_values=_trigger_rows((1.0, 1.0, 1.0)),
+        path_labels=_mfe_label_rows((0.05, 0.02, -0.01)),
+        outcome_label_type="mfe_by_horizon",
+    )
+
+    assert [row["label_value"] for row in observation_set.aligned_observations] == [
+        0.05,
+        0.02,
+        -0.01,
+    ]
+
+
+def test_continuous_outcome_guard_accepts_varied_outcome() -> None:
+    observation_set = build_path_label_observation_set(
+        _probe(),
+        context_factor_values=_factor_rows((1.0, 1.0, 1.0)),
+        trigger_factor_values=_trigger_rows((1.0, 1.0, 1.0)),
+        path_labels=_mfe_label_rows((0.05, 0.02, -0.01)),
+        outcome_label_type="mfe_by_horizon",
+    )
+
+    assert len(observation_set.conditioned_observations) == 3
+
+
+def test_continuous_outcome_guard_rejects_constant_outcome() -> None:
+    with pytest.raises(ConditionalProbeError, match="degenerate"):
+        build_path_label_observation_set(
+            _probe(),
+            context_factor_values=_factor_rows((1.0, 1.0, 1.0)),
+            trigger_factor_values=_trigger_rows((1.0, 1.0, 1.0)),
+            path_labels=_mfe_label_rows((0.03, 0.03, 0.03)),
+            outcome_label_type="mfe_by_horizon",
+        )
+
+
+def test_continuous_surrogate_metric_is_conditioned_mean_delta() -> None:
+    # Conditioned subset = all three rows (context passes), base = same three rows,
+    # so the conditioned-mean delta is exactly zero (the metric is mean-based, not
+    # a probability share).
+    observation_set = build_path_label_observation_set(
+        _probe(),
+        context_factor_values=_factor_rows((1.0, 1.0, 1.0)),
+        trigger_factor_values=_trigger_rows((1.0, 1.0, 1.0)),
+        path_labels=_mfe_label_rows((0.05, 0.02, -0.01)),
+        outcome_label_type="mfe_by_horizon",
+    )
+
+    lift = continuous_outcome_mean_lift(
+        observation_set.conditioned_observations,
+        observation_set.aligned_observations,
+        outcome_label_type="mfe_by_horizon",
+    )
+    assert lift["conditioned_mean"] == pytest.approx(0.02)
+    assert lift["base_mean"] == pytest.approx(0.02)
+    assert lift["mean_lift"] == pytest.approx(0.0)
+
+
+def test_continuous_surrogate_metric_reflects_conditioning_difference() -> None:
+    # Context selects only the first two rows; the conditioned mean (0.035) differs
+    # from the base mean (0.02), so the continuous metric is a real mean delta.
+    observation_set = build_path_label_observation_set(
+        _probe(),
+        context_factor_values=_factor_rows((1.0, 1.0, 0.0)),
+        trigger_factor_values=_trigger_rows((1.0, 1.0, 1.0)),
+        path_labels=_mfe_label_rows((0.05, 0.02, -0.01)),
+        outcome_label_type="mfe_by_horizon",
+    )
+
+    lift = continuous_outcome_mean_lift(
+        observation_set.conditioned_observations,
+        observation_set.aligned_observations,
+        outcome_label_type="mfe_by_horizon",
+    )
+    assert lift["conditioned_n"] == 2
+    assert lift["base_n"] == 3
+    assert lift["conditioned_mean"] == pytest.approx(0.035)
+    assert lift["base_mean"] == pytest.approx(0.02)
+    assert lift["mean_lift"] == pytest.approx(0.015)
 
 
 def _probe() -> ConditionalProbeSpec:
@@ -101,10 +186,18 @@ def _factor_row(
 
 
 def _path_label_rows(values: tuple[bool, ...]) -> tuple[dict[str, object], ...]:
-    return tuple(_label_row(index, value) for index, value in enumerate(values))
+    return tuple(
+        _label_row(index, value, "target_before_stop") for index, value in enumerate(values)
+    )
 
 
-def _label_row(index: int, value: bool) -> dict[str, object]:
+def _mfe_label_rows(values: tuple[float, ...]) -> tuple[dict[str, object], ...]:
+    return tuple(
+        _label_row(index, value, "mfe_by_horizon") for index, value in enumerate(values)
+    )
+
+
+def _label_row(index: int, value: bool | float, label_type: str) -> dict[str, object]:
     event_ts = _event_ts(index)
     horizon_end_ts = event_ts + timedelta(minutes=30)
     return {
@@ -112,7 +205,7 @@ def _label_row(index: int, value: bool) -> dict[str, object]:
         "instrument_id": "SYNTH",
         "event_ts": _text(event_ts),
         "horizon": 1800,
-        "label_type": "target_before_stop",
+        "label_type": label_type,
         "value": value,
         "path_metadata": {
             "session_id": "XNYS:2026-01-02:regular",

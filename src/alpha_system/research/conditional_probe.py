@@ -43,6 +43,17 @@ from alpha_system.runtime.diagnostics.power import (
 
 SUPPORTED_PREDICATE_OPERATORS = frozenset({">", ">=", "<", "<=", "==", "!="})
 SUPPORTED_VALUE_FIELDS = frozenset({"value", "normalized_value"})
+# Continuous path outcome label_types map to the float bucket key that
+# `_optional_label_index` already populates for that materialized outcome. Adding
+# a continuous outcome means registering its bucket key here; the binary
+# target_before_stop path stays the default (outcome_label_type=None).
+CONTINUOUS_OUTCOME_BUCKET_KEYS: Mapping[str, str] = {
+    "mfe_by_horizon": "mfe",
+    "mae_by_horizon": "mae",
+}
+# A conditioned continuous outcome with (near-)zero variance carries no signal;
+# reject it the way the binary path rejects a single-class conditioned subset.
+CONTINUOUS_OUTCOME_MIN_STDDEV = 1e-12
 PATH_LABEL_BINDING_KEYS = (
     "path_label",
     "path_label_id",
@@ -212,8 +223,18 @@ def build_path_label_observation_set(
     path_labels: Iterable[LabelSpec | Mapping[str, Any]],
     label_version: str | None = None,
     data_version: str | None = None,
+    outcome_label_type: str | None = None,
 ) -> ConditionalProbeObservationSet:
-    """Align separate factor rows with materialized path-label outcome fields."""
+    """Align separate factor rows with materialized path-label outcome fields.
+
+    When ``outcome_label_type`` is None the conditioned outcome is the degenerate
+    binary ``target_before_stop`` path (unchanged). When it names a continuous
+    path outcome (e.g. ``mfe_by_horizon``/``mae_by_horizon``) the raw float of
+    that outcome is used instead, enabling fair setup testing on the
+    non-degenerate continuous path labels.
+    """
+
+    continuous_bucket_key = _continuous_outcome_bucket_key(outcome_label_type)
 
     labels = _bound_path_labels(path_labels, probe.path_label)
     active_label_version = _infer_label_version(labels, explicit=label_version)
@@ -269,6 +290,10 @@ def build_path_label_observation_set(
         context_passed = probe.context.evaluate(context_factor)
         trigger_passed = probe.trigger.evaluate(trigger_factor)
         target_before_stop = path_outcomes.get("target_before_stop")
+        if continuous_bucket_key is None:
+            outcome_value = _target_label_value(target_before_stop)
+        else:
+            outcome_value = _continuous_label_value(path_outcomes.get(continuous_bucket_key))
         row = {
             "instrument_id": instrument_id,
             "event_ts": event_ts,
@@ -292,8 +317,8 @@ def build_path_label_observation_set(
             ),
             "event_trigger": trigger_passed,
             "factor_value": _factor_metric(trigger_factor, probe.trigger.value_field),
-            "label_value": _target_label_value(target_before_stop),
-            "forward_return": _target_label_value(target_before_stop),
+            "label_value": outcome_value,
+            "forward_return": outcome_value,
         }
         row.update(path_outcomes)
         aligned.append(row)
@@ -306,13 +331,16 @@ def build_path_label_observation_set(
     if not conditioned:
         msg = "conditional probe context predicate selected no path-label rows"
         raise ConditionalProbeError(msg)
-    class_balance = _conditioned_class_balance(conditioned)
-    if int(class_balance["class_count"]) < 2:
-        msg = (
-            "conditional probe conditioned path-label rows must contain at least "
-            "two distinct classes"
-        )
-        raise ConditionalProbeError(msg)
+    if continuous_bucket_key is None:
+        class_balance = _conditioned_class_balance(conditioned)
+        if int(class_balance["class_count"]) < 2:
+            msg = (
+                "conditional probe conditioned path-label rows must contain at least "
+                "two distinct classes"
+            )
+            raise ConditionalProbeError(msg)
+    else:
+        _require_continuous_outcome_adequacy(conditioned, aligned)
     return ConditionalProbeObservationSet(
         aligned_observations=tuple(aligned),
         conditioned_observations=tuple(conditioned),
@@ -336,6 +364,7 @@ def evaluate_setup_conditional_probe(
     surrogate_error_count: int = 0,
     label_version: str | None = None,
     data_version: str | None = None,
+    outcome_label_type: str | None = None,
     created_at: str | None = None,
 ) -> ConditionalProbeReadout:
     """Run one bounded EXPLORATORY context != trigger probe."""
@@ -367,6 +396,7 @@ def evaluate_setup_conditional_probe(
         path_labels=path_labels,
         label_version=label_version,
         data_version=data_version,
+        outcome_label_type=outcome_label_type,
     )
 
     conditioned = observation_set.conditioned_observations
@@ -374,6 +404,12 @@ def evaluate_setup_conditional_probe(
         "target_before_stop_probability": target_before_stop_probability(conditioned),
         "post_event_mfe_mae": post_event_mfe_mae(conditioned),
     }
+    if outcome_label_type is not None:
+        diagnostics["continuous_outcome_mean_lift"] = continuous_outcome_mean_lift(
+            conditioned,
+            observation_set.aligned_observations,
+            outcome_label_type=outcome_label_type,
+        )
     power = build_ic_power_statement(
         n_eff=len(conditioned),
         scope="per_factor",
@@ -635,6 +671,113 @@ def _target_label_value(value: object) -> float | None:
     return 1.0 if bool(value) else 0.0
 
 
+def continuous_outcome_mean_lift(
+    conditioned: Iterable[Mapping[str, Any]],
+    aligned: Iterable[Mapping[str, Any]],
+    *,
+    outcome_label_type: str,
+) -> dict[str, JsonValue]:
+    """Conditioned-mean lift of a continuous path outcome.
+
+    Effect = ``mean(conditioned outcome) - mean(unconditioned base outcome)``.
+    This is the continuous analogue of the binary probability-share delta and is
+    the per-iteration statistic used by the label-shuffle surrogate for a
+    continuous outcome. Returns None means + count metadata when either subset has
+    no numeric outcome, so callers can treat it the same as a binary None uplift.
+    """
+
+    # Validate the outcome name early so an unknown continuous outcome is a clear
+    # ConditionalProbeError rather than a silently empty metric.
+    _continuous_outcome_bucket_key(outcome_label_type)
+    conditioned_values = _numeric_outcome_values(conditioned)
+    base_values = _numeric_outcome_values(aligned)
+    conditioned_mean = _mean(conditioned_values)
+    base_mean = _mean(base_values)
+    lift = (
+        None
+        if conditioned_mean is None or base_mean is None
+        else conditioned_mean - base_mean
+    )
+    return {
+        "outcome_label_type": outcome_label_type,
+        "conditioned_mean": conditioned_mean,
+        "base_mean": base_mean,
+        "mean_lift": lift,
+        "conditioned_n": len(conditioned_values),
+        "base_n": len(base_values),
+    }
+
+
+def _continuous_outcome_bucket_key(outcome_label_type: str | None) -> str | None:
+    """Resolve the float bucket key for a continuous outcome, or None for binary."""
+
+    if outcome_label_type is None:
+        return None
+    key = CONTINUOUS_OUTCOME_BUCKET_KEYS.get(outcome_label_type)
+    if key is None:
+        allowed = ", ".join(sorted(CONTINUOUS_OUTCOME_BUCKET_KEYS))
+        msg = f"outcome_label_type must be one of the continuous outcomes: {allowed}"
+        raise ConditionalProbeError(msg)
+    return key
+
+
+def _continuous_label_value(value: object) -> float | None:
+    """Extract the raw float of a continuous path outcome (no bool collapsing)."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _require_continuous_outcome_adequacy(
+    conditioned: Iterable[Mapping[str, Any]],
+    aligned: Iterable[Mapping[str, Any]],
+) -> None:
+    """Reject a continuous conditioned outcome that is empty or degenerate.
+
+    Mirrors the binary class-balance guard for the continuous path: there must be
+    at least one numeric conditioned and one numeric base outcome, and the
+    conditioned outcome must vary (sample stddev above a small epsilon) so a
+    constant outcome cannot masquerade as signal.
+    """
+
+    conditioned_values = _numeric_outcome_values(conditioned)
+    base_values = _numeric_outcome_values(aligned)
+    if not conditioned_values or not base_values:
+        msg = "conditional probe continuous outcome has no numeric conditioned/base rows"
+        raise ConditionalProbeError(msg)
+    if _sample_stddev(conditioned_values) <= CONTINUOUS_OUTCOME_MIN_STDDEV:
+        msg = (
+            "conditional probe conditioned continuous outcome is degenerate "
+            "(near-zero variance)"
+        )
+        raise ConditionalProbeError(msg)
+
+
+def _numeric_outcome_values(observations: Iterable[Mapping[str, Any]]) -> list[float]:
+    values: list[float] = []
+    for row in observations:
+        value = _continuous_label_value(row.get("label_value"))
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def _mean(values: list[float]) -> float | None:
+    return None if not values else sum(values) / len(values)
+
+
+def _sample_stddev(values: list[float]) -> float:
+    count = len(values)
+    if count < 2:
+        return 0.0
+    mean = sum(values) / count
+    variance = sum((value - mean) ** 2 for value in values) / (count - 1)
+    return variance**0.5
+
+
 def _conditioned_class_balance(
     observations: Iterable[Mapping[str, Any]],
 ) -> dict[str, JsonValue]:
@@ -749,5 +892,6 @@ __all__ = [
     "build_probe_variant_ledger_record",
     "build_surrogate_zero_pass_gate",
     "compile_setup_spec_to_conditional_probe",
+    "continuous_outcome_mean_lift",
     "evaluate_setup_conditional_probe",
 ]

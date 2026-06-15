@@ -111,6 +111,48 @@ def test_fast_probe_routes_context_probe_and_exercises_surrogate_gate(
     assert resolver.label_calls
 
 
+def test_fast_probe_context_probe_uses_continuous_outcome_when_binary_is_degenerate(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    # The bool target_before_stop path is degenerate (single class), which the
+    # binary class-balance guard rejects. Selecting the continuous mfe_by_horizon
+    # outcome unblocks fair setup testing: the lane runs through the surrogate +
+    # conditional probe to a RECORDED, non-DATA_GAP, non-CALIBRATION_BLOCKED readout.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    payload = _context_slice(tmp_path, setup)
+    payload["outcome_label_type"] = "mfe_by_horizon"
+    resolver = _Resolver()
+    calls: dict[str, Any] = {}
+    original_evaluate = fast_probe_module.evaluate_setup_conditional_probe
+
+    def wrapped_evaluate(*args, **kwargs):
+        calls["evaluate_kwargs"] = kwargs
+        return original_evaluate(*args, **kwargs)
+
+    monkeypatch.setattr(
+        fast_probe_module,
+        "load_parquet_values",
+        _context_loader(setup, degenerate_binary=True),
+    )
+    monkeypatch.setattr(fast_probe_module, "evaluate_setup_conditional_probe", wrapped_evaluate)
+
+    result = fast_probe(card, setup, payload, resolver=resolver, env={})
+
+    assert result["status"] == "RECORDED"
+    assert result.get("issue_code") != "DATA_GAP"
+    assert result["surrogate_fdr_gate"]["threshold_verdict"] == "zero-pass-met"
+    assert result["engine"] == "evaluate_setup_conditional_probe"
+    # The selector was threaded into both engines.
+    assert calls["evaluate_kwargs"]["outcome_label_type"] == "mfe_by_horizon"
+    # The continuous conditioned-mean lift diagnostic is present.
+    assert (
+        result["readout"]["diagnostics"]["continuous_outcome_mean_lift"]["outcome_label_type"]
+        == "mfe_by_horizon"
+    )
+
+
 def test_fast_probe_data_gap_on_missing_polars_never_calls_scoring(monkeypatch, tmp_path) -> None:
     card = _mechanism_card()
     payload = _main_effect_slice(tmp_path)
@@ -421,7 +463,7 @@ def _context_slice(tmp_path, setup: SetupSpec) -> dict[str, Any]:
     }
 
 
-def _context_loader(setup: SetupSpec):
+def _context_loader(setup: SetupSpec, *, degenerate_binary: bool = False):
     def load(path):
         text = path.as_posix()
         if text.endswith("context.parquet"):
@@ -429,7 +471,7 @@ def _context_loader(setup: SetupSpec):
         if text.endswith("trigger.parquet"):
             return _feature_value_records((1.0, 1.0, 1.0, 1.0))
         if text.endswith("path.parquet"):
-            return _path_label_value_records()
+            return _path_label_value_records(degenerate_binary=degenerate_binary)
         raise AssertionError(path)
 
     return load
@@ -468,10 +510,15 @@ def _main_label_value_records(values: tuple[float, ...]) -> list[dict[str, Any]]
     return rows
 
 
-def _path_label_value_records() -> list[dict[str, Any]]:
+def _path_label_value_records(*, degenerate_binary: bool = False) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    targets = (True, False, True, False)
-    mfes = (0.05, 0.02, 0.01, 0.03)
+    # A degenerate binary path (all True) trips the binary class-balance guard but
+    # leaves the continuous mfe outcome non-degenerate.
+    targets = (True, True, True, True) if degenerate_binary else (True, False, True, False)
+    # For the degenerate-binary continuous case, give the context-selected rows
+    # (slots 0, 1, 3) a clearly higher mfe than the excluded slot 2 so the observed
+    # conditioned-mean lift is robust to all label shuffles (gate stays ZERO_PASS).
+    mfes = (0.5, 0.4, -0.9, 0.6) if degenerate_binary else (0.05, 0.02, 0.01, 0.03)
     maes = (-0.01, -0.03, -0.02, -0.04)
     for index, target in enumerate(targets):
         event_ts = _event_ts(index)
