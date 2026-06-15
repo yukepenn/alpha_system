@@ -1,0 +1,46 @@
+{
+  "fixture_id": "synthetic_fast_readout_main_effect_recorded_shape_v1",
+  "notes": "Structural shape fixture mirroring the verified fast_probe producer keys for the FastReadout contract canary; no real market data, factor values, labels, scores, or study values.",
+  "shape": {
+    "engine": "build_factor_diagnostics_run",
+    "mechanism_card": {
+      "mechanism_id": "mech_canary"
+    },
+    "promotion_eligible": false,
+    "readout": {
+      "diagnostics_run_record": {
+        "run_id": "diag_canary"
+      },
+      "factor_diagnostics_report": {
+        "quality_summary": {
+          "bucket_rank_correlation": 0.6,
+          "diagnostic_pass": true,
+          "failing_gate_count": 0,
+          "ic_power_mde_abs_ic": 0.12,
+          "ic_power_n_eff": 9,
+          "ic_power_statement": "synthetic",
+          "pearson_ic": 0.04,
+          "quality_gate_count": 3,
+          "rank_ic": 0.05
+        }
+      }
+    },
+    "readout_id": "fpmain_canary",
+    "resolved_handles": {
+      "feature_handles": [],
+      "label_handles": []
+    },
+    "row_access": {
+      "fabricated_values": false,
+      "status": "resolved_local_only"
+    },
+    "schema": "alpha_system.research_lane.fast_probe.v1",
+    "setup_spec": null,
+    "slice_spec": {
+      "slice_id": "slice_canary"
+    },
+    "stamp": "EXPLORATORY",
+    "status": "RECORDED",
+    "study_kind": "main_effect"
+  }
+}
