@@ -95,11 +95,21 @@ def adjudicate_signal(
         "slice_id": signal_row.get("slice_id"),
         "study_kind": signal_row.get("study_kind"),
         # preserve the source diagnostic numbers so the trusted path / fleet can
-        # query the adjudication without re-reading the shelf.
+        # query the adjudication without re-reading the shelf. The evidence is
+        # lane-aware: main_effect rows carry IC numbers; setup-lane
+        # (context_not_equal_trigger) rows carry the signed net excursion +
+        # surrogate evidence (and None IC fields). The reviewer sees whichever the
+        # lane actually produced rather than empty IC fields.
         "pearson_ic": signal_row.get("pearson_ic"),
         "rank_ic": signal_row.get("rank_ic"),
         "n_eff": signal_row.get("n_eff"),
         "detectable_abs_ic": signal_row.get("detectable_abs_ic"),
+        # setup-lane (context_not_equal_trigger) evidence; None for main_effect rows.
+        "net_mean_lift": signal_row.get("net_mean_lift"),
+        "observed_effect": signal_row.get("observed_effect"),
+        "surrogate_gate_pass_count": signal_row.get("surrogate_gate_pass_count"),
+        "surrogate_run_count": signal_row.get("surrogate_run_count"),
+        "outcome_label_type": signal_row.get("outcome_label_type"),
         "reviewer_outcome": reviewer_verdict.verdict.value,
         "routing_intent": intent,
         "next_required_gate": _NEXT_GATE[intent],

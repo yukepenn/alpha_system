@@ -82,6 +82,47 @@ def test_adjudication_is_never_promotion_or_market_truth() -> None:
     assert "CANDIDATE" not in adjudication["routing_intent"]
 
 
+def _setup_lane_signal_row() -> dict:
+    return {
+        "reason_code": "SIGNAL_PENDING_REVIEWER",
+        "alpha_spec_id": "aspec_setup",
+        "factor_id": "prior_session_high",
+        "label_version_id": "lver_setup",
+        "slice_id": "ES_2020_120m",
+        "study_kind": "context_not_equal_trigger",
+        # No IC numbers in the setup lane.
+        "pearson_ic": None,
+        "rank_ic": None,
+        "n_eff": 412,
+        "detectable_abs_ic": None,
+        # The signed net excursion + surrogate evidence.
+        "net_mean_lift": -0.0031,
+        "observed_effect": -0.0031,
+        "surrogate_gate_pass_count": 0,
+        "surrogate_run_count": 200,
+        "outcome_label_type": "net_excursion",
+        "memory_record": {"original_verdict_ref": "readout:fpsetup_unit"},
+    }
+
+
+def test_adjudicate_surfaces_setup_lane_net_evidence() -> None:
+    adjudication = adjudicate_signal(
+        _setup_lane_signal_row(), reviewer_verdict=_verdict("PASS"), created_at=TIMESTAMP
+    )
+
+    # The reviewer of a setup-lane signal sees the signed net excursion + surrogate
+    # evidence, not empty IC fields.
+    assert adjudication["study_kind"] == "context_not_equal_trigger"
+    assert adjudication["net_mean_lift"] == pytest.approx(-0.0031)
+    assert adjudication["observed_effect"] == pytest.approx(-0.0031)
+    assert adjudication["surrogate_gate_pass_count"] == 0
+    assert adjudication["surrogate_run_count"] == 200
+    assert adjudication["outcome_label_type"] == "net_excursion"
+    assert adjudication["pearson_ic"] is None
+    assert adjudication["promotion_eligible"] is False
+    assert adjudication["routing_intent"] == INTENT_CONFIRMED_FOR_TRUSTED_STUDY
+
+
 def test_adjudicate_refuses_non_signal_rows() -> None:
     with pytest.raises(ReviewerAdjudicationError):
         adjudicate_signal(
