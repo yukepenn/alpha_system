@@ -11,7 +11,11 @@ from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP, create_mec
 from alpha_system.governance.setup_spec import SetupSpec, create_setup_spec
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
 from alpha_system.research_lane import fast_probe as fast_probe_module
-from alpha_system.research_lane.fast_probe import fast_probe
+from alpha_system.research_lane.fast_probe import (
+    InjectedRows,
+    fast_probe,
+    run_label_shuffle_surrogate,
+)
 
 
 def test_fast_probe_routes_main_effect_to_factor_diagnostics(monkeypatch, tmp_path) -> None:
@@ -259,6 +263,164 @@ def test_main_effect_overlap_metadata_none_when_no_forward_overlap() -> None:
         )
         is None
     )
+
+
+def _autocorrelated_overlap_injected(setup: SetupSpec, *, n_bars: int, horizon_bars: int):
+    """Inject a strongly forward-autocorrelated continuous path outcome.
+
+    The path outcome is a slow ramp (consecutive bar-spaced values overlap and
+    move together, mimicking a forward-overlapping horizon label) and the context
+    selects a single CONTIGUOUS upper-mid window of length ``horizon_bars``. The
+    observed conditioned-mean lift is therefore moderate. A ROW-level shuffle
+    scatters the ramp so the conditioned mean regresses to the global mean and the
+    observed lift is almost never exceeded (spurious ZERO_PASS_MET); a fixed-block
+    shuffle keeps whole rising blocks intact, restoring the null's tail.
+    """
+
+    window_start = 4 * horizon_bars
+    base_ts = datetime(2026, 1, 2, 14, 31, tzinfo=UTC)
+    context_rows: list[dict[str, Any]] = []
+    trigger_rows: list[dict[str, Any]] = []
+    path_rows: list[dict[str, Any]] = []
+    for index in range(n_bars):
+        event_ts = _text(base_ts + timedelta(minutes=index))
+        in_window = window_start <= index < window_start + horizon_bars
+        context_value = 0.9 if in_window else 0.1
+        context_rows.append(
+            {
+                "factor_id": "context_factor",
+                "factor_version": "ctx:v1",
+                "instrument_id": "SYNTH",
+                "event_ts": event_ts,
+                "available_ts": event_ts,
+                "session_id": "TEST:SYNTH:RTH",
+                "data_version": "dsv_fixture",
+                "value": context_value,
+                "normalized_value": context_value,
+                "bar_index": index + 1,
+            }
+        )
+        trigger_rows.append(
+            {
+                "factor_id": "trigger_factor",
+                "factor_version": "trg:v1",
+                "instrument_id": "SYNTH",
+                "event_ts": event_ts,
+                "available_ts": event_ts,
+                "session_id": "TEST:SYNTH:RTH",
+                "data_version": "dsv_fixture",
+                "value": 1.0,
+                "normalized_value": 1.0,
+                "bar_index": index + 1,
+            }
+        )
+        path_rows.append(
+            {
+                "label_id": setup.path_label,
+                "instrument_id": "SYNTH",
+                "event_ts": event_ts,
+                "horizon": 7200,
+                "label_type": "mfe_by_horizon",
+                "value": float(index),
+                "path_metadata": {
+                    "session_id": "TEST:SYNTH:RTH",
+                    "label_version": "fixture_labels_v1",
+                    "horizon_end_ts": event_ts,
+                    "required_future_bars": horizon_bars,
+                    "observed_future_bars": horizon_bars,
+                    "path_label_binding": setup.path_label,
+                },
+                "data_version": "dsv_fixture",
+                "label_available_ts": event_ts,
+            }
+        )
+    return InjectedRows(
+        feature_rows_by_role={
+            "context": tuple(context_rows),
+            "trigger": tuple(trigger_rows),
+        },
+        label_rows_by_role={"path": tuple(path_rows)},
+    )
+
+
+def test_block_shuffle_restores_null_variance_for_overlapping_outcome() -> None:
+    # On a strongly forward-autocorrelated path outcome a ROW-level shuffle destroys
+    # the overlap autocorrelation, collapses the null tail, and trivially passes the
+    # ZERO_PASS gate (spurious significance). A fixed non-overlapping BLOCK shuffle
+    # keeps whole rising blocks intact, so the surrogate produces strictly more
+    # exceedances and no longer trivially passes — the load-bearing validity proof.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    horizon_bars = 20
+    injected = _autocorrelated_overlap_injected(setup, n_bars=120, horizon_bars=horizon_bars)
+
+    row_gate = run_label_shuffle_surrogate(
+        setup=setup,
+        injected=injected,
+        surrogate_runs=300,
+        base_seed=0,
+        outcome_label_type="mfe_by_horizon",
+        block_size=1,
+    )
+    block_gate = run_label_shuffle_surrogate(
+        setup=setup,
+        injected=injected,
+        surrogate_runs=300,
+        base_seed=0,
+        outcome_label_type="mfe_by_horizon",
+        block_size=horizon_bars,
+    )
+
+    # Row shuffle falsely finds zero shuffled exceedances (spurious ZERO_PASS_MET).
+    assert row_gate["gate_pass_count"] == 0
+    assert row_gate["threshold_verdict"] == ZERO_PASS_MET
+    # Block shuffle restores the null variance: strictly more exceedances, and the
+    # gate is no longer trivially met.
+    assert block_gate["gate_pass_count"] > row_gate["gate_pass_count"]
+    assert block_gate["threshold_verdict"] != ZERO_PASS_MET
+
+
+def test_label_shuffle_surrogate_block_size_one_matches_row_level_shuffle() -> None:
+    # block_size <= 1 must be identical to the historical row-level shuffle: the
+    # non-overlapping path is unchanged. Explicit block_size=1 and the default
+    # (no block_size) must agree exactly.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    injected = _autocorrelated_overlap_injected(setup, n_bars=120, horizon_bars=20)
+
+    explicit_one = run_label_shuffle_surrogate(
+        setup=setup,
+        injected=injected,
+        surrogate_runs=64,
+        base_seed=3,
+        outcome_label_type="mfe_by_horizon",
+        block_size=1,
+    )
+    default_block = run_label_shuffle_surrogate(
+        setup=setup,
+        injected=injected,
+        surrogate_runs=64,
+        base_seed=3,
+        outcome_label_type="mfe_by_horizon",
+    )
+    assert explicit_one == default_block
+
+
+def test_label_shuffle_surrogate_block_path_is_deterministic() -> None:
+    # Same base_seed + same block_size must reproduce the surrogate gate exactly.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    injected = _autocorrelated_overlap_injected(setup, n_bars=120, horizon_bars=20)
+
+    kwargs = {
+        "setup": setup,
+        "injected": injected,
+        "surrogate_runs": 80,
+        "base_seed": 11,
+        "outcome_label_type": "mfe_by_horizon",
+        "block_size": 20,
+    }
+    assert run_label_shuffle_surrogate(**kwargs) == run_label_shuffle_surrogate(**kwargs)
 
 
 class _Handle:

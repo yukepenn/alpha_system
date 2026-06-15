@@ -187,6 +187,7 @@ def run_label_shuffle_surrogate(
     surrogate_runs: int,
     base_seed: int,
     outcome_label_type: str | None = None,
+    block_size: int = 1,
 ) -> dict[str, JsonValue]:
     """Run the bounded label-shuffle ZERO_PASS surrogate calibration.
 
@@ -196,6 +197,15 @@ def run_label_shuffle_surrogate(
     (``outcome_label_type`` None) uses the ``target_before_stop`` probability-share
     delta exactly as before; a continuous outcome uses the conditioned-mean delta
     of that float path outcome.
+
+    ``block_size`` controls the shuffle unit. A forward-overlapping path outcome
+    (e.g. a 120-bar MFE path) has consecutive bar-spaced outcomes that overlap
+    ~horizon-fold, so a plain row-level permutation destroys that autocorrelation
+    and understates the null variance (inflated significance). When
+    ``block_size > 1`` we time-order the shuffled outcome values and permute
+    NON-OVERLAPPING FIXED-LENGTH BLOCKS instead of individual rows, preserving the
+    within-block autocorrelation. When ``block_size <= 1`` this is byte-identical
+    to the historical row-level shuffle (the non-overlapping path is unchanged).
     """
 
     active_setup = _coerce_setup(setup)
@@ -233,23 +243,49 @@ def run_label_shuffle_surrogate(
     )
     observed_uplift = effect(observed)
     target_rows = [row for row in path_rows if row.get("label_type") == shuffle_label_type]
-    target_values = [row.get("value") for row in target_rows]
+    active_block_size = max(int(block_size), 1)
+    # For the block path the shuffled outcome values are time-ordered by event_ts
+    # ASCENDING before blocking so the contiguous non-overlapping blocks line up
+    # with the forward overlap autocorrelation; the permuted values are reassigned
+    # in that same time order. The row-level path (block_size <= 1) preserves the
+    # historical original-order shuffle byte-for-byte. ``event_ts`` is required on
+    # every label row (see _label_rows_from_records / _required), so a missing
+    # event_ts would already have failed upstream; the empty-string sentinel only
+    # guards against an in-memory fixture that omits it (stable original order).
+    block_order = sorted(
+        range(len(target_rows)),
+        key=lambda pos: str(target_rows[pos].get("event_ts") or ""),
+    )
 
     pass_count = 0
     error_count = 0
     for run_index in range(surrogate_runs):
         rng = random.Random(base_seed + run_index)
-        shuffled_values = list(target_values)
-        rng.shuffle(shuffled_values)
-        target_iter = iter(shuffled_values)
-        rebuilt: list[dict[str, Any]] = []
-        for row in path_rows:
-            if row.get("label_type") == shuffle_label_type:
-                replaced = dict(row)
-                replaced["value"] = next(target_iter)
-                rebuilt.append(replaced)
-            else:
-                rebuilt.append(dict(row))
+        if active_block_size <= 1:
+            # Unchanged historical row-level shuffle in original path_rows order.
+            shuffled_values = [row.get("value") for row in target_rows]
+            rng.shuffle(shuffled_values)
+            target_iter = iter(shuffled_values)
+            rebuilt = [
+                {**row, "value": next(target_iter)}
+                if row.get("label_type") == shuffle_label_type
+                else dict(row)
+                for row in path_rows
+            ]
+        else:
+            # Block-shuffle: permute non-overlapping fixed-length blocks of the
+            # time-ordered values, then reassign back to the time-ordered rows.
+            ordered_values = [target_rows[pos].get("value") for pos in block_order]
+            permuted = _block_permute(ordered_values, active_block_size, rng)
+            replacement_by_pos = dict(zip(block_order, permuted, strict=True))
+            target_iter = iter(range(len(target_rows)))
+            rebuilt = []
+            for row in path_rows:
+                if row.get("label_type") == shuffle_label_type:
+                    pos = next(target_iter)
+                    rebuilt.append({**row, "value": replacement_by_pos[pos]})
+                else:
+                    rebuilt.append(dict(row))
         try:
             surrogate_observations = build_path_label_observation_set(
                 probe,
@@ -274,6 +310,25 @@ def run_label_shuffle_surrogate(
         gate_pass_count=pass_count,
         error_count=error_count,
     )
+
+
+def _block_permute(values: list[Any], block_size: int, rng: random.Random) -> list[Any]:
+    """Permute non-overlapping fixed-length blocks; preserve within-block order.
+
+    Partition the time-ordered sequence ``values`` into ceil(N / block_size)
+    contiguous non-overlapping blocks (the final block may be shorter), permute
+    the ORDER OF THE BLOCKS with ``rng``, then concatenate them back. Within-block
+    order is preserved, which is what retains the forward-overlap autocorrelation
+    a row-level shuffle would destroy.
+    """
+
+    blocks = [values[start : start + block_size] for start in range(0, len(values), block_size)]
+    order = list(range(len(blocks)))
+    rng.shuffle(order)
+    permuted: list[Any] = []
+    for block_index in order:
+        permuted.extend(blocks[block_index])
+    return permuted
 
 
 def _run_main_effect(
@@ -361,12 +416,18 @@ def _run_context_not_equal_trigger(
     handles: ResolvedSliceHandles,
 ) -> dict[str, JsonValue]:
     outcome_label_type = _resolve_outcome_label_type(slice_spec)
+    # A forward-overlapping path outcome (required_future_bars=120) must use
+    # 120-bar non-overlapping blocks so the label-shuffle null keeps its overlap
+    # autocorrelation; a non-overlapping outcome falls back to block_size 1 (the
+    # unchanged row-level shuffle).
+    block_size = max(int(slice_spec.required_future_bars or 1), 1)
     surrogate_gate = run_label_shuffle_surrogate(
         setup=setup,
         injected=injected,
         surrogate_runs=slice_spec.surrogate_run_count,
         base_seed=slice_spec.surrogate_base_seed,
         outcome_label_type=outcome_label_type,
+        block_size=block_size,
     )
     if str(surrogate_gate.get("threshold_verdict")) != ZERO_PASS_MET:
         # The label-shuffle surrogate-FDR gate is NOT met: the conditioned effect is
@@ -395,6 +456,7 @@ def _run_context_not_equal_trigger(
         label_version=slice_spec.materialized_label_version,
         data_version=slice_spec.data_version,
         outcome_label_type=outcome_label_type,
+        outcome_overlap_bars=slice_spec.required_future_bars,
         created_at=slice_spec.created_at,
     )
     readout_payload = readout.to_dict()
