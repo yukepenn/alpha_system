@@ -471,6 +471,7 @@ class _Resolver:
         expected_dataset_version_id,
         expected_feature_request_ids,
         partition_id,
+        allow_horizon_agnostic_partition=False,
     ):
         assert expected_dataset_version_id == DATASET_VERSION_ID
         assert tuple(expected_feature_request_ids) == (FEATURE_REQUEST_ID,)

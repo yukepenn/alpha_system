@@ -183,6 +183,7 @@ class _DogfoodResolver:
         expected_dataset_version_id,
         expected_feature_request_ids,
         partition_id,
+        allow_horizon_agnostic_partition=False,
     ):
         request_ids = tuple(expected_feature_request_ids)
         return tuple(

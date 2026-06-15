@@ -2098,6 +2098,7 @@ class _FakeResolver:
         expected_dataset_version_id: str,
         expected_feature_request_ids: tuple[str, ...],
         partition_id: str,
+        allow_horizon_agnostic_partition: bool = False,
     ) -> tuple[object, ...]:
         self.feature_calls.append(
             {
