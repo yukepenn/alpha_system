@@ -774,7 +774,18 @@ def _main_effect_factor_id(readout: Mapping[str, Any]) -> str:
         required = mechanism.get("required_features") or ()
         if required:
             return str(required[0])
-    return "unknown_factor"
+    # A signal that cannot name its factor is not routable: a fabricated
+    # "unknown_factor" identity would poison the persisted reviewer record. Fail
+    # loud at routing time instead.
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="readout.slice_spec.feature_inputs[factor].factor_id",
+            code="missing_factor_identity",
+            message="signal routing requires a resolvable factor_id",
+            expected="slice_spec factor feature or mechanism_card required_features[0]",
+            actual="missing",
+        )
+    )
 
 
 def _main_effect_slice_id(readout: Mapping[str, Any]) -> str:
@@ -783,7 +794,19 @@ def _main_effect_slice_id(readout: Mapping[str, Any]) -> str:
         slice_id = slice_spec.get("slice_id")
         if slice_id:
             return str(slice_id)
-    return "unknown_slice"
+    # slice_id feeds the family_batch_key (alpha_spec::slice::family). A
+    # fabricated "unknown_slice" would collapse distinct slices into one FDR batch
+    # and corrupt the multiplicity count, so fail loud rather than route a signal
+    # that cannot name its slice.
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="readout.slice_spec.slice_id",
+            code="missing_slice_identity",
+            message="signal routing requires a resolvable slice_id",
+            expected="non-empty slice_spec.slice_id",
+            actual="missing",
+        )
+    )
 
 
 def _required_float(value: Any, *, field: str) -> float:

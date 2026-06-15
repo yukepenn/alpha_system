@@ -649,3 +649,26 @@ def _historical_setup_readout(bundle) -> dict[str, object]:
 
 def _id(kind: GovernanceIdKind, salt: str) -> str:
     return generate_governance_id(kind, {"test": "memory_router", "salt": salt})
+
+
+def test_main_effect_factor_id_fails_loud_when_unresolvable() -> None:
+    # A signal that cannot name its factor is not routable: a fabricated
+    # "unknown_factor" identity would poison the persisted reviewer record. Fail
+    # loud at routing time instead of inventing an identity.
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        memory_router_module._main_effect_factor_id({"slice_spec": {}, "mechanism_card": {}})
+
+    codes = {issue.code for issue in exc_info.value.issues}
+    assert "missing_factor_identity" in codes
+
+
+def test_main_effect_slice_id_fails_loud_when_unresolvable() -> None:
+    # slice_id feeds the family_batch_key (alpha_spec::slice::family); a
+    # fabricated "unknown_slice" would collapse distinct slices into one FDR
+    # batch and corrupt the multiplicity count. Fail loud rather than route a
+    # signal that cannot name its slice.
+    with pytest.raises(GovernanceValidationError) as exc_info:
+        memory_router_module._main_effect_slice_id({"slice_spec": {}})
+
+    codes = {issue.code for issue in exc_info.value.issues}
+    assert "missing_slice_identity" in codes
