@@ -230,6 +230,21 @@ def pooled_se_poolkind_canary() -> Canary:
     )
 
 
+def overlap_neff_failclosed_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.overlap_neff_failclosed import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "overlap_neff_failclosed",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -427,6 +442,7 @@ def scenarios() -> list[Canary]:
         fast_readout_routing_canary(),
         family_fdr_budget_canary(),
         pooled_se_poolkind_canary(),
+        overlap_neff_failclosed_canary(),
     ]
 
 

@@ -43,7 +43,10 @@ from alpha_system.research_lane.slice_spec import (
 )
 from alpha_system.runtime.diagnostics.factor.runtime import build_factor_diagnostics_run
 from alpha_system.runtime.diagnostics.power import build_ic_power_statement
-from alpha_system.runtime.diagnostics.splits.n_eff import estimate_n_eff
+from alpha_system.runtime.diagnostics.splits.n_eff import (
+    estimate_n_eff,
+    forward_overlap_block_size,
+)
 from alpha_system.runtime.input_resolver import (
     FeatureLabelPackResolver,
     RuntimeInputResolverError,
@@ -759,25 +762,45 @@ def _run_main_effect(
     return payload
 
 
-def _main_effect_overlap_metadata(slice_spec: SliceSpec) -> dict[str, JsonValue] | None:
-    """Label-horizon overlap metadata for honest IC-power N_eff, or None.
+def _main_effect_outcome_label_type(slice_spec: SliceSpec) -> str:
+    """The forward outcome label_type the main-effect IC is computed against.
 
-    The main-effect probe stacks one observation per bar against a forward label
-    that spans ``required_future_bars`` bars, so consecutive observations overlap
-    ~that many bars and the raw row count overstates the independent sample. We
-    hand the sanctioned overlap-aware estimator a discount equal to the forward
-    horizon in bars (bar-spaced sampling). When the horizon is unknown or <= 1
-    bar there is no overlap to discount, so we return None and preserve the raw
-    count.
+    The main-effect probe stacks one observation per bar against a forward
+    diagnostic return label (a forward-overlapping outcome by construction). We
+    prefer an explicit float ``label_version_map`` binding when present; the
+    fallback is the canonical ``forward_return`` family. Either way the result is
+    forward-overlapping so the overlap discount is mandatory (the #474 law).
     """
 
-    horizon_bars = slice_spec.required_future_bars
-    if horizon_bars is None or horizon_bars <= 1:
-        return None
+    for binding in slice_spec.label_version_bindings:
+        if binding.value_type == "float":
+            return binding.label_type
+    return "forward_return"
+
+
+def _main_effect_overlap_metadata(slice_spec: SliceSpec) -> dict[str, JsonValue]:
+    """Mandatory label-horizon overlap metadata for honest IC-power N_eff.
+
+    The main-effect probe stacks one observation per bar against a forward label
+    that spans the label horizon in bars, so consecutive observations overlap
+    ~that many bars and the raw row count overstates the independent sample. The
+    outcome is forward-overlapping by construction, so the discount is mandatory:
+    we derive the overlap block size from the label horizon via the shared
+    fail-closed helper. A genuinely single-bar-ahead label yields block size 1
+    (``discount_factor`` 1, no overlap) -- still honest. When the horizon cannot
+    be derived the helper RAISES rather than silently falling back to raw rows
+    (the #474 law); we never return ``None``/raw here.
+    """
+
+    outcome_label_type = _main_effect_outcome_label_type(slice_spec)
+    block_size = forward_overlap_block_size(
+        outcome_label_type,
+        required_future_bars=slice_spec.required_future_bars,
+    )
     return {
-        "horizon_bars": horizon_bars,
+        "horizon_bars": block_size,
         "sampling_cadence_bars": 1,
-        "discount_factor": horizon_bars,
+        "discount_factor": block_size,
         "metadata_source": "fast_probe_main_effect_label_horizon",
     }
 
@@ -791,11 +814,22 @@ def _run_context_not_equal_trigger(
     handles: ResolvedSliceHandles,
 ) -> dict[str, JsonValue]:
     outcome_label_type = _resolve_outcome_label_type(slice_spec)
-    # A forward-overlapping path outcome (required_future_bars=120) must use
-    # 120-bar non-overlapping blocks so the label-shuffle null keeps its overlap
-    # autocorrelation; a non-overlapping outcome falls back to block_size 1 (the
-    # unchanged row-level shuffle).
-    block_size = max(int(slice_spec.required_future_bars or 1), 1)
+    # A forward-overlapping continuous/derived path outcome (e.g. net_excursion,
+    # required_future_bars=120) must use horizon-bar non-overlapping blocks so the
+    # label-shuffle null keeps its overlap autocorrelation AND so the conditioned
+    # N_eff is discounted (the #474 law). For such an outcome the block size comes
+    # from the shared FAIL-CLOSED helper keyed on the outcome label type: if the
+    # horizon cannot be derived it RAISES rather than silently collapsing to
+    # block_size 1 / raw conditioned N_eff (the latent #474 regression). The
+    # binary ``target_before_stop`` path (outcome_label_type None) keeps its prior
+    # horizon-bar block expression unchanged.
+    if outcome_label_type is not None:
+        block_size = forward_overlap_block_size(
+            outcome_label_type,
+            required_future_bars=slice_spec.required_future_bars,
+        )
+    else:
+        block_size = max(int(slice_spec.required_future_bars or 1), 1)
     surrogate_gate = run_label_shuffle_surrogate(
         setup=setup,
         injected=injected,

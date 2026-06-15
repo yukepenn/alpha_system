@@ -89,6 +89,10 @@ def _setup_readout(
         "study_kind": "context_not_equal_trigger",
         "stamp": "EXPLORATORY",
         "promotion_eligible": False,
+        # A real setup readout carries the mechanism_card whose required_features
+        # name the signal's factor identity (see fast_probe readout builders); the
+        # router fails loud rather than fabricate an "unknown_factor" identity.
+        "mechanism_card": {"required_features": ["trg_factor"]},
         "slice_spec": {"slice_id": slice_id, "study_kind": "context_not_equal_trigger"},
         "row_access": {"status": "resolved_local_only", "fabricated_values": False},
         "power": {"n_eff": n_eff, "mde_abs_ic": 0.08},
