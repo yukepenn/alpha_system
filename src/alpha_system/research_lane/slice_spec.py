@@ -197,6 +197,7 @@ class SliceSpec:
     family_id: str | None = None
     family_budget: int | None = None
     variant_id: str | None = None
+    outcome_label_type: str | None = None
     created_at: str | None = None
 
     @classmethod
@@ -262,6 +263,10 @@ class SliceSpec:
             family_id=_optional_text(mapping.get("family_id"), "family_id"),
             family_budget=_optional_int(mapping.get("family_budget"), "family_budget"),
             variant_id=_optional_text(mapping.get("variant_id"), "variant_id"),
+            outcome_label_type=_optional_text(
+                mapping.get("outcome_label_type"),
+                "outcome_label_type",
+            ),
             created_at=_optional_text(mapping.get("created_at"), "created_at"),
         )
 
@@ -340,6 +345,7 @@ class SliceSpec:
             "family_id": self.family_id,
             "family_budget": self.family_budget,
             "variant_id": self.variant_id,
+            "outcome_label_type": self.outcome_label_type,
             "created_at": self.created_at,
         }
 

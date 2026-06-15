@@ -21,10 +21,12 @@ from alpha_system.governance.serialization import JsonValue
 from alpha_system.governance.setup_spec import SetupSpec, validate_setup_spec
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
 from alpha_system.research.conditional_probe import (
+    CONTINUOUS_OUTCOME_BUCKET_KEYS,
     ConditionalProbeError,
     build_path_label_observation_set,
     build_surrogate_zero_pass_gate,
     compile_setup_spec_to_conditional_probe,
+    continuous_outcome_mean_lift,
     evaluate_setup_conditional_probe,
 )
 from alpha_system.research.events import target_before_stop_probability
@@ -184,8 +186,17 @@ def run_label_shuffle_surrogate(
     injected: InjectedRows,
     surrogate_runs: int,
     base_seed: int,
+    outcome_label_type: str | None = None,
 ) -> dict[str, JsonValue]:
-    """Run the bounded label-shuffle ZERO_PASS surrogate calibration."""
+    """Run the bounded label-shuffle ZERO_PASS surrogate calibration.
+
+    The ZERO_PASS / FDR structure is identical for the binary and continuous
+    paths: count shuffled-label iterations whose |effect| exceeds the observed
+    |effect|. Only the per-iteration effect statistic differs. The binary path
+    (``outcome_label_type`` None) uses the ``target_before_stop`` probability-share
+    delta exactly as before; a continuous outcome uses the conditioned-mean delta
+    of that float path outcome.
+    """
 
     active_setup = _coerce_setup(setup)
     probe = compile_setup_spec_to_conditional_probe(active_setup)
@@ -193,18 +204,36 @@ def run_label_shuffle_surrogate(
     trigger_rows = _feature_rows(injected, "trigger")
     path_rows = _label_rows(injected, "path")
 
+    # The shuffled label_type and the effect statistic are the only things that
+    # differ between binary and continuous; everything else (seed handling,
+    # alignment, FDR gate) stays shared.
+    shuffle_label_type = (
+        "target_before_stop" if outcome_label_type is None else outcome_label_type
+    )
+
+    def effect(observation_set: Any) -> float | None:
+        if outcome_label_type is None:
+            return _conditional_uplift(
+                observation_set.conditioned_observations,
+                observation_set.aligned_observations,
+            )
+        lift = continuous_outcome_mean_lift(
+            observation_set.conditioned_observations,
+            observation_set.aligned_observations,
+            outcome_label_type=outcome_label_type,
+        )["mean_lift"]
+        return None if lift is None else float(lift)
+
     observed = build_path_label_observation_set(
         probe,
         context_factor_values=context_rows,
         trigger_factor_values=trigger_rows,
         path_labels=path_rows,
+        outcome_label_type=outcome_label_type,
     )
-    observed_uplift = _conditional_uplift(
-        observed.conditioned_observations,
-        observed.aligned_observations,
-    )
-    target_rows = [row for row in path_rows if row.get("label_type") == "target_before_stop"]
-    target_values = [bool(row.get("value")) for row in target_rows]
+    observed_uplift = effect(observed)
+    target_rows = [row for row in path_rows if row.get("label_type") == shuffle_label_type]
+    target_values = [row.get("value") for row in target_rows]
 
     pass_count = 0
     error_count = 0
@@ -215,7 +244,7 @@ def run_label_shuffle_surrogate(
         target_iter = iter(shuffled_values)
         rebuilt: list[dict[str, Any]] = []
         for row in path_rows:
-            if row.get("label_type") == "target_before_stop":
+            if row.get("label_type") == shuffle_label_type:
                 replaced = dict(row)
                 replaced["value"] = next(target_iter)
                 rebuilt.append(replaced)
@@ -227,11 +256,9 @@ def run_label_shuffle_surrogate(
                 context_factor_values=context_rows,
                 trigger_factor_values=trigger_rows,
                 path_labels=rebuilt,
+                outcome_label_type=outcome_label_type,
             )
-            surrogate_uplift = _conditional_uplift(
-                surrogate_observations.conditioned_observations,
-                surrogate_observations.aligned_observations,
-            )
+            surrogate_uplift = effect(surrogate_observations)
         except ConditionalProbeError:
             error_count += 1
             continue
@@ -333,11 +360,13 @@ def _run_context_not_equal_trigger(
     *,
     handles: ResolvedSliceHandles,
 ) -> dict[str, JsonValue]:
+    outcome_label_type = _resolve_outcome_label_type(slice_spec)
     surrogate_gate = run_label_shuffle_surrogate(
         setup=setup,
         injected=injected,
         surrogate_runs=slice_spec.surrogate_run_count,
         base_seed=slice_spec.surrogate_base_seed,
+        outcome_label_type=outcome_label_type,
     )
     if str(surrogate_gate.get("threshold_verdict")) != ZERO_PASS_MET:
         # The label-shuffle surrogate-FDR gate is NOT met: the conditioned effect is
@@ -365,6 +394,7 @@ def _run_context_not_equal_trigger(
         surrogate_error_count=int(surrogate_gate["error_count"]),
         label_version=slice_spec.materialized_label_version,
         data_version=slice_spec.data_version,
+        outcome_label_type=outcome_label_type,
         created_at=slice_spec.created_at,
     )
     readout_payload = readout.to_dict()
@@ -713,6 +743,36 @@ def _conditional_uplift(
     if conditioned_share is None or aligned_share is None:
         return None
     return float(conditioned_share) - float(aligned_share)
+
+
+def _resolve_outcome_label_type(slice_spec: SliceSpec) -> str | None:
+    """Validate and return the continuous outcome selector, or None for binary.
+
+    None preserves the degenerate-bool ``target_before_stop`` path exactly. A set
+    selector must (a) be a recognized continuous outcome and (b) be present in the
+    slice's ``label_version_map`` bound to value_type "float", so the continuous
+    outcome the lane reads is the one the slice actually materialized.
+    """
+
+    selector = slice_spec.outcome_label_type
+    if selector is None:
+        return None
+    if selector not in CONTINUOUS_OUTCOME_BUCKET_KEYS:
+        allowed = ", ".join(sorted(CONTINUOUS_OUTCOME_BUCKET_KEYS))
+        raise FastProbeError(
+            f"outcome_label_type must be one of the continuous outcomes: {allowed}"
+        )
+    float_outcomes = {
+        binding.label_type
+        for binding in slice_spec.label_version_bindings
+        if binding.value_type == "float"
+    }
+    if selector not in float_outcomes:
+        raise FastProbeError(
+            "outcome_label_type must be a float label_type present in the slice "
+            "label_version_map"
+        )
+    return selector
 
 
 def _family_id(card: MechanismCard, slice_spec: SliceSpec) -> str:
