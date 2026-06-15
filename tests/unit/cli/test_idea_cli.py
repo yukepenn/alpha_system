@@ -122,6 +122,7 @@ def test_idea_run_fixture_short_circuits_data_gap_to_requeue(
             FIXTURE_IDEA.as_posix(),
             "--report-output",
             report_path.as_posix(),
+            "--no-persist",
         ]
     )
     captured = capsys.readouterr()
@@ -149,6 +150,50 @@ def test_idea_run_fixture_short_circuits_data_gap_to_requeue(
     assert report == payload["report"]
     assert "## Final Verdict" in report
     assert "- verdict: DATA_GAP" in report
+
+
+def test_idea_run_persists_route_to_isolated_memory_dir(tmp_path: Path, capsys) -> None:
+    memory_dir = tmp_path / "research_memory"
+
+    status = main(
+        [
+            "idea",
+            "run",
+            FIXTURE_IDEA.as_posix(),
+            "--memory-dir",
+            memory_dir.as_posix(),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    # day_of_week fixture short-circuits to a DATA_GAP requeue route.
+    assert payload["memory"]["action"] == "requeue"
+    persisted = payload["memory_persisted_path"]
+    assert persisted == (memory_dir / "requeue.jsonl").as_posix()
+    rows = [json.loads(line) for line in (memory_dir / "requeue.jsonl").read_text().splitlines()]
+    assert len(rows) == 1
+    assert rows[0]["promotion_eligible"] is False
+
+
+def test_idea_run_no_persist_writes_nothing(tmp_path: Path, capsys) -> None:
+    memory_dir = tmp_path / "research_memory"
+
+    status = main(
+        [
+            "idea",
+            "run",
+            FIXTURE_IDEA.as_posix(),
+            "--memory-dir",
+            memory_dir.as_posix(),
+            "--no-persist",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert payload["memory_persisted_path"] is None
+    assert not memory_dir.exists()
 
 
 def test_idea_gate_and_run_consume_embedded_resolving_slice(
@@ -224,6 +269,7 @@ def test_idea_gate_and_run_consume_embedded_resolving_slice(
             idea_path.as_posix(),
             "--report-output",
             report_path.as_posix(),
+            "--no-persist",
         ]
     )
     run_out = json.loads(capsys.readouterr().out)
