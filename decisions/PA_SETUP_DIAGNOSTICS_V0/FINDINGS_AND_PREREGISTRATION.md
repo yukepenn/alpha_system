@@ -72,8 +72,22 @@ lumps "neither" into False. Confirmed at the value level for ES_2020_120m:
 - **No ungoverned analysis.** Per the no-second-truth law, MFE/MAE must be tested
   through the governed lane (testability gate + surrogate-FDR + memory routing),
   NOT an ad-hoc pandas comparison. The current `CONTEXT_NOT_EQUAL_TRIGGER` probe
-  hard-codes a 2-class bool outcome, so this requires a **small, scoped YELLOW
-  extension** to accept a continuous path outcome.
+  hard-codes a 2-class bool outcome, so this requires a YELLOW extension to accept
+  a continuous path outcome.
+- **Scope (verified by code-surface recon, premise CORRECTED):** the earlier
+  "small / free REUSE of surrogate-FDR" framing was over-optimistic. The label
+  casting / type routing (`label_version_map` → `_cast_label_value`) and the
+  continuous diagnostics (`post_event_mfe_mae`, IC power) ARE reusable, BUT the
+  label-shuffle surrogate (`run_label_shuffle_surrogate`, fast_probe.py:181-249)
+  is **hard-wired to binary `target_before_stop`** (boolean shuffle +
+  `target_before_stop_probability` probability-delta), and main_effect does NOT
+  use this surrogate — so the surrogate effect-metric must be **generalized** to a
+  continuous statistic (HIGH-risk tier). Real change surface ≈ **5 files / ~15
+  functions** across `slice_spec.py`, `fast_probe.py`, `conditional_probe.py`,
+  label diagnostics + tests, in **3 risk tiers** (low: outcome-selector metadata;
+  medium: continuous distribution guard replacing the `class_count>=2` guard;
+  high: continuous surrogate effect metric). **MEDIUM-scoped, ~2–3 PRs** — a
+  proper YELLOW spec + codex execution + fresh review, not a one-shot hand edit.
 
 ## 4. Pre-registration (fixed BEFORE any readout — anti-p-hacking)
 
@@ -96,20 +110,33 @@ To avoid horizon/geometry/outcome shopping, the following are declared now:
 
 ## 5. Next unit (the build)
 
-`PA_SETUP_DIAGNOSTICS_V0` scoped YELLOW phase:
-1. Extend the governed `CONTEXT_NOT_EQUAL_TRIGGER` fast_probe path to support a
-   **continuous path outcome** (MFE/MAE), reusing the existing surrogate-FDR
-   label-shuffle calibration (which already supports continuous outcomes in the
-   main_effect lane) — REUSE, do not rebuild.
-2. Add the **conditioned-vs-base path-metric diagnostic** (event_count, base-rate
-   MFE/MAE, conditioned MFE/MAE, lift) as a non-promoting readout.
-3. Substrate-ready proof per the Never-Again law: prove MFE/MAE labels resolve for
-   the slice, no new materialization, no force-recompute.
-4. Run the pre-registered ES_2020_120m setup; route the honest verdict to memory.
+`PA_SETUP_DIAGNOSTICS_V0` YELLOW phase (MEDIUM, ~2–3 PRs; spec → codex → review):
+1. **PR1 (low risk):** outcome-selector metadata — add an `outcome_label_type`
+   (e.g. `mfe`/`mae`) to `SliceSpec`/`SetupSpec` so a setup can point at the
+   continuous path-outcome label_version inside the materialized pack
+   (`slice_spec.py`, threaded into `conditional_probe.build_path_label_observation_set`).
+2. **PR2 (medium risk):** continuous outcome handling — branch
+   `build_path_label_observation_set` to extract the continuous value, and replace
+   the `class_count>=2` guard with a continuous **distribution/variance** guard for
+   non-discrete outcomes (`conditional_probe.py`, label diagnostics).
+3. **PR3 (high risk):** generalize the label-shuffle surrogate
+   (`run_label_shuffle_surrogate` + `_conditional_uplift`) so the null is built by
+   shuffling the continuous outcome and the effect metric is a continuous statistic
+   (conditioned-mean delta / IC) instead of `target_before_stop_probability`.
+4. Substrate-ready proof per the Never-Again law: prove MFE/MAE labels resolve for
+   the slice, no new materialization, no force-recompute. Then run the
+   pre-registered ES_2020_120m setup; route the honest verdict to memory.
 5. (Deferred, separate) balanced **R-geometry barrier-label materialization** —
    only if a continuous-outcome diagnostic motivates it; it is a real label-adding
    substrate phase (pack-grained force-recompute hazard, calibration discipline)
    and must be its own spec, not bundled here.
+
+**Optional cheap pre-build probe (no code change, governed):** author a
+`main_effect` idea pointing the existing continuous main_effect lane at the **MFE
+(or MAE) label_version** for the setup's context/trigger factors — a marginal
+(non-conditional) IC test of factor→path-extreme. Clean null there would lower the
+EV of the conditional build; non-null would raise it. This is the factor lane, not
+the setup lane, so it informs but does not replace PR1–PR4.
 
 ## 6. Housekeeping recorded (not mainline)
 
