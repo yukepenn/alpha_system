@@ -142,6 +142,47 @@ def test_factor_diagnostics_orchestrates_research_primitives_and_is_summary_only
     assert payload["power_statement"]["per_factor"][0]["scope"] == "per_factor"
 
 
+def test_factor_diagnostics_overlap_metadata_discounts_power_n_eff() -> None:
+    """Regression guard: caller-supplied label-horizon overlap metadata makes the
+    IC-power N_eff honest about overlapping forward-return windows instead of
+    reporting the inflated raw row count."""
+
+    thresholds = FactorDiagnosticsThresholds(
+        min_observations=4,
+        bucket_count=2,
+        min_populated_buckets=2,
+    )
+    raw = build_factor_diagnostics_run(
+        diagnostics_run_spec=_spec_ref(),
+        observations=_rows(),
+        lineage_refs=_lineage_refs(),
+        thresholds=thresholds,
+    )
+    discounted = build_factor_diagnostics_run(
+        diagnostics_run_spec=_spec_ref(),
+        observations=_rows(),
+        lineage_refs=_lineage_refs(),
+        thresholds=thresholds,
+        horizon_overlap_metadata={
+            "horizon_bars": 2,
+            "sampling_cadence_bars": 1,
+            "discount_factor": 2,
+            "metadata_source": "test_label_horizon",
+        },
+    )
+
+    raw_q = raw.report.quality_summary
+    disc_q = discounted.report.quality_summary
+    # raw path keeps the inflated row count; the discount halves it (4 -> 2)
+    assert raw_q["ic_power_n_eff"] == 4
+    assert disc_q["ic_power_n_eff"] == 2
+    # honest N_eff raises the minimum detectable IC (less power than rows imply)
+    assert disc_q["ic_power_mde_abs_ic"] > raw_q["ic_power_mde_abs_ic"]
+    # the discount never claims statistical validity and never exceeds raw rows
+    assert disc_q["ic_power_statistical_validity_claim"] is False
+    assert disc_q["ic_power_n_eff"] <= raw_q["ic_power_n_eff"]
+
+
 def test_missing_available_ts_surfaces_rejection_and_terminal_record() -> None:
     result = build_factor_diagnostics_run(
         diagnostics_run_spec=_spec_ref(),

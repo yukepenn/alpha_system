@@ -190,6 +190,35 @@ def test_fast_probe_source_has_no_materialization_or_scaleout_driver_call() -> N
     assert "numpy" not in source
 
 
+def test_main_effect_overlap_metadata_uses_label_horizon_bars() -> None:
+    meta = fast_probe_module._main_effect_overlap_metadata(
+        SimpleNamespace(required_future_bars=60)
+    )
+
+    assert meta == {
+        "horizon_bars": 60,
+        "sampling_cadence_bars": 1,
+        "discount_factor": 60,
+        "metadata_source": "fast_probe_main_effect_label_horizon",
+    }
+
+
+def test_main_effect_overlap_metadata_none_when_no_forward_overlap() -> None:
+    # No forward horizon, or a single-bar horizon, means no overlap to discount.
+    assert (
+        fast_probe_module._main_effect_overlap_metadata(
+            SimpleNamespace(required_future_bars=None)
+        )
+        is None
+    )
+    assert (
+        fast_probe_module._main_effect_overlap_metadata(
+            SimpleNamespace(required_future_bars=1)
+        )
+        is None
+    )
+
+
 class _Handle:
     def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload

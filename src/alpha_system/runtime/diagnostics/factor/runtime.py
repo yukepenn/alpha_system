@@ -245,6 +245,7 @@ def build_factor_diagnostics_run(
     study_run_record_ref: StudyRunRecordRef | Mapping[str, Any] | None = None,
     thresholds: FactorDiagnosticsThresholds | Mapping[str, Any] | None = None,
     walk_forward_config: WalkForwardSplitConfig | Mapping[str, Any] | None = None,
+    horizon_overlap_metadata: Mapping[str, Any] | None = None,
 ) -> FactorDiagnosticsRunResult:
     """Build a factor diagnostics report and visible diagnostics run record."""
 
@@ -254,6 +255,7 @@ def build_factor_diagnostics_run(
         lineage_refs=lineage_refs,
         thresholds=thresholds,
         walk_forward_config=walk_forward_config,
+        horizon_overlap_metadata=horizon_overlap_metadata,
     )
     record = DiagnosticsRunRecord(
         diagnostics_run_spec_ref=diagnostics_run_spec,
@@ -272,6 +274,7 @@ def build_factor_diagnostics_report(
     lineage_refs: Mapping[str, str],
     thresholds: FactorDiagnosticsThresholds | Mapping[str, Any] | None = None,
     walk_forward_config: WalkForwardSplitConfig | Mapping[str, Any] | None = None,
+    horizon_overlap_metadata: Mapping[str, Any] | None = None,
 ) -> FactorDiagnosticsReport:
     """Build a descriptive factor diagnostics report from in-memory inputs.
 
@@ -293,6 +296,7 @@ def build_factor_diagnostics_report(
         relationship=relationship,
         walk_forward=walk_forward,
         lineage_refs=lineage_refs,
+        horizon_overlap_metadata=horizon_overlap_metadata,
     )
     quality_summary.update(_power_summary_scalars(power_statement))
     report_metadata = {
@@ -784,8 +788,9 @@ def _power_statement(
     relationship: _RelationshipSummary,
     walk_forward: _WalkForwardEvaluation,
     lineage_refs: Mapping[str, str],
+    horizon_overlap_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
-    n_eff = _power_n_eff(relationship, walk_forward)
+    n_eff = _power_n_eff(relationship, walk_forward, horizon_overlap_metadata)
     return build_detection_power_report(
         stacked_n_eff=n_eff,
         per_factor_inputs=(
@@ -801,7 +806,23 @@ def _power_statement(
 def _power_n_eff(
     relationship: _RelationshipSummary,
     walk_forward: _WalkForwardEvaluation,
+    horizon_overlap_metadata: Mapping[str, Any] | None = None,
 ) -> int:
+    # Caller-supplied label-horizon overlap metadata makes the IC power N_eff
+    # honest about overlapping forward-return windows: a label that looks N bars
+    # ahead makes consecutive bar-spaced observations overlap ~N-fold, so the raw
+    # row count badly overstates the independent sample. When supplied, discount
+    # via the sanctioned overlap-aware estimator (still removing any walk-forward
+    # purge/embargo gaps); otherwise preserve the prior raw/purge-embargo paths.
+    if horizon_overlap_metadata is not None:
+        purge_gap = None if walk_forward.plan is None else walk_forward.plan.config.purge_gap
+        embargo_gap = None if walk_forward.plan is None else walk_forward.plan.config.embargo_gap
+        return estimate_n_eff(
+            relationship.ic_sample_count,
+            horizon_overlap_metadata,
+            purge_gap=purge_gap,
+            embargo_gap=embargo_gap,
+        ).n_eff
     if walk_forward.plan is None:
         return relationship.ic_sample_count
     metadata = {
