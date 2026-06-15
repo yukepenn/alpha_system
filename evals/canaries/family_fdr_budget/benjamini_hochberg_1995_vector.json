@@ -1,0 +1,25 @@
+{
+  "description": "Classic Benjamini-Hochberg (1995) ordered p-value vector (m = 15).",
+  "family_size": 15,
+  "alpha_fw": 0.05,
+  "p_values": [
+    0.0001,
+    0.0004,
+    0.0019,
+    0.0095,
+    0.0201,
+    0.0278,
+    0.0298,
+    0.0344,
+    0.0459,
+    0.324,
+    0.4262,
+    0.5719,
+    0.6528,
+    0.759,
+    1.0
+  ],
+  "expected_benjamini_hochberg_rejected_indices": [0, 1, 2, 3],
+  "expected_bonferroni_rejected_indices": [0, 1, 2],
+  "bonferroni_threshold": 0.0033333333333333335
+}
