@@ -5,8 +5,24 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+from alpha_system.governance.family_fdr_correction import (
+    DEFAULT_FDR_ALPHA,
+    DEFAULT_FDR_METHOD,
+    REASON_FAMILY_FDR_NOT_CLEARED,
+    REASON_RESOLUTION_INADEQUATE,
+    FamilyFdrVerdict,
+    correct_family,
+    surrogate_p_upper_bound,
+)
+from alpha_system.governance.family_fdr_ledger import (
+    FamilyFdrLedger,
+    create_family_fdr_ledger_record,
+    family_batch_key,
+    utc_now_iso,
+)
 from alpha_system.governance.idea_draft import IdeaDraft, validate_idea_draft
 from alpha_system.governance.promotion import (
     EXPLORATORY_PROMOTION_REFUSAL_CODE,
@@ -49,6 +65,10 @@ ALLOWED_MEMORY_VERDICTS = frozenset({"REJECT", "DATA_GAP", "INCONCLUSIVE", "WATC
 _REQUEUE_VERDICTS = frozenset({"DATA_GAP", "INCONCLUSIVE"})
 _PROMOTION_VERDICTS = frozenset({"WATCH", "CANDIDATE"})
 _DEFAULT_REVIEWER = "alpha_idea_run"
+# Provisional family-FDR requeue reasons (mirror the Stage-A REASON_* vocabulary).
+FAMILY_FDR_REQUEUE_REASONS = frozenset(
+    {REASON_FAMILY_FDR_NOT_CLEARED, REASON_RESOLUTION_INADEQUATE}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,12 +116,27 @@ def route_verdict_to_memory(
     rationale: str | None = None,
     warnings: Sequence[str] = (),
     probe_spent: bool = False,
+    family_fdr_ledger_path: str | Path | None = None,
+    family_fdr_alpha: float = DEFAULT_FDR_ALPHA,
+    family_fdr_method: str = DEFAULT_FDR_METHOD,
 ) -> MemoryRouteResult:
     """Route one governed verdict to a value-free memory action.
 
     The router exercises the existing exploratory-promotion guard before any
     memory record is created. It does not persist records, mint reviewer verdicts,
     or write survivor libraries.
+
+    When ``family_fdr_ledger_path`` is supplied and the verdict is a setup-lane
+    (``context_not_equal_trigger``) SIGNAL_PENDING_REVIEWER, the family-wise
+    multiplicity gate runs (CROSS_IDEA_FDR_BUDGET_V1 Stage B): this idea's per-test
+    surrogate p is recorded into the append-only ``FamilyFdrLedger`` keyed by its
+    co-mined batch ``(alpha_spec_id, slice_id, family_id)``, all sibling records are
+    re-corrected together, and this idea routes to the reviewer shelf only if the
+    family-corrected verdict is eligible; otherwise it routes to requeue. The
+    correction is PROVISIONAL and accumulating -- siblings arrive across runs, so the
+    gate refines as the batch fills (see the Stage-B no-retro-mutation note). The
+    machine still NEVER auto-promotes. main_effect signal routing is unchanged
+    (it has no surrogate-p in the same sense -- main_effect family-FDR is follow-up).
     """
 
     idea = _coerce_idea_draft(idea_draft)
@@ -139,6 +174,12 @@ def route_verdict_to_memory(
             exploratory_refusal=exploratory_refusal,
             created_at=timestamp,
             report_ref=report_ref,
+            prior_power_estimate=prior_power_estimate,
+            new_power_estimate=new_power_estimate,
+            data_accrued_months=data_accrued_months,
+            family_fdr_ledger_path=family_fdr_ledger_path,
+            family_fdr_alpha=family_fdr_alpha,
+            family_fdr_method=family_fdr_method,
         )
     if normalized_verdict in _REQUEUE_VERDICTS:
         # DATA_GAP (missing substrate) and INCONCLUSIVE (ran but underpowered / no
@@ -254,6 +295,12 @@ def _route_signal_pending_reviewer(
     exploratory_refusal: Mapping[str, JsonValue],
     created_at: str,
     report_ref: str | None,
+    prior_power_estimate: float = 0.0,
+    new_power_estimate: float = 0.0,
+    data_accrued_months: int = 0,
+    family_fdr_ledger_path: str | Path | None = None,
+    family_fdr_alpha: float = DEFAULT_FDR_ALPHA,
+    family_fdr_method: str = DEFAULT_FDR_METHOD,
 ) -> MemoryRouteResult:
     alpha_spec_id = _require_alpha_spec_id(idea)
     original_verdict_ref = _verdict_reference(
@@ -264,6 +311,37 @@ def _route_signal_pending_reviewer(
     # (no recursive searches, no mirror parsers, single canonical n_eff accessor).
     parsed = _parse_fast_readout(readout)
     if parsed.study_kind == STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER:
+        # CROSS_IDEA_FDR_BUDGET_V1 Stage B: when a family-FDR ledger is supplied, the
+        # setup-lane signal must clear the family-wise multiplicity gate before it may
+        # reach the reviewer shelf. A signal that passed its single surrogate test but
+        # fails the family correction (or whose surrogate run_count cannot resolve the
+        # corrected threshold) routes to requeue -- NOT graveyard -- because the
+        # correction is provisional and may clear as the batch fills or with more
+        # surrogates (mirrors the reviewer's REWORK prescription).
+        family_verdict = _evaluate_family_fdr_gate(
+            idea,
+            readout,
+            parsed,
+            alpha_spec_id=alpha_spec_id,
+            slice_id=_main_effect_slice_id(readout),
+            family_fdr_ledger_path=family_fdr_ledger_path,
+            family_fdr_alpha=family_fdr_alpha,
+            family_fdr_method=family_fdr_method,
+            created_at=created_at,
+        )
+        if family_verdict is not None and not family_verdict.eligible:
+            return _route_family_fdr_requeue(
+                idea,
+                verdict,
+                readout,
+                exploratory_refusal=exploratory_refusal,
+                created_at=created_at,
+                report_ref=report_ref,
+                prior_power_estimate=prior_power_estimate,
+                new_power_estimate=new_power_estimate,
+                data_accrued_months=data_accrued_months,
+                family_verdict=family_verdict,
+            )
         record = _setup_lane_signal_record(
             readout,
             parsed,
@@ -271,8 +349,14 @@ def _route_signal_pending_reviewer(
             original_verdict_ref=original_verdict_ref,
             created_at=created_at,
         )
+        family_fdr_attachment = (
+            _family_fdr_attachment(family_verdict) if family_verdict is not None else None
+        )
     else:
-        # main_effect path: typed IC quality summary.
+        # main_effect path: typed IC quality summary. The family-FDR gate is setup-lane
+        # only (main_effect has no surrogate-p in the same sense -- follow-up work needs
+        # an IC p-value definition that does not exist yet), so main_effect routing is
+        # UNCHANGED here.
         quality = parsed.ic_quality_summary
         if quality is None:
             raise _missing_main_effect_quality_summary_error()
@@ -292,16 +376,283 @@ def _route_signal_pending_reviewer(
             ),
             created_at=created_at,
         )
+        family_fdr_attachment = None
+    memory_record = dict(record.to_dict())
+    if family_fdr_attachment is not None:
+        # Attach the corrected verdict so the independent reviewer sees the
+        # family-wise multiplicity context (method, alpha_fw, corrected_threshold,
+        # family_size, p_value) alongside the shelved signal.
+        memory_record["family_fdr_verdict"] = family_fdr_attachment
     return MemoryRouteResult(
         verdict="INCONCLUSIVE",
         action=ROUTE_SIGNAL_SHELF,
         record_type="SignalPendingReviewerRecord",
-        memory_record=record.to_dict(),
+        memory_record=memory_record,
         exploratory_refusal=exploratory_refusal,
         alpha_spec_id=alpha_spec_id,
         promotion_eligible=False,
         probe_spent=False,
     )
+
+
+def _evaluate_family_fdr_gate(
+    idea: IdeaDraft,
+    readout: Mapping[str, Any],
+    parsed: FastReadout,
+    *,
+    alpha_spec_id: str,
+    slice_id: str,
+    family_fdr_ledger_path: str | Path | None,
+    family_fdr_alpha: float,
+    family_fdr_method: str,
+    created_at: str,
+) -> FamilyFdrVerdict | None:
+    """Record this setup-lane idea into the family-FDR ledger and correct its batch.
+
+    Returns this idea's ``FamilyFdrVerdict`` from the (provisional, accumulating)
+    re-correction of all sibling records sharing its co-mined batch key, or ``None``
+    when no ledger path is supplied (the gate is opt-in; callers that do not wire a
+    ledger keep the pre-Stage-B always-shelf behavior).
+
+    The correction is monotonically refined: siblings arrive across separate
+    ``alpha idea run`` invocations, so the ledger is the accumulator and the gate
+    applies at routing time. Earlier-shelved siblings are NOT retroactively
+    de-shelved (no retro-mutation of append-only memory) -- a future batch-close
+    re-evaluation could tighten that; see the Stage-B design note.
+    """
+
+    if family_fdr_ledger_path is None:
+        return None
+    gate = parsed.surrogate_fdr_gate
+    if gate is None:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="readout.surrogate_fdr_gate",
+                code="missing_setup_lane_gate",
+                message="setup-lane family-FDR routing requires a surrogate_fdr_gate",
+                expected="surrogate-FDR gate mapping",
+                actual="missing",
+            )
+        )
+    # Per-test surrogate p upper bound from the typed gate (reuse the Stage-A
+    # primitive; no string-spelunking of the readout dict).
+    p_value = surrogate_p_upper_bound(gate.gate_pass_count, gate.run_count)
+    family_id = _family_id_for_batch(readout, alpha_spec_id=alpha_spec_id)
+    idea_key = _family_fdr_idea_key(idea, readout, alpha_spec_id=alpha_spec_id)
+
+    ledger = FamilyFdrLedger(family_fdr_ledger_path)
+    # Idempotent append of THIS idea's per-test outcome under a provisional verdict;
+    # the binding verdict is computed below from the full batch.
+    this_record = create_family_fdr_ledger_record(
+        family_id=family_id,
+        slice_id=slice_id,
+        alpha_spec_id=alpha_spec_id,
+        idea_key=idea_key,
+        p_value=p_value,
+        run_count=gate.run_count,
+        verdict=_provisional_self_verdict(
+            idea_key=idea_key,
+            p_value=p_value,
+            run_count=gate.run_count,
+            alpha_fw=family_fdr_alpha,
+            method=family_fdr_method,
+        ),
+        created_at=created_at or utc_now_iso(),
+    )
+    ledger.append_records((this_record,))
+
+    # Load ALL sibling records for the same batch key and re-correct together. The
+    # latest p/run for each idea_key wins (a re-run idea refines its own entry).
+    batch_key = family_batch_key(
+        alpha_spec_id=alpha_spec_id, slice_id=slice_id, family_id=family_id
+    )
+    entries = _batch_entries(ledger, batch_key, this_idea_key=idea_key, this_record=this_record)
+    verdicts = correct_family(entries, alpha_fw=family_fdr_alpha, method=family_fdr_method)
+    for verdict in verdicts:
+        if verdict.idea_key == idea_key:
+            return verdict
+    # Defensive: the just-appended idea must be in its own batch.
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="family_fdr",
+            code="family_fdr_self_missing",
+            message="family-FDR correction did not return this idea's verdict",
+            expected=idea_key,
+            actual="absent",
+        )
+    )
+
+
+def _provisional_self_verdict(
+    *,
+    idea_key: str,
+    p_value: float,
+    run_count: int,
+    alpha_fw: float,
+    method: str,
+) -> FamilyFdrVerdict:
+    """Correct THIS idea alone (a family-of-one) for its provisional ledger record.
+
+    The binding cross-idea verdict is recomputed over the full batch after append;
+    this provisional self-correction only seeds the append-only record (each record
+    carries a verdict by the Stage-A schema) and is monotonically superseded as the
+    batch fills.
+    """
+
+    (verdict,) = correct_family(
+        ({"idea_key": idea_key, "p_value": p_value, "run_count": run_count},),
+        alpha_fw=alpha_fw,
+        method=method,
+    )
+    return verdict
+
+
+def _batch_entries(
+    ledger: FamilyFdrLedger,
+    batch_key: str,
+    *,
+    this_idea_key: str,
+    this_record,
+) -> tuple[dict[str, Any], ...]:
+    """Collect one (idea_key, p_value, run_count) entry per idea in the batch.
+
+    The most recent record per idea_key wins so a re-run idea refines its own entry
+    rather than duplicating it (correct_family forbids duplicate idea_keys).
+    """
+
+    latest: dict[str, dict[str, Any]] = {}
+    for record in ledger.load_records():
+        if record.batch_key != batch_key:
+            continue
+        latest[record.idea_key] = {
+            "idea_key": record.idea_key,
+            "p_value": record.p_value,
+            "run_count": record.run_count,
+        }
+    # Ensure this idea is present even if the load races behind the append.
+    latest[this_idea_key] = {
+        "idea_key": this_record.idea_key,
+        "p_value": this_record.p_value,
+        "run_count": this_record.run_count,
+    }
+    return tuple(latest[key] for key in sorted(latest))
+
+
+def _family_fdr_attachment(verdict: FamilyFdrVerdict) -> dict[str, JsonValue]:
+    """Value-free family-FDR context attached to a shelved setup signal."""
+
+    return {
+        "method": verdict.method,
+        "alpha_fw": verdict.alpha_fw,
+        "corrected_threshold": verdict.corrected_threshold,
+        "family_size": verdict.family_size,
+        "p_value": verdict.p_value,
+        "rejected_null": verdict.rejected_null,
+        "resolution_adequate": verdict.resolution_adequate,
+        "eligible": verdict.eligible,
+        "reason": verdict.reason,
+        "provisional": True,
+    }
+
+
+def _route_family_fdr_requeue(
+    idea: IdeaDraft,
+    verdict: Mapping[str, Any],
+    readout: Mapping[str, Any],
+    *,
+    exploratory_refusal: Mapping[str, JsonValue],
+    created_at: str,
+    report_ref: str | None,
+    prior_power_estimate: float,
+    new_power_estimate: float,
+    data_accrued_months: int,
+    family_verdict: FamilyFdrVerdict,
+) -> MemoryRouteResult:
+    """Route a setup signal that failed the family-wise gate to a value-free requeue.
+
+    Requeue (not graveyard) because the provisional correction may clear as the batch
+    fills or with more surrogates. The Stage-A REASON_* constant is the value-free
+    reason: ``family_fdr_not_cleared`` (corrected null not rejected) or
+    ``surrogate_resolution_inadequate`` (run_count cannot resolve the corrected
+    threshold). The honest verdict label stays INCONCLUSIVE.
+    """
+
+    result = _route_requeue(
+        idea,
+        verdict,
+        readout,
+        exploratory_refusal=exploratory_refusal,
+        created_at=created_at,
+        report_ref=report_ref,
+        prior_power_estimate=prior_power_estimate,
+        new_power_estimate=new_power_estimate,
+        data_accrued_months=data_accrued_months,
+        requeue_verdict="INCONCLUSIVE",
+    )
+    memory_record = dict(result.memory_record)
+    memory_record["family_fdr_requeue_reason"] = _family_fdr_requeue_reason(family_verdict)
+    memory_record["family_fdr_verdict"] = _family_fdr_attachment(family_verdict)
+    return MemoryRouteResult(
+        verdict=result.verdict,
+        action=result.action,
+        record_type=result.record_type,
+        memory_record=memory_record,
+        exploratory_refusal=result.exploratory_refusal,
+        alpha_spec_id=result.alpha_spec_id,
+        promotion_eligible=False,
+        probe_spent=False,
+    )
+
+
+def _family_fdr_requeue_reason(verdict: FamilyFdrVerdict) -> str:
+    """Map the corrected verdict to a value-free requeue reason.
+
+    ``family_fdr_not_cleared`` when the corrected null is not rejected;
+    ``surrogate_resolution_inadequate`` when the surrogate run_count cannot resolve
+    the corrected threshold (reuses the Stage-A reason vocabulary; the
+    resolution-inadequate path mirrors the reviewer's historical REWORK arithmetic).
+    """
+
+    if not verdict.rejected_null:
+        return REASON_FAMILY_FDR_NOT_CLEARED
+    return "surrogate_resolution_inadequate"
+
+
+def _family_id_for_batch(readout: Mapping[str, Any], *, alpha_spec_id: str) -> str:
+    """Resolve the co-mined family identity for the batch key.
+
+    Prefer the declared ``mechanism_card.duplicate_exposure.family_id`` (the same
+    family used by ``family_budget``). When no family is declared, the idea is its
+    own singleton family keyed by its AlphaSpec id -- an honest family-of-one.
+    """
+
+    mechanism = readout.get("mechanism_card")
+    if isinstance(mechanism, Mapping):
+        duplicate = mechanism.get("duplicate_exposure")
+        if isinstance(duplicate, Mapping):
+            family_id = duplicate.get("family_id")
+            if isinstance(family_id, str) and family_id.strip():
+                return family_id.strip()
+    return alpha_spec_id
+
+
+def _family_fdr_idea_key(
+    idea: IdeaDraft, readout: Mapping[str, Any], *, alpha_spec_id: str
+) -> str:
+    """Stable per-idea key INSIDE a co-mined batch.
+
+    The batch key is ``(alpha_spec_id, slice_id, family_id)`` -- co-mined siblings
+    share all three. The per-idea distinguisher within that batch is the mechanism
+    id (each sibling is a distinct mechanism/variant), falling back to the hypothesis
+    id and finally the AlphaSpec id for a singleton idea. This is what makes the 7
+    sibling pa_setup ideas land in ONE batch rather than 7 batches of one.
+    """
+
+    if idea.mechanism_id:
+        return idea.mechanism_id
+    if idea.hypothesis_id:
+        return idea.hypothesis_id
+    return alpha_spec_id
 
 
 def _setup_lane_signal_record(

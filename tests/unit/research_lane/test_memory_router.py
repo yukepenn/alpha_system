@@ -6,12 +6,25 @@ from pathlib import Path
 
 import pytest
 
+from alpha_system.governance.family_fdr_correction import correct_family
+from alpha_system.governance.family_fdr_ledger import (
+    FamilyFdrLedger,
+    create_family_fdr_ledger_record,
+)
 from alpha_system.governance.idea_draft import build_idea_validation_bundle
 from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.governance.requeue import REQUEUE_REASON
 from alpha_system.governance.validation import GovernanceValidationError
 from alpha_system.research_lane import memory_router as memory_router_module
 from alpha_system.research_lane.memory_router import route_verdict_to_memory
+
+# The historical co-mined family the independent reviewer adjudicated REWORK
+# (prior_session_high_sweep_and_reclaim, ES_2020_120m, net_excursion): 7 sibling
+# pa_setup ideas against one slice, each with a surrogate run_count of 64.
+_HISTORICAL_FAMILY_ID = "pa_setup_prior_session_high_sweep_and_reclaim"
+_HISTORICAL_SLICE_ID = "ES_2020_120m"
+_HISTORICAL_RUN_COUNT = 64
+_HISTORICAL_BATCH_SIZE = 7
 
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
 TIMESTAMP = "2026-06-14T00:00:00Z"
@@ -150,6 +163,8 @@ def test_setup_lane_signal_pending_reviewer_routes_to_shelf_without_ic_summary()
     # The setup/path-outcome lane (context_not_equal_trigger) has NO main_effect IC
     # quality summary. A surrogate-gated signed net_excursion mean_lift must still
     # reach the reviewer shelf (no missing_main_effect_quality_summary error).
+    # No family-FDR ledger supplied -> the Stage-B gate is opt-in and a no-op, so
+    # this preserves the pre-Stage-B always-shelf behavior.
     bundle = _bundle()
 
     result = route_verdict_to_memory(
@@ -208,6 +223,153 @@ def test_setup_lane_signal_falls_back_to_gate_conditioned_n_eff_and_observed_eff
     record = result.to_dict()["memory_record"]
     assert record["n_eff"] == 333
     assert record["observed_effect"] == pytest.approx(-0.0031)
+
+
+def test_setup_lane_lone_adequate_signal_clears_family_fdr_and_shelves(tmp_path) -> None:
+    # CROSS_IDEA_FDR_BUDGET_V1 Stage B: a lone co-mined idea with adequate surrogate
+    # resolution (run=200, m=1, BH alpha=0.10) and a significant corrected p still
+    # reaches the reviewer shelf when the family-FDR gate is wired. The corrected
+    # verdict is attached so the independent reviewer sees the multiplicity context.
+    bundle = _bundle()
+    ledger_path = _empty_ledger(tmp_path)
+
+    result = route_verdict_to_memory(
+        {"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+        bundle.idea_draft,
+        _setup_lane_signal_readout(bundle),
+        created_at=TIMESTAMP,
+        family_fdr_ledger_path=ledger_path,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "reviewer_pending_shelf"
+    assert payload["record_type"] == "SignalPendingReviewerRecord"
+    family = payload["memory_record"]["family_fdr_verdict"]
+    assert family["eligible"] is True
+    assert family["reason"] == "eligible"
+    assert family["method"] == "benjamini_hochberg"
+    assert family["alpha_fw"] == pytest.approx(0.10)
+    assert family["family_size"] == 1
+    assert family["provisional"] is True
+    # The ledger accumulated this idea's per-test record (append-only).
+    records = FamilyFdrLedger(ledger_path).load_records()
+    assert len(records) == 1
+    assert records[0].run_count == 200
+
+
+def test_historical_prior_high_sweep_seven_idea_batch_routes_to_requeue(tmp_path) -> None:
+    # Regression: the historical prior_session_high_sweep_and_reclaim signal
+    # (p=(0+1)/(64+1)=1/65, run_count=64) inside its REAL co-mined batch of 7 sibling
+    # pa_setup ideas. With m=7 at the BH policy default alpha=0.10 the required
+    # run_count is ceil(7/0.10)-1 = 69 > 64, so the surrogate count CANNOT resolve the
+    # corrected threshold -> not eligible -> REQUEUE (not the reviewer shelf, not
+    # graveyard). The machine now enforces deterministically what the independent
+    # reviewer concluded by hand (REWORK).
+    bundle = _bundle()
+    ledger_path = _empty_ledger(tmp_path)
+    # Seed the 6 co-mined siblings into the ledger (same alpha_spec + family + slice;
+    # distinct mechanism idea_keys), each with the historical run_count=64.
+    _seed_siblings(
+        ledger_path,
+        alpha_spec_id=bundle.idea_draft.alpha_spec_id,
+        count=_HISTORICAL_BATCH_SIZE - 1,
+    )
+
+    readout = _historical_setup_readout(bundle)
+    result = route_verdict_to_memory(
+        {
+            "verdict": "INCONCLUSIVE",
+            "reason_code": "SIGNAL_PENDING_REVIEWER",
+            "why": "Surrogate-gated net_excursion in a co-mined batch of 7 pa_setup ideas.",
+        },
+        bundle.idea_draft,
+        readout,
+        created_at=TIMESTAMP,
+        family_fdr_ledger_path=ledger_path,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "requeue"
+    assert payload["record_type"] == "RequeuedVerdictRecord"
+    # The honest verdict label is preserved (not relabeled DATA_GAP).
+    assert payload["verdict"] == "INCONCLUSIVE"
+    record = payload["memory_record"]
+    assert record["eligible"] is False
+    # Value-free reason: the surrogate run_count cannot resolve the corrected threshold.
+    assert record["family_fdr_requeue_reason"] == "surrogate_resolution_inadequate"
+    family = record["family_fdr_verdict"]
+    assert family["eligible"] is False
+    assert family["resolution_adequate"] is False
+    assert family["rejected_null"] is True
+    assert family["family_size"] == _HISTORICAL_BATCH_SIZE
+    assert payload["promotion_eligible"] is False
+
+
+def test_setup_lane_family_fdr_not_cleared_routes_to_requeue(tmp_path) -> None:
+    # A signal whose corrected null is NOT rejected (a weak per-test p inside a large
+    # batch, but with adequate resolution) routes to requeue with the distinct
+    # family_fdr_not_cleared reason -- not graveyard, because more surrogates / a
+    # filling batch may yet clear it.
+    bundle = _bundle()
+    ledger_path = _empty_ledger(tmp_path)
+    # 4 siblings with a strong p (cleared) + this idea with a weak p but adequate
+    # resolution so the ONLY failing dimension is the corrected significance.
+    big_run = 5000
+    _seed_siblings(
+        ledger_path,
+        alpha_spec_id=bundle.idea_draft.alpha_spec_id,
+        count=4,
+        gate_pass_count=0,
+        run_count=big_run,
+    )
+
+    readout = _historical_setup_readout(bundle)
+    # Weak per-test p: many surrogate passes (still adequate resolution at run=5000).
+    readout["surrogate_fdr_gate"] = {
+        "gate_status": "PASSED",
+        "threshold_verdict": "zero-pass-met",
+        "run_count": big_run,
+        "gate_pass_count": 4000,
+        "error_count": 0,
+        "promotion_evidence": False,
+    }
+
+    result = route_verdict_to_memory(
+        {"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+        bundle.idea_draft,
+        readout,
+        created_at=TIMESTAMP,
+        family_fdr_ledger_path=ledger_path,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "requeue"
+    record = payload["memory_record"]
+    assert record["family_fdr_requeue_reason"] == "family_fdr_not_cleared"
+    assert record["family_fdr_verdict"]["resolution_adequate"] is True
+    assert record["family_fdr_verdict"]["rejected_null"] is False
+
+
+def test_main_effect_signal_routing_unchanged_by_family_fdr_ledger(tmp_path) -> None:
+    # The family-FDR gate is setup-lane only. A main_effect signal must still shelve
+    # even when a ledger path is supplied (no surrogate-p definition for IC yet), and
+    # must NOT carry a family_fdr_verdict attachment.
+    bundle = _bundle()
+    ledger_path = _empty_ledger(tmp_path)
+
+    result = route_verdict_to_memory(
+        {"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+        bundle.idea_draft,
+        _main_effect_signal_readout(bundle),
+        created_at=TIMESTAMP,
+        family_fdr_ledger_path=ledger_path,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "reviewer_pending_shelf"
+    assert "family_fdr_verdict" not in payload["memory_record"]
+    # The setup-lane accumulator stays empty (main_effect never records into it).
+    assert FamilyFdrLedger(ledger_path).load_records() == ()
 
 
 def test_signal_pending_reviewer_never_writes_promotion_decision() -> None:
@@ -413,6 +575,76 @@ def _setup_lane_signal_readout(bundle) -> dict[str, object]:
             }
         },
     }
+
+
+def _empty_ledger(tmp_path) -> Path:
+    """An existing, writable, empty family-FDR ledger file (fail-closed contract)."""
+
+    path = tmp_path / "family_fdr_ledger.jsonl"
+    path.touch()
+    return path
+
+
+def _seed_siblings(
+    ledger_path: Path,
+    *,
+    alpha_spec_id: str,
+    count: int,
+    gate_pass_count: int = 0,
+    run_count: int = _HISTORICAL_RUN_COUNT,
+) -> None:
+    """Append ``count`` co-mined sibling records sharing the historical batch key.
+
+    Siblings share the batch identity (alpha_spec_id, slice, family) and differ only
+    by their intra-batch ``idea_key`` (a distinct mechanism per variant).
+    """
+
+    ledger = FamilyFdrLedger(ledger_path)
+    records = []
+    for index in range(count):
+        idea_key = f"mech_sibling_{index:02d}"
+        (verdict,) = correct_family(
+            ({"idea_key": idea_key, "gate_pass_count": gate_pass_count, "run_count": run_count},),
+            alpha_fw=0.10,
+        )
+        records.append(
+            create_family_fdr_ledger_record(
+                family_id=_HISTORICAL_FAMILY_ID,
+                slice_id=_HISTORICAL_SLICE_ID,
+                alpha_spec_id=alpha_spec_id,
+                idea_key=idea_key,
+                p_value=verdict.p_value,
+                run_count=run_count,
+                verdict=verdict,
+                created_at=TIMESTAMP,
+            )
+        )
+    ledger.append_records(records)
+
+
+def _historical_setup_readout(bundle) -> dict[str, object]:
+    """The setup-lane readout for the historical prior_high_sweep signal.
+
+    Shares the historical batch identity: mechanism_card.duplicate_exposure.family_id
+    pins the co-mined family and the slice is ES_2020_120m. The surrogate gate carries
+    run_count=64 (gate_pass_count=0) -> p=1/65.
+    """
+
+    readout = _setup_lane_signal_readout(bundle)
+    mechanism = dict(readout["mechanism_card"])  # type: ignore[arg-type]
+    duplicate = dict(mechanism.get("duplicate_exposure") or {})
+    duplicate["family_id"] = _HISTORICAL_FAMILY_ID
+    mechanism["duplicate_exposure"] = duplicate
+    readout["mechanism_card"] = mechanism
+    readout["surrogate_fdr_gate"] = {
+        "gate_status": "PASSED",
+        "threshold_verdict": "zero-pass-met",
+        "run_count": _HISTORICAL_RUN_COUNT,
+        "gate_pass_count": 0,
+        "error_count": 0,
+        "promotion_evidence": False,
+    }
+    return readout
 
 
 def _id(kind: GovernanceIdKind, salt: str) -> str:

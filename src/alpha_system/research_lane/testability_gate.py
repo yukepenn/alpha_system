@@ -10,6 +10,10 @@ from enum import StrEnum
 from typing import Any
 
 from alpha_system.governance.alpha_spec import AlphaSpec, validate_alpha_spec
+from alpha_system.governance.family_fdr_correction import (
+    DEFAULT_FDR_ALPHA,
+    DEFAULT_FDR_METHOD,
+)
 from alpha_system.governance.idea_draft import MAIN_EFFECT, IdeaDraft, validate_idea_draft
 from alpha_system.governance.mechanism_card import MechanismCard, validate_mechanism_card
 from alpha_system.governance.setup_spec import SetupSpec, validate_setup_spec
@@ -114,6 +118,12 @@ class TestabilitySlice:
     minimum_detectable_effect: float | None = None
     available_ts_satisfiable: bool | None = None
     surrogate_fdr_requirement: str | None = None
+    # CROSS_IDEA_FDR_BUDGET_V1: optional slice-level family-wise multiplicity policy.
+    # An idea MAY pin its family-FDR method + alpha; absent, the standing policy
+    # default applies (the enforcement lives in memory_router, not a gate CHECK), so
+    # a missing declaration NEVER fails the gate.
+    family_fdr_requirement: str = DEFAULT_FDR_METHOD
+    family_fdr_alpha: float = DEFAULT_FDR_ALPHA
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> TestabilitySlice:
@@ -180,6 +190,14 @@ class TestabilitySlice:
             ),
             available_ts_satisfiable=_optional_bool(mapping.get("available_ts_satisfiable")),
             surrogate_fdr_requirement=surrogate_requirement,
+            family_fdr_requirement=(
+                _optional_text(mapping.get("family_fdr_requirement")) or DEFAULT_FDR_METHOD
+            ),
+            family_fdr_alpha=(
+                _optional_float(mapping.get("family_fdr_alpha"))
+                if mapping.get("family_fdr_alpha") is not None
+                else DEFAULT_FDR_ALPHA
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -204,6 +222,8 @@ class TestabilitySlice:
             "minimum_detectable_effect": self.minimum_detectable_effect,
             "available_ts_satisfiable": self.available_ts_satisfiable,
             "surrogate_fdr_requirement": self.surrogate_fdr_requirement,
+            "family_fdr_requirement": self.family_fdr_requirement,
+            "family_fdr_alpha": self.family_fdr_alpha,
         }
 
 

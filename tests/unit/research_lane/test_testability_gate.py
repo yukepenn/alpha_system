@@ -412,3 +412,29 @@ def test_outcome_non_degeneracy_data_gaps_for_degenerate_continuous_setup() -> N
 
     assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
     assert result.status is GateStatus.DATA_GAP
+
+
+def test_family_fdr_declaration_defaults_to_policy_when_absent() -> None:
+    # CROSS_IDEA_FDR_BUDGET_V1: a missing family-FDR declaration applies the standing
+    # policy default (no CHECK_*, never fails the gate).
+    slice_obj = GateSlice.from_mapping({"slice_id": "ES_2020_120m"})
+
+    assert slice_obj.family_fdr_requirement == "benjamini_hochberg"
+    assert slice_obj.family_fdr_alpha == pytest.approx(0.10)
+    payload = slice_obj.to_dict()
+    assert payload["family_fdr_requirement"] == "benjamini_hochberg"
+    assert payload["family_fdr_alpha"] == pytest.approx(0.10)
+
+
+def test_family_fdr_declaration_pins_method_and_alpha_when_present() -> None:
+    # An idea CAN pin its family-FDR policy at the slice level.
+    slice_obj = GateSlice.from_mapping(
+        {
+            "slice_id": "ES_2020_120m",
+            "family_fdr_requirement": "bonferroni",
+            "family_fdr_alpha": 0.05,
+        }
+    )
+
+    assert slice_obj.family_fdr_requirement == "bonferroni"
+    assert slice_obj.family_fdr_alpha == pytest.approx(0.05)
