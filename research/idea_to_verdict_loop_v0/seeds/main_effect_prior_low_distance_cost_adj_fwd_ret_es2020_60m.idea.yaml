@@ -1,0 +1,153 @@
+{
+  "source": "research/idea_to_verdict_loop_v0/seeds/main_effect_prior_low_distance_cost_adj_fwd_ret_es2020_60m.idea.yaml",
+  "study_kind": "main_effect",
+  "hypothesis_card": {
+    "title": "prior_low_distance main-effect IC on cost-adjusted forward return (powered-probe seed)",
+    "family": "tier1_main_effect_continuous_ic",
+    "rationale": "A single value-free factor component (liquidity_structure_prior_low_distance) is IC-screened against a continuous cost-adjusted forward-return outcome on an existing ES 60m slice. Powered first-pass diagnostic, not a strategy.",
+    "expected_mechanism": "liquidity_structure_prior_low_distance marks a value-free location/structure regime; whether it carries measurable IC against the continuous cost-adjusted forward return is reserved for the diagnostic.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve the already-materialized feature and continuous-label packs.",
+      "Fail the idea if the continuous outcome is degenerate (non-positive value_std) over the observed sample.",
+      "Reject interpretation if duplicate exposure or pre-test power gates block the exploratory readout."
+    ],
+    "risks": [
+      "The local executor may lack the materialized packs needed for a real readout.",
+      "The factor may duplicate adjacent VWAP-location exposures already screened.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/powered-probe-step2",
+    "created_at": "2026-06-15T00:00:00Z"
+  },
+  "alpha_spec": {
+    "target_instruments": [
+      "ES"
+    ],
+    "data_assumptions": {
+      "coverage": "ES_2020_60m cost_adjusted_fwd_ret continuous outcome: non_null=327155, value_std=0.003926 (powered, non-degenerate).",
+      "source": "Already-materialized local FUTSUB feature and continuous-label packs are read load-only when present."
+    },
+    "factor_inputs": [
+      "liquidity_structure_prior_low_distance"
+    ],
+    "label_references": [
+      "lspec_5b7048a7ccab226718ab802b"
+    ],
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence.",
+      "Do not sweep horizons, thresholds, or geometry after seeing this single pre-registered probe result."
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    },
+    "cost_assumptions": {
+      "model": "The outcome label is the cost-adjusted forward return; no additional execution-cost estimate is produced by this seed.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while the continuous label is partitioned at ES_2020_60m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may record near-zero IC under a well-powered sample; that is an informative REJECT-leaning outcome, not a failure."
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized for this exploratory seed.",
+      "Any future WATCH or CANDIDATE would require reviewer-gated evidence outside this run."
+    ],
+    "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/powered-probe-step2",
+    "created_at": "2026-06-15T00:00:00Z"
+  },
+  "mechanism_card": {
+    "source": "tier1:main_effect_prior_low_distance",
+    "rationale": "A single prior_low_distance factor is IC-screened against a continuous cost-adjusted forward-return outcome on a fixed ES 60m slice.",
+    "expected_mechanism": "The factor reads liquidity_structure_prior_low_distance; the diagnostic measures information content against the continuous forward-return outcome with no setup, trigger, or path geometry.",
+    "expected_direction": "undirected",
+    "horizon": "60m",
+    "session": "RTH",
+    "required_features": [
+      "liquidity_structure_prior_low_distance"
+    ],
+    "required_labels": [
+      "cost_adjusted_fwd_ret_60m"
+    ],
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "variant_budget": 1,
+    "duplicate_exposure": {
+      "family_id": "tier1_main_effect_continuous_ic",
+      "status": "bounded",
+      "variant_id": "prior_low_distance_cost_adj_fwd_ret_60m"
+    },
+    "stamp": "EXPLORATORY"
+  },
+  "slices": {
+    "ES_2020_60m": {
+      "slice_id": "ES_2020_60m",
+      "study_kind": "main_effect",
+      "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "partition_id": "ES_2020_60m",
+      "instrument_id": "ES",
+      "session_id": "ES:RTH",
+      "data_version": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "feature_pack_refs": [
+        "fver_849c2bbebaebd7f5283da38654bc0614ec59cbf49d9d6f5a9b578559a46de26a"
+      ],
+      "label_pack_refs": [
+        "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c"
+      ],
+      "feature_request_ids": [
+        "freq_8928dfde270527fd5bfe0678"
+      ],
+      "label_spec_ids": [
+        "lspec_5b7048a7ccab226718ab802b"
+      ],
+      "continuous_label_summary": {
+        "value_std": 0.003926,
+        "nonzero_count": 327155,
+        "sample_count": 327155
+      },
+      "n_eff": 327155,
+      "minimum_detectable_effect": 0.005,
+      "available_ts_satisfiable": true,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "features": [
+        {
+          "role": "factor",
+          "factor_id": "liquidity_structure_prior_low_distance",
+          "factor_version": "v1_es_2020_liquidity_structure_prior_low_distance",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "pack_ref": "fver_849c2bbebaebd7f5283da38654bc0614ec59cbf49d9d6f5a9b578559a46de26a",
+          "feature_request_id": "freq_8928dfde270527fd5bfe0678"
+        }
+      ],
+      "labels": [
+        {
+          "role": "label",
+          "label_id": "cost_adjusted_fwd_ret",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/cost_adjusted/lset_2be9bc0694adefc4e9a416dc69a0576d3943745de94a9e3c3d917dc88ab8edc7/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_60m/values.parquet",
+          "pack_ref": "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c",
+          "label_spec_id": "lspec_5b7048a7ccab226718ab802b"
+        }
+      ],
+      "label_version_map": {
+        "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c": [
+          "cost_adjusted_fwd_ret",
+          "float"
+        ]
+      },
+      "horizon_seconds": 3600,
+      "required_future_bars": 60,
+      "materialized_label_version": "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c",
+      "surrogate_run_count": 64,
+      "surrogate_base_seed": 0,
+      "family_id": "tier1_main_effect_continuous_ic",
+      "family_budget": 1,
+      "variant_id": "prior_low_distance_cost_adj_fwd_ret_60m",
+      "created_at": "2026-06-15T00:00:00Z"
+    }
+  }
+}
