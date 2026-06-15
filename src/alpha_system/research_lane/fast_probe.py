@@ -19,6 +19,7 @@ from alpha_system.governance.mechanism_card import (
 )
 from alpha_system.governance.serialization import JsonValue
 from alpha_system.governance.setup_spec import SetupSpec, validate_setup_spec
+from alpha_system.governance.surrogate_run import ZERO_PASS_MET
 from alpha_system.research.conditional_probe import (
     ConditionalProbeError,
     build_path_label_observation_set,
@@ -314,6 +315,19 @@ def _run_context_not_equal_trigger(
         surrogate_runs=slice_spec.surrogate_run_count,
         base_seed=slice_spec.surrogate_base_seed,
     )
+    if str(surrogate_gate.get("threshold_verdict")) != ZERO_PASS_MET:
+        # The label-shuffle surrogate-FDR gate is NOT met: the conditioned effect is
+        # indistinguishable from shuffled-label noise (or calibration was insufficient).
+        # That is an HONEST exploratory outcome, not an error — return INCONCLUSIVE so the
+        # loop records a verdict + routes to memory (requeue), never a tradable readout.
+        return _build_surrogate_blocked_readout(
+            card,
+            setup,
+            slice_spec,
+            injected,
+            handles=handles,
+            surrogate_gate=surrogate_gate,
+        )
     readout = evaluate_setup_conditional_probe(
         setup,
         context_factor_values=_feature_rows(injected, "context"),
@@ -348,6 +362,52 @@ def _run_context_not_equal_trigger(
         "power": readout_payload["power"],
     }
     payload["readout_id"] = readout_payload["readout_id"]
+    return payload
+
+
+def _build_surrogate_blocked_readout(
+    card: MechanismCard,
+    setup: SetupSpec,
+    slice_spec: SliceSpec,
+    injected: InjectedRows,
+    *,
+    handles: ResolvedSliceHandles,
+    surrogate_gate: Mapping[str, JsonValue],
+) -> dict[str, JsonValue]:
+    """Honest INCONCLUSIVE readout when the surrogate-FDR gate is not ZERO_PASS_MET.
+
+    The label-shuffle surrogate found the conditioned effect indistinguishable from
+    shuffled-label noise (or calibration was insufficient): a legitimate research null,
+    not an error. Return INCONCLUSIVE carrying the real surrogate gate so the loop routes
+    it to memory (requeue); promotion_eligible stays False and no tradable metric is read.
+    """
+
+    factor_id, factor_version = _power_factor(slice_spec, setup)
+    power = build_ic_power_statement(
+        n_eff=0,
+        scope="per_factor",
+        factor_id=factor_id,
+        factor_version=factor_version,
+    )
+    issue_code = str(surrogate_gate.get("threshold_verdict") or "surrogate_fdr_not_met")
+    payload: dict[str, JsonValue] = {
+        "schema": FAST_PROBE_SCHEMA,
+        "status": "INCONCLUSIVE",
+        "issue_code": issue_code,
+        "study_kind": CONTEXT_NOT_EQUAL_TRIGGER,
+        "stamp": EXPLORATORY_STAMP,
+        "promotion_eligible": False,
+        "mechanism_card": card.to_dict(),
+        "setup_spec": setup.to_dict(),
+        "slice_spec": slice_spec.to_dict(),
+        "row_access": _resolved_row_access(injected),
+        "resolved_handles": handles.to_dict(),
+        "engine": "run_label_shuffle_surrogate",
+        "surrogate_fdr_gate": surrogate_gate,
+        "power": power,
+        "created_at": slice_spec.created_at,
+    }
+    payload["readout_id"] = _readout_id("fpsg", payload)
     return payload
 
 

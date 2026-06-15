@@ -5,13 +5,11 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
 from alpha_system.data.storage import DataDependencyError
 from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP, create_mechanism_card
 from alpha_system.governance.setup_spec import SetupSpec, create_setup_spec
-from alpha_system.research.conditional_probe import ConditionalProbeError
+from alpha_system.governance.surrogate_run import ZERO_PASS_MET
 from alpha_system.research_lane import fast_probe as fast_probe_module
 from alpha_system.research_lane.fast_probe import fast_probe
 
@@ -169,8 +167,16 @@ def test_fast_probe_does_not_bypass_nonzero_surrogate_pass(monkeypatch, tmp_path
         ),
     )
 
-    with pytest.raises(ConditionalProbeError, match="ZERO_PASS_MET"):
-        fast_probe(card, setup, payload, resolver=_Resolver(), env={})
+    # A non-met surrogate-FDR gate (nonzero shuffled-label passes) is an HONEST null,
+    # not an error: fast_probe records INCONCLUSIVE and routes to memory, and never
+    # produces a tradable readout (promotion stays False, no conditional-probe metric).
+    result = fast_probe(card, setup, payload, resolver=_Resolver(), env={})
+    assert result["status"] == "INCONCLUSIVE"
+    assert result["promotion_eligible"] is False
+    assert result["issue_code"] != ZERO_PASS_MET
+    # the gate is NOT bypassed: the real surrogate gate is carried; no metric produced
+    assert result["surrogate_fdr_gate"]["gate_pass_count"] == 1
+    assert "readout" not in result
 
 
 def test_fast_probe_source_has_no_materialization_or_scaleout_driver_call() -> None:
