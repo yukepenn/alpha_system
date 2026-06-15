@@ -207,7 +207,7 @@
       "horizon_seconds": 3600,
       "required_future_bars": 60,
       "materialized_label_version": "lver_ab2010e5e1019942dc2624717220ef148b87d3628f4e7390e63aab25d3c776ed",
-      "surrogate_run_count": 64,
+      "surrogate_run_count": 1000,
       "surrogate_base_seed": 0,
       "family_id": "tier1_opening_drive_failure",
       "family_budget": 1,

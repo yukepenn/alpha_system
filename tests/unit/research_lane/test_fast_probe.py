@@ -615,6 +615,73 @@ def test_label_shuffle_surrogate_block_path_is_deterministic() -> None:
     assert run_label_shuffle_surrogate(**kwargs) == run_label_shuffle_surrogate(**kwargs)
 
 
+def test_label_shuffle_surrogate_parallel_matches_serial_block_path() -> None:
+    # CORRECTNESS GUARD for the parallel refactor: the block-path surrogate gate
+    # must be byte-identical whether the per-surrogate units run serially
+    # (workers=1) or across a process pool (workers>1). Each surrogate reseeds
+    # from base_seed + run_index, so the aggregate is order/worker independent.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    injected = _autocorrelated_overlap_injected(setup, n_bars=120, horizon_bars=20)
+
+    common = {
+        "setup": setup,
+        "injected": injected,
+        "surrogate_runs": 120,
+        "base_seed": 7,
+        "outcome_label_type": "mfe_by_horizon",
+        "block_size": 20,
+    }
+    serial = run_label_shuffle_surrogate(**common, workers=1)
+    parallel = run_label_shuffle_surrogate(**common, workers=4)
+    assert serial == parallel
+    # The gate fields the verdict consumes are present and identical.
+    for field in ("gate_pass_count", "run_count", "error_count", "threshold_verdict"):
+        assert serial[field] == parallel[field]
+
+
+def test_label_shuffle_surrogate_parallel_matches_serial_legacy_row_path() -> None:
+    # The legacy single-label row-shuffle path (block_size=1) must also be
+    # byte-identical under parallel execution.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    injected = _autocorrelated_overlap_injected(setup, n_bars=120, horizon_bars=20)
+
+    common = {
+        "setup": setup,
+        "injected": injected,
+        "surrogate_runs": 96,
+        "base_seed": 5,
+        "outcome_label_type": "mfe_by_horizon",
+        "block_size": 1,
+    }
+    assert run_label_shuffle_surrogate(**common, workers=1) == run_label_shuffle_surrogate(
+        **common, workers=3
+    )
+
+
+def test_label_shuffle_surrogate_parallel_matches_serial_net_excursion() -> None:
+    # The joint net_excursion path (two label_types, one shared permutation) must
+    # be byte-identical under parallel execution.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    injected = _net_excursion_injected(
+        setup, n_bars=120, horizon_bars=20, signed_drift=True
+    )
+
+    common = {
+        "setup": setup,
+        "injected": injected,
+        "surrogate_runs": 100,
+        "base_seed": 9,
+        "outcome_label_type": "net_excursion",
+        "block_size": 20,
+    }
+    assert run_label_shuffle_surrogate(**common, workers=1) == run_label_shuffle_surrogate(
+        **common, workers=4
+    )
+
+
 class _Handle:
     def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload
