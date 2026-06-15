@@ -1,0 +1,22 @@
+{
+  "description": "Historical pa_setup co-mined batch the independent reviewer adjudicated REWORK.",
+  "signal_idea_key": "prior_session_high_sweep_and_reclaim",
+  "slice": "ES_2020_120m",
+  "outcome_label_type": "net_excursion",
+  "gate_pass_count": 0,
+  "run_count": 64,
+  "per_test_surrogate_p": 0.015384615384615385,
+  "per_test_surrogate_p_formula": "(gate_pass_count + 1) / (run_count + 1) = 1 / 65",
+  "family_size_all_siblings": 7,
+  "family_size_net_excursion_only": 5,
+  "alpha_fw": 0.05,
+  "method": "bonferroni",
+  "bonferroni_threshold_m7": 0.007142857142857143,
+  "bonferroni_threshold_m5": 0.01,
+  "required_run_count_m7": 139,
+  "required_run_count_m5": 99,
+  "expected_resolution_adequate": false,
+  "expected_eligible": false,
+  "expected_reason_contains": "resolution_inadequate",
+  "note": "64 surrogates cannot resolve a passing corrected p (finest resolvable p 1/65 = 0.01538 > 0.05/7 = 0.00714); not eligible under both m=7 and m=5."
+}
