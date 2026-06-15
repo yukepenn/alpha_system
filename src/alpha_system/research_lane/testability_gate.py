@@ -291,6 +291,9 @@ def _check_features_materialized(
             expected_dataset_version_id=str(slice_spec.dataset_version_id),
             expected_feature_request_ids=slice_spec.feature_request_ids,
             partition_id=str(slice_spec.partition_id),
+            # Exploratory pre-test: horizon-agnostic features (<instr>_<year>_full_year)
+            # legitimately serve a horizon-specific runtime partition; labels stay strict.
+            allow_horizon_agnostic_partition=True,
         )
     except RuntimeInputResolverError as exc:
         return _data_gap(
