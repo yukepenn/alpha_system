@@ -118,6 +118,30 @@ class PooledAggregationRule(StrEnum):
     EQUAL_WEIGHT_MEAN = "equal_weight_mean"
 
 
+# Conservative default average pairwise correlation per pool kind, used when no
+# explicit correlation input is supplied to ``aggregate_pooled_metric``. These
+# protect the family-FDR rail: the components of a pooled hypothesis are NOT
+# independent, so a naive ``sqrt(sum se^2)/K`` SE (rho=0) understates the pooled
+# SE and a naive ``sum(n_eff)`` overstates pooled power, silently inflating the
+# pooled z and waving noise through the gate. We never silently assume rho=0.
+#
+# - CROSS_HORIZON: pooling e.g. 60m + 120m labels on the SAME bars produces
+#   heavily overlapping / autocorrelated components (the #474 overlap sin one
+#   layer up). Default to the worst case rho=1.0 -> pooled SE = mean(se_i),
+#   pooled n_eff floored at min(n_eff_i).
+# - CROSS_SYMBOL: ES/NQ/RTY intraday returns are highly contemporaneously
+#   correlated (~0.5-0.8 for equity index futures). Default to a documented
+#   conservative rho=0.6.
+# - CROSS_FAMILY: distinct families on the same bars can still be
+#   contemporaneously correlated; do NOT assume independence. Default to a
+#   documented moderate rho=0.5.
+DEFAULT_POOL_CORRELATION: dict[PoolKind, float] = {
+    PoolKind.CROSS_HORIZON: 1.0,
+    PoolKind.CROSS_SYMBOL: 0.6,
+    PoolKind.CROSS_FAMILY: 0.5,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class PooledHypothesisRecord:
     """Immutable governance contract for a pre-declared pooled hypothesis."""
@@ -203,7 +227,14 @@ class ComponentMetricRecord:
 
 @dataclass(frozen=True, slots=True)
 class PooledMetricResult:
-    """Value-free pooled metric output including component evidence."""
+    """Value-free pooled metric output including component evidence.
+
+    ``standard_error`` and ``n_eff`` are correlation-aware: they are computed
+    under ``assumed_correlation`` (the average pairwise correlation among the
+    pooled components) rather than assuming independence. A reviewer can see
+    exactly what correlation assumption the pooled significance rests on via
+    ``pool_kind`` and ``assumed_correlation``.
+    """
 
     pooled_hypothesis_id: str
     aggregation_rule: PooledAggregationRule
@@ -212,6 +243,8 @@ class PooledMetricResult:
     standard_error: float | None
     n_eff: int | None
     components: tuple[ComponentMetricRecord, ...]
+    pool_kind: PoolKind | None = None
+    assumed_correlation: float | None = None
 
     def to_dict(self) -> dict[str, JsonValue]:
         """Return pooled result and every component used to compute it."""
@@ -219,6 +252,8 @@ class PooledMetricResult:
         return {
             "pooled_hypothesis_id": self.pooled_hypothesis_id,
             "aggregation_rule": self.aggregation_rule.value,
+            "pool_kind": self.pool_kind.value if self.pool_kind is not None else None,
+            "assumed_correlation": self.assumed_correlation,
             "pooled_result": {
                 "metric_name": self.metric_name,
                 "point_estimate": self.point_estimate,
@@ -545,8 +580,32 @@ def _refuse_new_registration_when_metrics_started(
 def aggregate_pooled_metric(
     record: PooledHypothesisRecord | Mapping[str, Any],
     component_metrics: Iterable[ComponentMetricRecord | Mapping[str, Any]],
+    *,
+    pooled_correlation: float | None = None,
 ) -> PooledMetricResult:
-    """Aggregate component metrics under the declared fixed rule."""
+    """Aggregate component metrics under the declared fixed rule.
+
+    The pooled SE and effective N are CORRELATION-AWARE. The components of a
+    pooled hypothesis (overlapping horizons, contemporaneously correlated index
+    symbols, related families) are not independent, so the naive
+    ``sqrt(sum se^2)/K`` SE and ``sum(n_eff)`` understate SE / overstate power
+    and silently inflate the pooled z through the family-FDR rail.
+
+    For an equal-weight mean of ``K`` components with standard errors ``s_i`` and
+    average pairwise correlation ``rho`` the pooled variance is::
+
+        Var = (1 / K^2) * ( sum s_i^2 + rho * sum_{i != j} s_i s_j )
+
+    At ``rho = 0`` this reduces to the independent ``sqrt(sum s_i^2)/K``
+    (back-compatible). At ``rho = 1`` it collapses to ``mean(s_i)`` -- the fully
+    redundant worst case. The effective N is correlation-discounted (not summed):
+    ``sum(n_eff_i) / (1 + (K - 1) * rho)``, floored at ``min(n_eff_i)`` so the
+    worst case can never exceed a single component's power.
+
+    ``pooled_correlation`` (scalar average rho in ``[0, 1]``) is OPTIONAL. When
+    omitted the conservative ``DEFAULT_POOL_CORRELATION`` for the record's
+    ``pool_kind`` is used -- never silently zero.
+    """
 
     active_record = (
         validate_pooled_hypothesis_record(record)
@@ -576,16 +635,28 @@ def aggregate_pooled_metric(
                 actual=", ".join(sorted(metric_names)),
             )
         )
+    rho = _resolve_pooled_correlation(pooled_correlation, active_record.pool_kind)
     count = len(components)
     pooled_estimate = sum(component.point_estimate for component in components) / count
     standard_error = None
     if all(component.standard_error is not None for component in components):
-        standard_error = math.sqrt(
-            sum(float(component.standard_error) ** 2 for component in components)
-        ) / count
+        ses = [float(component.standard_error) for component in components]
+        sum_sq = sum(value**2 for value in ses)
+        sum_cross = sum(ses) ** 2 - sum_sq  # == sum_{i != j} s_i s_j
+        pooled_variance = (sum_sq + rho * sum_cross) / (count**2)
+        # Guard tiny negative from float error; variance is non-negative for rho in [0, 1].
+        standard_error = math.sqrt(max(pooled_variance, 0.0))
     n_eff = None
     if all(component.n_eff is not None for component in components):
-        n_eff = sum(int(component.n_eff) for component in components)
+        n_effs = [int(component.n_eff) for component in components]
+        # Correlation-discounted effective N: at rho=0 this is the independent
+        # sum (back-compat); as rho rises the pool's independent power shrinks.
+        discounted = sum(n_effs) / (1.0 + (count - 1) * rho)
+        if rho >= 1.0:
+            # Perfectly redundant: the pool has no more independent power than its
+            # weakest single member (never the naive sum).
+            discounted = min(discounted, float(min(n_effs)))
+        n_eff = max(1, int(math.floor(discounted)))
     return PooledMetricResult(
         pooled_hypothesis_id=active_record.pooled_hypothesis_id,
         aggregation_rule=active_record.aggregation_rule,
@@ -594,7 +665,48 @@ def aggregate_pooled_metric(
         standard_error=standard_error,
         n_eff=n_eff,
         components=tuple(sorted(components, key=lambda component: component.component_ref)),
+        pool_kind=active_record.pool_kind,
+        assumed_correlation=rho,
     )
+
+
+def _resolve_pooled_correlation(
+    pooled_correlation: float | None,
+    pool_kind: PoolKind,
+) -> float:
+    """Resolve the average pairwise correlation used for pooled SE / n_eff.
+
+    Explicit input wins (validated to ``[0, 1]``); otherwise the conservative
+    ``DEFAULT_POOL_CORRELATION`` for the pool kind is used. We never silently
+    assume independence (rho=0).
+    """
+
+    if pooled_correlation is None:
+        return DEFAULT_POOL_CORRELATION[pool_kind]
+    if isinstance(pooled_correlation, bool) or not isinstance(
+        pooled_correlation, (int, float)
+    ):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="pooled_correlation",
+                code="invalid_pooled_correlation",
+                message="pooled_correlation must be a finite number in [0, 1]",
+                expected="float in [0, 1] or null for the conservative default",
+                actual=type(pooled_correlation).__name__,
+            )
+        )
+    rho = float(pooled_correlation)
+    if not math.isfinite(rho) or rho < 0.0 or rho > 1.0:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="pooled_correlation",
+                code="invalid_pooled_correlation",
+                message="pooled_correlation must be a finite number in [0, 1]",
+                expected="float in [0, 1] or null for the conservative default",
+                actual=str(pooled_correlation),
+            )
+        )
+    return rho
 
 
 def track_b_minimum_satisfied(
@@ -1391,6 +1503,7 @@ def _normalize_text(value: object) -> str:
 
 
 __all__ = [
+    "DEFAULT_POOL_CORRELATION",
     "METRICS_MARKER_TIMESTAMP_FIELDS",
     "POOLED_HYPOTHESIS_REQUIRED_FIELDS",
     "POOLED_REGISTRY_DEFAULT_PATH",
