@@ -135,11 +135,18 @@ def test_raise_on_missing_setup_continuous_lift() -> None:
         FastReadout.from_dict(fixture)
 
 
-def test_raise_on_setup_recorded_missing_power() -> None:
+def test_setup_recorded_without_power_parses_and_falls_back_to_gate_n_eff() -> None:
+    # A2.3 amendment: a setup RECORDED readout no longer hard-requires a top-level
+    # power statement. The Stage-A contract over-constrained this (the prior Stage B
+    # STOP), because the real ZERO_PASS_MET signal-routing path resolves n_eff via
+    # power-then-gate fallback. With the top-level power absent, the readout must
+    # still PARSE and n_eff falls back to the surrogate gate's conditioned_n_eff
+    # (= 7 in this fixture).
     fixture = _setup_zero_pass_met_fixture()
     del fixture["power"]
-    with pytest.raises(FastReadoutContractError, match="requires a power statement"):
-        FastReadout.from_dict(fixture)
+    parsed = FastReadout.from_dict(fixture)
+    assert parsed.status == "RECORDED"
+    assert parsed.n_eff == 7
 
 
 def test_drifted_main_effect_n_eff_key_no_longer_resolves_planted_value() -> None:

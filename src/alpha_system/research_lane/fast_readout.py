@@ -134,26 +134,61 @@ class SurrogateFdrGate:
     / ``run_count`` / ``gate_pass_count`` / ``error_count`` / ``promotion_evidence``.
     ``run_label_shuffle_surrogate`` additionally attaches ``conditioned_n_eff`` and
     ``observed_effect`` (present on the setup lane; absent on a bare DATA_GAP gate).
+
+    The PARTIAL gate the ``alpha idea run`` pre-probe path emits
+    (``cli/idea.py:_pre_probe_exploratory_readout``) carries ONLY ``gate_status`` +
+    ``threshold_verdict`` -- a not-yet-run gate. ``run_count`` / ``gate_pass_count``
+    / ``error_count`` are therefore OPTIONAL and default to 0 (a gate that never ran
+    has 0 runs -- faithful). ``_present_count_keys`` records which of the three count
+    keys the source actually carried so ``to_dict`` re-emits EXACTLY what came in
+    (a partial gate stays partial; a full gate stays full) -- zero-break round-trip.
     """
 
     gate_status: str
     threshold_verdict: str
-    run_count: int
-    gate_pass_count: int
-    error_count: int
+    run_count: int = 0
+    gate_pass_count: int = 0
+    error_count: int = 0
     promotion_evidence: bool = False
     conditioned_n_eff: int | None = None
     observed_effect: float | None = None
+    # Which count keys the source mapping carried (for exact round-trip of a partial
+    # vs full gate). ``None`` means the gate was built via the bare constructor (no
+    # presence tracking) -> emit the full count set. An explicit frozenset (even the
+    # empty one) means the gate was parsed -> emit only the keys that were present.
+    # Internal bookkeeping; never emitted as its own key.
+    _present_count_keys: frozenset[str] | None = None
+    # Whether the source carried promotion_evidence explicitly (a partial gate omits it).
+    _had_promotion_evidence: bool | None = None
+
+    _COUNT_KEYS = ("run_count", "gate_pass_count", "error_count")
 
     def to_dict(self) -> dict[str, JsonValue]:
         payload: dict[str, JsonValue] = {
             "gate_status": self.gate_status,
             "threshold_verdict": self.threshold_verdict,
-            "run_count": self.run_count,
-            "gate_pass_count": self.gate_pass_count,
-            "error_count": self.error_count,
-            "promotion_evidence": self.promotion_evidence,
         }
+        # Re-emit each count key only if the source carried it (preserve partial vs
+        # full exactly). A gate built via the bare constructor (presence is None)
+        # emits all three counts, matching the full-gate house shape.
+        present = (
+            frozenset(self._COUNT_KEYS)
+            if self._present_count_keys is None
+            else self._present_count_keys
+        )
+        if "run_count" in present:
+            payload["run_count"] = self.run_count
+        if "gate_pass_count" in present:
+            payload["gate_pass_count"] = self.gate_pass_count
+        if "error_count" in present:
+            payload["error_count"] = self.error_count
+        emit_promotion = (
+            self._present_count_keys is None
+            if self._had_promotion_evidence is None
+            else self._had_promotion_evidence
+        )
+        if emit_promotion:
+            payload["promotion_evidence"] = self.promotion_evidence
         # conditioned_n_eff / observed_effect are present only when the surrogate
         # actually ran (setup lane); preserve their presence/absence exactly.
         if self.conditioned_n_eff is not None:
@@ -166,15 +201,18 @@ class SurrogateFdrGate:
     def from_dict(cls, mapping: Mapping[str, Any]) -> SurrogateFdrGate:
         active = _require_mapping(mapping, field_name="surrogate_fdr_gate")
         context = "surrogate_fdr_gate"
+        present = frozenset(key for key in cls._COUNT_KEYS if key in active)
         return cls(
             gate_status=str(_require(active, "gate_status", context=context)),
             threshold_verdict=str(_require(active, "threshold_verdict", context=context)),
-            run_count=int(_require(active, "run_count", context=context)),
-            gate_pass_count=int(_require(active, "gate_pass_count", context=context)),
-            error_count=int(_require(active, "error_count", context=context)),
+            run_count=int(active.get("run_count", 0)),
+            gate_pass_count=int(active.get("gate_pass_count", 0)),
+            error_count=int(active.get("error_count", 0)),
             promotion_evidence=bool(active.get("promotion_evidence", False)),
             conditioned_n_eff=_as_optional_int(active.get("conditioned_n_eff")),
             observed_effect=_as_optional_float(active.get("observed_effect")),
+            _present_count_keys=present,
+            _had_promotion_evidence="promotion_evidence" in active,
         )
 
 
@@ -236,6 +274,30 @@ class IcQualitySummary:
 
 
 @dataclass(frozen=True, slots=True)
+class PowerStatement:
+    """Typed canonical view of the top-level IC-power statement's MDE.
+
+    ``build_ic_power_statement`` (``runtime/diagnostics/power.py``) is the single
+    sanctioned power builder; it writes the detectable floor under the CANONICAL
+    key ``mde_abs_ic``. The contract reads ONLY that canonical spelling -- the
+    historical ``minimum_detectable_abs_ic`` / ``minimum_detectable_effect``
+    spellings are exactly the drift this contract eliminates (see A2.6/A2.7 which
+    canonicalize the two producers that still wrote the legacy key at source).
+    """
+
+    n_eff: int | None
+    mde_abs_ic: float | None
+
+    @classmethod
+    def from_dict(cls, mapping: Mapping[str, Any]) -> PowerStatement:
+        active = _require_mapping(mapping, field_name="power")
+        return cls(
+            n_eff=_as_optional_int(active.get("n_eff")),
+            mde_abs_ic=_as_optional_float(active.get("mde_abs_ic")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class FastReadout:
     """Lane-discriminated typed contract for one fast-probe readout.
 
@@ -287,21 +349,42 @@ class FastReadout:
     def n_eff(self) -> int:
         """The single canonical effective-sample count for this readout's lane.
 
-        One location per lane (no depth-varying duplicate, no recursive search):
-        main_effect reads the IC quality summary's ``ic_power_n_eff``; every other
-        path reads the top-level ``power.n_eff``. Missing/None resolves to 0 (a
-        DATA_GAP carries n_eff 0 by construction).
+        One resolution order (no depth-varying duplicate, no recursive search),
+        reproducing today's prefer-power-fallback-gate behavior
+        (``memory_router._setup_conditioned_n_eff`` + ``verdict_report._n_eff_mde``):
+
+        - main_effect with an IC quality summary: ``ic_quality_summary.ic_power_n_eff``;
+        - otherwise top-level ``power.n_eff`` when present and not None;
+        - else ``surrogate_fdr_gate.conditioned_n_eff`` when present;
+        - else 0 (a DATA_GAP / not-yet-run gate carries n_eff 0 by construction).
         """
 
-        if self.study_kind == STUDY_KIND_MAIN_EFFECT:
-            if self.ic_quality_summary is not None:
-                value = self.ic_quality_summary.ic_power_n_eff
-                return int(value) if value is not None else 0
-            return 0
+        if self.study_kind == STUDY_KIND_MAIN_EFFECT and self.ic_quality_summary is not None:
+            value = self.ic_quality_summary.ic_power_n_eff
+            return int(value) if value is not None else 0
         if self.power is not None:
             value = self.power.get("n_eff")
-            return int(value) if value is not None else 0
+            if value is not None:
+                return int(value)
+        gate = self.surrogate_fdr_gate
+        if gate is not None and gate.conditioned_n_eff is not None:
+            return int(gate.conditioned_n_eff)
         return 0
+
+    @property
+    def mde_abs_ic(self) -> float | None:
+        """The canonical detectable-floor MDE for this readout (single spelling).
+
+        main_effect reads the IC quality summary's ``ic_power_mde_abs_ic``; every
+        other lane reads the top-level power statement's canonical ``mde_abs_ic``.
+        Reads ONLY the canonical key -- no ``minimum_detectable_*`` fallback.
+        """
+
+        if self.study_kind == STUDY_KIND_MAIN_EFFECT and self.ic_quality_summary is not None:
+            return self.ic_quality_summary.ic_power_mde_abs_ic
+        if self.power is not None:
+            return _as_optional_float(self.power.get("mde_abs_ic"))
+        return None
 
     def to_dict(self) -> dict[str, JsonValue]:
         """Round-trip the producer output: typed fields + verbatim passthrough."""
@@ -348,33 +431,40 @@ class FastReadout:
         continuous_lift = None
 
         if study_kind == STUDY_KIND_MAIN_EFFECT:
-            # main_effect is RECORDED only in this producer; require the nested IC
-            # quality summary that downstream reads.
-            ic_quality = cls._extract_main_effect_quality(active)
+            # main_effect RECORDED carries the nested IC quality summary downstream
+            # reads. A main_effect INCONCLUSIVE (the `alpha idea run` pre-probe
+            # gate-FAIL / DATA_GAP path emits study_kind=main_effect with an empty
+            # `readout: {}`) carries NO IC summary -- ic_quality_summary is None there
+            # (A2.2). Require the summary ONLY when status == RECORDED.
+            if status == FAST_READOUT_STATUS_RECORDED:
+                ic_quality = cls._extract_main_effect_quality(active)
         else:
             # context_not_equal_trigger: RECORDED (ZERO_PASS_MET) carries the nested
-            # conditional-probe readout with the continuous lift + surrogate gate +
-            # power; INCONCLUSIVE (surrogate-blocked / DATA_GAP) carries the gate
-            # and/or power but no nested readout/lift.
+            # conditional-probe readout with the continuous lift + surrogate gate.
+            # INCONCLUSIVE (surrogate-blocked / DATA_GAP / pre-probe gate-FAIL) carries
+            # the gate and/or power but no nested readout/lift.
             if status == FAST_READOUT_STATUS_RECORDED:
+                # A2.3: require the surrogate gate + continuous lift; do NOT hard-require
+                # a top-level power statement (the ZERO_PASS_MET signal-routing path
+                # resolves n_eff via power-then-gate, so a missing power falls back to
+                # the gate's conditioned_n_eff -- see the n_eff accessor).
                 continuous_lift = cls._extract_setup_lift(active)
                 if surrogate is None:
                     raise FastReadoutContractError(
                         "context_not_equal_trigger RECORDED readout requires surrogate_fdr_gate"
                     )
-                if power is None:
-                    raise FastReadoutContractError(
-                        "context_not_equal_trigger RECORDED readout requires a power statement"
-                    )
             elif issue_code == FAST_READOUT_ISSUE_DATA_GAP:
-                if power is None:
-                    raise FastReadoutContractError("DATA_GAP readout requires a power statement")
-            else:
-                # surrogate-blocked INCONCLUSIVE: carries the real surrogate gate.
-                if surrogate is None:
-                    raise FastReadoutContractError(
-                        "surrogate-blocked readout requires surrogate_fdr_gate"
-                    )
+                # A bare fast_probe DATA_GAP carries a power statement; the pre-probe
+                # DATA_GAP path also carries a (zero) power statement. Require neither
+                # the gate nor lift here -- a DATA_GAP is honestly empty of diagnostics.
+                pass
+            elif surrogate is None:
+                # surrogate-blocked INCONCLUSIVE (a real not-met gate): carries the
+                # real surrogate gate. A pre-probe PRE_TEST_FAIL carries a partial
+                # gate (gate_status/threshold only) which still parses via A2.1.
+                raise FastReadoutContractError(
+                    "surrogate-blocked readout requires surrogate_fdr_gate"
+                )
 
         passthrough = {
             key: value for key, value in active.items() if key not in cls._TYPED_TOP_KEYS
@@ -466,6 +556,7 @@ __all__ = [
     "FastReadout",
     "FastReadoutContractError",
     "IcQualitySummary",
+    "PowerStatement",
     "SurrogateFdrGate",
     "validate_fast_readout",
 ]

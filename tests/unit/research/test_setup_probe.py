@@ -54,7 +54,7 @@ def test_setup_probe_scores_trigger_inside_separate_context_over_path_labels() -
     assert readout.surrogate_fdr_gate["threshold_verdict"] == "zero-pass-met"
     assert readout.power["scope"] == "per_factor"
     assert readout.power["factor_id"] == "sweep_trigger"
-    assert readout.power["minimum_detectable_abs_ic"] is not None
+    assert readout.power["mde_abs_ic"] is not None
 
 
 def test_setup_probe_discounts_power_n_eff_for_overlapping_outcome() -> None:

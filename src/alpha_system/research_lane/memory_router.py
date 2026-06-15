@@ -35,6 +35,10 @@ from alpha_system.governance.verdict_reason_code import (
     validate_optional_verdict_reason_code,
     validate_verdict_reason_code,
 )
+from alpha_system.research_lane.fast_readout import (
+    FastReadout,
+    FastReadoutContractError,
+)
 
 MEMORY_ROUTER_SCHEMA = "alpha_system.research_lane.memory_router.v1"
 ROUTE_REJECT = "graveyard"
@@ -255,30 +259,36 @@ def _route_signal_pending_reviewer(
     original_verdict_ref = _verdict_reference(
         alpha_spec_id, readout, report_ref=report_ref, verdict=verdict
     )
-    study_kind = str(readout.get("study_kind") or "").strip().lower()
-    if study_kind == STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER:
+    # A SIGNAL_PENDING_REVIEWER readout is a RECORDED probe (main_effect or setup);
+    # parse it through the typed FastReadout contract once and read typed attributes
+    # (no recursive searches, no mirror parsers, single canonical n_eff accessor).
+    parsed = _parse_fast_readout(readout)
+    if parsed.study_kind == STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER:
         record = _setup_lane_signal_record(
             readout,
+            parsed,
             alpha_spec_id=alpha_spec_id,
             original_verdict_ref=original_verdict_ref,
             created_at=created_at,
         )
     else:
-        # main_effect path: IC quality summary (UNCHANGED).
-        quality = _main_effect_quality_summary(readout)
+        # main_effect path: typed IC quality summary.
+        quality = parsed.ic_quality_summary
+        if quality is None:
+            raise _missing_main_effect_quality_summary_error()
         record = create_signal_pending_reviewer_record(
             alpha_spec_id_or_hypothesis_id=alpha_spec_id,
             original_verdict_ref=original_verdict_ref,
             factor_id=_main_effect_factor_id(readout),
             slice_id=_main_effect_slice_id(readout),
-            pearson_ic=_required_float(quality.get("pearson_ic"), field="pearson_ic"),
-            rank_ic=_required_float(quality.get("rank_ic"), field="rank_ic"),
-            n_eff=_required_int(quality.get("ic_power_n_eff"), field="ic_power_n_eff"),
+            pearson_ic=_required_float(quality.pearson_ic, field="pearson_ic"),
+            rank_ic=_required_float(quality.rank_ic, field="rank_ic"),
+            n_eff=_required_int(quality.ic_power_n_eff, field="ic_power_n_eff"),
             detectable_abs_ic=_required_float(
-                quality.get("ic_power_mde_abs_ic"), field="ic_power_mde_abs_ic"
+                quality.ic_power_mde_abs_ic, field="ic_power_mde_abs_ic"
             ),
             bucket_rank_correlation=_required_float(
-                quality.get("bucket_rank_correlation"), field="bucket_rank_correlation"
+                quality.bucket_rank_correlation, field="bucket_rank_correlation"
             ),
             created_at=created_at,
         )
@@ -296,21 +306,24 @@ def _route_signal_pending_reviewer(
 
 def _setup_lane_signal_record(
     readout: Mapping[str, Any],
+    parsed: FastReadout,
     *,
     alpha_spec_id: str,
     original_verdict_ref: str,
     created_at: str,
 ):
-    """Build a context_not_equal_trigger signal-shelf record.
+    """Build a context_not_equal_trigger signal-shelf record from the typed readout.
 
     The setup/path-outcome lane has no IC numbers; it carries a signed
-    continuous-outcome ``mean_lift`` (mirroring verdict_report._continuous_lift_summary)
-    plus the enriched surrogate-FDR gate (conditioned overlap-aware n_eff,
-    observed effect, gate pass/run counts). The machine still NEVER promotes; this
-    only routes the non-promoting signal to the reviewer shelf.
+    continuous-outcome ``mean_lift`` (``FastReadout.continuous_lift_summary``) plus
+    the enriched surrogate-FDR gate (conditioned overlap-aware n_eff, observed effect,
+    gate pass/run counts -- ``FastReadout.surrogate_fdr_gate``). ``FastReadout.n_eff``
+    is the single canonical accessor (top-level power, falling back to the gate's
+    conditioned_n_eff). The machine still NEVER promotes; this only routes the
+    non-promoting signal to the reviewer shelf.
     """
 
-    lift = _continuous_lift_summary(readout)
+    lift = parsed.continuous_lift_summary
     if lift is None:
         raise GovernanceValidationError(
             ValidationIssue(
@@ -321,67 +334,65 @@ def _setup_lane_signal_record(
                 actual="missing",
             )
         )
-    gate = readout.get("surrogate_fdr_gate")
-    gate_map: Mapping[str, Any] = gate if isinstance(gate, Mapping) else {}
+    gate = parsed.surrogate_fdr_gate
+    if gate is None:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="readout.surrogate_fdr_gate",
+                code="missing_setup_lane_gate",
+                message="setup-lane signal routing requires a surrogate_fdr_gate",
+                expected="surrogate-FDR gate mapping",
+                actual="missing",
+            )
+        )
     return create_signal_pending_reviewer_record(
         alpha_spec_id_or_hypothesis_id=alpha_spec_id,
         original_verdict_ref=original_verdict_ref,
         factor_id=_main_effect_factor_id(readout),
         slice_id=_main_effect_slice_id(readout),
-        n_eff=_required_int(_setup_conditioned_n_eff(readout, gate_map), field="conditioned_n_eff"),
-        net_mean_lift=_required_float(lift.get("mean_lift"), field="mean_lift"),
-        outcome_label_type=_required_outcome_label_type(lift.get("outcome_label_type")),
-        observed_effect=_optional_float_metric(gate_map.get("observed_effect")),
-        surrogate_gate_pass_count=_required_int(
-            gate_map.get("gate_pass_count"), field="gate_pass_count"
-        ),
-        surrogate_run_count=_required_int(gate_map.get("run_count"), field="run_count"),
+        n_eff=parsed.n_eff,
+        net_mean_lift=_required_float(lift.mean_lift, field="mean_lift"),
+        outcome_label_type=_required_outcome_label_type(lift.outcome_label_type),
+        observed_effect=gate.observed_effect,
+        surrogate_gate_pass_count=gate.gate_pass_count,
+        surrogate_run_count=gate.run_count,
         created_at=created_at,
         study_kind=STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER,
     )
 
 
-def _setup_conditioned_n_eff(readout: Mapping[str, Any], gate: Mapping[str, Any]) -> Any:
-    """Resolve the conditioned overlap-aware n_eff for a setup-lane readout.
+def _parse_fast_readout(readout: Mapping[str, Any]) -> FastReadout:
+    """Parse a RECORDED signal readout through the typed contract.
 
-    Mirrors verdict_report._n_eff_mde: in the ZERO_PASS_MET path the surrogate
-    already exposed the overlap-aware power as a top-level ``power.n_eff``
-    statement; only the surrogate-blocked early return attaches
-    ``surrogate_fdr_gate.conditioned_n_eff``. Prefer the power statement and fall
-    back to the gate so both shapes route.
+    Surfaces drift loudly at the boundary (``FastReadoutContractError``) instead of a
+    silent downstream ``.get()`` returning ``None``. Raised as a governance issue so
+    the router's failure mode stays consistent with the rest of the seam.
     """
 
-    power = _find_mapping_with_keys(readout, ("n_eff",))
-    if isinstance(power, Mapping) and power.get("n_eff") is not None:
-        return power.get("n_eff")
-    return gate.get("conditioned_n_eff")
+    try:
+        return FastReadout.from_dict(readout)
+    except FastReadoutContractError as exc:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="readout",
+                code="invalid_fast_readout_contract",
+                message=f"signal-shelf routing requires a contract-valid fast readout: {exc}",
+                expected="FastReadout-parseable readout",
+                actual="contract drift",
+            )
+        ) from exc
 
 
-def _continuous_lift_summary(readout: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """Locate the continuous-outcome conditioned-mean-lift diagnostic in the readout.
-
-    Mirrors verdict_report._continuous_lift_summary: it searches the (possibly
-    nested) readout for a mapping carrying the conditioned-mean-lift keys.
-    """
-
-    return _find_mapping_with_keys(readout, ("mean_lift", "conditioned_mean", "base_mean"))
-
-
-def _find_mapping_with_keys(value: Any, keys: tuple[str, ...]) -> Mapping[str, Any] | None:
-    if isinstance(value, Mapping):
-        if all(key in value for key in keys):
-            return value
-        for item in value.values():
-            found = _find_mapping_with_keys(item, keys)
-            if found is not None:
-                return found
-        return None
-    if isinstance(value, Sequence) and not isinstance(value, str | bytes):
-        for item in value:
-            found = _find_mapping_with_keys(item, keys)
-            if found is not None:
-                return found
-    return None
+def _missing_main_effect_quality_summary_error() -> GovernanceValidationError:
+    return GovernanceValidationError(
+        ValidationIssue(
+            field="readout.factor_diagnostics_report.quality_summary",
+            code="missing_main_effect_quality_summary",
+            message="signal-shelf routing requires a main_effect IC quality summary",
+            expected="factor_diagnostics_report.quality_summary mapping",
+            actual="missing",
+        )
+    )
 
 
 def _required_outcome_label_type(value: Any) -> str:
@@ -397,31 +408,6 @@ def _required_outcome_label_type(value: Any) -> str:
             )
         )
     return text
-
-
-def _optional_float_metric(value: Any) -> float | None:
-    if value is None:
-        return None
-    return _required_float(value, field="observed_effect")
-
-
-def _main_effect_quality_summary(readout: Mapping[str, Any]) -> Mapping[str, Any]:
-    inner = readout.get("readout")
-    if isinstance(inner, Mapping):
-        report = inner.get("factor_diagnostics_report")
-        if isinstance(report, Mapping):
-            quality = report.get("quality_summary")
-            if isinstance(quality, Mapping):
-                return quality
-    raise GovernanceValidationError(
-        ValidationIssue(
-            field="readout.factor_diagnostics_report.quality_summary",
-            code="missing_main_effect_quality_summary",
-            message="signal-shelf routing requires a main_effect IC quality summary",
-            expected="factor_diagnostics_report.quality_summary mapping",
-            actual="missing",
-        )
-    )
 
 
 def _main_effect_factor_id(readout: Mapping[str, Any]) -> str:

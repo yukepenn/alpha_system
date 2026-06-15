@@ -21,6 +21,10 @@ from alpha_system.research.conditional_probe import (
     NET_EXCURSION_OUTCOME,
     NET_EXCURSION_TRIVIAL_LIFT_EPS,
 )
+from alpha_system.research_lane.fast_readout import (
+    ContinuousLiftSummary,
+    FastReadoutContractError,
+)
 from alpha_system.research_lane.testability_gate import CHECK_ORDER, TestabilityGateResult
 
 ALLOWED_REPORT_VERDICTS = frozenset(
@@ -50,7 +54,7 @@ def render_verdict_report(
     slice_spec = _mapping(readout.get("slice_spec"), default={})
     mechanism = _mapping(readout.get("mechanism_card"), default={})
     dedup = _mapping(mechanism.get("duplicate_exposure"), default={})
-    class_summary = _class_summary(gate, readout)
+    class_summary = _class_summary(gate)
     n_eff, mde = _n_eff_mde(gate, readout)
     surrogate = _surrogate_summary(readout, gate)
     verdict = _derive_report_verdict(
@@ -132,12 +136,12 @@ def render_verdict_report(
         lines.extend(
             [
                 "## Path Outcome Diagnostics",
-                f"- outcome_label_type: {_display(lift.get('outcome_label_type'))}",
-                f"- conditioned_mean: {_display(lift.get('conditioned_mean'))}",
-                f"- base_mean: {_display(lift.get('base_mean'))}",
-                f"- mean_lift: {_display(lift.get('mean_lift'))}",
-                f"- conditioned_n: {_display(lift.get('conditioned_n'))}",
-                f"- base_n: {_display(lift.get('base_n'))}",
+                f"- outcome_label_type: {_display(lift.outcome_label_type)}",
+                f"- conditioned_mean: {_display(lift.conditioned_mean)}",
+                f"- base_mean: {_display(lift.base_mean)}",
+                f"- mean_lift: {_display(lift.mean_lift)}",
+                f"- conditioned_n: {_display(lift.conditioned_n)}",
+                f"- base_n: {_display(lift.base_n)}",
                 "",
             ]
         )
@@ -154,16 +158,30 @@ def render_verdict_report(
     return "\n".join(lines)
 
 
-def _continuous_lift_summary(readout: Mapping[str, Any]) -> Mapping[str, Any] | None:
+def _continuous_lift_summary(readout: Mapping[str, Any]) -> ContinuousLiftSummary | None:
     """Surface the continuous-outcome conditioned-mean-lift diagnostic if present.
 
     Display-only: the value is already computed by evaluate_setup_conditional_probe;
-    the renderer just locates and formats it (it is nested under the readout's
-    diagnostics). Returns None for binary/main_effect readouts that have no
-    continuous outcome lift.
+    the renderer reads it from the one CANONICAL location it is carried at --
+    ``readout.readout.diagnostics.continuous_outcome_mean_lift`` -- via the typed
+    ``ContinuousLiftSummary`` view (no broad recursive search that could grab a
+    different nested mapping). Returns None for binary/main_effect readouts and for
+    any shape that does not carry the lift at the canonical path.
     """
 
-    return _find_mapping_with_keys(readout, ("mean_lift", "conditioned_mean", "base_mean"))
+    inner = readout.get("readout")
+    if not isinstance(inner, Mapping):
+        return None
+    diagnostics = inner.get("diagnostics")
+    if not isinstance(diagnostics, Mapping):
+        return None
+    lift = diagnostics.get("continuous_outcome_mean_lift")
+    if not isinstance(lift, Mapping):
+        return None
+    try:
+        return ContinuousLiftSummary.from_dict(lift)
+    except FastReadoutContractError:
+        return None
 
 
 def _idea_mapping(value: IdeaDraft | Mapping[str, Any]) -> dict[str, Any]:
@@ -313,42 +331,43 @@ def _checks_by_id(gate: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     return checks
 
 
-def _class_summary(gate: Mapping[str, Any], readout: Mapping[str, Any]) -> dict[str, Any]:
+def _class_summary(gate: Mapping[str, Any]) -> dict[str, Any]:
+    """Read the path-label class balance from the testability gate's canonical detail.
+
+    The class balance lives on the gate's ``path_label_two_class`` check under
+    ``detail.class_balance`` with the canonical ``minority_class_count`` key (no
+    ``minority_count`` spelling fallback -- Class A -- and no recursive readout
+    search -- Class C -- both removed; no producer writes class_count into the
+    readout).
+    """
+
     for check in _checks_by_id(gate).values():
         detail = _mapping(check.get("detail"), default={})
         candidate = _mapping(detail.get("class_balance"), default={})
         if "class_count" in candidate:
             return {
                 "class_count": candidate.get("class_count"),
-                "minority_count": candidate.get("minority_class_count")
-                if candidate.get("minority_class_count") is not None
-                else candidate.get("minority_count"),
+                "minority_count": candidate.get("minority_class_count"),
             }
-    found = _find_mapping_with_keys(readout, ("class_count",))
-    if found:
-        return {
-            "class_count": found.get("class_count"),
-            "minority_count": found.get("minority_class_count")
-            if found.get("minority_class_count") is not None
-            else found.get("minority_count"),
-        }
     return {"class_count": None, "minority_count": None}
 
 
 def _n_eff_mde(gate: Mapping[str, Any], readout: Mapping[str, Any]) -> tuple[Any, Any]:
+    """Resolve the display N_eff / MDE from the readout's canonical power statement.
+
+    Reads the single canonical top-level ``power`` location (``n_eff`` + ``mde_abs_ic``)
+    -- no recursive ``_find_mapping_with_keys`` search (Class C) and no
+    ``minimum_detectable_effect`` / ``minimum_detectable_abs_ic`` spelling fallback
+    (Class A). The producers now write the canonical ``mde_abs_ic`` at source
+    (A2.6/A2.7). When the readout carries no power statement at all (a pre-test gate
+    failure with no probe power), fall back to the testability gate's own
+    ``n_eff`` / ``minimum_detectable_effect`` detail -- a SEPARATE contract (the gate,
+    not the readout) whose field names are out of scope here.
+    """
+
     power = _mapping(readout.get("power"), default={})
-    if not power:
-        power = _mapping(_find_mapping_with_keys(readout, ("n_eff",)), default={})
     if power:
-        n_eff = power.get("n_eff")
-        mde = (
-            power.get("minimum_detectable_effect")
-            if power.get("minimum_detectable_effect") is not None
-            else power.get("minimum_detectable_abs_ic")
-        )
-        if mde is None:
-            mde = power.get("mde_abs_ic")
-        return n_eff, mde
+        return power.get("n_eff"), power.get("mde_abs_ic")
     for check in _checks_by_id(gate).values():
         detail = _mapping(check.get("detail"), default={})
         if "n_eff" in detail or "minimum_detectable_effect" in detail:
@@ -628,7 +647,7 @@ def _derive_setup_verdict(
 
     # ZERO_PASS_MET: require the conditioned-mean lift to classify a (non-promoting) signal.
     lift = _continuous_lift_summary(readout)
-    mean_lift = _float_or_none(lift.get("mean_lift")) if lift is not None else None
+    mean_lift = _float_or_none(lift.mean_lift) if lift is not None else None
     if mean_lift is None:
         return _verdict(
             "INCONCLUSIVE",
@@ -637,7 +656,7 @@ def _derive_setup_verdict(
             "Keep the readout in research review until a valid mean_lift is attached.",
         )
 
-    outcome_label_type = str(lift.get("outcome_label_type") or "").strip()
+    outcome_label_type = str(lift.outcome_label_type or "").strip()
     if outcome_label_type == NET_EXCURSION_OUTCOME:
         if abs(mean_lift) <= NET_EXCURSION_TRIVIAL_LIFT_EPS:
             return _verdict(
@@ -671,11 +690,11 @@ def _derive_setup_verdict(
 
 
 def _explicit_verdict(readout: Mapping[str, Any]) -> dict[str, str] | None:
-    raw = (
-        readout.get("verdict")
-        or readout.get("final_verdict")
-        or readout.get("report_verdict")
-    )
+    # Canonical spellings only: the producer / governed readout writes ``verdict`` and
+    # ``reason_code`` (the ``final_verdict`` / ``report_verdict`` / ``verdict_reason_code``
+    # / ``verdict_reason`` multi-spelling fallbacks were Class-A fossils with no live
+    # producer and are removed).
+    raw = readout.get("verdict")
     if raw is None:
         return None
     verdict = str(raw).strip().upper()
@@ -689,14 +708,14 @@ def _explicit_verdict(readout: Mapping[str, Any]) -> dict[str, str] | None:
                 actual=str(raw),
             )
         )
-    reason_raw = readout.get("reason_code") or readout.get("verdict_reason_code")
+    reason_raw = readout.get("reason_code")
     if reason_raw is None and verdict == "INCONCLUSIVE":
         reason = VerdictReasonCode.DATA_QUALITY
     elif reason_raw is None:
         reason = _default_reason_for_verdict(verdict)
     else:
         reason = validate_verdict_reason_code(reason_raw, field="reason_code")
-    why = str(readout.get("why") or readout.get("verdict_reason") or _default_why(verdict))
+    why = str(readout.get("why") or _default_why(verdict))
     next_action = str(readout.get("next_action") or _default_next_action(verdict))
     return _verdict(verdict, reason, why, next_action)
 
@@ -791,22 +810,6 @@ def _row_access(readout: Mapping[str, Any]) -> str:
 def _row_access_unresolved(readout: Mapping[str, Any]) -> bool:
     row_access = _mapping(readout.get("row_access"), default={})
     return str(row_access.get("status") or "").lower() in {"unresolved", "blocked", "missing"}
-
-
-def _find_mapping_with_keys(value: Any, keys: tuple[str, ...]) -> Mapping[str, Any] | None:
-    if isinstance(value, Mapping):
-        if all(key in value for key in keys):
-            return value
-        for item in value.values():
-            found = _find_mapping_with_keys(item, keys)
-            if found is not None:
-                return found
-    elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
-        for item in value:
-            found = _find_mapping_with_keys(item, keys)
-            if found is not None:
-                return found
-    return None
 
 
 def _is_blocked(value: Any) -> bool:

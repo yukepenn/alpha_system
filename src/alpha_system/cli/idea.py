@@ -579,7 +579,7 @@ def _pre_probe_exploratory_readout(bundle: Any, gate: Mapping[str, Any]) -> dict
         },
         "power": {
             "n_eff": 0,
-            "minimum_detectable_abs_ic": None,
+            "mde_abs_ic": None,
         },
         "readout": {},
         "readout_id": f"preprobe_{bundle.idea_draft.alpha_spec_id}_{status.lower()}",

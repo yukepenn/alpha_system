@@ -71,7 +71,7 @@ def test_verdict_report_data_gap_fabricates_no_metric_value() -> None:
                 "threshold_verdict": "CALIBRATION_BLOCKED",
                 "gate_status": "BLOCKED",
             },
-            power={"n_eff": 0, "minimum_detectable_abs_ic": None},
+            power={"n_eff": 0, "mde_abs_ic": None},
             readout={"fabricated_metric": 999},
         ),
     )
@@ -337,7 +337,7 @@ def _setup_readout(
             "threshold_verdict": threshold_verdict,
             "gate_status": gate_status,
         },
-        power={"n_eff": n_eff, "minimum_detectable_abs_ic": 0.25},
+        power={"n_eff": n_eff, "mde_abs_ic": 0.25},
         readout=(
             {
                 "diagnostics": {
@@ -541,7 +541,7 @@ def _fast_readout(
             "threshold_verdict": "ZERO_PASS_MET",
             "gate_status": "PASS",
         },
-        "power": power or {"n_eff": 24, "minimum_detectable_abs_ic": 0.25},
+        "power": power or {"n_eff": 24, "mde_abs_ic": 0.25},
         "readout": readout or {},
     }
     if verdict is not None:
