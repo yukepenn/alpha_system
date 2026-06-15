@@ -1,7 +1,8 @@
 # Operating Compass — Autonomy-First Strategy / Roadmap Compass
 
-Version: v5.0 (autonomy-first consolidation, consolidating v2 / v2.1 / v3 / v3.5 /
-v4.x). Fixed filename: `docs/OPERATING_COMPASS.md` — the version bumps internally,
+Version: v5.1 (autonomy-first consolidation, consolidating v2 / v2.1 / v3 / v3.5 /
+v4.x; v5.1 adds the cross-idea family-wise FDR budget rung + the typed-contract-seam
+anti-drift law). Fixed filename: `docs/OPERATING_COMPASS.md` — the version bumps internally,
 the filename never changes again. This IS the canonical strategy/roadmap compass:
 `AGENTS.md`, `README.md`, and `CRITICAL.md` point here, the predecessor
 versioned compass (V4) is retired, and an anti-rot guard
@@ -499,6 +500,27 @@ readout is hard-stamped EXPLORATORY and refused as promotion evidence by design.
   path-outcome diagnostics (e.g. base-rate lift, expectancy) is a live-code fact —
   grep `conditional_probe.py`; do not assume IC-style readouts for setups.
 
+**L1→L2 multiplicity gate — the per-idea surrogate gate does NOT control
+family-wise error.** The zero-pass `surrogate_fdr_gate` is a *single-test* control;
+a batch of co-mined sibling ideas tested against the same slice shares a family-wise
+error surface (testing m ideas at once manufactures false positives at the batch
+level exactly as a single test does at the row level — the same failure mode as
+[[law-overlap-aware-ic-power-n-eff]] one layer up). A setup signal is therefore
+eligible to REACH the reviewer shelf (L2) only when it BOTH (a) clears a
+**cross-idea family-wise / FDR correction** across its co-mined batch
+(`governance/family_fdr_correction.py`: Benjamini-Hochberg step-up — substrate
+default FDR α = 0.10 — or Bonferroni FWER 0.05 conservative mode; the per-test p is
+the surrogate upper bound `(pass+1)/(run+1)`) AND (b) is **surrogate-resolution
+adequate** (`run_count ≥ ⌈m/α⌉−1`, so the finest resolvable p can clear the
+corrected threshold — too few surrogates can't make a corrected claim *in
+principle*). The correction accumulates per-idea in an append-only ledger
+(`governance/family_fdr_ledger.py`, batch key = `(alpha_spec_id, slice_id)` +
+`family_id`) and is provisional/monotonically-refined as siblings land; a
+not-yet-eligible signal routes to **requeue** (`family_fdr_not_cleared` /
+`surrogate_resolution_inadequate`), not graveyard. This makes the machine enforce
+deterministically the multiplicity discipline an independent reviewer would apply —
+see `decisions/CROSS_IDEA_FDR_BUDGET_V1/`.
+
 **Sample-window vs prediction-horizon (do not conflate):** the *horizon* (5m…240m)
 is how far ahead a label looks; the *window* (which years) is the evidence base. A
 single calendar year is a smoke / first-powered slice, never final evidence —
@@ -866,9 +888,15 @@ directory) plus `tools/hooks/forbidden_pattern_guard.py`. Validate with
 4. **No lookahead.** Point-in-time only; factor diagnostics REJECT on missing
    `available_ts`; sealed holdout with contamination ledger; locked-test access is
    always ledgered.
-5. **No free sweep-then-cherry-pick.** Every variant pre-registered and counted
-   against the variant / surrogate-FDR family budget; budget amendments authored
-   before the earliest attempt and only ever raise the budget.
+5. **No free sweep-then-cherry-pick (two levels).** (a) Every variant
+   pre-registered and counted against the variant / surrogate-FDR family budget;
+   budget amendments authored before the earliest attempt and only ever raise the
+   budget. (b) **Cross-idea family-wise multiplicity is controlled** across a
+   co-mined batch — a setup signal reaches the reviewer shelf (L2) only if it clears
+   the family-wise/FDR correction AND is surrogate-resolution-adequate
+   (`governance/family_fdr_correction.py` + `family_fdr_ledger.py`; §3.8). The
+   per-idea zero-pass gate is necessary but NOT sufficient: 1-of-m passing at the
+   per-test level is not a discovery.
 6. **No un-computable mechanisms / no vague text.** MechanismCard anti-vagueness
    rejects `unbounded`/`unlimited`/`tbd`/`placeholder`; PA primitives must be
    computable.
@@ -893,6 +921,18 @@ directory) plus `tools/hooks/forbidden_pattern_guard.py`. Validate with
 11. **Reviewer verdicts cite deterministic evidence** — ledger completeness,
     variant count, holdout-access report, canary results, no-lookahead audit, cost
     report, duplicate-exposure status, resolver smoke. Prose alone gates nothing.
+12. **Typed contracts at module seams (anti-drift = a no-second-truth corollary).**
+    A data object crossing ≥2 module boundaries with lane/variant shapes is a
+    FROZEN TYPED CONTRACT that fails loudly at the boundary on shape mismatch — not
+    an untyped dict that consumers string-spelunk. An untyped seam lets each
+    consumer re-discover the shape by `.get()`/recursive search, so a rename/new
+    lane drifts SILENTLY (`.get()`→None never raises) and is absorbed by
+    multi-spelling fallbacks and mirror parsers — i.e. it multiplies *second
+    readings* of the same truth across consumers, the readout-layer analogue of the
+    no-second-truth rail. Reference: `decisions/FAST_READOUT_CONTRACT_V1/` (the
+    `FastReadout` typed seam + per-lane routing canary). Rule: type the seam, one
+    canonical accessor per drift-prone field, add a routing canary — never let
+    consumers string-spelunk a shared dict.
 
 ---
 
@@ -1014,6 +1054,14 @@ Apply to every new design, object, lane, or campaign:
   - `decisions/ALPHA_FACTORY_PRODUCTION_LINE_ADJUDICATION_V1/NEXT_SHOT_SELECTION_RULE.md`
     — the next-shot ranking rule (testability → unexhausted shape →
     information-per-compute → closes a known gap; never expected effect size).
+  - `decisions/CROSS_IDEA_FDR_BUDGET_V1/DESIGN.md` — the cross-idea family-wise
+    multiplicity gate (per-test surrogate p + Benjamini-Hochberg/Bonferroni +
+    surrogate-resolution adequacy + the accumulating family ledger). §3.8 / §6.5
+    here summarize it; the design doc is the detail of record (incl. the open
+    FDR-α/method policy fork).
+  - `decisions/FAST_READOUT_CONTRACT_V1/ROOT_CAUSE_AND_FIX.md` — the typed-contract-seam
+    law (§6.12): why an untyped readout dict compounds drift, and the `FastReadout`
+    typed contract + routing canary that fixed it.
 - **Live run/phase status:** `python tools/frontier/status_doctor.py` (with
   `runs/<run_id>/state.json` + `heartbeat.json`). The authority for the in-flight
   phase, survivor-gate state, and pointer drift. **This doc never states live
@@ -1022,7 +1070,7 @@ Apply to every new design, object, lane, or campaign:
 
 ---
 
-(End of Operating Compass v5.0 — canonical at the fixed filename
+(End of Operating Compass v5.1 — canonical at the fixed filename
 `docs/OPERATING_COMPASS.md`; version bumps internally, the filename never changes.
 `AGENTS.md`, `README.md`, and `CRITICAL.md` point here; the predecessor V4 file is
 retired and an anti-rot guard forbids versioned duplicates. Agent memory mirrors
