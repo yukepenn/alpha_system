@@ -289,6 +289,38 @@ def _gate_result(
     }
 
 
+def test_verdict_report_renders_continuous_outcome_mean_lift() -> None:
+    bundle = _bundle()
+    report = render_verdict_report(
+        bundle.idea_draft,
+        _gate_result(),
+        _fast_readout(
+            readout={
+                "diagnostics": {
+                    "continuous_outcome_mean_lift": {
+                        "outcome_label_type": "mfe_by_horizon",
+                        "conditioned_mean": 0.00262295,
+                        "base_mean": 0.00317973,
+                        "mean_lift": -0.00055678,
+                        "conditioned_n": 30342,
+                        "base_n": 304002,
+                    }
+                }
+            },
+        ),
+    )
+    assert "## Path Outcome Diagnostics" in report
+    assert "outcome_label_type: mfe_by_horizon" in report
+    assert "mean_lift: -0.00055678" in report
+    assert "conditioned_n: 30342" in report
+
+
+def test_verdict_report_omits_path_outcome_diagnostics_when_absent() -> None:
+    bundle = _bundle()
+    report = render_verdict_report(bundle.idea_draft, _gate_result(), _fast_readout())
+    assert "## Path Outcome Diagnostics" not in report
+
+
 def _fast_readout(
     *,
     status: str = "RECORDED",

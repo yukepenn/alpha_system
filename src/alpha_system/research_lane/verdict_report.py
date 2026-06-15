@@ -120,6 +120,24 @@ def render_verdict_report(
             f"- threshold_verdict: {_display(surrogate.get('threshold_verdict'))}",
             f"- gate_status: {_display(surrogate.get('gate_status'))}",
             "",
+        ]
+    )
+    lift = _continuous_lift_summary(readout)
+    if lift is not None:
+        lines.extend(
+            [
+                "## Path Outcome Diagnostics",
+                f"- outcome_label_type: {_display(lift.get('outcome_label_type'))}",
+                f"- conditioned_mean: {_display(lift.get('conditioned_mean'))}",
+                f"- base_mean: {_display(lift.get('base_mean'))}",
+                f"- mean_lift: {_display(lift.get('mean_lift'))}",
+                f"- conditioned_n: {_display(lift.get('conditioned_n'))}",
+                f"- base_n: {_display(lift.get('base_n'))}",
+                "",
+            ]
+        )
+    lines.extend(
+        [
             "## Final Verdict",
             f"- verdict: {verdict['verdict']}",
             f"- reason_code: {verdict['reason_code']}",
@@ -129,6 +147,18 @@ def render_verdict_report(
         ]
     )
     return "\n".join(lines)
+
+
+def _continuous_lift_summary(readout: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Surface the continuous-outcome conditioned-mean-lift diagnostic if present.
+
+    Display-only: the value is already computed by evaluate_setup_conditional_probe;
+    the renderer just locates and formats it (it is nested under the readout's
+    diagnostics). Returns None for binary/main_effect readouts that have no
+    continuous outcome lift.
+    """
+
+    return _find_mapping_with_keys(readout, ("mean_lift", "conditioned_mean", "base_mean"))
 
 
 def _idea_mapping(value: IdeaDraft | Mapping[str, Any]) -> dict[str, Any]:

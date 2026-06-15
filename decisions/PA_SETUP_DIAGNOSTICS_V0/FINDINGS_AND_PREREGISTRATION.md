@@ -228,10 +228,28 @@ windows — **not a signed/directional tradable edge.** A real edge would show
 excursion inflation.
 
 **Conclusion:** under honest overlap-aware statistics, this setup is **REJECT as a
-directional edge** (volatility confound; no signed asymmetry). The machine did NOT
-manufacture a signal: raw MFE significance alone would have looked like one, but the
-adversarial MAE control + the non-promoting verdict default held the rail. This is
-the methodology working as designed.
+directional edge** (volatility/excursion-magnitude effect; no signed asymmetry). The
+machine did NOT manufacture a signal: raw MFE significance alone would have looked
+like one, but the adversarial MAE control + the non-promoting verdict default held
+the rail. This is the methodology working as designed.
+
+**Definitive numbers (surfaced via the renderer, 2026-06-15):** the conditioned
+subset's mean excursions and lifts (conditioned_n=30342, base_n=304002):
+
+| outcome | conditioned_mean | base_mean | mean_lift |
+|---|---|---|---|
+| MFE (favorable) | 0.002623 | 0.003180 | **−0.000557** |
+| MAE (adverse)   | −0.002669 | −0.003227 | **+0.000558** |
+
+The two lifts are near-perfect mirror images, so the **net signed asymmetry
+MFE_lift + MAE_lift ≈ +0.000001 ≈ 0**. The conditioned (range_contraction ∩
+failed_high_breakout) subset has *smaller* excursions BOTH ways — a **lower-volatility
+(compression) regime that shrinks favorable and adverse excursions symmetrically** —
+with **zero net directional drift.** So the surrogate `ZERO_PASS_MET` on each
+excursion detected the excursion-MAGNITUDE difference, not a directional edge.
+**Verdict: REJECT as a directional edge.** (The cheap renderer surfacing of the
+already-computed `continuous_outcome_mean_lift` made the symmetry directly visible —
+no heavy net-excursion surrogate build was needed to conclude; verify-before-building.)
 
 ## 10. Next unit (refined by the confound): signed expected-R, not raw excursion
 
