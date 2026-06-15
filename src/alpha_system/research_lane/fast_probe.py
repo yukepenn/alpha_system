@@ -418,6 +418,15 @@ def _factor_rows_from_records(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for bar_index, record in enumerate(sorted(records, key=lambda item: str(item.get("event_ts")))):
+        # A feature SET pack holds multiple feature_version_ids; select only the one
+        # this role's factor targets (feature.pack_ref == the feature_version_id), so a
+        # single factor never gets duplicate rows per (instrument, event_ts) key. Labels
+        # already filter by label_version_id symmetrically. Only skip records that
+        # actually CARRY a differing feature_version_id; records without the column
+        # (single-feature packs, in-memory fixtures) are kept (backward compatible).
+        record_fver = record.get("feature_version_id")
+        if feature.pack_ref and record_fver and str(record_fver) != feature.pack_ref:
+            continue
         numeric = _optional_numeric(record.get("value"))
         if numeric is None:
             continue
