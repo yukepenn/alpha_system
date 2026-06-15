@@ -132,6 +132,37 @@ etc. It types the **one untyped seam between them** and consolidates the
 duplicated parsers. It enhances existing governance/validation rather than
 adding a parallel one.
 
+## 7. Implementation notes (as built)
+
+- **Stage A (#485):** typed `FastReadout` family + routing canary, additive,
+  consumers untouched.
+- **Stage A.2 (this PR):** Stage B's first attempt correctly STOPPED — the
+  Stage-A contract under-specified the producer surface. There are **three**
+  readout producers, not two: `fast_probe` (4 shapes) **plus**
+  `cli/idea.py:_pre_probe_exploratory_readout` (the gate-FAIL / DATA_GAP path of
+  `alpha idea run`), which emits a *partial* `surrogate_fdr_gate`
+  (`gate_status`+`threshold_verdict` only) and an empty nested `readout`. A.2
+  amended the contract to parse it faithfully: gate count fields optional
+  (default 0, a not-run gate has 0 runs) with presence-tracking for exact
+  round-trip; main_effect requires the IC summary only when RECORDED; setup
+  RECORDED no longer hard-requires top-level `power`; the canonical `n_eff`
+  accessor resolves IC→power→gate.conditioned_n_eff→0 (reproducing the old
+  fallback). A.2 ALSO found a Class-A drift *inside* the `power` dict — the MDE
+  key (`mde_abs_ic` from the sanctioned `build_ic_power_statement` vs
+  `minimum_detectable_abs_ic` hand-written in `conditional_probe.py:483` and
+  `cli/idea.py:582`) — and **canonicalized it at the source** to `mde_abs_ic`
+  (value unchanged), so the contract reads one spelling.
+- **Stage B (this PR):** consumers migrated onto typed attributes; Class A
+  readout fallbacks, Class B mirror parsers
+  (`_continuous_lift_summary`/`_n_eff_mde`/`_setup_conditioned_n_eff`/
+  `_main_effect_quality_summary`) and the recursive `_find_mapping_with_keys`
+  deleted from the readout path. `reviewer.py` (reads the shelf record, not the
+  readout) and the `slice_spec`/`testability_gate` `from_mapping` alias-tolerance
+  (a different contract) are out of scope — left as future work.
+- **Behavior preserved:** whole suite green (incl. the IVL dogfood e2e that
+  exercises the real signal-shelf path). The single behavior-test change is the
+  authorized reversal of the over-strict "setup RECORDED requires power" rule.
+
 ## 5. Staged rollout (additive-first; working pipeline never breaks)
 
 - **Stage A (additive, zero-break):** Add the `FastReadout` typed family +

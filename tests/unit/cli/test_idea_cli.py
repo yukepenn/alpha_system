@@ -314,7 +314,7 @@ def test_idea_gate_and_run_consume_embedded_resolving_slice(
             },
             "power": {
                 "n_eff": 4,
-                "minimum_detectable_abs_ic": 1.0,
+                "mde_abs_ic": 1.0,
             },
             "readout": {
                 "counts": {"conditioned_observation_count": 4},

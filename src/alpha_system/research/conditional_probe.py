@@ -480,7 +480,7 @@ def evaluate_setup_conditional_probe(
         factor_id=probe.trigger.factor_id,
         factor_version=probe.trigger.factor_version,
     )
-    power["minimum_detectable_abs_ic"] = minimum_detectable_abs_ic(n_eff)
+    power["mde_abs_ic"] = minimum_detectable_abs_ic(n_eff)
     readout_payload = {
         "setup_spec_id": probe.setup_spec_id,
         "path_label": probe.path_label,

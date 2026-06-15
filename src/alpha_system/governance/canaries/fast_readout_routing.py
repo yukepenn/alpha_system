@@ -226,12 +226,87 @@ def _data_gap_fixture() -> dict[str, Any]:
     }
 
 
+def _pre_probe_main_effect_gate_fail_fixture() -> dict[str, Any]:
+    """Mirror of ``cli/idea.py:_pre_probe_exploratory_readout`` for the main_effect lane.
+
+    The ``alpha idea run`` gate-FAIL / DATA_GAP path emits study_kind=main_effect with
+    an EMPTY ``readout: {}`` (no factor_diagnostics_report), a PARTIAL surrogate gate
+    (only ``gate_status`` + ``threshold_verdict`` -- not yet run), and a zero power
+    statement. A2.2 means ``ic_quality_summary`` is None for this INCONCLUSIVE shape.
+    """
+
+    return {
+        "schema": _SCHEMA,
+        "status": "INCONCLUSIVE",
+        "issue_code": "PRE_TEST_FAIL",
+        "study_kind": "main_effect",
+        "stamp": _EXPLORATORY,
+        "promotion_eligible": False,
+        "mechanism_card": {"mechanism_id": "mech_canary"},
+        "setup_spec": None,
+        "slice_spec": {"slice_id": "slice_canary", "study_kind": "main_effect"},
+        "row_access": {
+            "status": "blocked",
+            "reason": "pre-test gate failed",
+            "fabricated_values": False,
+        },
+        "surrogate_fdr_gate": {
+            "threshold_verdict": "CALIBRATION_BLOCKED",
+            "gate_status": "BLOCKED",
+        },
+        "power": {
+            "n_eff": 0,
+            "mde_abs_ic": None,
+        },
+        "readout": {},
+        "readout_id": "preprobe_main_canary",
+    }
+
+
+def _pre_probe_setup_gate_fail_fixture() -> dict[str, Any]:
+    """Mirror of ``cli/idea.py:_pre_probe_exploratory_readout`` for the setup lane.
+
+    Same pre-probe shape but study_kind=context_not_equal_trigger with a DATA_GAP
+    issue code: empty ``readout: {}``, partial surrogate gate, zero power. It must
+    PARSE (DATA_GAP lane requires neither the lift nor the full gate).
+    """
+
+    return {
+        "schema": _SCHEMA,
+        "status": "INCONCLUSIVE",
+        "issue_code": "DATA_GAP",
+        "study_kind": "context_not_equal_trigger",
+        "stamp": _EXPLORATORY,
+        "promotion_eligible": False,
+        "mechanism_card": {"mechanism_id": "mech_canary"},
+        "setup_spec": {"setup_spec_id": "setup_canary"},
+        "slice_spec": {"slice_id": "slice_canary", "study_kind": "context_not_equal_trigger"},
+        "row_access": {
+            "status": "unresolved",
+            "reason": "pre-test gate returned DATA_GAP",
+            "fabricated_values": False,
+        },
+        "surrogate_fdr_gate": {
+            "threshold_verdict": "CALIBRATION_BLOCKED",
+            "gate_status": "BLOCKED",
+        },
+        "power": {
+            "n_eff": 0,
+            "mde_abs_ic": None,
+        },
+        "readout": {},
+        "readout_id": "preprobe_setup_canary",
+    }
+
+
 # (fixture builder, expected canonical n_eff) per lane/status shape.
 _FIXTURES: tuple[tuple[str, Any, int], ...] = (
     ("main_effect_recorded", _main_effect_recorded_fixture, 9),
     ("setup_zero_pass_met", _setup_zero_pass_met_fixture, 7),
     ("setup_surrogate_blocked", _setup_surrogate_blocked_fixture, 5),
     ("data_gap", _data_gap_fixture, 0),
+    ("pre_probe_main_effect_gate_fail", _pre_probe_main_effect_gate_fail_fixture, 0),
+    ("pre_probe_setup_gate_fail", _pre_probe_setup_gate_fail_fixture, 0),
 )
 
 

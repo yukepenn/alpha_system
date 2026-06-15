@@ -61,7 +61,7 @@ def test_ivl_dogfood_track_b_gate_and_run_loop(
             },
             "power": {
                 "n_eff": 4,
-                "minimum_detectable_abs_ic": 1.0,
+                "mde_abs_ic": 1.0,
             },
             "readout": {
                 "counts": {

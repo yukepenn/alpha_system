@@ -238,7 +238,7 @@ def test_build_evidence_emits_exploratory_readout(monkeypatch, tmp_path) -> None
     assert evidence["variant_ledger_binding"]["family_budget_check"]["status"] == "RESPECTED"
     assert evidence["power"]["scope"] == "per_factor"
     assert evidence["power"]["factor_id"] == TRIGGER_FACTOR_ID
-    assert evidence["power"]["minimum_detectable_abs_ic"] is not None
+    assert evidence["power"]["mde_abs_ic"] is not None
     diagnostics = evidence["diagnostics"]
     assert "target_before_stop_probability" in diagnostics
     assert "post_event_mfe_mae" in diagnostics
