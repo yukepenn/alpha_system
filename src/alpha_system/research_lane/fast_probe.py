@@ -21,7 +21,9 @@ from alpha_system.governance.serialization import JsonValue
 from alpha_system.governance.setup_spec import SetupSpec, validate_setup_spec
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
 from alpha_system.research.conditional_probe import (
-    CONTINUOUS_OUTCOME_BUCKET_KEYS,
+    NET_EXCURSION_OUTCOME,
+    NET_EXCURSION_REQUIRED_LABEL_TYPES,
+    RECOGNIZED_CONTINUOUS_OUTCOMES,
     ConditionalProbeError,
     build_path_label_observation_set,
     build_surrogate_zero_pass_gate,
@@ -38,6 +40,7 @@ from alpha_system.research_lane.slice_spec import (
 )
 from alpha_system.runtime.diagnostics.factor.runtime import build_factor_diagnostics_run
 from alpha_system.runtime.diagnostics.power import build_ic_power_statement
+from alpha_system.runtime.diagnostics.splits.n_eff import estimate_n_eff
 from alpha_system.runtime.input_resolver import (
     FeatureLabelPackResolver,
     RuntimeInputResolverError,
@@ -214,12 +217,13 @@ def run_label_shuffle_surrogate(
     trigger_rows = _feature_rows(injected, "trigger")
     path_rows = _label_rows(injected, "path")
 
-    # The shuffled label_type and the effect statistic are the only things that
-    # differ between binary and continuous; everything else (seed handling,
-    # alignment, FDR gate) stays shared.
-    shuffle_label_type = (
-        "target_before_stop" if outcome_label_type is None else outcome_label_type
-    )
+    # The shuffled label_type(s) and the effect statistic are the only things that
+    # differ between binary, single-continuous, and the derived net_excursion path;
+    # everything else (seed handling, alignment, FDR gate) stays shared. For
+    # net_excursion the null must relocate each event's (mfe, mae) PAIR TOGETHER, so
+    # we shuffle BOTH materialized label_types with ONE shared permutation order
+    # rather than one label_type.
+    shuffle_label_types = _shuffle_label_types(outcome_label_type)
 
     def effect(observation_set: Any) -> float | None:
         if outcome_label_type is None:
@@ -242,50 +246,47 @@ def run_label_shuffle_surrogate(
         outcome_label_type=outcome_label_type,
     )
     observed_uplift = effect(observed)
-    target_rows = [row for row in path_rows if row.get("label_type") == shuffle_label_type]
     active_block_size = max(int(block_size), 1)
-    # For the block path the shuffled outcome values are time-ordered by event_ts
-    # ASCENDING before blocking so the contiguous non-overlapping blocks line up
-    # with the forward overlap autocorrelation; the permuted values are reassigned
-    # in that same time order. The row-level path (block_size <= 1) preserves the
-    # historical original-order shuffle byte-for-byte. ``event_ts`` is required on
-    # every label row (see _label_rows_from_records / _required), so a missing
-    # event_ts would already have failed upstream; the empty-string sentinel only
-    # guards against an in-memory fixture that omits it (stable original order).
-    block_order = sorted(
-        range(len(target_rows)),
-        key=lambda pos: str(target_rows[pos].get("event_ts") or ""),
+    # A single-label outcome (binary or one continuous label_type) under the
+    # row-level path (block_size <= 1) preserves the historical ORIGINAL-ORDER
+    # value shuffle byte-for-byte. The block path and the joint net_excursion path
+    # instead time-order each label_type's rows by event_ts ASCENDING so contiguous
+    # non-overlapping blocks line up with the forward overlap autocorrelation; the
+    # permuted values are reassigned in that same time order. ``event_ts`` is
+    # required on every label row (see _label_rows_from_records / _required), so a
+    # missing event_ts would already have failed upstream; the empty-string
+    # sentinel only guards against an in-memory fixture that omits it.
+    legacy_single_label_row_shuffle = (
+        len(shuffle_label_types) == 1 and active_block_size <= 1
     )
+    # For net_excursion both label_types share a single permutation order computed
+    # over the common per-event count, so the per-event (mfe, mae) pairing is
+    # preserved: a given event's two rows always relocate to the same target event.
+    target_rows_by_type = {
+        label_type: _time_ordered_label_rows(path_rows, label_type)
+        for label_type in shuffle_label_types
+    }
+    shared_event_count = _shared_event_count(target_rows_by_type)
+    legacy_target_rows = [
+        (index, row)
+        for index, row in enumerate(path_rows)
+        if row.get("label_type") == shuffle_label_types[0]
+    ]
 
     pass_count = 0
     error_count = 0
     for run_index in range(surrogate_runs):
         rng = random.Random(base_seed + run_index)
-        if active_block_size <= 1:
-            # Unchanged historical row-level shuffle in original path_rows order.
-            shuffled_values = [row.get("value") for row in target_rows]
-            rng.shuffle(shuffled_values)
-            target_iter = iter(shuffled_values)
-            rebuilt = [
-                {**row, "value": next(target_iter)}
-                if row.get("label_type") == shuffle_label_type
-                else dict(row)
-                for row in path_rows
-            ]
+        if legacy_single_label_row_shuffle:
+            rebuilt = _rebuild_legacy_row_shuffle(path_rows, legacy_target_rows, rng)
         else:
-            # Block-shuffle: permute non-overlapping fixed-length blocks of the
-            # time-ordered values, then reassign back to the time-ordered rows.
-            ordered_values = [target_rows[pos].get("value") for pos in block_order]
-            permuted = _block_permute(ordered_values, active_block_size, rng)
-            replacement_by_pos = dict(zip(block_order, permuted, strict=True))
-            target_iter = iter(range(len(target_rows)))
-            rebuilt = []
-            for row in path_rows:
-                if row.get("label_type") == shuffle_label_type:
-                    pos = next(target_iter)
-                    rebuilt.append({**row, "value": replacement_by_pos[pos]})
-                else:
-                    rebuilt.append(dict(row))
+            rebuilt = _rebuild_surrogate_path_rows(
+                path_rows,
+                target_rows_by_type=target_rows_by_type,
+                shared_event_count=shared_event_count,
+                block_size=active_block_size,
+                rng=rng,
+            )
         try:
             surrogate_observations = build_path_label_observation_set(
                 probe,
@@ -305,11 +306,151 @@ def run_label_shuffle_surrogate(
         ):
             pass_count += 1
 
-    return build_surrogate_zero_pass_gate(
+    gate = build_surrogate_zero_pass_gate(
         run_count=surrogate_runs,
         gate_pass_count=pass_count,
         error_count=error_count,
     )
+    # Surface the conditioned power + observed effect the surrogate already computed
+    # so a NOT-met gate can be classified as a well-powered null (REJECT) vs an
+    # underpowered requeue vs a calibration error — the surrogate-blocked early
+    # return otherwise carries no power and the verdict cannot tell them apart.
+    conditioned_count = len(observed.conditioned_observations)
+    if active_block_size > 1 and conditioned_count > 0:
+        conditioned_n_eff = estimate_n_eff(
+            conditioned_count,
+            {
+                "horizon_bars": active_block_size,
+                "sampling_cadence_bars": 1,
+                "discount_factor": active_block_size,
+                "metadata_source": "setup_surrogate_conditioned_overlap",
+            },
+            purge_gap=0,
+            embargo_gap=0,
+        ).n_eff
+    else:
+        conditioned_n_eff = conditioned_count
+    gate["conditioned_n_eff"] = conditioned_n_eff
+    gate["observed_effect"] = None if observed_uplift is None else float(observed_uplift)
+    return gate
+
+
+def _shuffle_label_types(outcome_label_type: str | None) -> tuple[str, ...]:
+    """The path-row label_type(s) the surrogate permutes for this outcome.
+
+    Binary (``None``) shuffles ``target_before_stop``; a single continuous outcome
+    shuffles its own label_type; the derived ``net_excursion`` shuffles BOTH
+    materialized excursion label_types so the per-event (mfe, mae) pair moves
+    together under one shared permutation order.
+    """
+
+    if outcome_label_type is None:
+        return ("target_before_stop",)
+    if outcome_label_type == NET_EXCURSION_OUTCOME:
+        return NET_EXCURSION_REQUIRED_LABEL_TYPES
+    return (outcome_label_type,)
+
+
+def _rebuild_legacy_row_shuffle(
+    path_rows: Sequence[Mapping[str, Any]],
+    legacy_target_rows: Sequence[tuple[int, Mapping[str, Any]]],
+    rng: random.Random,
+) -> list[dict[str, Any]]:
+    """Byte-identical historical single-label row shuffle (original path order).
+
+    The shuffled values are taken in ORIGINAL path_rows order, permuted with
+    ``rng.shuffle``, and reassigned sequentially to the matching label_type rows in
+    that same original order. This preserves the exact legacy RNG consumption and
+    value-to-row mapping for the unchanged binary / single-continuous path.
+    """
+
+    shuffled_values = [row.get("value") for _, row in legacy_target_rows]
+    rng.shuffle(shuffled_values)
+    target_indices = {index for index, _ in legacy_target_rows}
+    value_iter = iter(shuffled_values)
+    rebuilt: list[dict[str, Any]] = []
+    for index, row in enumerate(path_rows):
+        if index in target_indices:
+            rebuilt.append({**row, "value": next(value_iter)})
+        else:
+            rebuilt.append(dict(row))
+    return rebuilt
+
+
+def _time_ordered_label_rows(
+    path_rows: Sequence[Mapping[str, Any]],
+    label_type: str,
+) -> list[tuple[int, Mapping[str, Any]]]:
+    """The (original_index, row) pairs of one label_type, ordered by event_ts ASC.
+
+    The original index preserves the position in ``path_rows`` so reassignment can
+    write back to the exact source row regardless of interleaving with other
+    label_types.
+    """
+
+    indexed = [
+        (index, row)
+        for index, row in enumerate(path_rows)
+        if row.get("label_type") == label_type
+    ]
+    indexed.sort(key=lambda item: str(item[1].get("event_ts") or ""))
+    return indexed
+
+
+def _shared_event_count(
+    target_rows_by_type: Mapping[str, Sequence[tuple[int, Mapping[str, Any]]]],
+) -> int:
+    """Common per-event row count across the shuffled label_types.
+
+    A single shared permutation can only pair rows coherently when every shuffled
+    label_type contributes the same number of time-ordered events; the minimum is
+    used so an in-memory fixture with a ragged tail cannot index out of range (the
+    surplus tail rows of any one type simply stay in place for that run).
+    """
+
+    counts = [len(rows) for rows in target_rows_by_type.values()]
+    return min(counts) if counts else 0
+
+
+def _rebuild_surrogate_path_rows(
+    path_rows: Sequence[Mapping[str, Any]],
+    *,
+    target_rows_by_type: Mapping[str, Sequence[tuple[int, Mapping[str, Any]]]],
+    shared_event_count: int,
+    block_size: int,
+    rng: random.Random,
+) -> list[dict[str, Any]]:
+    """Apply ONE permutation order to every shuffled label_type, pairing preserved.
+
+    ``block_size <= 1`` reproduces the historical row-level shuffle byte-for-byte
+    for a single label_type (the permutation is a plain row shuffle). ``> 1`` block-
+    permutes non-overlapping fixed-length blocks of the time-ordered positions. The
+    SAME permutation order is applied to each label_type in its own event-time
+    order, so per-event multi-label values (the net_excursion mfe/mae pair) relocate
+    to the same destination event together.
+    """
+
+    order = list(range(shared_event_count))
+    if block_size <= 1:
+        rng.shuffle(order)
+    else:
+        order = _block_permute(order, block_size, rng)
+
+    # value_by_source[original_index] = the value relocated INTO that source row.
+    value_by_source: dict[int, Any] = {}
+    for rows in target_rows_by_type.values():
+        for dest_pos, src_pos in enumerate(order):
+            dest_index = rows[dest_pos][0]
+            source_value = rows[src_pos][1].get("value")
+            value_by_source[dest_index] = source_value
+
+    rebuilt: list[dict[str, Any]] = []
+    for index, row in enumerate(path_rows):
+        if index in value_by_source:
+            rebuilt.append({**row, "value": value_by_source[index]})
+        else:
+            rebuilt.append(dict(row))
+    return rebuilt
 
 
 def _block_permute(values: list[Any], block_size: int, rng: random.Random) -> list[Any]:
@@ -499,8 +640,11 @@ def _build_surrogate_blocked_readout(
     """
 
     factor_id, factor_version = _power_factor(slice_spec, setup)
+    # Carry the conditioned overlap-aware n_eff the surrogate computed (not 0) so a
+    # not-met gate can be classified as a well-powered null vs underpowered requeue.
+    conditioned_n_eff = int(surrogate_gate.get("conditioned_n_eff") or 0)
     power = build_ic_power_statement(
-        n_eff=0,
+        n_eff=conditioned_n_eff,
         scope="per_factor",
         factor_id=factor_id,
         factor_version=factor_version,
@@ -808,19 +952,22 @@ def _conditional_uplift(
 
 
 def _resolve_outcome_label_type(slice_spec: SliceSpec) -> str | None:
-    """Validate and return the continuous outcome selector, or None for binary.
+    """Validate and return the continuous/derived outcome selector, or None.
 
-    None preserves the degenerate-bool ``target_before_stop`` path exactly. A set
-    selector must (a) be a recognized continuous outcome and (b) be present in the
-    slice's ``label_version_map`` bound to value_type "float", so the continuous
-    outcome the lane reads is the one the slice actually materialized.
+    None preserves the degenerate-bool ``target_before_stop`` path exactly. A
+    materialized continuous selector (e.g. ``mfe_by_horizon``/``mae_by_horizon``)
+    must (a) be a recognized continuous outcome and (b) be present in the slice's
+    ``label_version_map`` bound to value_type "float". The DERIVED
+    ``net_excursion`` selector is not a materialized label_type: it instead
+    requires BOTH ``mfe_by_horizon`` AND ``mae_by_horizon`` to be bound as floats
+    (so both buckets will be populated per event for the ``mfe + mae`` derivation).
     """
 
     selector = slice_spec.outcome_label_type
     if selector is None:
         return None
-    if selector not in CONTINUOUS_OUTCOME_BUCKET_KEYS:
-        allowed = ", ".join(sorted(CONTINUOUS_OUTCOME_BUCKET_KEYS))
+    if selector not in RECOGNIZED_CONTINUOUS_OUTCOMES:
+        allowed = ", ".join(sorted(RECOGNIZED_CONTINUOUS_OUTCOMES))
         raise FastProbeError(
             f"outcome_label_type must be one of the continuous outcomes: {allowed}"
         )
@@ -829,6 +976,18 @@ def _resolve_outcome_label_type(slice_spec: SliceSpec) -> str | None:
         for binding in slice_spec.label_version_bindings
         if binding.value_type == "float"
     }
+    if selector == NET_EXCURSION_OUTCOME:
+        missing = [
+            label_type
+            for label_type in NET_EXCURSION_REQUIRED_LABEL_TYPES
+            if label_type not in float_outcomes
+        ]
+        if missing:
+            raise FastProbeError(
+                "net_excursion outcome requires both mfe_by_horizon and mae_by_horizon "
+                f"bound as float in the slice label_version_map; missing: {', '.join(missing)}"
+            )
+        return selector
     if selector not in float_outcomes:
         raise FastProbeError(
             "outcome_label_type must be a float label_type present in the slice "

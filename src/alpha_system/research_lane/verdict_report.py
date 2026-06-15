@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from alpha_system.governance.idea_draft import (
+    CONTEXT_NOT_EQUAL_TRIGGER,
     MAIN_EFFECT,
     IdeaDraft,
     validate_idea_draft,
@@ -15,6 +16,10 @@ from alpha_system.governance.validation import GovernanceValidationError, Valida
 from alpha_system.governance.verdict_reason_code import (
     VerdictReasonCode,
     validate_verdict_reason_code,
+)
+from alpha_system.research.conditional_probe import (
+    NET_EXCURSION_OUTCOME,
+    NET_EXCURSION_TRIVIAL_LIFT_EPS,
 )
 from alpha_system.research_lane.testability_gate import CHECK_ORDER, TestabilityGateResult
 
@@ -416,13 +421,22 @@ def _derive_report_verdict(
 
     issue_code = str(readout.get("issue_code") or "").upper()
     status = str(readout.get("status") or "").upper()
-    if (
+    study_kind = str(readout.get("study_kind") or "").strip().lower()
+    # A context!=trigger setup readout owns its own surrogate-gate / power
+    # classification (a not-met surrogate gate is a WELL_POWERED_NULL REJECT when
+    # power is adequate, an UNDERPOWERED INCONCLUSIVE otherwise) rather than being
+    # swept into the generic substrate-gap DATA_GAP. Genuine substrate gaps (an
+    # explicit DATA_GAP issue/status or an unresolved row access) still short-circuit
+    # here; only the surrogate-BLOCKED / zero-n_eff sub-conditions defer to
+    # _derive_setup_verdict.
+    generic_gap = (
         issue_code == "DATA_GAP"
         or status == "DATA_GAP"
         or _row_access_unresolved(readout)
-        or _int_or_none(n_eff) == 0
-        or surrogate_state == "BLOCKED"
-    ):
+    )
+    if study_kind != CONTEXT_NOT_EQUAL_TRIGGER:
+        generic_gap = generic_gap or _int_or_none(n_eff) == 0 or surrogate_state == "BLOCKED"
+    if generic_gap:
         return _verdict(
             "DATA_GAP",
             VerdictReasonCode.SUBSTRATE_GAP,
@@ -434,8 +448,10 @@ def _derive_report_verdict(
     if explicit is not None:
         return explicit
 
-    if str(readout.get("study_kind") or "").strip().lower() == MAIN_EFFECT:
+    if study_kind == MAIN_EFFECT:
         return _derive_main_effect_verdict(readout, n_eff)
+    if study_kind == CONTEXT_NOT_EQUAL_TRIGGER:
+        return _derive_setup_verdict(readout, n_eff)
 
     return _verdict(
         "INCONCLUSIVE",
@@ -546,6 +562,111 @@ def _derive_main_effect_verdict(
             "non-promoting signal."
         ),
         "Route to the reviewer-pending signal shelf; only the reviewer gate may promote.",
+    )
+
+
+def _derive_setup_verdict(
+    readout: Mapping[str, Any],
+    n_eff: Any,
+) -> dict[str, str]:
+    """Map a context!=trigger setup-lane readout to a non-promoting verdict.
+
+    Mirrors the main_effect verdict's discipline and reason codes; the machine may
+    classify evidence autonomously but never autonomously promotes (a resolved
+    signal stays INCONCLUSIVE, distinguished only by reason_code + signal shelf).
+
+    - missing/invalid continuous_outcome_mean_lift -> INCONCLUSIVE + DATA_QUALITY
+    - surrogate gate NOT ZERO_PASS_MET -> REJECT + WELL_POWERED_NULL when power is
+      adequate (n_eff >= 2), else INCONCLUSIVE + UNDERPOWERED. The surrogate gate is
+      the FDR significance test; not met = no distinguishable conditioned effect.
+    - surrogate ZERO_PASS_MET on the SIGNED net_excursion outcome with a non-trivial
+      |mean_lift| -> INCONCLUSIVE + SIGNAL_PENDING_REVIEWER (a resolved, surrogate-
+      gated signed directional asymmetry; routed to the reviewer shelf).
+    - surrogate ZERO_PASS_MET on a SINGLE-excursion outcome (mfe/mae alone) ->
+      INCONCLUSIVE + REVIEW_NEEDED (single-excursion significance is volatility-
+      confounded; a signed net_excursion run is required to decide directional edge).
+    """
+
+    surrogate_state = _surrogate_summary(readout, {})["state"]
+    gate = _mapping(readout.get("surrogate_fdr_gate"), default={})
+    error_count = _int_or_none(gate.get("error_count")) or 0
+    n_eff_value = _int_or_none(n_eff)
+    if n_eff_value is None:
+        n_eff_value = _int_or_none(gate.get("conditioned_n_eff"))
+    adequately_powered = n_eff_value is not None and n_eff_value >= 2
+    if surrogate_state != "ZERO_PASS_MET":
+        # Surrogate-FDR gate NOT met: no conditioned effect is distinguishable from
+        # the block-shuffle null. This branch does NOT require a lift (the lane early
+        # returns a surrogate-blocked readout without one). A genuine calibration
+        # error is DATA_QUALITY; a well-powered "not distinguishable" is a
+        # WELL_POWERED_NULL REJECT (prune it); an underpowered one requeues.
+        if error_count > 0:
+            return _verdict(
+                "INCONCLUSIVE",
+                VerdictReasonCode.DATA_QUALITY,
+                "Setup probe surrogate calibration failed (surrogate iterations errored).",
+                "Resolve the calibration error before interpretation.",
+            )
+        if adequately_powered:
+            observed = _float_or_none(gate.get("observed_effect"))
+            observed_txt = "" if observed is None else f" (observed effect={observed:.6f})"
+            return _verdict(
+                "REJECT",
+                VerdictReasonCode.WELL_POWERED_NULL,
+                (
+                    "Well-powered setup probe found no conditioned effect distinguishable "
+                    f"from the block-shuffle surrogate null{observed_txt}."
+                ),
+                "Route to graveyard; no distinguishable conditioned effect at adequate power.",
+            )
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.UNDERPOWERED,
+            "Setup probe surrogate gate was not met and power is inadequate to call a null.",
+            "Requeue for evidence accrual; revisit when power improves.",
+        )
+
+    # ZERO_PASS_MET: require the conditioned-mean lift to classify a (non-promoting) signal.
+    lift = _continuous_lift_summary(readout)
+    mean_lift = _float_or_none(lift.get("mean_lift")) if lift is not None else None
+    if mean_lift is None:
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.DATA_QUALITY,
+            "Setup readout passed the surrogate gate but exposed no continuous-outcome mean_lift.",
+            "Keep the readout in research review until a valid mean_lift is attached.",
+        )
+
+    outcome_label_type = str(lift.get("outcome_label_type") or "").strip()
+    if outcome_label_type == NET_EXCURSION_OUTCOME:
+        if abs(mean_lift) <= NET_EXCURSION_TRIVIAL_LIFT_EPS:
+            return _verdict(
+                "INCONCLUSIVE",
+                VerdictReasonCode.DATA_QUALITY,
+                (
+                    "Surrogate-gated net_excursion mean_lift is trivially zero "
+                    f"(|mean_lift|={abs(mean_lift):.6f}); no signed directional asymmetry."
+                ),
+                "Keep in research review; a near-zero net excursion carries no signed edge.",
+            )
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.SIGNAL_PENDING_REVIEWER,
+            (
+                "Surrogate-gated net_excursion resolved a signed directional asymmetry "
+                f"(mean_lift={mean_lift:.6f}); recorded as a non-promoting signal."
+            ),
+            "Route to the reviewer-pending signal shelf; only the reviewer gate may promote.",
+        )
+    return _verdict(
+        "INCONCLUSIVE",
+        VerdictReasonCode.REVIEW_NEEDED,
+        (
+            "Surrogate-gated single-excursion outcome "
+            f"({outcome_label_type or 'unknown'}) is significant but volatility-confounded; "
+            "a signed net_excursion run is required to decide directional edge."
+        ),
+        "Run the signed net_excursion outcome before any directional interpretation.",
     )
 
 
