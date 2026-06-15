@@ -89,6 +89,7 @@ def test_ivl_dogfood_track_b_gate_and_run_loop(
             ES2024_IDEA.as_posix(),
             "--report-output",
             (tmp_path / "ES_2024_120m_REPORT.md").as_posix(),
+            "--no-persist",
         ]
     )
     es2024_run = json.loads(capsys.readouterr().out)
@@ -113,6 +114,7 @@ def test_ivl_dogfood_track_b_gate_and_run_loop(
             ES2020_IDEA.as_posix(),
             "--report-output",
             (tmp_path / "ES_2020_120m_REPORT.md").as_posix(),
+            "--no-persist",
         ]
     )
     es2020_run = json.loads(capsys.readouterr().out)
