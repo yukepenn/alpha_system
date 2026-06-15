@@ -21,6 +21,9 @@ from alpha_system.governance.rejected_idea import (
 )
 from alpha_system.governance.requeue import REQUEUE_REASON, validate_requeued_verdict_record
 from alpha_system.governance.serialization import JsonValue
+from alpha_system.governance.signal_pending_reviewer import (
+    create_signal_pending_reviewer_record,
+)
 from alpha_system.governance.validation import (
     GovernanceValidationError,
     ValidationIssue,
@@ -35,6 +38,7 @@ from alpha_system.governance.verdict_reason_code import (
 MEMORY_ROUTER_SCHEMA = "alpha_system.research_lane.memory_router.v1"
 ROUTE_REJECT = "graveyard"
 ROUTE_REQUEUE = "requeue"
+ROUTE_SIGNAL_SHELF = "reviewer_pending_shelf"
 ROUTE_PROMOTION_REVIEW = "reviewer_gated_promotion"
 ALLOWED_MEMORY_VERDICTS = frozenset({"REJECT", "DATA_GAP", "INCONCLUSIVE", "WATCH", "CANDIDATE"})
 _REQUEUE_VERDICTS = frozenset({"DATA_GAP", "INCONCLUSIVE"})
@@ -111,6 +115,23 @@ def route_verdict_to_memory(
             readout_payload,
             exploratory_refusal=exploratory_refusal,
             reviewer=reviewer,
+            created_at=timestamp,
+            report_ref=report_ref,
+        )
+    if (
+        normalized_verdict == "INCONCLUSIVE"
+        and verdict_payload.get("reason_code")
+        == VerdictReasonCode.SIGNAL_PENDING_REVIEWER.value
+    ):
+        # A well-powered main_effect probe that resolved a detectable IC. The
+        # primary verdict stays INCONCLUSIVE (a non-promoting verdict in the
+        # closed taxonomy); the signal is preserved on a reviewer-pending shelf
+        # so it is not buried in a generic requeue. The machine never promotes.
+        return _route_signal_pending_reviewer(
+            idea,
+            verdict_payload,
+            readout_payload,
+            exploratory_refusal=exploratory_refusal,
             created_at=timestamp,
             report_ref=report_ref,
         )
@@ -218,6 +239,126 @@ def _route_requeue(
         promotion_eligible=False,
         probe_spent=False,
     )
+
+
+def _route_signal_pending_reviewer(
+    idea: IdeaDraft,
+    verdict: Mapping[str, Any],
+    readout: Mapping[str, Any],
+    *,
+    exploratory_refusal: Mapping[str, JsonValue],
+    created_at: str,
+    report_ref: str | None,
+) -> MemoryRouteResult:
+    alpha_spec_id = _require_alpha_spec_id(idea)
+    quality = _main_effect_quality_summary(readout)
+    record = create_signal_pending_reviewer_record(
+        alpha_spec_id_or_hypothesis_id=alpha_spec_id,
+        original_verdict_ref=_verdict_reference(
+            alpha_spec_id, readout, report_ref=report_ref, verdict=verdict
+        ),
+        factor_id=_main_effect_factor_id(readout),
+        slice_id=_main_effect_slice_id(readout),
+        pearson_ic=_required_float(quality.get("pearson_ic"), field="pearson_ic"),
+        rank_ic=_required_float(quality.get("rank_ic"), field="rank_ic"),
+        n_eff=_required_int(quality.get("ic_power_n_eff"), field="ic_power_n_eff"),
+        detectable_abs_ic=_required_float(
+            quality.get("ic_power_mde_abs_ic"), field="ic_power_mde_abs_ic"
+        ),
+        bucket_rank_correlation=_required_float(
+            quality.get("bucket_rank_correlation"), field="bucket_rank_correlation"
+        ),
+        created_at=created_at,
+    )
+    return MemoryRouteResult(
+        verdict="INCONCLUSIVE",
+        action=ROUTE_SIGNAL_SHELF,
+        record_type="SignalPendingReviewerRecord",
+        memory_record=record.to_dict(),
+        exploratory_refusal=exploratory_refusal,
+        alpha_spec_id=alpha_spec_id,
+        promotion_eligible=False,
+        probe_spent=False,
+    )
+
+
+def _main_effect_quality_summary(readout: Mapping[str, Any]) -> Mapping[str, Any]:
+    inner = readout.get("readout")
+    if isinstance(inner, Mapping):
+        report = inner.get("factor_diagnostics_report")
+        if isinstance(report, Mapping):
+            quality = report.get("quality_summary")
+            if isinstance(quality, Mapping):
+                return quality
+    raise GovernanceValidationError(
+        ValidationIssue(
+            field="readout.factor_diagnostics_report.quality_summary",
+            code="missing_main_effect_quality_summary",
+            message="signal-shelf routing requires a main_effect IC quality summary",
+            expected="factor_diagnostics_report.quality_summary mapping",
+            actual="missing",
+        )
+    )
+
+
+def _main_effect_factor_id(readout: Mapping[str, Any]) -> str:
+    slice_spec = readout.get("slice_spec")
+    if isinstance(slice_spec, Mapping):
+        for feature in slice_spec.get("feature_inputs") or ():
+            if isinstance(feature, Mapping) and str(feature.get("role")) == "factor":
+                factor_id = feature.get("factor_id")
+                if factor_id:
+                    return str(factor_id)
+    mechanism = readout.get("mechanism_card")
+    if isinstance(mechanism, Mapping):
+        required = mechanism.get("required_features") or ()
+        if required:
+            return str(required[0])
+    return "unknown_factor"
+
+
+def _main_effect_slice_id(readout: Mapping[str, Any]) -> str:
+    slice_spec = readout.get("slice_spec")
+    if isinstance(slice_spec, Mapping):
+        slice_id = slice_spec.get("slice_id")
+        if slice_id:
+            return str(slice_id)
+    return "unknown_slice"
+
+
+def _required_float(value: Any, *, field: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = float("nan")
+    if value is None or isinstance(value, bool) or number != number:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=field,
+                code="missing_main_effect_metric",
+                message=f"signal-shelf routing requires a finite {field}",
+                expected="finite number",
+                actual=str(value),
+            )
+        )
+    return number
+
+
+def _required_int(value: Any, *, field: str) -> int:
+    if value is None or isinstance(value, bool):
+        value = None
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field=field,
+                code="missing_main_effect_metric",
+                message=f"signal-shelf routing requires an integer {field}",
+                expected="integer",
+                actual=str(value),
+            )
+        ) from None
 
 
 def _route_promotion_review(
@@ -394,6 +535,7 @@ def _rejection_category(reason_code: Any) -> RejectedIdeaReasonCategory:
         VerdictReasonCode.SUBSTRATE_GAP,
         VerdictReasonCode.DATA_QUALITY,
         VerdictReasonCode.BBO_PROXY_LIMITATION,
+        VerdictReasonCode.WELL_POWERED_NULL,
     }:
         return RejectedIdeaReasonCategory.WEAK_EVIDENCE
     return RejectedIdeaReasonCategory.OTHER

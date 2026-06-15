@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from alpha_system.governance.idea_draft import IdeaDraft, validate_idea_draft
+from alpha_system.governance.idea_draft import (
+    MAIN_EFFECT,
+    IdeaDraft,
+    validate_idea_draft,
+)
 from alpha_system.governance.validation import GovernanceValidationError, ValidationIssue
 from alpha_system.governance.verdict_reason_code import (
     VerdictReasonCode,
@@ -399,11 +404,118 @@ def _derive_report_verdict(
     if explicit is not None:
         return explicit
 
+    if str(readout.get("study_kind") or "").strip().lower() == MAIN_EFFECT:
+        return _derive_main_effect_verdict(readout, n_eff)
+
     return _verdict(
         "INCONCLUSIVE",
         VerdictReasonCode.DATA_QUALITY,
         "No upstream governed final verdict was supplied with the readout.",
         "Keep the readout in research review until a governed verdict is attached.",
+    )
+
+
+def _derive_main_effect_verdict(
+    readout: Mapping[str, Any],
+    n_eff: Any,
+) -> dict[str, str]:
+    """Map a main_effect factor-diagnostics readout to a non-promoting verdict.
+
+    Generic for any factor-shaped continuous-label IC probe (no factor is
+    special-cased). Thresholds use only report-provided values: the detectable
+    floor ``ic_power_mde_abs_ic`` already folds in z=1.96 (mde = z * se), so
+    ``|ic| >= mde`` is exactly ``|ic|/se >= 1.96``. No magic constants.
+
+    - invalid diagnostics / missing IC -> INCONCLUSIVE + DATA_QUALITY
+    - cannot establish a detectable floor -> INCONCLUSIVE + UNDERPOWERED
+    - well-powered and both |IC| below floor -> REJECT + WELL_POWERED_NULL
+    - well-powered, both |IC| above floor, same sign -> INCONCLUSIVE +
+      SIGNAL_PENDING_REVIEWER (routed to the non-promoting reviewer shelf)
+    - mixed (one above one below) or sign-conflicting -> INCONCLUSIVE +
+      REVIEW_NEEDED
+
+    The machine may classify evidence autonomously; it may never autonomously
+    promote. A resolved signal stays INCONCLUSIVE (a non-promoting verdict);
+    only the reason_code and the signal-shelf sidecar distinguish it.
+    """
+
+    summary = _mapping(_mapping(readout.get("readout"), default={}).get(
+        "factor_diagnostics_report"
+    ), default={})
+    quality = _mapping(summary.get("quality_summary"), default={})
+
+    diagnostic_pass = quality.get("diagnostic_pass")
+    failing = _int_or_none(quality.get("failing_gate_count"))
+    if diagnostic_pass is False or (failing is not None and failing > 0):
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.DATA_QUALITY,
+            "Main-effect diagnostics did not pass their quality gates.",
+            "Resolve the failing diagnostic gates before interpretation.",
+        )
+
+    pearson = _float_or_none(quality.get("pearson_ic"))
+    rank = _float_or_none(quality.get("rank_ic"))
+    if pearson is None or rank is None:
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.DATA_QUALITY,
+            "Main-effect readout did not expose both pearson and rank IC.",
+            "Keep the readout in research review until complete IC diagnostics exist.",
+        )
+
+    mde = _float_or_none(quality.get("ic_power_mde_abs_ic"))
+    n_eff_value = _int_or_none(quality.get("ic_power_n_eff")) or _int_or_none(n_eff)
+    well_powered = (
+        mde is not None
+        and math.isfinite(mde)
+        and mde > 0
+        and n_eff_value is not None
+        and n_eff_value >= 2
+    )
+    if not well_powered:
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.UNDERPOWERED,
+            "Main-effect probe could not establish a detectable IC floor at adequate power.",
+            "Requeue for evidence accrual; revisit when power improves.",
+        )
+
+    pearson_above = abs(pearson) >= mde
+    rank_above = abs(rank) >= mde
+    if not pearson_above and not rank_above:
+        return _verdict(
+            "REJECT",
+            VerdictReasonCode.WELL_POWERED_NULL,
+            (
+                f"Well-powered main-effect probe found no IC above the detectable floor "
+                f"(|pearson|={abs(pearson):.6f}, |rank|={abs(rank):.6f}, mde={mde:.6f})."
+            ),
+            "Route to graveyard; no detectable factor information at adequate power.",
+        )
+    if pearson_above != rank_above:
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.REVIEW_NEEDED,
+            "Main-effect pearson and rank IC disagree on detectability across the floor.",
+            "Reviewer must adjudicate the mixed IC evidence; no autonomous promotion.",
+        )
+    if math.copysign(1.0, pearson) != math.copysign(1.0, rank):
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.REVIEW_NEEDED,
+            "Main-effect pearson and rank IC are both resolved but disagree in sign.",
+            "Reviewer must adjudicate the sign-conflicting IC evidence; no autonomous promotion.",
+        )
+    return _verdict(
+        "INCONCLUSIVE",
+        VerdictReasonCode.SIGNAL_PENDING_REVIEWER,
+        (
+            f"Well-powered main-effect probe resolved an IC above the detectable floor "
+            f"(pearson={pearson:.6f}, rank={rank:.6f}, mde={mde:.6f}); recorded as a "
+            "non-promoting signal."
+        ),
+        "Route to the reviewer-pending signal shelf; only the reviewer gate may promote.",
     )
 
 
@@ -562,6 +674,16 @@ def _int_or_none(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 __all__ = [

@@ -113,6 +113,76 @@ def test_inconclusive_routes_to_requeue_preserving_verdict_label() -> None:
     assert payload["promotion_eligible"] is False
 
 
+def test_signal_pending_reviewer_routes_to_non_promoting_shelf() -> None:
+    # A well-powered main_effect IC signal: the machine records it to a
+    # reviewer-pending shelf (non-promoting) instead of burying it in a generic
+    # requeue. Primary verdict stays INCONCLUSIVE; it never auto-promotes.
+    bundle = _bundle()
+
+    result = route_verdict_to_memory(
+        {
+            "verdict": "INCONCLUSIVE",
+            "reason_code": "SIGNAL_PENDING_REVIEWER",
+            "why": "Well-powered main-effect probe resolved an IC above the floor.",
+        },
+        bundle.idea_draft,
+        _main_effect_signal_readout(bundle),
+        created_at=TIMESTAMP,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "reviewer_pending_shelf"
+    assert payload["record_type"] == "SignalPendingReviewerRecord"
+    assert payload["verdict"] == "INCONCLUSIVE"
+    assert payload["promotion_eligible"] is False
+    assert payload["probe_spent"] is False
+    record = payload["memory_record"]
+    assert record["requires_reviewer"] is True
+    assert record["eligible"] is False
+    assert record["pearson_ic"] == pytest.approx(-0.0557)
+    assert record["rank_ic"] == pytest.approx(-0.0150)
+    assert record["n_eff"] == 327155
+    assert record["factor_id"] == "base_ohlcv_distance_to_vwap"
+    assert record["slice_id"] == "ES_2020_60m"
+
+
+def test_signal_pending_reviewer_never_writes_promotion_decision() -> None:
+    bundle = _bundle()
+
+    result = route_verdict_to_memory(
+        {"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+        bundle.idea_draft,
+        _main_effect_signal_readout(bundle),
+        created_at=TIMESTAMP,
+        # Even if reviewer-gated promotion inputs were (wrongly) supplied, a
+        # SIGNAL_PENDING_REVIEWER must NOT become a PromotionDecision.
+        reviewer_verdict_id=_id(GovernanceIdKind.REVIEWER_VERDICT, "rver"),
+        evidence_bundle_id=_id(GovernanceIdKind.EVIDENCE_BUNDLE, "evb"),
+        trial_ledger_refs=(_id(GovernanceIdKind.TRIAL_LEDGER_RECORD, "trial"),),
+    )
+
+    payload = result.to_dict()
+    assert payload["record_type"] == "SignalPendingReviewerRecord"
+    assert payload["record_type"] != "PromotionDecision"
+    assert payload["action"] == "reviewer_pending_shelf"
+
+
+def test_well_powered_null_reject_routes_to_graveyard() -> None:
+    bundle = _bundle()
+
+    result = route_verdict_to_memory(
+        {"verdict": "REJECT", "reason_code": "WELL_POWERED_NULL"},
+        bundle.idea_draft,
+        _readout(bundle),
+        created_at=TIMESTAMP,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "graveyard"
+    assert payload["record_type"] == "RejectedIdeaRecord"
+    assert payload["promotion_eligible"] is False
+
+
 @pytest.mark.parametrize("verdict", ["WATCH", "CANDIDATE"])
 def test_watch_candidate_require_reviewer_verdict_id(verdict: str) -> None:
     bundle = _bundle()
@@ -199,6 +269,40 @@ def _readout(bundle) -> dict[str, object]:
             "status": "unresolved",
             "reason": "unit fixture has no materialized slice",
             "fabricated_values": False,
+        },
+    }
+
+
+def _main_effect_signal_readout(bundle) -> dict[str, object]:
+    return {
+        "schema": "alpha_system.research_lane.fast_probe.v1",
+        "readout_id": "fpmain_unit",
+        "status": "RECORDED",
+        "study_kind": "main_effect",
+        "stamp": "EXPLORATORY",
+        "promotion_eligible": False,
+        "mechanism_card": bundle.mechanism_card.to_dict(),
+        "slice_spec": {
+            "slice_id": "ES_2020_60m",
+            "study_kind": "main_effect",
+            "feature_inputs": [
+                {"role": "factor", "factor_id": "base_ohlcv_distance_to_vwap"}
+            ],
+        },
+        "row_access": {
+            "status": "resolved_local_only",
+            "fabricated_values": False,
+        },
+        "readout": {
+            "factor_diagnostics_report": {
+                "quality_summary": {
+                    "pearson_ic": -0.0557,
+                    "rank_ic": -0.0150,
+                    "ic_power_mde_abs_ic": 0.0034,
+                    "ic_power_n_eff": 327155,
+                    "bucket_rank_correlation": -0.805,
+                }
+            }
         },
     }
 

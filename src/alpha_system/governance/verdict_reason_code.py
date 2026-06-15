@@ -19,6 +19,14 @@ class VerdictReasonCode(StrEnum):
     DUPLICATE_EXPOSURE = "DUPLICATE_EXPOSURE"
     REGIME_UNSTABLE = "REGIME_UNSTABLE"
     BBO_PROXY_LIMITATION = "BBO_PROXY_LIMITATION"
+    # main_effect autonomous evidence triage (non-promoting): a factor screened
+    # at adequate power with no detectable IC (REJECT), a resolved IC above the
+    # detectable floor awaiting the independent reviewer gate (non-promoting
+    # INCONCLUSIVE routed to the signal shelf), and mixed/ambiguous IC evidence
+    # that a reviewer must adjudicate.
+    WELL_POWERED_NULL = "WELL_POWERED_NULL"
+    SIGNAL_PENDING_REVIEWER = "SIGNAL_PENDING_REVIEWER"
+    REVIEW_NEEDED = "REVIEW_NEEDED"
 
 
 def validate_verdict_reason_code(
