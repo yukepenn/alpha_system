@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Any
 
 from alpha_system.governance.alpha_spec import AlphaSpec, validate_alpha_spec
-from alpha_system.governance.idea_draft import IdeaDraft, validate_idea_draft
+from alpha_system.governance.idea_draft import MAIN_EFFECT, IdeaDraft, validate_idea_draft
 from alpha_system.governance.mechanism_card import MechanismCard, validate_mechanism_card
 from alpha_system.governance.setup_spec import SetupSpec, validate_setup_spec
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
@@ -97,6 +97,7 @@ class TestabilitySlice:
     """Bounded value-free slice metadata used by the pre-test gate."""
 
     slice_id: str
+    study_kind: str | None = None
     dataset_version_id: str | None = None
     partition_id: str | None = None
     feature_pack_refs: tuple[str, ...] = ()
@@ -105,6 +106,9 @@ class TestabilitySlice:
     label_spec_ids: tuple[str, ...] = ()
     path_label_observations: tuple[Mapping[str, Any], ...] = ()
     path_label_class_counts: Mapping[str, int] | None = None
+    continuous_label_value_std: float | None = None
+    continuous_label_nonzero_count: int | None = None
+    continuous_label_sample_count: int | None = None
     n_eff: int | None = None
     minimum_detectable_effect: float | None = None
     available_ts_satisfiable: bool | None = None
@@ -123,8 +127,11 @@ class TestabilitySlice:
         )
         if surrogate_requirement is None and mapping.get("surrogate_fdr_required") is True:
             surrogate_requirement = ZERO_PASS_MET
+        continuous_summary = mapping.get("continuous_label_summary")
+        continuous_summary = continuous_summary if isinstance(continuous_summary, Mapping) else {}
         return cls(
             slice_id=slice_id,
+            study_kind=_optional_text(mapping.get("study_kind")),
             dataset_version_id=_optional_text(mapping.get("dataset_version_id")),
             partition_id=_partition_id(mapping),
             feature_pack_refs=_text_tuple(
@@ -154,6 +161,21 @@ class TestabilitySlice:
                 or mapping.get("minimum_detectable_abs_ic")
                 or mapping.get("mde")
             ),
+            continuous_label_value_std=_optional_float(
+                continuous_summary.get("value_std")
+                if continuous_summary
+                else mapping.get("continuous_label_value_std")
+            ),
+            continuous_label_nonzero_count=_optional_int(
+                continuous_summary.get("nonzero_count")
+                if continuous_summary
+                else mapping.get("continuous_label_nonzero_count")
+            ),
+            continuous_label_sample_count=_optional_int(
+                continuous_summary.get("sample_count")
+                if continuous_summary
+                else mapping.get("continuous_label_sample_count")
+            ),
             available_ts_satisfiable=_optional_bool(mapping.get("available_ts_satisfiable")),
             surrogate_fdr_requirement=surrogate_requirement,
         )
@@ -161,6 +183,7 @@ class TestabilitySlice:
     def to_dict(self) -> dict[str, Any]:
         return {
             "slice_id": self.slice_id,
+            "study_kind": self.study_kind,
             "dataset_version_id": self.dataset_version_id,
             "partition_id": self.partition_id,
             "feature_pack_refs": list(self.feature_pack_refs),
@@ -171,6 +194,9 @@ class TestabilitySlice:
             "path_label_class_counts": (
                 None if self.path_label_class_counts is None else dict(self.path_label_class_counts)
             ),
+            "continuous_label_value_std": self.continuous_label_value_std,
+            "continuous_label_nonzero_count": self.continuous_label_nonzero_count,
+            "continuous_label_sample_count": self.continuous_label_sample_count,
             "n_eff": self.n_eff,
             "minimum_detectable_effect": self.minimum_detectable_effect,
             "available_ts_satisfiable": self.available_ts_satisfiable,
@@ -211,7 +237,7 @@ def evaluate_testability_gate(
     checks = (
         feature_check,
         label_check,
-        _check_path_label_two_class(active_slice),
+        _check_outcome_non_degeneracy(active_slice),
         _check_n_eff_mde_and_dedup(active_mechanism, active_slice),
         _check_available_ts_and_surrogate(active_slice, feature_handles, label_handles),
     )
@@ -373,6 +399,63 @@ def _check_labels_exist(
         "label pack handles resolved without materializing values",
         handle_count=len(handles),
     ), handles
+
+
+def _check_outcome_non_degeneracy(slice_spec: TestabilitySlice | None) -> GateCheckResult:
+    """Dispatch the outcome non-degeneracy pre-test by study kind.
+
+    Path/binary outcomes (``context_not_equal_trigger``) require at least two
+    observed classes. Continuous-outcome ``main_effect`` studies have no class
+    structure, so the analogous guard is non-degeneracy of the continuous label
+    (declared ``value_std`` strictly positive over an observed sample). Both
+    cases report under the same ``CHECK_PATH_LABEL_TWO_CLASS`` slot so report
+    rendering and check ordering stay stable.
+    """
+
+    if slice_spec is not None and slice_spec.study_kind == MAIN_EFFECT:
+        return _check_continuous_label_non_degenerate(slice_spec)
+    return _check_path_label_two_class(slice_spec)
+
+
+def _check_continuous_label_non_degenerate(
+    slice_spec: TestabilitySlice | None,
+) -> GateCheckResult:
+    if slice_spec is None:
+        return _data_gap(
+            CHECK_PATH_LABEL_TWO_CLASS,
+            "bounded slice metadata is missing",
+        )
+    value_std = slice_spec.continuous_label_value_std
+    sample_count = slice_spec.continuous_label_sample_count
+    if value_std is None or sample_count is None:
+        return _data_gap(
+            CHECK_PATH_LABEL_TWO_CLASS,
+            "continuous-label non-degeneracy summary is missing",
+            study_kind=MAIN_EFFECT,
+        )
+    if sample_count <= 0:
+        return _data_gap(
+            CHECK_PATH_LABEL_TWO_CLASS,
+            "continuous-label outcome has no observed samples",
+            study_kind=MAIN_EFFECT,
+            continuous_label_sample_count=sample_count,
+        )
+    if not math.isfinite(value_std) or value_std <= 0:
+        return _data_gap(
+            CHECK_PATH_LABEL_TWO_CLASS,
+            "continuous-label outcome is degenerate (non-positive value_std)",
+            study_kind=MAIN_EFFECT,
+            continuous_label_value_std=value_std,
+            continuous_label_sample_count=sample_count,
+        )
+    return _pass(
+        CHECK_PATH_LABEL_TWO_CLASS,
+        "continuous-label outcome is non-degenerate (value_std > 0)",
+        study_kind=MAIN_EFFECT,
+        continuous_label_value_std=value_std,
+        continuous_label_nonzero_count=slice_spec.continuous_label_nonzero_count,
+        continuous_label_sample_count=sample_count,
+    )
 
 
 def _check_path_label_two_class(slice_spec: TestabilitySlice | None) -> GateCheckResult:
