@@ -9,8 +9,10 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from alpha_system.agent_factory.memory.store import persist_route
 from alpha_system.governance.idea_draft import build_idea_validation_bundle
 from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP
+from alpha_system.governance.requeue import utc_now_seconds as _utc_now_seconds
 from alpha_system.governance.validation import GovernanceValidationError, require_mapping
 from alpha_system.research_lane.fast_probe import FastProbeError, fast_probe
 from alpha_system.research_lane.memory_router import route_verdict_to_memory
@@ -191,6 +193,7 @@ def run_idea_run(args: argparse.Namespace) -> int:
             report_path = Path(args.report_output)
             report_path.write_text(report, encoding="utf-8")
         verdict = _final_verdict_from_report(report)
+        created_at = _created_at_from_bundle(bundle)
         memory = route_verdict_to_memory(
             verdict,
             bundle.idea_draft,
@@ -198,10 +201,20 @@ def run_idea_run(args: argparse.Namespace) -> int:
             reviewer_verdict_id=args.reviewer_verdict_id,
             evidence_bundle_id=args.evidence_bundle_id,
             trial_ledger_refs=tuple(args.trial_ledger_ref or ()),
-            created_at=_created_at_from_bundle(bundle),
+            created_at=created_at,
             report_ref=report_path.as_posix() if report_path is not None else None,
             probe_spent=probe_spent,
         )
+        memory_path = None
+        if not args.no_persist:
+            memory_path = persist_route(
+                route_result=memory.to_dict(),
+                idea=bundle.idea_draft.to_dict(),
+                readout=fast_readout,
+                verdict=verdict,
+                created_at=created_at or _utc_now_seconds(),
+                memory_dir=args.memory_dir,
+            )
         output = {
             "idea_draft": bundle.idea_draft.to_dict(),
             "testability": testability_result.to_dict(),
@@ -209,6 +222,7 @@ def run_idea_run(args: argparse.Namespace) -> int:
             "report": report,
             "report_path": report_path.as_posix() if report_path is not None else None,
             "memory": memory.to_dict(),
+            "memory_persisted_path": None if memory_path is None else memory_path.as_posix(),
             "promotion_eligible": False,
         }
         print(json.dumps(output, ensure_ascii=True, indent=2, sort_keys=True))
@@ -340,6 +354,18 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         action="append",
         default=[],
         help="TrialLedgerRecord id required for WATCH/CANDIDATE memory routing.",
+    )
+    run_parser.add_argument(
+        "--memory-dir",
+        help=(
+            "Local research-memory directory to append the route to "
+            "(default: $ALPHA_DATA_ROOT/research_memory)."
+        ),
+    )
+    run_parser.add_argument(
+        "--no-persist",
+        action="store_true",
+        help="Do not persist the route to the local research memory.",
     )
     run_parser.set_defaults(handler=run_idea_run)
 
