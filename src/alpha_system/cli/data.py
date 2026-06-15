@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from alpha_system.data.cli_validation import (
     DEFAULT_SCHEMA_ID,
@@ -48,6 +49,35 @@ def run_build_bars(args: argparse.Namespace) -> int:
             registry_path=args.registry_path,
             validation_config_path=args.validation_config,
         ),
+        emit_json=args.json,
+    )
+
+
+def _load_data_inventory_tool() -> Any:
+    """Import the repo-local ``tools.frontier.data_inventory`` module.
+
+    The canonical reader lives under ``tools/frontier`` (the inventory/coverage
+    reporting family, alongside ``status_doctor``), which is not on the package
+    install path. Insert the repo root on ``sys.path`` exactly like
+    ``tools/hooks/canary_runner`` does, then import.
+    """
+
+    repo_root = Path(__file__).resolve().parents[3]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from tools.frontier import data_inventory  # noqa: PLC0415
+
+    return data_inventory
+
+
+def run_data_inventory(args: argparse.Namespace) -> int:
+    """Run ``alpha data inventory`` (on-disk materialized data-existence truth)."""
+
+    tool = _load_data_inventory_tool()
+    return tool.run_inventory(
+        data_root=args.data_root,
+        nonempty_only=not args.include_empty,
+        check_config=not args.no_config_check,
         emit_json=args.json,
     )
 
@@ -220,3 +250,35 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Emit a machine-readable JSON summary.",
     )
     accept_parser.set_defaults(handler=run_accept_datasets)
+
+    inventory_parser = data_subparsers.add_parser(
+        "inventory",
+        help=(
+            "Report the canonical on-disk materialized data inventory "
+            "(data-existence source of truth) and flag config-vs-disk "
+            "acceptance-lock disagreements."
+        ),
+    )
+    inventory_parser.add_argument(
+        "--data-root",
+        help=(
+            "Explicit data root. Default resolution: ALPHA_DATA_ROOT env, then "
+            "frontier.yaml data_root, then ~/alpha_data/alpha_system."
+        ),
+    )
+    inventory_parser.add_argument(
+        "--include-empty",
+        action="store_true",
+        help="Include zero-byte/empty values.parquet entries.",
+    )
+    inventory_parser.add_argument(
+        "--no-config-check",
+        action="store_true",
+        help="Skip the config-vs-disk acceptance-lock disagreement cross-check.",
+    )
+    inventory_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON report.",
+    )
+    inventory_parser.set_defaults(handler=run_data_inventory)
