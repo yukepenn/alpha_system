@@ -1,8 +1,9 @@
 # Operating Compass — Autonomy-First Strategy / Roadmap Compass
 
-Version: v5.1 (autonomy-first consolidation, consolidating v2 / v2.1 / v3 / v3.5 /
-v4.x; v5.1 adds the cross-idea family-wise FDR budget rung + the typed-contract-seam
-anti-drift law). Fixed filename: `docs/OPERATING_COMPASS.md` — the version bumps internally,
+Version: v5.2 (autonomy-first consolidation, consolidating v2 / v2.1 / v3 / v3.5 /
+v4.x; v5.1 added the cross-idea family-wise FDR budget rung + the typed-contract-seam
+anti-drift law; v5.2 adds the lane-routing anti-mis-specification law + search-shape
+guidance + the #474 fail-closed-by-outcome-label-type tightening). Fixed filename: `docs/OPERATING_COMPASS.md` — the version bumps internally,
 the filename never changes again. This IS the canonical strategy/roadmap compass:
 `AGENTS.md`, `README.md`, and `CRITICAL.md` point here, the predecessor
 versioned compass (V4) is retired, and an anti-rot guard
@@ -490,8 +491,11 @@ readout is hard-stamped EXPLORATORY and refused as promotion evidence by design.
 - **Factor-shaped → `main_effect` lane:** a continuous factor's Pearson + rank IC
   vs a continuous label (`build_factor_diagnostics_run`), under **overlap-aware
   N_eff** (`splits/n_eff.py estimate_n_eff`; raw row count is forbidden for
-  forward-overlapping labels — [[law-overlap-aware-ic-power-n-eff]] / §6). IC is a
-  cheap powered diagnostic, never final factor evidence.
+  forward-overlapping labels — [[law-overlap-aware-ic-power-n-eff]] / §6). The
+  overlap discount is **fail-closed on the OUTCOME LABEL TYPE**, not contingent on
+  an optional slice field: a forward-overlapping outcome whose block size cannot be
+  derived RAISES (never silently falls back to raw rows). IC is a cheap powered
+  diagnostic, never final factor evidence.
 - **Setup/PA-shaped → `context_not_equal_trigger` lane:** an objective context≠trigger
   event probe over pre-materialized path labels (`conditional_probe.py`), gated by
   the zero-pass surrogate-FDR control. Stop/target/R-geometry are content-hash-frozen
@@ -499,6 +503,21 @@ readout is hard-stamped EXPLORATORY and refused as promotion evidence by design.
   variant** (a re-materialized label). What the probe emits today vs. richer
   path-outcome diagnostics (e.g. base-rate lift, expectancy) is a live-code fact —
   grep `conditional_probe.py`; do not assume IC-style readouts for setups.
+
+**Lane-routing law (anti-mis-specification):** a binary / categorical / STATE
+conditioner (a regime/calendar/session state, a flag) MUST route to the
+`context_not_equal_trigger` setup lane, NEVER be scored as a continuous
+`main_effect` IC — a state scored as continuous IC manufactures a FALSE null. The
+unattended fleet enforces this by conditioner type, not by author judgement.
+
+**Search-shape guidance (durable; the route, not a status):** the unconditional
+per-instrument time-series-IC shape is a **low-yield** search shape — prioritize
+**conditional-state** (setup lane: regime/calendar/auction context ∩ trigger →
+path outcome) and **cross-sectional** (rank a signal ACROSS instruments per bar)
+shapes, and mechanistically-distinct substrates (order-flow/microstructure), over
+re-mining more unconditional single-factor IC. Conditional/state shapes are a
+multiplicity surface → pre-register states as counted variants through the
+cross-idea FDR budget (§6.5); never post-hoc state-select (regime-shopping).
 
 **L1→L2 multiplicity gate — the per-idea surrogate gate does NOT control
 family-wise error.** The zero-pass `surrogate_fdr_gate` is a *single-test* control;
@@ -1070,7 +1089,7 @@ Apply to every new design, object, lane, or campaign:
 
 ---
 
-(End of Operating Compass v5.1 — canonical at the fixed filename
+(End of Operating Compass v5.2 — canonical at the fixed filename
 `docs/OPERATING_COMPASS.md`; version bumps internally, the filename never changes.
 `AGENTS.md`, `README.md`, and `CRITICAL.md` point here; the predecessor V4 file is
 retired and an anti-rot guard forbids versioned duplicates. Agent memory mirrors
