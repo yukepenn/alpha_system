@@ -98,6 +98,7 @@ class TestabilitySlice:
 
     slice_id: str
     study_kind: str | None = None
+    outcome_label_type: str | None = None
     dataset_version_id: str | None = None
     partition_id: str | None = None
     feature_pack_refs: tuple[str, ...] = ()
@@ -132,6 +133,7 @@ class TestabilitySlice:
         return cls(
             slice_id=slice_id,
             study_kind=_optional_text(mapping.get("study_kind")),
+            outcome_label_type=_optional_text(mapping.get("outcome_label_type")),
             dataset_version_id=_optional_text(mapping.get("dataset_version_id")),
             partition_id=_partition_id(mapping),
             feature_pack_refs=_text_tuple(
@@ -184,6 +186,7 @@ class TestabilitySlice:
         return {
             "slice_id": self.slice_id,
             "study_kind": self.study_kind,
+            "outcome_label_type": self.outcome_label_type,
             "dataset_version_id": self.dataset_version_id,
             "partition_id": self.partition_id,
             "feature_pack_refs": list(self.feature_pack_refs),
@@ -412,7 +415,13 @@ def _check_outcome_non_degeneracy(slice_spec: TestabilitySlice | None) -> GateCh
     rendering and check ordering stay stable.
     """
 
-    if slice_spec is not None and slice_spec.study_kind == MAIN_EFFECT:
+    # Continuous-outcome studies have no class structure, so the analogous guard
+    # is continuous non-degeneracy: main_effect IC outcomes, OR a context!=trigger
+    # setup that selects a continuous path outcome (outcome_label_type set; the
+    # probe's _resolve_outcome_label_type guarantees it is a float path metric).
+    if slice_spec is not None and (
+        slice_spec.study_kind == MAIN_EFFECT or slice_spec.outcome_label_type is not None
+    ):
         return _check_continuous_label_non_degenerate(slice_spec)
     return _check_path_label_two_class(slice_spec)
 
@@ -425,33 +434,34 @@ def _check_continuous_label_non_degenerate(
             CHECK_PATH_LABEL_TWO_CLASS,
             "bounded slice metadata is missing",
         )
+    study_kind = slice_spec.study_kind or MAIN_EFFECT
     value_std = slice_spec.continuous_label_value_std
     sample_count = slice_spec.continuous_label_sample_count
     if value_std is None or sample_count is None:
         return _data_gap(
             CHECK_PATH_LABEL_TWO_CLASS,
             "continuous-label non-degeneracy summary is missing",
-            study_kind=MAIN_EFFECT,
+            study_kind=study_kind,
         )
     if sample_count <= 0:
         return _data_gap(
             CHECK_PATH_LABEL_TWO_CLASS,
             "continuous-label outcome has no observed samples",
-            study_kind=MAIN_EFFECT,
+            study_kind=study_kind,
             continuous_label_sample_count=sample_count,
         )
     if not math.isfinite(value_std) or value_std <= 0:
         return _data_gap(
             CHECK_PATH_LABEL_TWO_CLASS,
             "continuous-label outcome is degenerate (non-positive value_std)",
-            study_kind=MAIN_EFFECT,
+            study_kind=study_kind,
             continuous_label_value_std=value_std,
             continuous_label_sample_count=sample_count,
         )
     return _pass(
         CHECK_PATH_LABEL_TWO_CLASS,
         "continuous-label outcome is non-degenerate (value_std > 0)",
-        study_kind=MAIN_EFFECT,
+        study_kind=study_kind,
         continuous_label_value_std=value_std,
         continuous_label_nonzero_count=slice_spec.continuous_label_nonzero_count,
         continuous_label_sample_count=sample_count,
