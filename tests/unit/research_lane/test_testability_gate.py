@@ -357,3 +357,58 @@ def test_outcome_non_degeneracy_still_requires_two_classes_for_path_study() -> N
 
     assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
     assert result.status is GateStatus.DATA_GAP
+
+
+def _continuous_setup_slice(**overrides: object) -> GateSlice:
+    # A context!=trigger setup that selects a CONTINUOUS path outcome
+    # (outcome_label_type set) routes to the continuous non-degeneracy guard, NOT
+    # the binary two-class guard. The binary/degenerate path-label class counts no
+    # longer apply.
+    payload: dict[str, object] = {
+        "slice_id": "continuous-setup-slice",
+        "study_kind": "context_not_equal_trigger",
+        "outcome_label_type": "mfe_by_horizon",
+        "dataset_version_id": DATASET_VERSION_ID,
+        "partition_id": PARTITION_ID,
+        "feature_pack_refs": (FEATURE_VERSION_ID,),
+        "label_pack_refs": (LABEL_VERSION_ID,),
+        "label_spec_ids": ("lspec_path",),
+        "continuous_label_summary": {
+            "value_std": 0.0047,
+            "nonzero_count": 308379,
+            "sample_count": 313156,
+        },
+        "n_eff": 2609,
+        "minimum_detectable_effect": 0.0384,
+        "available_ts_satisfiable": True,
+        "surrogate_fdr_requirement": ZERO_PASS_MET,
+    }
+    payload.update(overrides)
+    return GateSlice.from_mapping(payload)
+
+
+def test_outcome_non_degeneracy_passes_for_continuous_setup_outcome() -> None:
+    # The degenerate bool target_before_stop on a path slice blocks the binary
+    # guard; selecting a continuous outcome routes to the continuous guard and
+    # passes when the continuous label is non-degenerate.
+    result = _check_outcome_non_degeneracy(_continuous_setup_slice())
+
+    assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
+    assert result.status is GateStatus.PASS
+    assert result.detail["study_kind"] == "context_not_equal_trigger"
+    assert result.detail["continuous_label_value_std"] == 0.0047
+
+
+def test_outcome_non_degeneracy_data_gaps_for_degenerate_continuous_setup() -> None:
+    result = _check_outcome_non_degeneracy(
+        _continuous_setup_slice(
+            continuous_label_summary={
+                "value_std": 0.0,
+                "nonzero_count": 0,
+                "sample_count": 313156,
+            }
+        )
+    )
+
+    assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
+    assert result.status is GateStatus.DATA_GAP
