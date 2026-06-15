@@ -458,6 +458,61 @@ VerdictReasonCode`, `requeue.py REQUEUE_REASON` — **must not gain a fourth**; 
 new "why" maps onto an existing one. Every charted GAP names the SMALLEST upgrade
 to an existing object, never a new ledger / gate / canary / card class.
 
+### 3.8 The evidence ladder + the two diagnostic lanes (the rail, stated as rungs)
+
+The idea-object hierarchy (§3.1) is the *structure*; this is the *evidence
+progression* every idea climbs, and the rail that governs it: **the machine may
+CLASSIFY evidence autonomously, but may NEVER PROMOTE it.** Promotion is
+enforced-as-refusal — whether the *producer* for a rung exists is a live-code fact
+(grep the symbol); this doc states only the rule.
+
+```text
+L0 Idea                    AlphaSpec / MechanismCard / idea.yaml; no evidence
+L1 Diagnostic              honest-power signal (non-promoting, EXPLORATORY-stamped)
+L2 Signal-pending-reviewer machine-classified resolved signal on a non-promoting shelf
+L3 WATCH / CANDIDATE       independent reviewer approves a trusted follow-up
+L4 FactorLibrary survivor  trusted StudySpec + EvidenceBundle + ReviewerVerdict + TrialLedger + FDR + OOS/cost-stress
+L5 AlphaBook portfolio     low-correlation survivor ensemble
+L6 Shadow → paper → canary → ramp   staged trust rail before capital (human-gated)
+```
+
+L0→L2 is the autonomously-classifiable lane (`cli/idea.py run_idea_run` →
+`fast_probe`, `reviewer.py adjudicate_signal` whose strongest output is
+`CONFIRMED_FOR_TRUSTED_STUDY`, never a promotion). L3+ is reached only through the
+reviewer-validated `promotion_gate.py validate_governance_transition`; the
+trusted-study executor that mints a real `EvidenceBundle` and the `FactorLibrary`
+survivor store are roadmap rungs, built only on trigger (§3.6) — every fast-path
+readout is hard-stamped EXPLORATORY and refused as promotion evidence by design.
+
+**Two diagnostic lanes at L1 — IC is NOT the standard for every idea:**
+
+- **Factor-shaped → `main_effect` lane:** a continuous factor's Pearson + rank IC
+  vs a continuous label (`build_factor_diagnostics_run`), under **overlap-aware
+  N_eff** (`splits/n_eff.py estimate_n_eff`; raw row count is forbidden for
+  forward-overlapping labels — [[law-overlap-aware-ic-power-n-eff]] / §6). IC is a
+  cheap powered diagnostic, never final factor evidence.
+- **Setup/PA-shaped → `context_not_equal_trigger` lane:** an objective context≠trigger
+  event probe over pre-materialized path labels (`conditional_probe.py`), gated by
+  the zero-pass surrogate-FDR control. Stop/target/R-geometry are content-hash-frozen
+  into the path label at materialization, so **every R-geometry is a counted
+  variant** (a re-materialized label). What the probe emits today vs. richer
+  path-outcome diagnostics (e.g. base-rate lift, expectancy) is a live-code fact —
+  grep `conditional_probe.py`; do not assume IC-style readouts for setups.
+
+**Sample-window vs prediction-horizon (do not conflate):** the *horizon* (5m…240m)
+is how far ahead a label looks; the *window* (which years) is the evidence base. A
+single calendar year is a smoke / first-powered slice, never final evidence —
+research evidence requires cross-year consistency under honest power (pre-register
+discovery / validation / locked windows; the engine runs one
+`(instrument, year, horizon)` partition per probe, so cross-year evidence is
+per-year probes aggregated via `pooled_hypothesis`, not a single pooled scan).
+
+**Three truths (do not conflate):** *research-data truth* (Databento OHLCV+BBO —
+enough to test hypotheses) ≠ *execution truth* (fees + spread-crossing + slippage
+realism; BBO is a tradability proxy, not execution truth — §5) ≠ *capital truth*
+(only earned through shadow → paper → canary → ramp). Research data can support a
+diagnostic; it cannot establish tradability or capital readiness.
+
 ---
 
 ## 4. THE ROUTE A→O (the layer model; trigger-gated, not dated)
