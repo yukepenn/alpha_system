@@ -1,0 +1,232 @@
+{
+  "source": "research/idea_to_verdict_loop_v0/pa_setup/vwap_reclaim_after_open_selloff_es2020_120m_net_excursion.idea.yaml",
+  "study_kind": "context_not_equal_trigger",
+  "hypothesis_card": {
+    "title": "distance-to-vwap context x failed-low-breakout trigger -> SIGNED net excursion (MFE+MAE) directional-edge test",
+    "family": "pa_setup_vwap_reclaim_after_open_selloff_net",
+    "rationale": "A pre-declared VWAP-side context (price located below session VWAP, an early-session selloff regime) can be read separately from a distinct downside-failure / reclaim event, on an existing ES 60m path-label slice.",
+    "expected_mechanism": "The context marks the below-VWAP selloff location regime and the trigger marks a distinct failed-low-breakout reclaim event; any interpretation stays blocked until the pre-test gate and governed exploratory readout allow it.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve already-materialized feature and label packs.",
+      "Fail the idea if the target-before-stop path label has fewer than two observed classes.",
+      "Reject interpretation if duplicate exposure or surrogate-FDR gates block the exploratory readout."
+    ],
+    "risks": [
+      "The local executor may lack the materialized packs needed for a real readout.",
+      "The below-VWAP context and failed-low-breakout trigger may overlap with adjacent liquidity-structure variants.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/tier1-seed-run",
+    "created_at": "2026-06-14T00:00:00Z"
+  },
+  "alpha_spec": {
+    "target_instruments": [
+      "ES"
+    ],
+    "data_assumptions": {
+      "coverage": "ES_2020_60m path target_before_stop class counts false=326541 true=2092 (two-class).",
+      "source": "Already-materialized local FUTSUB feature and label packs are read load-only when present."
+    },
+    "factor_inputs": [
+      "base_ohlcv_distance_to_vwap",
+      "liquidity_structure_failed_low_breakout_flag"
+    ],
+    "label_references": [
+      "lspec_75475d040c0650244bab8314"
+    ],
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence."
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    },
+    "cost_assumptions": {
+      "model": "No execution-cost estimate is produced by this seed.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while path labels are partitioned at ES_2020_60m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may remain DATA_GAP / INCONCLUSIVE / REJECT under governed routing; the 60m positive rate is low (likely underpowered)."
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized for this exploratory seed.",
+      "Any future WATCH or CANDIDATE would require reviewer-gated evidence outside this run."
+    ],
+    "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/tier1-seed-run",
+    "created_at": "2026-06-14T00:00:00Z"
+  },
+  "mechanism_card": {
+    "source": "tier1:vwap_reclaim_after_open_selloff",
+    "rationale": "A pre-declared below-VWAP selloff location context can isolate sessions where a separate failed-low-breakout reclaim event is read against a fixed 60m target-before-stop path outcome.",
+    "expected_mechanism": "The context factor reads the price location relative to session VWAP and marks when the below-VWAP selloff setup is relevant. The trigger factor reads a distinct failed-low-breakout reclaim event from a different feature family, and only fires inside the below-VWAP context bucket.",
+    "expected_direction": "target-before-stop path outcome after the failed-low-breakout reclaim event",
+    "horizon": "120m",
+    "session": "RTH",
+    "required_features": [
+      "base_ohlcv_distance_to_vwap",
+      "liquidity_structure_failed_low_breakout_flag"
+    ],
+    "required_labels": [
+      "path_mfe_120m",
+      "path_mae_120m"
+    ],
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "variant_budget": 1,
+    "duplicate_exposure": {
+      "family_id": "pa_setup_vwap_reclaim_after_open_selloff_net",
+      "status": "bounded",
+      "variant_id": "baseline_vwap_reclaim_after_open_selloff_net"
+    },
+    "stamp": "EXPLORATORY"
+  },
+  "setup_spec": {
+    "entry_context": {
+      "bucket": "below_session_vwap",
+      "factor_id": "base_ohlcv_distance_to_vwap",
+      "factor_version": "v1_es_2020_base_ohlcv_distance_to_vwap",
+      "operator": "<=",
+      "signal_kind": "vwap_relative_location_regime_descriptor",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    },
+    "event_trigger": {
+      "event": "failed_low_breakout_reclaim",
+      "factor_id": "liquidity_structure_failed_low_breakout_flag",
+      "factor_version": "v1_es_2020_liquidity_structure_failed_low_breakout_flag",
+      "operator": ">",
+      "signal_kind": "discrete_failed_low_breakout_reclaim_event_flag",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    },
+    "regime_filter": {
+      "instrument_root": "ES",
+      "session": "RTH"
+    },
+    "confirmation": {
+      "fixed_before_readout": true,
+      "policy": "none_added"
+    },
+    "invalidation": {
+      "fixed_before_readout": true,
+      "policy": "fixed_path_stop_binding"
+    },
+    "stop": {
+      "binding": "fixed_stop_from_path_label",
+      "geometry": "unchanged"
+    },
+    "target": {
+      "geometry": "unchanged",
+      "path_outcome": "net_excursion"
+    },
+    "hold_time": {
+      "horizon": "120m",
+      "max_minutes": 120
+    },
+    "horizon": "120m",
+    "path_label": "lspec_2af1f6ed0c144c500bdedb1a",
+    "allowed_variants": [
+      "baseline_vwap_reclaim_after_open_selloff_net"
+    ],
+    "forbidden_post_hoc_changes": [
+      "No context bucket changes after outcome readout.",
+      "No trigger threshold changes after outcome readout.",
+      "No target or stop geometry changes after readout."
+    ],
+    "stamp": "EXPLORATORY"
+  },
+  "slices": {
+    "ES_2020_120m": {
+      "outcome_label_type": "net_excursion",
+      "label_pack_refs": [
+        "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9",
+        "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8"
+      ],
+      "label_spec_ids": [
+        "lspec_2af1f6ed0c144c500bdedb1a"
+      ],
+      "label_version_map": {
+        "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9": [
+          "mfe_by_horizon",
+          "float"
+        ],
+        "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8": [
+          "mae_by_horizon",
+          "float"
+        ]
+      },
+      "labels": [
+        {
+          "role": "path",
+          "label_id": "path_mfe",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/path/lset_a840f9395ee7a5946c023ae3572b63aaf5e93c6c2a364f5dc67ec76caaf6da92/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_120m/values.parquet",
+          "pack_ref": "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9",
+          "label_spec_id": "lspec_2af1f6ed0c144c500bdedb1a"
+        },
+        {
+          "role": "path",
+          "label_id": "path_mae",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/path/lset_a840f9395ee7a5946c023ae3572b63aaf5e93c6c2a364f5dc67ec76caaf6da92/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_120m/values.parquet",
+          "pack_ref": "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8",
+          "label_spec_id": "lspec_2af1f6ed0c144c500bdedb1a"
+        }
+      ],
+      "materialized_label_version": "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9",
+      "continuous_label_summary": {
+        "value_std": 0.0065027,
+        "sample_count": 313156,
+        "nonzero_count": 309647
+      },
+      "n_eff": 2609,
+      "minimum_detectable_effect": 0.0384,
+      "horizon_seconds": 7200,
+      "required_future_bars": 120,
+      "surrogate_run_count": 64,
+      "surrogate_base_seed": 0,
+      "available_ts_satisfiable": true,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "data_version": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "partition_id": "ES_2020_120m",
+      "instrument_id": "ES",
+      "session_id": "ES:RTH",
+      "slice_id": "ES_2020_120m",
+      "study_kind": "context_not_equal_trigger",
+      "features": [
+        {
+          "role": "context",
+          "factor_id": "base_ohlcv_distance_to_vwap",
+          "factor_version": "v1_es_2020_base_ohlcv_distance_to_vwap",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/vwap_session_auction/feature_set_futures_scaleout_vwap_session_auction/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "pack_ref": "fver_7095d2e279c27251f3920f70a435ad62bda965091687a9ef17b8f5aa5b761c4e",
+          "feature_request_id": "freq_ee117dbd4f326653ffdc7492"
+        },
+        {
+          "role": "trigger",
+          "factor_id": "liquidity_structure_failed_low_breakout_flag",
+          "factor_version": "v1_es_2020_liquidity_structure_failed_low_breakout_flag",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "pack_ref": "fver_69fde9d07db0a3f47b89dba1a3b312580e34b7fc8bd671a84e5b528727466456",
+          "feature_request_id": "freq_abb96bfeb5d1fe7107187eb2"
+        }
+      ],
+      "feature_pack_refs": [
+        "fver_7095d2e279c27251f3920f70a435ad62bda965091687a9ef17b8f5aa5b761c4e",
+        "fver_69fde9d07db0a3f47b89dba1a3b312580e34b7fc8bd671a84e5b528727466456"
+      ],
+      "feature_request_ids": [
+        "freq_ee117dbd4f326653ffdc7492",
+        "freq_abb96bfeb5d1fe7107187eb2"
+      ],
+      "family_id": "pa_setup_vwap_reclaim_after_open_selloff_net",
+      "variant_id": "baseline_vwap_reclaim_after_open_selloff_net",
+      "created_at": "2026-06-15T00:00:00Z"
+    }
+  }
+}
