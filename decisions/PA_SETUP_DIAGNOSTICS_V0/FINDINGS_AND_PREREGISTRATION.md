@@ -152,3 +152,97 @@ the setup lane, so it informs but does not replace PR1–PR4.
 - The dogfood DATA_GAP was run with `--no-persist`; **not** routed into the real
   fleet brain (dogfood is a loop/substrate probe, not a research hypothesis) —
   keeps the fleet memory clean (5 graveyard + 1 requeue + 0 signal unchanged).
+
+## 7. End-to-end result + the overlap-validity finding (2026-06-15)
+
+The continuous path-outcome capability landed in three increments: probe runtime
+(PR #477), the testability gate (PR #478), and the slice-level continuous
+metadata (n_eff/MDE + `continuous_label_summary`). With all three, the
+**setup/path-outcome lane ran end-to-end for the first time**: the pre-registered
+ES_2020_120m setup (range_contraction context × failed_high_breakout trigger) vs
+the continuous **path_mfe** outcome reached an all-PASS gate and a `RECORDED`
+fast readout — engine `evaluate_setup_conditional_probe`, conditioned n_eff=30342,
+MDE≈0.01125, surrogate `ZERO_PASS_MET`. (Run `--no-persist`.)
+
+**But the apparent signal is statistically untrustworthy — overlap-naive
+surrogate.** `run_label_shuffle_surrogate` shuffles outcome values at the **row
+level** and the conditional power uses the **raw conditioned count** (30342),
+while `path_mfe` is a **120m forward-overlapping** label. Row-level shuffling
+breaks the overlap autocorrelation, so the null variance is understated and
+significance is inflated — the **same defect class** as the raw-n_eff IC inflation
+that PR #474 fixed for the `main_effect` lane. PR #474 did **not** touch the setup
+lane's surrogate or power. Therefore a setup-lane `ZERO_PASS_MET` on an overlapping
+outcome **cannot be trusted as a signal** without overlap-aware treatment.
+
+**The rail held.** The verdict classifier has no setup-lane mapping, so the readout
+defaulted to **INCONCLUSIVE / DATA_QUALITY ("no governed final verdict")** — i.e.
+the machine did **not** auto-promote the suspect signal. This conservative default
+is, by luck of omission, the correct outcome. The readout was **not** persisted to
+the fleet brain as a signal.
+
+## 8. Next unit (corrected): extend the overlap law to the setup lane
+
+Before any setup readout may be classified as a signal:
+1. **Overlap-aware power for the setup lane** — discount the conditioned n_eff by
+   the label horizon overlap (reuse `runtime/diagnostics/splits/n_eff.estimate_n_eff`,
+   the same estimator behind PR #474), instead of raw `len(conditioned)`.
+2. **Overlap-respecting surrogate** — replace/augment the row-level label shuffle
+   with a block / horizon-aware shuffle (or an n_eff-discounted significance
+   threshold) so the null variance reflects the 120m overlap. This is the
+   load-bearing statistical fix and is a coordinator (my) design decision, not a
+   delegated mechanical edit.
+3. **Then** a setup-lane verdict mapping in `verdict_report.py` (parallel to
+   `_derive_main_effect_verdict`): overlap-valid surrogate gate + conditioned-mean
+   lift vs an overlap-aware threshold → REJECT (well-powered null) /
+   SIGNAL_PENDING_REVIEWER (surrogate-gated) / REVIEW_NEEDED. Machine never promotes.
+
+This is the honest continuation: the lane is built and runs; the **statistical
+validity of overlapping path outcomes is the next gate**, exactly mirroring the
+overlap law's spine. Until then, setup readouts stay non-promoting INCONCLUSIVE.
+
+## 9. Overlap-aware result + the MAE control: a volatility confound, not an edge (2026-06-15)
+
+The overlap law was extended to the setup lane (PR #479): `block_size`-blocked
+label-shuffle surrogate (block = `required_future_bars`) + overlap-discounted
+conditioned n_eff via the sanctioned `estimate_n_eff`. Fixture proof: an
+autocorrelated outcome that row-shuffle falsely passes (0 exceedances →
+ZERO_PASS_MET) is correctly blocked by block-shuffle (~98/300 exceedances →
+CALIBRATION_BLOCKED).
+
+**Re-running the real ES_2020_120m setup under block-shuffle (honest, predicted
+wrong by me):**
+
+| outcome | n_eff (overlap-aware) | MDE | surrogate | verdict |
+|---|---|---|---|---|
+| `path_mfe` (favorable) | 252 (was 30342) | 0.124 (was 0.011) | **ZERO_PASS_MET** | INCONCLUSIVE (non-promoting) |
+| `path_mae` (adverse, control) | 252 | 0.124 | **ZERO_PASS_MET** | INCONCLUSIVE (non-promoting) |
+
+I predicted the MFE `ZERO_PASS_MET` would flip to `CALIBRATION_BLOCKED` under
+overlap-correct shuffling — it did **not**. But the pre-registered **MAE control**
+resolves the interpretation: the conditioned subset (range_contraction ∩
+failed_high_breakout) has **both** significantly elevated favorable excursion (MFE)
+**and** significantly elevated adverse excursion (MAE). Both excursions rising
+together is a **volatility-selection confound** — the setup picks higher-volatility
+windows — **not a signed/directional tradable edge.** A real edge would show
+**asymmetry** (favorable rising more than adverse, after cost), not symmetric
+excursion inflation.
+
+**Conclusion:** under honest overlap-aware statistics, this setup is **REJECT as a
+directional edge** (volatility confound; no signed asymmetry). The machine did NOT
+manufacture a signal: raw MFE significance alone would have looked like one, but the
+adversarial MAE control + the non-promoting verdict default held the rail. This is
+the methodology working as designed.
+
+## 10. Next unit (refined by the confound): signed expected-R, not raw excursion
+
+The real edge diagnostic for a setup is the **signed MFE-vs-MAE asymmetry /
+expected-R**, cost-adjusted — never a single excursion's surrogate significance
+(which is volatility-confounded). Next:
+1. A governed **expected-R / excursion-asymmetry** diagnostic in the setup lane:
+   conditioned (MFE − |MAE|) or target-vs-stop asymmetry vs base, under the same
+   overlap-aware block surrogate; only a surrogate-gated **asymmetry** counts.
+2. The setup-lane **verdict mapping** in `verdict_report.py` keyed off that signed
+   asymmetry (REJECT volatility-confound / SIGNAL_PENDING_REVIEWER only on
+   surrogate-gated signed edge / REVIEW_NEEDED). Machine never promotes.
+3. Only then is a setup readout eligible to be recorded as a signal; raw single-
+   excursion `ZERO_PASS_MET` must NOT route to the signal shelf.
