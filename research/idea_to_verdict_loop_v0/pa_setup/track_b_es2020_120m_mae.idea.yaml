@@ -211,7 +211,7 @@
       "horizon_seconds": 7200,
       "required_future_bars": 120,
       "materialized_label_version": "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8",
-      "surrogate_run_count": 64,
+      "surrogate_run_count": 1000,
       "surrogate_base_seed": 0,
       "family_id": "pa_setup_range_contraction_failed_high_breakout_mae",
       "family_budget": 1,
