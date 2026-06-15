@@ -118,6 +118,109 @@ def test_verdict_report_source_stays_value_loader_free() -> None:
     assert "polars" not in source
 
 
+def _main_effect_quality(
+    *,
+    pearson_ic: float,
+    rank_ic: float,
+    mde: float = 0.0034,
+    n_eff: int = 327155,
+    diagnostic_pass: bool = True,
+    failing_gate_count: int = 0,
+    bucket_rank_correlation: float = -0.8,
+) -> dict[str, object]:
+    return {
+        "pearson_ic": pearson_ic,
+        "rank_ic": rank_ic,
+        "ic_power_mde_abs_ic": mde,
+        "ic_power_n_eff": n_eff,
+        "diagnostic_pass": diagnostic_pass,
+        "failing_gate_count": failing_gate_count,
+        "bucket_rank_correlation": bucket_rank_correlation,
+    }
+
+
+def _main_effect_report(quality: dict[str, object]) -> dict[str, str]:
+    report = render_verdict_report(
+        _bundle().idea_draft,
+        _gate_result(),
+        _fast_readout(
+            verdict=None,
+            readout={"factor_diagnostics_report": {"quality_summary": quality}},
+        ),
+    )
+    section: dict[str, str] = {}
+    in_final = False
+    for raw in report.splitlines():
+        line = raw.strip()
+        if line == "## Final Verdict":
+            in_final = True
+            continue
+        if in_final and line.startswith("## "):
+            break
+        if in_final and line.startswith("- ") and ": " in line:
+            key, value = line[2:].split(": ", 1)
+            section[key.strip()] = value.strip()
+    return section
+
+
+def test_main_effect_well_powered_signal_is_signal_pending_reviewer() -> None:
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=-0.0557, rank_ic=-0.0150)
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "SIGNAL_PENDING_REVIEWER"
+
+
+def test_main_effect_well_powered_null_is_reject() -> None:
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=0.0009, rank_ic=-0.0005)
+    )
+
+    assert section["verdict"] == "REJECT"
+    assert section["reason_code"] == "WELL_POWERED_NULL"
+
+
+def test_main_effect_underpowered_is_inconclusive_underpowered() -> None:
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=-0.05, rank_ic=-0.05, mde=0.0, n_eff=1)
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "UNDERPOWERED"
+
+
+def test_main_effect_mixed_detectability_is_review_needed() -> None:
+    # pearson resolves above the floor, rank does not -> ambiguous, reviewer must decide.
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=-0.05, rank_ic=0.0010)
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "REVIEW_NEEDED"
+
+
+def test_main_effect_sign_conflict_is_review_needed() -> None:
+    # both ICs resolve above the floor but disagree in sign -> reviewer must decide.
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=0.05, rank_ic=-0.05)
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "REVIEW_NEEDED"
+
+
+def test_main_effect_failed_diagnostic_gate_is_data_quality() -> None:
+    section = _main_effect_report(
+        _main_effect_quality(
+            pearson_ic=-0.05, rank_ic=-0.05, diagnostic_pass=False, failing_gate_count=1
+        )
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "DATA_QUALITY"
+
+
 def _bundle():
     return build_idea_validation_bundle(
         json.loads(FIXTURE_IDEA.read_text(encoding="utf-8")),

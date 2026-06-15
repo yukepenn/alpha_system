@@ -19,6 +19,12 @@ def test_verdict_reason_code_taxonomy_is_exactly_the_compass_set() -> None:
         "DUPLICATE_EXPOSURE",
         "REGIME_UNSTABLE",
         "BBO_PROXY_LIMITATION",
+        # main_effect autonomous evidence triage (non-promoting): no detectable
+        # IC at adequate power, a resolved IC awaiting the reviewer gate, and
+        # mixed/sign-conflicting IC evidence a reviewer must adjudicate.
+        "WELL_POWERED_NULL",
+        "SIGNAL_PENDING_REVIEWER",
+        "REVIEW_NEEDED",
     }
 
 
