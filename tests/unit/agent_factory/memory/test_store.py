@@ -4,6 +4,8 @@ import pytest
 
 from alpha_system.agent_factory.memory.store import (
     ResearchMemoryStoreError,
+    pending_signals,
+    persist_reviewer_adjudication,
     persist_route,
     read_ledger,
     resolve_research_memory_dir,
@@ -58,14 +60,19 @@ def _readout(factor_id: str = "base_ohlcv_distance_to_vwap") -> dict:
     }
 
 
-def _signal_route() -> dict:
+def _signal_route(signal_ref: str = "readout:fpmain_unit") -> dict:
     return {
         "verdict": "INCONCLUSIVE",
         "action": "reviewer_pending_shelf",
         "record_type": "SignalPendingReviewerRecord",
         "alpha_spec_id": "aspec_unit",
         "promotion_eligible": False,
-        "memory_record": {"requires_reviewer": True, "eligible": False, "pearson_ic": -0.0557},
+        "memory_record": {
+            "requires_reviewer": True,
+            "eligible": False,
+            "pearson_ic": -0.0557,
+            "original_verdict_ref": signal_ref,
+        },
     }
 
 
@@ -179,6 +186,40 @@ def test_persist_rejects_unknown_action(tmp_path) -> None:
             readout=_readout(),
             verdict="INCONCLUSIVE",
             created_at=CREATED_AT,
+            memory_dir=tmp_path,
+        )
+
+
+def test_pending_signals_excludes_adjudicated(tmp_path) -> None:
+    for ref, factor in (("readout:a", "factor_a"), ("readout:b", "factor_b")):
+        persist_route(
+            route_result=_signal_route(signal_ref=ref),
+            idea=_idea(),
+            readout=_readout(factor_id=factor),
+            verdict={"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+            created_at=CREATED_AT,
+            memory_dir=tmp_path,
+        )
+    assert len(pending_signals(memory_dir=tmp_path)) == 2
+
+    persist_reviewer_adjudication(
+        {
+            "schema": "alpha_system.research_lane.reviewer_adjudication.v1",
+            "signal_ref": "readout:a",
+            "routing_intent": "CONFIRMED_FOR_TRUSTED_STUDY",
+            "promotion_eligible": False,
+        },
+        memory_dir=tmp_path,
+    )
+    pending = pending_signals(memory_dir=tmp_path)
+    assert len(pending) == 1
+    assert pending[0]["memory_record"]["original_verdict_ref"] == "readout:b"
+
+
+def test_persist_adjudication_refuses_promotion_eligible(tmp_path) -> None:
+    with pytest.raises(ResearchMemoryStoreError):
+        persist_reviewer_adjudication(
+            {"signal_ref": "readout:a", "promotion_eligible": True},
             memory_dir=tmp_path,
         )
 

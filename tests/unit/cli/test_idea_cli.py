@@ -196,6 +196,78 @@ def test_idea_run_no_persist_writes_nothing(tmp_path: Path, capsys) -> None:
     assert not memory_dir.exists()
 
 
+def _shelve_signal(memory_dir: Path, *, signal_ref: str, factor_id: str) -> None:
+    from alpha_system.agent_factory.memory.store import persist_route
+
+    persist_route(
+        route_result={
+            "verdict": "INCONCLUSIVE",
+            "action": "reviewer_pending_shelf",
+            "record_type": "SignalPendingReviewerRecord",
+            "alpha_spec_id": "aspec_cli",
+            "promotion_eligible": False,
+            "memory_record": {
+                "requires_reviewer": True,
+                "eligible": False,
+                "original_verdict_ref": signal_ref,
+            },
+        },
+        idea={"alpha_spec_id": "aspec_cli", "mechanism_id": "mech_cli"},
+        readout={
+            "study_kind": "main_effect",
+            "slice_spec": {
+                "slice_id": "ES_2020_60m",
+                "feature_inputs": [{"role": "factor", "factor_id": factor_id, "pack_ref": "fver"}],
+                "label_inputs": [{"role": "label", "label_id": "cost_adjusted_fwd_ret"}],
+            },
+            "readout": {
+                "factor_diagnostics_report": {
+                    "quality_summary": {"pearson_ic": -0.05, "rank_ic": -0.02}
+                }
+            },
+        },
+        verdict={"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+        created_at="2026-06-15T00:00:00Z",
+        memory_dir=memory_dir,
+    )
+
+
+def test_idea_review_list_and_adjudicate(tmp_path: Path, capsys) -> None:
+    memory_dir = tmp_path / "research_memory"
+    _shelve_signal(memory_dir, signal_ref="readout:sig_a", factor_id="base_ohlcv_distance_to_vwap")
+
+    assert main(["idea", "review", "list", "--memory-dir", memory_dir.as_posix()]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert len(listed["pending_signals"]) == 1
+    assert listed["pending_signals"][0]["signal_ref"] == "readout:sig_a"
+
+    status = main(
+        [
+            "idea",
+            "review",
+            "adjudicate",
+            "readout:sig_a",
+            "--outcome",
+            "PASS_WITH_WARNINGS",
+            "--reviewer-id",
+            "adversarial_reviewer_01",
+            "--independence-statement",
+            "Independent of the signal producer; no authoring access.",
+            "--warning",
+            "Exploratory IC only; requires trusted StudySpec.",
+            "--memory-dir",
+            memory_dir.as_posix(),
+        ]
+    )
+    adjudicated = json.loads(capsys.readouterr().out)
+    assert status == 0
+    assert adjudicated["adjudication"]["routing_intent"] == "CONFIRMED_FOR_TRUSTED_STUDY"
+    assert adjudicated["adjudication"]["promotion_eligible"] is False
+
+    assert main(["idea", "review", "list", "--memory-dir", memory_dir.as_posix()]) == 0
+    assert json.loads(capsys.readouterr().out)["pending_signals"] == []
+
+
 def test_idea_gate_and_run_consume_embedded_resolving_slice(
     tmp_path: Path,
     capsys,
