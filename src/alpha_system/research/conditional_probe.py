@@ -40,6 +40,7 @@ from alpha_system.runtime.diagnostics.power import (
     build_ic_power_statement,
     minimum_detectable_abs_ic,
 )
+from alpha_system.runtime.diagnostics.splits.n_eff import estimate_n_eff
 
 SUPPORTED_PREDICATE_OPERATORS = frozenset({">", ">=", "<", "<=", "==", "!="})
 SUPPORTED_VALUE_FIELDS = frozenset({"value", "normalized_value"})
@@ -349,6 +350,33 @@ def build_path_label_observation_set(
     )
 
 
+def _conditioned_power_n_eff(conditioned_rows: int, outcome_overlap_bars: int | None) -> int:
+    """Overlap-aware effective sample count for the conditioned IC-power statement.
+
+    A forward-overlapping path outcome at horizon ``outcome_overlap_bars`` makes
+    consecutive bar-spaced conditioned observations overlap ~that many bars, so the
+    raw conditioned row count overstates the independent sample. We discount it via
+    the sanctioned ``estimate_n_eff`` estimator (bar-spaced cadence, discount equal
+    to the forward horizon). With no/<=1-bar overlap there is nothing to discount,
+    so the raw count is preserved.
+    """
+
+    if outcome_overlap_bars is None or outcome_overlap_bars <= 1:
+        return conditioned_rows
+    estimate = estimate_n_eff(
+        conditioned_rows,
+        {
+            "horizon_bars": outcome_overlap_bars,
+            "sampling_cadence_bars": 1,
+            "discount_factor": outcome_overlap_bars,
+            "metadata_source": "conditional_probe_outcome_horizon",
+        },
+        purge_gap=0,
+        embargo_gap=0,
+    )
+    return estimate.n_eff
+
+
 def evaluate_setup_conditional_probe(
     setup_spec: SetupSpec | Mapping[str, Any],
     *,
@@ -365,9 +393,18 @@ def evaluate_setup_conditional_probe(
     label_version: str | None = None,
     data_version: str | None = None,
     outcome_label_type: str | None = None,
+    outcome_overlap_bars: int | None = None,
     created_at: str | None = None,
 ) -> ConditionalProbeReadout:
-    """Run one bounded EXPLORATORY context != trigger probe."""
+    """Run one bounded EXPLORATORY context != trigger probe.
+
+    ``outcome_overlap_bars`` is the forward horizon (in bars) of an overlapping
+    path outcome. When set and > 1 the conditioned row count is discounted via the
+    sanctioned overlap-aware ``estimate_n_eff`` estimator before it is reported as
+    the IC-power N_eff, because consecutive bar-spaced conditioned observations
+    overlap ~that many bars and the raw count overstates the independent sample.
+    When None or <= 1 the raw conditioned count is reported as before.
+    """
 
     active_setup = _coerce_setup_spec(setup_spec)
     probe = compile_setup_spec_to_conditional_probe(active_setup)
@@ -410,13 +447,14 @@ def evaluate_setup_conditional_probe(
             observation_set.aligned_observations,
             outcome_label_type=outcome_label_type,
         )
+    n_eff = _conditioned_power_n_eff(len(conditioned), outcome_overlap_bars)
     power = build_ic_power_statement(
-        n_eff=len(conditioned),
+        n_eff=n_eff,
         scope="per_factor",
         factor_id=probe.trigger.factor_id,
         factor_version=probe.trigger.factor_version,
     )
-    power["minimum_detectable_abs_ic"] = minimum_detectable_abs_ic(len(conditioned))
+    power["minimum_detectable_abs_ic"] = minimum_detectable_abs_ic(n_eff)
     readout_payload = {
         "setup_spec_id": probe.setup_spec_id,
         "path_label": probe.path_label,

@@ -54,6 +54,49 @@ def test_setup_probe_scores_trigger_inside_separate_context_over_path_labels() -
     assert readout.power["minimum_detectable_abs_ic"] is not None
 
 
+def test_setup_probe_discounts_power_n_eff_for_overlapping_outcome() -> None:
+    # A forward-overlapping path outcome at horizon H makes consecutive conditioned
+    # observations overlap ~H bars, so the IC-power N_eff must be the overlap-aware
+    # estimate_n_eff discount (~conditioned/H), strictly less than the raw count.
+    from alpha_system.runtime.diagnostics.splits.n_eff import estimate_n_eff
+
+    setup = _setup_spec()
+    common = {
+        "context_factor_values": _factor_rows("range_context", "ctx:v1", (0.8, 0.9, 0.2, 0.7)),
+        "trigger_factor_values": _factor_rows("sweep_trigger", "trg:v1", (1.0, -0.2, 1.0, 0.6)),
+        "path_labels": _path_label_rows(setup.path_label),
+        "family_id": "strategy-shaped-fixture-family",
+        "family_budget": 2,
+        "surrogate_run_count": 3,
+        "variant_id": "baseline",
+        "created_at": "2026-01-02T15:00:00Z",
+    }
+
+    raw = evaluate_setup_conditional_probe(setup, **common)
+    conditioned = raw.observation_counts["conditioned_observation_count"]
+    assert raw.power["n_eff"] == conditioned
+
+    horizon_bars = 3
+    discounted = evaluate_setup_conditional_probe(
+        setup, outcome_overlap_bars=horizon_bars, **common
+    )
+    expected = estimate_n_eff(
+        conditioned,
+        {
+            "horizon_bars": horizon_bars,
+            "sampling_cadence_bars": 1,
+            "discount_factor": horizon_bars,
+        },
+        purge_gap=0,
+        embargo_gap=0,
+    ).n_eff
+    assert discounted.power["n_eff"] == expected
+    assert discounted.power["n_eff"] < conditioned
+    # A single-bar (non-overlapping) horizon has nothing to discount.
+    no_overlap = evaluate_setup_conditional_probe(setup, outcome_overlap_bars=1, **common)
+    assert no_overlap.power["n_eff"] == conditioned
+
+
 def test_setup_probe_compiler_rejects_context_equal_trigger() -> None:
     setup = _setup_spec(
         entry_context={
