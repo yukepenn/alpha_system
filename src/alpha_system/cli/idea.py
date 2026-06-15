@@ -9,13 +9,20 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from alpha_system.agent_factory.memory.store import persist_route
+from alpha_system.agent_factory.memory.store import (
+    pending_signals,
+    persist_reviewer_adjudication,
+    persist_route,
+    read_ledger,
+)
 from alpha_system.governance.idea_draft import build_idea_validation_bundle
 from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP
 from alpha_system.governance.requeue import utc_now_seconds as _utc_now_seconds
+from alpha_system.governance.reviewer_verdict import create_reviewer_verdict
 from alpha_system.governance.validation import GovernanceValidationError, require_mapping
 from alpha_system.research_lane.fast_probe import FastProbeError, fast_probe
 from alpha_system.research_lane.memory_router import route_verdict_to_memory
+from alpha_system.research_lane.reviewer import adjudicate_signal
 from alpha_system.research_lane.slice_spec import SliceSpec, SliceSpecError
 from alpha_system.research_lane.testability_gate import (
     GateStatus,
@@ -253,6 +260,102 @@ def run_idea_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_idea_review_list(args: argparse.Namespace) -> int:
+    """List signal-shelf rows awaiting independent reviewer adjudication."""
+
+    pending = pending_signals(memory_dir=args.memory_dir)
+    summary = [
+        {
+            "signal_ref": (row.get("memory_record") or {}).get("original_verdict_ref"),
+            "factor_id": row.get("factor_id"),
+            "label_version_id": row.get("label_version_id"),
+            "slice_id": row.get("slice_id"),
+            "pearson_ic": row.get("pearson_ic"),
+            "rank_ic": row.get("rank_ic"),
+            "n_eff": row.get("n_eff"),
+            "detectable_abs_ic": row.get("detectable_abs_ic"),
+        }
+        for row in pending
+    ]
+    print(json.dumps({"pending_signals": summary}, ensure_ascii=True, indent=2, sort_keys=True))
+    return 0
+
+
+def run_idea_review_adjudicate(args: argparse.Namespace) -> int:
+    """Record an independent reviewer adjudication of one shelved signal."""
+
+    try:
+        shelf = read_ledger("reviewer_pending_shelf", memory_dir=args.memory_dir)
+        signal_row = next(
+            (
+                row
+                for row in shelf
+                if (row.get("memory_record") or {}).get("original_verdict_ref")
+                == args.signal_ref
+            ),
+            None,
+        )
+        if signal_row is None:
+            print(
+                json.dumps(
+                    {"error": "signal_ref_not_found", "signal_ref": args.signal_ref},
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        created_at = args.created_at or _utc_now_seconds()
+        reviewer_verdict = create_reviewer_verdict(
+            reviewer_id=args.reviewer_id,
+            role=args.role,
+            independence_statement=args.independence_statement,
+            verdict=args.outcome,
+            blocking_issues=list(args.blocking_issue or []),
+            warnings=list(args.warning or []),
+            checked_artifacts=[args.signal_ref],
+            checked_commands=list(args.checked_command)
+            or ["alpha idea review list: inspected shelved signal IC diagnostics"],
+            timestamp=created_at,
+            reason_code=args.reason_code,
+        )
+        adjudication = adjudicate_signal(
+            signal_row,
+            reviewer_verdict=reviewer_verdict,
+            created_at=created_at,
+        )
+        path = None
+        if not args.no_persist:
+            path = persist_reviewer_adjudication(adjudication, memory_dir=args.memory_dir)
+        adjudication_path = None if path is None else path.as_posix()
+        print(
+            json.dumps(
+                {"adjudication": adjudication, "adjudication_path": adjudication_path},
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    except GovernanceValidationError as exc:
+        print(
+            json.dumps(
+                {
+                    "error": "idea_review_failed",
+                    "issues": [issue.to_dict() for issue in exc.issues],
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, ValueError) as exc:
+        print(
+            json.dumps({"error": "idea_review_failed", "message": str(exc)}, sort_keys=True),
+            file=sys.stderr,
+        )
+        return 2
+    return 0
+
+
 def load_idea_document(path: Path) -> Mapping[str, Any]:
     """Load an idea document from JSON or YAML without adding a hard dependency."""
 
@@ -368,6 +471,75 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Do not persist the route to the local research memory.",
     )
     run_parser.set_defaults(handler=run_idea_run)
+
+    review_parser = idea_subparsers.add_parser(
+        "review",
+        help="Independent reviewer adjudication of shelved research signals.",
+    )
+    review_subparsers = review_parser.add_subparsers(dest="review_command", required=True)
+
+    review_list = review_subparsers.add_parser(
+        "list",
+        help="List signal-shelf rows awaiting independent reviewer adjudication.",
+    )
+    review_list.add_argument(
+        "--memory-dir",
+        help="Local research-memory directory (default: $ALPHA_DATA_ROOT/research_memory).",
+    )
+    review_list.set_defaults(handler=run_idea_review_list)
+
+    review_adj = review_subparsers.add_parser(
+        "adjudicate",
+        help="Record an independent reviewer verdict over one shelved signal.",
+    )
+    review_adj.add_argument("signal_ref", help="original_verdict_ref of the shelved signal.")
+    review_adj.add_argument(
+        "--outcome",
+        required=True,
+        choices=["PASS", "PASS_WITH_WARNINGS", "REWORK", "BLOCKED", "INCONCLUSIVE"],
+        help="ReviewerVerdict outcome.",
+    )
+    review_adj.add_argument("--reviewer-id", required=True, help="Independent reviewer id.")
+    review_adj.add_argument(
+        "--role",
+        default="statistical_reviewer",
+        help="Reviewer role (default: statistical_reviewer).",
+    )
+    review_adj.add_argument(
+        "--independence-statement",
+        required=True,
+        help="Explicit statement of reviewer independence from the signal's producer.",
+    )
+    review_adj.add_argument(
+        "--blocking-issue",
+        action="append",
+        default=[],
+        help="A blocking issue (repeatable).",
+    )
+    review_adj.add_argument(
+        "--warning",
+        action="append",
+        default=[],
+        help="A non-blocking warning (repeatable).",
+    )
+    review_adj.add_argument(
+        "--checked-command",
+        action="append",
+        default=[],
+        help="A command the reviewer ran (repeatable).",
+    )
+    review_adj.add_argument("--reason-code", help="Optional VerdictReasonCode.")
+    review_adj.add_argument("--created-at", help="Optional UTC seconds timestamp.")
+    review_adj.add_argument(
+        "--memory-dir",
+        help="Local research-memory directory (default: $ALPHA_DATA_ROOT/research_memory).",
+    )
+    review_adj.add_argument(
+        "--no-persist",
+        action="store_true",
+        help="Do not persist the adjudication to the local research memory.",
+    )
+    review_adj.set_defaults(handler=run_idea_review_adjudicate)
 
 
 def _load_yaml_if_available(text: str, *, path: Path) -> Any:

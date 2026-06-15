@@ -40,6 +40,8 @@ ACTION_LEDGERS: dict[str, str] = {
     "reviewer_pending_shelf": "signal_shelf.jsonl",
     "reviewer_gated_promotion": "promotion.jsonl",
 }
+# independent-reviewer adjudications layered over the signal shelf (append-only)
+REVIEWER_ADJUDICATION_LEDGER = "reviewer_adjudications.jsonl"
 
 
 class ResearchMemoryStoreError(ValueError):
@@ -153,6 +155,53 @@ def persist_route(
     return ledger_path
 
 
+def _signal_ref(row: Mapping[str, Any]) -> str | None:
+    ref = row.get("signal_ref") or row.get("original_verdict_ref")
+    if ref is None:
+        record = row.get("memory_record")
+        if isinstance(record, Mapping):
+            ref = record.get("original_verdict_ref")
+    return None if ref is None else str(ref)
+
+
+def persist_reviewer_adjudication(
+    adjudication: Mapping[str, Any],
+    *,
+    memory_dir: str | os.PathLike[str] | None = None,
+) -> Path:
+    """Append one independent-reviewer adjudication to its append-only ledger."""
+
+    if adjudication.get("promotion_eligible") is True:
+        raise ResearchMemoryStoreError(
+            "reviewer adjudications are never promotion-eligible"
+        )
+    directory = resolve_research_memory_dir(memory_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    ledger_path = directory / REVIEWER_ADJUDICATION_LEDGER
+    line = json.dumps(dict(adjudication), ensure_ascii=True, sort_keys=True)
+    with ledger_path.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+    return ledger_path
+
+
+def pending_signals(
+    *,
+    memory_dir: str | os.PathLike[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return signal-shelf rows that have no reviewer adjudication yet."""
+
+    adjudicated = {
+        ref
+        for row in read_ledger(REVIEWER_ADJUDICATION_LEDGER, memory_dir=memory_dir)
+        if (ref := _signal_ref(row)) is not None
+    }
+    pending: list[dict[str, Any]] = []
+    for row in read_ledger("reviewer_pending_shelf", memory_dir=memory_dir):
+        if _signal_ref(row) not in adjudicated:
+            pending.append(row)
+    return pending
+
+
 def read_ledger(
     action_or_filename: str,
     *,
@@ -236,8 +285,11 @@ def _main_effect_quality(readout: Mapping[str, Any]) -> dict[str, Any]:
 __all__ = [
     "ACTION_LEDGERS",
     "RESEARCH_MEMORY_SCHEMA",
+    "REVIEWER_ADJUDICATION_LEDGER",
     "ResearchMemoryStoreError",
     "build_research_memory_row",
+    "pending_signals",
+    "persist_reviewer_adjudication",
     "persist_route",
     "read_ledger",
     "resolve_research_memory_dir",
