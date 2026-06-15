@@ -437,8 +437,19 @@ class FeatureLabelPackResolver:
         expected_dataset_version_id: str,
         expected_feature_request_ids: Sequence[str],
         partition_id: str,
+        allow_horizon_agnostic_partition: bool = False,
     ) -> tuple[FeaturePackHandle, ...]:
-        """Resolve feature pack handles through the FeatureStore/FeatureRegistry."""
+        """Resolve feature pack handles through the FeatureStore/FeatureRegistry.
+
+        ``allow_horizon_agnostic_partition`` (opt-in; default ``False`` keeps the
+        strict trusted-path contract byte-for-byte) lets a horizon-AGNOSTIC feature
+        pack ``<instrument>_<year>_full_year`` satisfy a horizon-specific runtime
+        partition ``<instrument>_<year>_<horizon>``. Features are computed once per
+        (instrument, year) at the base bar grid and are independent of the label
+        horizon; the join stays no-lookahead because it keys on ``event_ts`` /
+        ``available_ts``, never on the partition string. Only the exploratory
+        research lane (fast_probe / testability gate) opts in; labels stay strict.
+        """
 
         if not feature_pack_refs and expected_feature_request_ids:
             raise RuntimeInputResolverError(
@@ -482,13 +493,19 @@ class FeatureLabelPackResolver:
                 code="feature_pack_dataset_version_mismatch",
                 message="feature packs must be bound to the accepted DatasetVersion",
             )
-            _require_partition_match(
-                handle.partition_id,
-                partition_id,
-                field=f"feature_pack_refs[{index}].partition_id",
-                code="feature_pack_partition_mismatch",
-                message="feature pack partition must match the runtime partition scope",
-            )
+            if not (
+                allow_horizon_agnostic_partition
+                and _feature_partition_is_horizon_agnostic_match(
+                    handle.partition_id, partition_id
+                )
+            ):
+                _require_partition_match(
+                    handle.partition_id,
+                    partition_id,
+                    field=f"feature_pack_refs[{index}].partition_id",
+                    code="feature_pack_partition_mismatch",
+                    message="feature pack partition must match the runtime partition scope",
+                )
             if expected_ids and handle.feature_request_id not in expected_ids:
                 raise RuntimeInputResolverError(
                     _reason(
@@ -1308,6 +1325,31 @@ def _require_pack_dataset_match(
                 actual=actual_dataset_version_id,
             )
         )
+
+
+def _feature_partition_is_horizon_agnostic_match(
+    actual_partition_id: str,
+    expected_partition_id: str,
+) -> bool:
+    """True when a horizon-agnostic feature partition legitimately serves a
+    horizon-specific runtime partition.
+
+    A feature pack materialized once per ``<instrument>_<year>_full_year`` (no label
+    horizon — features do not depend on the horizon) satisfies a runtime partition
+    ``<instrument>_<year>_<horizon>`` (e.g. ``ES_2020_full_year`` for runtime
+    ``ES_2020_120m``) as long as the instrument+year prefix matches. Exact matches
+    also return True. Any other shape (different instrument, year, or a non-full_year
+    feature scope) returns False so the strict check still rejects it. Labels never
+    use this — they are genuinely horizon-specific.
+    """
+
+    if actual_partition_id == expected_partition_id:
+        return True
+    expected_parts = expected_partition_id.split("_")
+    if len(expected_parts) < 3:
+        return False
+    instrument_year_prefix = "_".join(expected_parts[:2])
+    return actual_partition_id == f"{instrument_year_prefix}_full_year"
 
 
 def _require_partition_match(

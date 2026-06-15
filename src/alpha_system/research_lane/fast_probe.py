@@ -365,6 +365,10 @@ def _resolve_slice_handles(
                 expected_dataset_version_id=slice_spec.dataset_version_id,
                 expected_feature_request_ids=slice_spec.feature_request_ids,
                 partition_id=slice_spec.partition_id,
+                # Exploratory lane: horizon-agnostic features (<instr>_<year>_full_year)
+                # legitimately serve a horizon-specific runtime; join is no-lookahead on
+                # event_ts/available_ts. Labels below stay strict.
+                allow_horizon_agnostic_partition=True,
             )
         )
     if slice_spec.label_pack_refs:

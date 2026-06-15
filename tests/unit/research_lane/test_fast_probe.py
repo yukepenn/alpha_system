@@ -60,6 +60,8 @@ def test_fast_probe_routes_main_effect_to_factor_diagnostics(monkeypatch, tmp_pa
             "dataset": "dsv_fixture",
             "feature_request_ids": ("freq_main",),
             "partition_id": "partition_fixture",
+            # exploratory lane opts in to horizon-agnostic feature partitions
+            "allow_horizon_agnostic_partition": True,
         }
     ]
     assert resolver.label_calls == [
@@ -202,6 +204,7 @@ class _Resolver:
         expected_dataset_version_id,
         expected_feature_request_ids,
         partition_id,
+        allow_horizon_agnostic_partition=False,
     ):
         self.feature_calls.append(
             {
@@ -209,6 +212,7 @@ class _Resolver:
                 "dataset": expected_dataset_version_id,
                 "feature_request_ids": tuple(expected_feature_request_ids),
                 "partition_id": partition_id,
+                "allow_horizon_agnostic_partition": allow_horizon_agnostic_partition,
             }
         )
         return tuple(_Handle({"feature_version_id": ref}) for ref in refs)
