@@ -1,5 +1,10 @@
 {
   "schema": "alpha_system.futures_substrate_scaleout.dataset_version_inventory.v1",
+  "_source_of_truth": {
+    "layer": "GOVERNANCE_ACCEPTANCE_LOCK_BOOKKEEPING",
+    "is_data_existence_truth": false,
+    "note": "This file records dataset-acceptance gate state (ACCEPTED / ACCEPTED_WITH_WARNINGS / BLOCKED) and the dataset_version_id matrix. It is NOT the source of truth for what materialized data exists on disk. committed_summary_state and selection_contract.current_committed_summary_counts can lag the actual store (e.g. say BLOCKED while values are already materialized). The authoritative data-existence inventory is the on-disk materialized store, read via `alpha data inventory` (tools/frontier/data_inventory.py). Do not infer data presence from this file; do not mint acceptance locks by editing it (that is a separate governance action)."
+  },
   "campaign_id": "ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1",
   "phase_id": "FUTSUB-P05",
   "source_summary": "research/futures_substrate_scaleout_v1/dataset_acceptance/acceptance_summary.md",
