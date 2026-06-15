@@ -23,6 +23,7 @@ from alpha_system.governance.reviewer_verdict import create_reviewer_verdict
 from alpha_system.governance.validation import GovernanceValidationError, require_mapping
 from alpha_system.research_lane.fast_probe import FastProbeError, fast_probe
 from alpha_system.research_lane.memory_router import route_verdict_to_memory
+from alpha_system.research_lane.mining_driver import MiningDriverError, mine_ideas
 from alpha_system.research_lane.reviewer import adjudicate_signal
 from alpha_system.research_lane.slice_spec import SliceSpec, SliceSpecError
 from alpha_system.research_lane.testability_gate import (
@@ -269,6 +270,93 @@ def run_idea_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_idea_mine(args: argparse.Namespace) -> int:
+    """Run ``alpha idea mine``: the unattended multi-partition pooled mining loop.
+
+    Takes a SET of idea files (explicit paths and/or a directory of ``*.idea.yaml``)
+    plus an optional partition policy, runs each idea's multi-partition pooled run
+    through the now-sound gates WITHOUT a human per idea, records each pooled verdict
+    to the append-only research memory (which doubles as the idempotent resume
+    record), and emits a run summary (counts per route + per status, partition
+    coverage). It NEVER auto-promotes: the independent reviewer shelf + capital gate
+    are unchanged.
+    """
+
+    try:
+        idea_paths = _collect_idea_paths(args.idea_paths, directory=args.directory)
+        if not idea_paths:
+            print(
+                json.dumps(
+                    {"error": "idea_mine_failed", "message": "no idea files were found to mine"},
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        family_fdr_ledger_path = (
+            None if args.no_persist else ensure_family_fdr_ledger_path(args.memory_dir)
+        )
+        summary = mine_ideas(
+            idea_paths,
+            partition_policy=tuple(args.partition or ()) or None,
+            persist=not args.no_persist,
+            memory_dir=args.memory_dir,
+            family_fdr_ledger_path=family_fdr_ledger_path,
+            pooled_registry_path=args.pooled_registry,
+            skip_recorded=not args.no_skip_recorded,
+        )
+    except GovernanceValidationError as exc:
+        print(
+            json.dumps(
+                {
+                    "error": "idea_mine_failed",
+                    "issues": [issue.to_dict() for issue in exc.issues],
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, ValueError, MiningDriverError) as exc:
+        print(
+            json.dumps({"error": "idea_mine_failed", "message": str(exc)}, sort_keys=True),
+            file=sys.stderr,
+        )
+        return 2
+
+    print(json.dumps(summary.to_dict(), ensure_ascii=True, indent=2, sort_keys=True))
+    return 0
+
+
+def _collect_idea_paths(
+    explicit: list[str],
+    *,
+    directory: str | None,
+) -> list[str]:
+    """Resolve the ordered, de-duplicated idea-file set for a mining run."""
+
+    paths: list[str] = []
+    seen: set[str] = set()
+
+    def _add(path: Path) -> None:
+        key = path.as_posix()
+        if key not in seen:
+            seen.add(key)
+            paths.append(key)
+
+    if directory:
+        base = Path(directory)
+        if not base.is_dir():
+            raise ValueError(f"--directory is not a directory: {directory}")
+        for path in sorted(base.glob("*.idea.yaml")):
+            _add(path)
+        for path in sorted(base.glob("*.idea.json")):
+            _add(path)
+    for raw in explicit or []:
+        _add(Path(raw))
+    return paths
+
+
 def run_idea_review_list(args: argparse.Namespace) -> int:
     """List signal-shelf rows awaiting independent reviewer adjudication."""
 
@@ -481,6 +569,61 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     )
     run_parser.set_defaults(handler=run_idea_run)
 
+    mine_parser = idea_subparsers.add_parser(
+        "mine",
+        help=(
+            "Unattended multi-partition pooled mining loop over a SET of ideas "
+            "(BROAD_MINING_DRIVER_V0). Never auto-promotes."
+        ),
+    )
+    mine_parser.add_argument(
+        "idea_paths",
+        nargs="*",
+        default=[],
+        help="Idea YAML/JSON paths to mine (combined with --directory).",
+    )
+    mine_parser.add_argument(
+        "--directory",
+        help="Directory of *.idea.yaml / *.idea.json files to mine (sorted).",
+    )
+    mine_parser.add_argument(
+        "--partition",
+        action="append",
+        default=[],
+        help=(
+            "Explicit partition slice id (repeatable). Overrides each idea's "
+            "declared slice set when provided."
+        ),
+    )
+    mine_parser.add_argument(
+        "--pooled-registry",
+        help=(
+            "Optional path to an existing writable PooledHypothesisRegistry JSONL "
+            "to pre-register each pooled hypothesis into (local-only)."
+        ),
+    )
+    mine_parser.add_argument(
+        "--memory-dir",
+        help=(
+            "Local research-memory directory to append routes to "
+            "(default: $ALPHA_DATA_ROOT/research_memory)."
+        ),
+    )
+    mine_parser.add_argument(
+        "--no-persist",
+        action="store_true",
+        help="Do not persist routes or the family-FDR accumulator (dry run).",
+    )
+    mine_parser.add_argument(
+        "--no-skip-recorded",
+        action="store_true",
+        help=(
+            "Re-mine ideas already recorded in the ledgers (default: skip them, "
+            "so the loop is resumable/idempotent)."
+        ),
+    )
+    mine_parser.set_defaults(handler=run_idea_mine)
+
     review_parser = idea_subparsers.add_parser(
         "review",
         help="Independent reviewer adjudication of shelved research signals.",
@@ -622,6 +765,7 @@ def _created_at_from_bundle(bundle: Any) -> str | None:
 __all__ = [
     "load_idea_document",
     "register_subparser",
+    "run_idea_mine",
     "run_idea_report",
     "run_idea_run",
     "run_idea_testability",
