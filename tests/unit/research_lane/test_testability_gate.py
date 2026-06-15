@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from alpha_system.governance.idea_draft import build_idea_validation_bundle
+from alpha_system.governance.idea_draft import MAIN_EFFECT, build_idea_validation_bundle
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
 from alpha_system.research_lane.testability_gate import (
     CHECK_FEATURES_MATERIALIZED,
@@ -16,6 +16,7 @@ from alpha_system.research_lane.testability_gate import (
     CHECK_NO_LOOKAHEAD_SURROGATE,
     CHECK_PATH_LABEL_TWO_CLASS,
     GateStatus,
+    _check_outcome_non_degeneracy,
     evaluate_testability_gate,
 )
 from alpha_system.research_lane.testability_gate import (
@@ -284,3 +285,75 @@ def _feature_record() -> _FeatureRecord:
 
 def _label_record(label_spec_id: str) -> _LabelRecord:
     return _LabelRecord(label_spec_id=label_spec_id)
+
+
+def _main_effect_slice(**overrides: object) -> GateSlice:
+    payload: dict[str, object] = {
+        "slice_id": "main-effect-slice",
+        "study_kind": MAIN_EFFECT,
+        "dataset_version_id": DATASET_VERSION_ID,
+        "partition_id": PARTITION_ID,
+        "feature_pack_refs": (FEATURE_VERSION_ID,),
+        "label_pack_refs": (LABEL_VERSION_ID,),
+        "label_spec_ids": ("lspec_main",),
+        "continuous_label_summary": {
+            "value_std": 0.0039,
+            "nonzero_count": 327155,
+            "sample_count": 327155,
+        },
+        "n_eff": 327155,
+        "minimum_detectable_effect": 0.005,
+        "available_ts_satisfiable": True,
+        "surrogate_fdr_requirement": ZERO_PASS_MET,
+    }
+    payload.update(overrides)
+    return GateSlice.from_mapping(payload)
+
+
+def test_outcome_non_degeneracy_passes_for_powered_continuous_main_effect() -> None:
+    result = _check_outcome_non_degeneracy(_main_effect_slice())
+
+    assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
+    assert result.status is GateStatus.PASS
+    assert result.detail["study_kind"] == MAIN_EFFECT
+    assert result.detail["continuous_label_value_std"] == 0.0039
+
+
+def test_outcome_non_degeneracy_data_gaps_when_continuous_summary_missing() -> None:
+    result = _check_outcome_non_degeneracy(
+        _main_effect_slice(continuous_label_summary=None)
+    )
+
+    assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
+    assert result.status is GateStatus.DATA_GAP
+
+
+def test_outcome_non_degeneracy_data_gaps_for_degenerate_continuous_label() -> None:
+    result = _check_outcome_non_degeneracy(
+        _main_effect_slice(
+            continuous_label_summary={
+                "value_std": 0.0,
+                "nonzero_count": 0,
+                "sample_count": 327155,
+            }
+        )
+    )
+
+    assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
+    assert result.status is GateStatus.DATA_GAP
+
+
+def test_outcome_non_degeneracy_still_requires_two_classes_for_path_study() -> None:
+    # Non-main_effect (path/binary) studies must keep the strict two-class guard;
+    # a continuous-summary declaration must not let a single-class path slice pass.
+    single_class = _slice(
+        "lspec_path",
+        study_kind="context_not_equal_trigger",
+        path_label_observations=(),
+        path_label_class_counts={"true": 5},
+    )
+
+    result = _check_outcome_non_degeneracy(single_class)
+
+    assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
+    assert result.status is GateStatus.DATA_GAP
