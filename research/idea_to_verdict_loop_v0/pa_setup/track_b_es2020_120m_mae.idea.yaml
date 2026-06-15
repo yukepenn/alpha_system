@@ -1,0 +1,222 @@
+{
+  "source": "research/idea_to_verdict_loop_v0/pa_setup/track_b_es2020_120m_mae.idea.yaml",
+  "study_kind": "context_not_equal_trigger",
+  "hypothesis_card": {
+    "title": "Range-contraction context x failed-high-breakout trigger -> continuous path MAE (PA_SETUP_DIAGNOSTICS_V0 volatility-confound control)",
+    "family": "pa_setup_range_contraction_failed_high_breakout_mae",
+    "rationale": "Pre-registered control for the MFE readout. If the conditioned subset's adverse excursion (MAE) rises by a similar magnitude to its favorable excursion (MFE), the MFE surrogate significance is a volatility/excursion confound, not a directional edge. Both are run under the overlap-aware block-shuffle surrogate.",
+    "expected_mechanism": "Range contraction then failed-high-breakout likely selects higher-volatility windows; a symmetric rise in MAE alongside MFE would indicate excursion magnitude (volatility), not signed edge. The directional read requires the MFE-vs-MAE asymmetry, not either alone.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve the already-materialized feature and continuous path-MAE label packs.",
+      "Fail the idea if the conditioned continuous outcome is degenerate (near-zero variance).",
+      "Reject interpretation if duplicate exposure or surrogate-FDR gates block the exploratory readout."
+    ],
+    "risks": [
+      "MAE-only significance, like MFE-only, is not a tradable edge; only the signed asymmetry (and cost) is.",
+      "The context and trigger families may still overlap with adjacent liquidity-structure variants.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "author": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/PA_SETUP_DIAGNOSTICS_V0",
+    "created_at": "2026-06-15T00:00:00Z"
+  },
+  "alpha_spec": {
+    "target_instruments": [
+      "ES"
+    ],
+    "data_assumptions": {
+      "coverage": "ES_2020_120m continuous path MAE outcome: non_null=313156 (registered path_mae, non-degenerate continuous).",
+      "source": "Already-materialized local FUTSUB feature and registered path-metric label packs are read load-only when present."
+    },
+    "factor_inputs": [
+      "liquidity_structure_range_contraction",
+      "liquidity_structure_failed_high_breakout_flag"
+    ],
+    "label_references": [
+      "lspec_2af1f6ed0c144c500bdedb1a"
+    ],
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence.",
+      "Do not sweep horizons, thresholds, geometry, or path metrics after seeing this single pre-registered probe result."
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    },
+    "cost_assumptions": {
+      "model": "The outcome label is a continuous path MAE (adverse excursion); no execution-cost estimate is produced by this readout.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while the continuous path label is partitioned at ES_2020_120m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may record a near-zero conditioned-mean lift under a well-powered sample; that is an informative outcome, not a failure."
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized in this exploratory readout.",
+      "Any future WATCH or CANDIDATE would require independent reviewer-gated evidence outside this run."
+    ],
+    "created_by": "ALPHA_IDEA_TO_VERDICT_LOOP_V0/PA_SETUP_DIAGNOSTICS_V0",
+    "created_at": "2026-06-15T00:00:00Z"
+  },
+  "mechanism_card": {
+    "source": "PA_SETUP_DIAGNOSTICS_V0 MFE volatility-confound control (continuous path MAE)",
+    "rationale": "A pre-declared range-contraction regime context isolates sessions where a separate prior-high sweep then close-back-inside trigger is read against a continuous 120m adverse-excursion path outcome.",
+    "expected_mechanism": "The context factor reads trailing range compression and marks when the setup is relevant. The trigger factor reads a distinct prior-high sweep then close-back-inside event from a different feature family, and only fires inside the compressed-range context bucket.",
+    "expected_direction": "conditioned-vs-base difference in continuous adverse-excursion path outcome",
+    "horizon": "120m",
+    "session": "RTH",
+    "required_features": [
+      "liquidity_structure_range_contraction",
+      "liquidity_structure_failed_high_breakout_flag"
+    ],
+    "required_labels": [
+      "path_mae_120m"
+    ],
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "variant_budget": 1,
+    "duplicate_exposure": {
+      "family_id": "pa_setup_range_contraction_failed_high_breakout_mae",
+      "status": "bounded",
+      "variant_id": "baseline_range_contraction_failed_high_breakout_mae"
+    },
+    "stamp": "EXPLORATORY"
+  },
+  "setup_spec": {
+    "entry_context": {
+      "bucket": "range_contraction_high",
+      "factor_id": "liquidity_structure_range_contraction",
+      "factor_version": "v1_es_2020_liquidity_structure_range_contraction",
+      "operator": ">=",
+      "signal_kind": "trailing_range_compression_regime_descriptor",
+      "threshold": 0.5,
+      "value_field": "normalized_value"
+    },
+    "event_trigger": {
+      "event": "prior_high_sweep_close_back_inside",
+      "factor_id": "liquidity_structure_failed_high_breakout_flag",
+      "factor_version": "v1_es_2020_liquidity_structure_failed_high_breakout_flag",
+      "operator": ">",
+      "signal_kind": "discrete_sweep_reclaim_event_flag",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    },
+    "regime_filter": {
+      "instrument_root": "ES",
+      "session": "RTH"
+    },
+    "confirmation": {
+      "fixed_before_readout": true,
+      "policy": "none_added_in_pa_setup_v0"
+    },
+    "invalidation": {
+      "fixed_before_readout": true,
+      "policy": "fixed_path_stop_binding"
+    },
+    "stop": {
+      "binding": "fixed_stop_from_path_label",
+      "geometry": "unchanged"
+    },
+    "target": {
+      "geometry": "unchanged",
+      "path_outcome": "path_mae"
+    },
+    "hold_time": {
+      "horizon": "120m",
+      "max_minutes": 120
+    },
+    "horizon": "120m",
+    "path_label": "lspec_2af1f6ed0c144c500bdedb1a",
+    "allowed_variants": [
+      "baseline_range_contraction_failed_high_breakout_mae"
+    ],
+    "forbidden_post_hoc_changes": [
+      "No context bucket changes after outcome readout.",
+      "No trigger threshold changes after outcome readout.",
+      "No target or stop geometry changes after outcome readout.",
+      "No path-metric change after outcome readout."
+    ],
+    "stamp": "EXPLORATORY"
+  },
+  "slices": {
+    "ES_2020_120m": {
+      "slice_id": "ES_2020_120m",
+      "study_kind": "context_not_equal_trigger",
+      "outcome_label_type": "mae_by_horizon",
+      "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "partition_id": "ES_2020_120m",
+      "instrument_id": "ES",
+      "session_id": "ES:RTH",
+      "data_version": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "feature_pack_refs": [
+        "fver_42bfbf5d66248b2d51a94fcc1361b9bb0c14282ee3f23b4b9028466fcfbaba96",
+        "fver_08e6f88675ba2d10c86e08a0ea1962918d82201aff2059a21711929d5a43436c"
+      ],
+      "label_pack_refs": [
+        "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8"
+      ],
+      "feature_request_ids": [
+        "freq_257e4a47afbeaed9ed0c57c3",
+        "freq_10a3247ee0b42c753bb3710d"
+      ],
+      "label_spec_ids": [
+        "lspec_2af1f6ed0c144c500bdedb1a"
+      ],
+      "available_ts_satisfiable": true,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "n_eff": 2609,
+      "minimum_detectable_effect": 0.0384,
+      "continuous_label_summary": {
+        "value_std": 0.004797,
+        "sample_count": 313156,
+        "nonzero_count": 307324
+      },
+      "features": [
+        {
+          "role": "context",
+          "factor_id": "liquidity_structure_range_contraction",
+          "factor_version": "v1_es_2020_liquidity_structure_range_contraction",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/regime_volatility_compression/feature_set_futures_scaleout_regime_volatility_compression/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "pack_ref": "fver_42bfbf5d66248b2d51a94fcc1361b9bb0c14282ee3f23b4b9028466fcfbaba96",
+          "feature_request_id": "freq_257e4a47afbeaed9ed0c57c3"
+        },
+        {
+          "role": "trigger",
+          "factor_id": "liquidity_structure_failed_high_breakout_flag",
+          "factor_version": "v1_es_2020_liquidity_structure_failed_high_breakout_flag",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "pack_ref": "fver_08e6f88675ba2d10c86e08a0ea1962918d82201aff2059a21711929d5a43436c",
+          "feature_request_id": "freq_10a3247ee0b42c753bb3710d"
+        }
+      ],
+      "labels": [
+        {
+          "role": "path",
+          "label_id": "path_mae",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/path/lset_a840f9395ee7a5946c023ae3572b63aaf5e93c6c2a364f5dc67ec76caaf6da92/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_120m/values.parquet",
+          "pack_ref": "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8",
+          "label_spec_id": "lspec_2af1f6ed0c144c500bdedb1a"
+        }
+      ],
+      "label_version_map": {
+        "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8": [
+          "mae_by_horizon",
+          "float"
+        ]
+      },
+      "horizon_seconds": 7200,
+      "required_future_bars": 120,
+      "materialized_label_version": "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8",
+      "surrogate_run_count": 64,
+      "surrogate_base_seed": 0,
+      "family_id": "pa_setup_range_contraction_failed_high_breakout_mae",
+      "family_budget": 1,
+      "variant_id": "baseline_range_contraction_failed_high_breakout_mae",
+      "created_at": "2026-06-15T00:00:00Z"
+    }
+  }
+}
