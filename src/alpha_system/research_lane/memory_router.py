@@ -22,6 +22,7 @@ from alpha_system.governance.rejected_idea import (
 from alpha_system.governance.requeue import REQUEUE_REASON, validate_requeued_verdict_record
 from alpha_system.governance.serialization import JsonValue
 from alpha_system.governance.signal_pending_reviewer import (
+    STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER,
     create_signal_pending_reviewer_record,
 )
 from alpha_system.governance.validation import (
@@ -251,25 +252,36 @@ def _route_signal_pending_reviewer(
     report_ref: str | None,
 ) -> MemoryRouteResult:
     alpha_spec_id = _require_alpha_spec_id(idea)
-    quality = _main_effect_quality_summary(readout)
-    record = create_signal_pending_reviewer_record(
-        alpha_spec_id_or_hypothesis_id=alpha_spec_id,
-        original_verdict_ref=_verdict_reference(
-            alpha_spec_id, readout, report_ref=report_ref, verdict=verdict
-        ),
-        factor_id=_main_effect_factor_id(readout),
-        slice_id=_main_effect_slice_id(readout),
-        pearson_ic=_required_float(quality.get("pearson_ic"), field="pearson_ic"),
-        rank_ic=_required_float(quality.get("rank_ic"), field="rank_ic"),
-        n_eff=_required_int(quality.get("ic_power_n_eff"), field="ic_power_n_eff"),
-        detectable_abs_ic=_required_float(
-            quality.get("ic_power_mde_abs_ic"), field="ic_power_mde_abs_ic"
-        ),
-        bucket_rank_correlation=_required_float(
-            quality.get("bucket_rank_correlation"), field="bucket_rank_correlation"
-        ),
-        created_at=created_at,
+    original_verdict_ref = _verdict_reference(
+        alpha_spec_id, readout, report_ref=report_ref, verdict=verdict
     )
+    study_kind = str(readout.get("study_kind") or "").strip().lower()
+    if study_kind == STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER:
+        record = _setup_lane_signal_record(
+            readout,
+            alpha_spec_id=alpha_spec_id,
+            original_verdict_ref=original_verdict_ref,
+            created_at=created_at,
+        )
+    else:
+        # main_effect path: IC quality summary (UNCHANGED).
+        quality = _main_effect_quality_summary(readout)
+        record = create_signal_pending_reviewer_record(
+            alpha_spec_id_or_hypothesis_id=alpha_spec_id,
+            original_verdict_ref=original_verdict_ref,
+            factor_id=_main_effect_factor_id(readout),
+            slice_id=_main_effect_slice_id(readout),
+            pearson_ic=_required_float(quality.get("pearson_ic"), field="pearson_ic"),
+            rank_ic=_required_float(quality.get("rank_ic"), field="rank_ic"),
+            n_eff=_required_int(quality.get("ic_power_n_eff"), field="ic_power_n_eff"),
+            detectable_abs_ic=_required_float(
+                quality.get("ic_power_mde_abs_ic"), field="ic_power_mde_abs_ic"
+            ),
+            bucket_rank_correlation=_required_float(
+                quality.get("bucket_rank_correlation"), field="bucket_rank_correlation"
+            ),
+            created_at=created_at,
+        )
     return MemoryRouteResult(
         verdict="INCONCLUSIVE",
         action=ROUTE_SIGNAL_SHELF,
@@ -280,6 +292,117 @@ def _route_signal_pending_reviewer(
         promotion_eligible=False,
         probe_spent=False,
     )
+
+
+def _setup_lane_signal_record(
+    readout: Mapping[str, Any],
+    *,
+    alpha_spec_id: str,
+    original_verdict_ref: str,
+    created_at: str,
+):
+    """Build a context_not_equal_trigger signal-shelf record.
+
+    The setup/path-outcome lane has no IC numbers; it carries a signed
+    continuous-outcome ``mean_lift`` (mirroring verdict_report._continuous_lift_summary)
+    plus the enriched surrogate-FDR gate (conditioned overlap-aware n_eff,
+    observed effect, gate pass/run counts). The machine still NEVER promotes; this
+    only routes the non-promoting signal to the reviewer shelf.
+    """
+
+    lift = _continuous_lift_summary(readout)
+    if lift is None:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="readout.continuous_outcome_mean_lift",
+                code="missing_setup_lane_lift",
+                message="setup-lane signal routing requires a continuous_outcome_mean_lift",
+                expected="continuous-outcome mean_lift mapping",
+                actual="missing",
+            )
+        )
+    gate = readout.get("surrogate_fdr_gate")
+    gate_map: Mapping[str, Any] = gate if isinstance(gate, Mapping) else {}
+    return create_signal_pending_reviewer_record(
+        alpha_spec_id_or_hypothesis_id=alpha_spec_id,
+        original_verdict_ref=original_verdict_ref,
+        factor_id=_main_effect_factor_id(readout),
+        slice_id=_main_effect_slice_id(readout),
+        n_eff=_required_int(_setup_conditioned_n_eff(readout, gate_map), field="conditioned_n_eff"),
+        net_mean_lift=_required_float(lift.get("mean_lift"), field="mean_lift"),
+        outcome_label_type=_required_outcome_label_type(lift.get("outcome_label_type")),
+        observed_effect=_optional_float_metric(gate_map.get("observed_effect")),
+        surrogate_gate_pass_count=_required_int(
+            gate_map.get("gate_pass_count"), field="gate_pass_count"
+        ),
+        surrogate_run_count=_required_int(gate_map.get("run_count"), field="run_count"),
+        created_at=created_at,
+        study_kind=STUDY_KIND_CONTEXT_NOT_EQUAL_TRIGGER,
+    )
+
+
+def _setup_conditioned_n_eff(readout: Mapping[str, Any], gate: Mapping[str, Any]) -> Any:
+    """Resolve the conditioned overlap-aware n_eff for a setup-lane readout.
+
+    Mirrors verdict_report._n_eff_mde: in the ZERO_PASS_MET path the surrogate
+    already exposed the overlap-aware power as a top-level ``power.n_eff``
+    statement; only the surrogate-blocked early return attaches
+    ``surrogate_fdr_gate.conditioned_n_eff``. Prefer the power statement and fall
+    back to the gate so both shapes route.
+    """
+
+    power = _find_mapping_with_keys(readout, ("n_eff",))
+    if isinstance(power, Mapping) and power.get("n_eff") is not None:
+        return power.get("n_eff")
+    return gate.get("conditioned_n_eff")
+
+
+def _continuous_lift_summary(readout: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Locate the continuous-outcome conditioned-mean-lift diagnostic in the readout.
+
+    Mirrors verdict_report._continuous_lift_summary: it searches the (possibly
+    nested) readout for a mapping carrying the conditioned-mean-lift keys.
+    """
+
+    return _find_mapping_with_keys(readout, ("mean_lift", "conditioned_mean", "base_mean"))
+
+
+def _find_mapping_with_keys(value: Any, keys: tuple[str, ...]) -> Mapping[str, Any] | None:
+    if isinstance(value, Mapping):
+        if all(key in value for key in keys):
+            return value
+        for item in value.values():
+            found = _find_mapping_with_keys(item, keys)
+            if found is not None:
+                return found
+        return None
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes):
+        for item in value:
+            found = _find_mapping_with_keys(item, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def _required_outcome_label_type(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise GovernanceValidationError(
+            ValidationIssue(
+                field="outcome_label_type",
+                code="missing_setup_lane_metric",
+                message="setup-lane signal routing requires an outcome_label_type",
+                expected="non-empty string",
+                actual=str(value),
+            )
+        )
+    return text
+
+
+def _optional_float_metric(value: Any) -> float | None:
+    if value is None:
+        return None
+    return _required_float(value, field="observed_effect")
 
 
 def _main_effect_quality_summary(readout: Mapping[str, Any]) -> Mapping[str, Any]:

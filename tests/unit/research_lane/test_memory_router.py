@@ -146,6 +146,70 @@ def test_signal_pending_reviewer_routes_to_non_promoting_shelf() -> None:
     assert record["slice_id"] == "ES_2020_60m"
 
 
+def test_setup_lane_signal_pending_reviewer_routes_to_shelf_without_ic_summary() -> None:
+    # The setup/path-outcome lane (context_not_equal_trigger) has NO main_effect IC
+    # quality summary. A surrogate-gated signed net_excursion mean_lift must still
+    # reach the reviewer shelf (no missing_main_effect_quality_summary error).
+    bundle = _bundle()
+
+    result = route_verdict_to_memory(
+        {
+            "verdict": "INCONCLUSIVE",
+            "reason_code": "SIGNAL_PENDING_REVIEWER",
+            "why": "Surrogate-gated net_excursion resolved a signed directional asymmetry.",
+        },
+        bundle.idea_draft,
+        _setup_lane_signal_readout(bundle),
+        created_at=TIMESTAMP,
+    )
+
+    payload = result.to_dict()
+    assert payload["action"] == "reviewer_pending_shelf"
+    assert payload["record_type"] == "SignalPendingReviewerRecord"
+    assert payload["verdict"] == "INCONCLUSIVE"
+    assert payload["promotion_eligible"] is False
+    record = payload["memory_record"]
+    assert record["study_kind"] == "context_not_equal_trigger"
+    assert record["requires_reviewer"] is True
+    assert record["eligible"] is False
+    # The signed net excursion + surrogate evidence is preserved; no IC fields.
+    assert record["pearson_ic"] is None
+    assert record["rank_ic"] is None
+    assert record["detectable_abs_ic"] is None
+    assert record["net_mean_lift"] == pytest.approx(-0.0031)
+    # observed_effect is optional: absent in the ZERO_PASS_MET path -> None.
+    assert record["observed_effect"] is None
+    assert record["outcome_label_type"] == "net_excursion"
+    assert record["surrogate_gate_pass_count"] == 0
+    assert record["surrogate_run_count"] == 200
+    # n_eff sourced from the top-level power statement (mirrors verdict_report).
+    assert record["n_eff"] == 412
+    assert record["slice_id"] == "ES_2020_120m"
+
+
+def test_setup_lane_signal_falls_back_to_gate_conditioned_n_eff_and_observed_effect() -> None:
+    # The enriched surrogate gate (carrying conditioned_n_eff + observed_effect) is
+    # the source when no top-level power statement is present.
+    bundle = _bundle()
+    readout = _setup_lane_signal_readout(bundle)
+    del readout["power"]
+    gate = dict(readout["surrogate_fdr_gate"])  # type: ignore[arg-type]
+    gate["conditioned_n_eff"] = 333
+    gate["observed_effect"] = -0.0031
+    readout["surrogate_fdr_gate"] = gate
+
+    result = route_verdict_to_memory(
+        {"verdict": "INCONCLUSIVE", "reason_code": "SIGNAL_PENDING_REVIEWER"},
+        bundle.idea_draft,
+        readout,
+        created_at=TIMESTAMP,
+    )
+
+    record = result.to_dict()["memory_record"]
+    assert record["n_eff"] == 333
+    assert record["observed_effect"] == pytest.approx(-0.0031)
+
+
 def test_signal_pending_reviewer_never_writes_promotion_decision() -> None:
     bundle = _bundle()
 
@@ -301,6 +365,50 @@ def _main_effect_signal_readout(bundle) -> dict[str, object]:
                     "ic_power_mde_abs_ic": 0.0034,
                     "ic_power_n_eff": 327155,
                     "bucket_rank_correlation": -0.805,
+                }
+            }
+        },
+    }
+
+
+def _setup_lane_signal_readout(bundle) -> dict[str, object]:
+    return {
+        "schema": "alpha_system.research_lane.fast_probe.v1",
+        "readout_id": "fpsetup_unit",
+        "status": "RECORDED",
+        "study_kind": "context_not_equal_trigger",
+        "stamp": "EXPLORATORY",
+        "promotion_eligible": False,
+        "mechanism_card": bundle.mechanism_card.to_dict(),
+        "slice_spec": {
+            "slice_id": "ES_2020_120m",
+            "study_kind": "context_not_equal_trigger",
+        },
+        "row_access": {
+            "status": "resolved_local_only",
+            "fabricated_values": False,
+        },
+        # ZERO_PASS_MET path: the surrogate exposes the conditioned overlap-aware
+        # power as a top-level power.n_eff statement (the gate carries no
+        # conditioned_n_eff/observed_effect in this path -- mirrors the real readout).
+        "power": {"n_eff": 412, "mde_abs_ic": 0.084},
+        "surrogate_fdr_gate": {
+            "gate_status": "PASSED",
+            "threshold_verdict": "zero-pass-met",
+            "run_count": 200,
+            "gate_pass_count": 0,
+            "error_count": 0,
+            "promotion_evidence": False,
+        },
+        "readout": {
+            "diagnostics": {
+                "continuous_outcome_mean_lift": {
+                    "outcome_label_type": "net_excursion",
+                    "conditioned_mean": -0.0021,
+                    "base_mean": 0.0010,
+                    "mean_lift": -0.0031,
+                    "conditioned_n": 1200,
+                    "base_n": 4800,
                 }
             }
         },
