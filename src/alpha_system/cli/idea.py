@@ -299,6 +299,8 @@ def run_idea_mine(args: argparse.Namespace) -> int:
         summary = mine_ideas(
             idea_paths,
             partition_policy=tuple(args.partition or ()) or None,
+            years=tuple(args.years) if args.years else None,
+            instruments=tuple(args.instruments) if args.instruments else None,
             persist=not args.no_persist,
             memory_dir=args.memory_dir,
             family_fdr_ledger_path=family_fdr_ledger_path,
@@ -593,6 +595,28 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help=(
             "Explicit partition slice id (repeatable). Overrides each idea's "
             "declared slice set when provided."
+        ),
+    )
+    mine_parser.add_argument(
+        "--years",
+        nargs="+",
+        type=int,
+        default=None,
+        help=(
+            "Years to fan each idea over (e.g. --years 2019 2020 2021). Combined "
+            "with the idea's own horizon and --instruments (default: the idea's "
+            "declared instrument) to expand into target partitions resolved from "
+            "the on-disk materialized registry. Ignored when --partition is given."
+        ),
+    )
+    mine_parser.add_argument(
+        "--instruments",
+        nargs="+",
+        default=None,
+        help=(
+            "Instruments to fan each idea over (e.g. --instruments ES NQ RTY). "
+            "Combined with --years and the idea's horizon. Ignored when "
+            "--partition is given."
         ),
     )
     mine_parser.add_argument(

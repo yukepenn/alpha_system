@@ -82,6 +82,12 @@ from alpha_system.research_lane.memory_router import (
     MemoryRouteResult,
     route_verdict_to_memory,
 )
+from alpha_system.research_lane.partition_resolver import (
+    PartitionResolutionError,
+    TargetPartition,
+    resolve_partition_setup,
+    resolve_partition_slice,
+)
 from alpha_system.research_lane.slice_spec import SliceSpec, SliceSpecError
 from alpha_system.runtime.input_resolver import FeatureLabelPackResolver
 
@@ -361,19 +367,40 @@ def _probe_partitions(
     outcomes: list[PartitionOutcome] = []
     for slice_id in declared:
         member_ref = _partition_member_ref(alpha_spec_id, slice_id)
+        partition_setup = setup_spec
         try:
             slice_spec = SliceSpec.from_idea_payload(idea_payload, slice_id=slice_id)
-        except SliceSpecError as exc:
-            # A declared partition with no slice descriptor in the idea is itself a
-            # fail-closed DATA_GAP (its substrate is absent / not declared) -- record
-            # it, do NOT silently skip and do NOT abort the whole pooled run.
-            outcomes.append(
-                _missing_partition_outcome(slice_id, member_ref, reason=str(exc))
-            )
-            continue
+        except SliceSpecError:
+            # The idea does NOT explicitly declare this partition (ideas declare
+            # only their authored slice). Synthesize a complete SliceSpec for the
+            # target partition from the on-disk materialized registry -- resolving
+            # each factor role to the TARGET partition's materialized version, not
+            # copying the declared slice's hashes. This is what lights up real
+            # cross-year / cross-instrument OOS fan-out.
+            try:
+                slice_spec = resolve_partition_slice(
+                    idea_payload,
+                    target_partition=slice_id,
+                    env=env,
+                )
+                # The path-label spec is content-hashed per partition, so retarget
+                # the SetupSpec's path_label to THIS partition's resolved label spec
+                # so the SAME setup shape binds the target partition's labels.
+                partition_setup = resolve_partition_setup(setup_spec, slice_spec)
+            except PartitionResolutionError as exc:
+                # The target's data is genuinely not materialized (or is
+                # ambiguous/inconsistent): record an honest DATA_GAP carrying the
+                # typed resolution code. Never fabricate or mis-resolve a slice to
+                # manufacture OOS coverage; never abort the whole pooled run.
+                outcomes.append(
+                    _missing_partition_outcome(
+                        slice_id, member_ref, reason=f"{exc.code}: {exc}"
+                    )
+                )
+                continue
         readout = fast_probe(
             mechanism_card,
-            setup_spec,
+            partition_setup,
             slice_spec,
             resolver=resolver,
             env=env,
@@ -811,6 +838,8 @@ def mine_ideas(
     idea_paths: Sequence[str | os.PathLike[str]],
     *,
     partition_policy: Sequence[str] | None = None,
+    years: Sequence[int | str] | None = None,
+    instruments: Sequence[str] | None = None,
     resolver: FeatureLabelPackResolver | None = None,
     env: Mapping[str, str] | None = None,
     persist: bool = True,
@@ -865,7 +894,14 @@ def mine_ideas(
                     )
                 )
                 continue
-            partitions = list(partition_policy) if partition_policy else _idea_partitions(payload)
+            if partition_policy:
+                partitions = list(partition_policy)
+            elif years or instruments:
+                partitions = _expand_partitions(
+                    payload, years=years, instruments=instruments
+                )
+            else:
+                partitions = _idea_partitions(payload)
             pooled = run_multi_partition_pool(
                 payload,
                 bundle.idea_draft,
@@ -937,6 +973,45 @@ def _idea_partitions(payload: Mapping[str, Any]) -> list[str]:
     if payload.get("slice_id"):
         return [str(payload["slice_id"])]
     raise MiningDriverError("idea payload declares no partition slices to mine")
+
+
+def _expand_partitions(
+    payload: Mapping[str, Any],
+    *,
+    years: Sequence[int | str] | None,
+    instruments: Sequence[str] | None,
+) -> list[str]:
+    """Expand ``--years`` x ``--instruments`` into target partition slice ids.
+
+    The HORIZON is taken from the idea's own declared slice (an idea is authored
+    at one horizon); the declared INSTRUMENT is the default when ``--instruments``
+    is omitted. Each (instrument, year, horizon) becomes a target slice id
+    ``<INSTRUMENT>_<YEAR>_<horizon>`` that the partition resolver synthesizes a
+    complete SliceSpec for. The idea's own declared slice ids are always included
+    so the authored partition is never silently dropped from a fan-out.
+    """
+
+    declared = _idea_partitions(payload)
+    parsed = [TargetPartition.from_slice_id(slice_id) for slice_id in declared]
+    horizons = list(dict.fromkeys(part.horizon for part in parsed))
+    default_instruments = list(dict.fromkeys(part.instrument for part in parsed))
+    target_instruments = (
+        [str(value).strip() for value in instruments if str(value).strip()]
+        if instruments
+        else default_instruments
+    )
+    declared_years = [part.year for part in parsed]
+    target_years = (
+        [int(value) for value in years] if years else list(dict.fromkeys(declared_years))
+    )
+    expanded: list[str] = list(declared)
+    for instrument in target_instruments:
+        for year in target_years:
+            for horizon in horizons:
+                slice_id = f"{instrument}_{year}_{horizon}"
+                if slice_id not in expanded:
+                    expanded.append(slice_id)
+    return expanded
 
 
 def _default_load_idea(path: Path) -> Mapping[str, Any]:
