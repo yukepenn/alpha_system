@@ -406,6 +406,198 @@ def test_label_shuffle_surrogate_block_size_one_matches_row_level_shuffle() -> N
     assert explicit_one == default_block
 
 
+def _net_excursion_injected(
+    setup: SetupSpec,
+    *,
+    n_bars: int,
+    horizon_bars: int,
+    signed_drift: bool,
+) -> InjectedRows:
+    """Build a context!=trigger slice carrying mfe + mae rows per event.
+
+    The first half of the bars is context-selected (context_factor >= 0.5); the
+    rest is excluded. ``signed_drift=False`` makes each event volatility-only: a
+    rising-magnitude excursion with mae = -mfe so the per-event net sum is ~0 and
+    the conditioned net mean matches the base (no signed asymmetry, no net signal).
+    ``signed_drift=True`` adds a positive directional drift ONLY to the
+    context-selected rows, so the conditioned net mean is clearly positive while
+    each excursion magnitude still varies (a genuine signed net edge).
+    """
+
+    import random as _random
+
+    noise_rng = _random.Random(20260615)
+    base_ts = datetime(2026, 1, 2, 14, 31, tzinfo=UTC)
+    # Condition on a MINORITY of bars so the unconditioned base mean is dominated by
+    # the non-selected events: a strong positive drift on the small conditioned set
+    # then yields a positive lift whose magnitude no block-shuffle (which can only
+    # move near-zero non-selected blocks into the conditioned window) can exceed.
+    selected_cutoff = max(n_bars // 4, 1)
+    context_rows: list[dict[str, Any]] = []
+    trigger_rows: list[dict[str, Any]] = []
+    path_rows: list[dict[str, Any]] = []
+    for index in range(n_bars):
+        event_ts = _text(base_ts + timedelta(minutes=index))
+        selected = index < selected_cutoff
+        context_value = 0.9 if selected else 0.1
+        # A varying excursion magnitude keeps the conditioned outcome non-degenerate.
+        # A zero-centered noisy wobble on the adverse leg makes the net sum vary
+        # genuinely around ~0 (volatility-only: no signed drift), so a block-shuffle
+        # null can produce conditioned means that exceed the ~zero observed lift.
+        magnitude = 0.01 + 0.001 * (index % 7)
+        wobble = noise_rng.uniform(-0.02, 0.02)
+        mfe_value = magnitude
+        mae_value = -magnitude + wobble
+        if signed_drift and selected:
+            # Signed directional edge confined to context: the favorable leg gets a
+            # large positive drift ONLY on the minority conditioned set. Because the
+            # base mean is set by the near-zero majority, the observed positive lift
+            # has a wide margin no block-shuffle can exceed (a shuffle can only move
+            # near-zero non-selected blocks into the small conditioned window). The
+            # drift varies event-to-event, keeping the conditioned outcome non-degenerate.
+            mfe_value += 0.3 + 0.01 * (index % 5)
+        context_rows.append(
+            {
+                "factor_id": "context_factor",
+                "factor_version": "ctx:v1",
+                "instrument_id": "SYNTH",
+                "event_ts": event_ts,
+                "available_ts": event_ts,
+                "session_id": "TEST:SYNTH:RTH",
+                "data_version": "dsv_fixture",
+                "value": context_value,
+                "normalized_value": context_value,
+                "bar_index": index + 1,
+            }
+        )
+        trigger_rows.append(
+            {
+                "factor_id": "trigger_factor",
+                "factor_version": "trg:v1",
+                "instrument_id": "SYNTH",
+                "event_ts": event_ts,
+                "available_ts": event_ts,
+                "session_id": "TEST:SYNTH:RTH",
+                "data_version": "dsv_fixture",
+                "value": 1.0,
+                "normalized_value": 1.0,
+                "bar_index": index + 1,
+            }
+        )
+        for label_type, value in (
+            ("mfe_by_horizon", mfe_value),
+            ("mae_by_horizon", mae_value),
+        ):
+            path_rows.append(
+                {
+                    "label_id": setup.path_label,
+                    "instrument_id": "SYNTH",
+                    "event_ts": event_ts,
+                    "horizon": 7200,
+                    "label_type": label_type,
+                    "value": value,
+                    "path_metadata": {
+                        "session_id": "TEST:SYNTH:RTH",
+                        "label_version": "fixture_labels_v1",
+                        "horizon_end_ts": event_ts,
+                        "required_future_bars": horizon_bars,
+                        "observed_future_bars": horizon_bars,
+                        "path_label_binding": setup.path_label,
+                    },
+                    "data_version": "dsv_fixture",
+                    "label_available_ts": event_ts,
+                }
+            )
+    return InjectedRows(
+        feature_rows_by_role={
+            "context": tuple(context_rows),
+            "trigger": tuple(trigger_rows),
+        },
+        label_rows_by_role={"path": tuple(path_rows)},
+    )
+
+
+def test_net_excursion_surrogate_distinguishes_signed_drift_from_volatility() -> None:
+    # A volatility-only fixture (mae = -mfe, net ~ 0) carries no signed asymmetry, so
+    # the joint block-shuffle null is indistinguishable from the observed net lift and
+    # the gate is NOT met. A fixture with a real positive signed net drift on the
+    # conditioned set produces a robust observed lift the shuffled null cannot beat,
+    # so the gate IS met. Same engine, same seed — only the signed structure differs.
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    horizon_bars = 10
+
+    flat = _net_excursion_injected(
+        setup, n_bars=80, horizon_bars=horizon_bars, signed_drift=False
+    )
+    drifted = _net_excursion_injected(
+        setup, n_bars=80, horizon_bars=horizon_bars, signed_drift=True
+    )
+
+    common = {
+        "surrogate_runs": 200,
+        "base_seed": 0,
+        "outcome_label_type": "net_excursion",
+        "block_size": horizon_bars,
+    }
+    flat_gate = run_label_shuffle_surrogate(setup=setup, injected=flat, **common)
+    drift_gate = run_label_shuffle_surrogate(setup=setup, injected=drifted, **common)
+
+    # Volatility-only net excursion: shuffled nulls exceed the ~zero observed lift, so
+    # the gate is not trivially met (no distinguishable signed effect).
+    assert flat_gate["gate_pass_count"] > 0
+    assert flat_gate["threshold_verdict"] != ZERO_PASS_MET
+    # Signed drift: the surrogate cannot beat the robust observed lift, gate is met.
+    assert drift_gate["gate_pass_count"] == 0
+    assert drift_gate["threshold_verdict"] == ZERO_PASS_MET
+
+
+def test_net_excursion_joint_shuffle_preserves_mfe_mae_pairing() -> None:
+    # The joint block-shuffle must apply ONE permutation order to BOTH the mfe and
+    # mae rows in their own event-time order, so a given event's (mfe, mae) pair
+    # always relocates to the SAME destination event together. We assert the rebuilt
+    # rows reconstruct a coherent per-event pair for every event.
+    import random as _random
+
+    card = _mechanism_card()
+    setup = _setup_spec(card)
+    injected = _net_excursion_injected(
+        setup, n_bars=40, horizon_bars=5, signed_drift=True
+    )
+    path_rows = list(injected.label_rows_by_role["path"])
+
+    # Capture the original per-event (mfe, mae) pair set: the net surrogate must be a
+    # permutation of WHOLE pairs, so the multiset of (mfe, mae) tuples is invariant.
+    def _pairs(rows: list[dict[str, Any]]) -> list[tuple[float, float]]:
+        by_ts: dict[str, dict[str, float]] = {}
+        for row in rows:
+            by_ts.setdefault(row["event_ts"], {})[row["label_type"]] = row["value"]
+        return sorted(
+            (vals["mfe_by_horizon"], vals["mae_by_horizon"]) for vals in by_ts.values()
+        )
+
+    target_rows_by_type = {
+        "mfe_by_horizon": fast_probe_module._time_ordered_label_rows(
+            path_rows, "mfe_by_horizon"
+        ),
+        "mae_by_horizon": fast_probe_module._time_ordered_label_rows(
+            path_rows, "mae_by_horizon"
+        ),
+    }
+    shared = fast_probe_module._shared_event_count(target_rows_by_type)
+    rebuilt = fast_probe_module._rebuild_surrogate_path_rows(
+        path_rows,
+        target_rows_by_type=target_rows_by_type,
+        shared_event_count=shared,
+        block_size=5,
+        rng=_random.Random(7),
+    )
+
+    # The set of whole (mfe, mae) pairs is preserved exactly: nothing is split,
+    # dropped, or recombined across events.
+    assert _pairs(rebuilt) == _pairs(path_rows)
+
+
 def test_label_shuffle_surrogate_block_path_is_deterministic() -> None:
     # Same base_seed + same block_size must reproduce the surrogate gate exactly.
     card = _mechanism_card()

@@ -52,6 +52,24 @@ CONTINUOUS_OUTCOME_BUCKET_KEYS: Mapping[str, str] = {
     "mfe_by_horizon": "mfe",
     "mae_by_horizon": "mae",
 }
+# A DERIVED signed-net-excursion outcome: not a materialized label_type, computed
+# per event as ``mfe + mae`` (favorable + adverse). It is volatility-neutral —
+# symmetric excursions cancel, so only a SIGNED directional drift survives the sum.
+# It requires BOTH the ``mfe`` and ``mae`` buckets populated for an event; either
+# missing yields a None outcome (treated like any other missing continuous value).
+NET_EXCURSION_OUTCOME = "net_excursion"
+NET_EXCURSION_BUCKET_KEYS: tuple[str, str] = ("mfe", "mae")
+# The materialized float label_types whose per-event values are summed to derive
+# net_excursion; both must be bound for the derived outcome to resolve.
+NET_EXCURSION_REQUIRED_LABEL_TYPES: tuple[str, str] = ("mfe_by_horizon", "mae_by_horizon")
+# A net/signed outcome carries a directional asymmetry; a |mean_lift| at/below this
+# epsilon is treated as a trivial (no signed asymmetry) net effect by the verdict
+# mapper, mirroring the continuous-outcome variance epsilon discipline.
+NET_EXCURSION_TRIVIAL_LIFT_EPS = 1e-12
+# All recognized continuous/derived outcome selectors (materialized + derived).
+RECOGNIZED_CONTINUOUS_OUTCOMES: frozenset[str] = frozenset(
+    set(CONTINUOUS_OUTCOME_BUCKET_KEYS) | {NET_EXCURSION_OUTCOME}
+)
 # A conditioned continuous outcome with (near-)zero variance carries no signal;
 # reject it the way the binary path rejects a single-class conditioned subset.
 CONTINUOUS_OUTCOME_MIN_STDDEV = 1e-12
@@ -232,10 +250,16 @@ def build_path_label_observation_set(
     binary ``target_before_stop`` path (unchanged). When it names a continuous
     path outcome (e.g. ``mfe_by_horizon``/``mae_by_horizon``) the raw float of
     that outcome is used instead, enabling fair setup testing on the
-    non-degenerate continuous path labels.
+    non-degenerate continuous path labels. The derived ``net_excursion`` outcome is
+    computed per event as ``mfe + mae`` (signed net drift; both buckets required).
     """
 
-    continuous_bucket_key = _continuous_outcome_bucket_key(outcome_label_type)
+    is_continuous_outcome = outcome_label_type is not None
+    is_net_excursion = outcome_label_type == NET_EXCURSION_OUTCOME
+    continuous_bucket_key = (
+        None if (outcome_label_type is None or is_net_excursion)
+        else _continuous_outcome_bucket_key(outcome_label_type)
+    )
 
     labels = _bound_path_labels(path_labels, probe.path_label)
     active_label_version = _infer_label_version(labels, explicit=label_version)
@@ -291,8 +315,10 @@ def build_path_label_observation_set(
         context_passed = probe.context.evaluate(context_factor)
         trigger_passed = probe.trigger.evaluate(trigger_factor)
         target_before_stop = path_outcomes.get("target_before_stop")
-        if continuous_bucket_key is None:
+        if not is_continuous_outcome:
             outcome_value = _target_label_value(target_before_stop)
+        elif is_net_excursion:
+            outcome_value = _net_excursion_label_value(path_outcomes)
         else:
             outcome_value = _continuous_label_value(path_outcomes.get(continuous_bucket_key))
         row = {
@@ -332,7 +358,7 @@ def build_path_label_observation_set(
     if not conditioned:
         msg = "conditional probe context predicate selected no path-label rows"
         raise ConditionalProbeError(msg)
-    if continuous_bucket_key is None:
+    if not is_continuous_outcome:
         class_balance = _conditioned_class_balance(conditioned)
         if int(class_balance["class_count"]) < 2:
             msg = (
@@ -725,8 +751,10 @@ def continuous_outcome_mean_lift(
     """
 
     # Validate the outcome name early so an unknown continuous outcome is a clear
-    # ConditionalProbeError rather than a silently empty metric.
-    _continuous_outcome_bucket_key(outcome_label_type)
+    # ConditionalProbeError rather than a silently empty metric. net_excursion is a
+    # recognized DERIVED outcome (no single bucket key), so validate against the
+    # full recognized set rather than only the materialized bucket map.
+    _require_recognized_continuous_outcome(outcome_label_type)
     conditioned_values = _numeric_outcome_values(conditioned)
     base_values = _numeric_outcome_values(aligned)
     conditioned_mean = _mean(conditioned_values)
@@ -759,6 +787,19 @@ def _continuous_outcome_bucket_key(outcome_label_type: str | None) -> str | None
     return key
 
 
+def _require_recognized_continuous_outcome(outcome_label_type: str) -> None:
+    """Reject an unknown continuous/derived outcome selector with a clear error.
+
+    Accepts the materialized continuous outcomes and the derived
+    ``net_excursion`` outcome; anything else is a ConditionalProbeError.
+    """
+
+    if outcome_label_type not in RECOGNIZED_CONTINUOUS_OUTCOMES:
+        allowed = ", ".join(sorted(RECOGNIZED_CONTINUOUS_OUTCOMES))
+        msg = f"outcome_label_type must be one of the continuous outcomes: {allowed}"
+        raise ConditionalProbeError(msg)
+
+
 def _continuous_label_value(value: object) -> float | None:
     """Extract the raw float of a continuous path outcome (no bool collapsing)."""
 
@@ -767,6 +808,24 @@ def _continuous_label_value(value: object) -> float | None:
     if isinstance(value, int | float):
         return float(value)
     return None
+
+
+def _net_excursion_label_value(path_outcomes: Mapping[str, Any]) -> float | None:
+    """Derive the signed net-excursion outcome ``mfe + mae`` for one event.
+
+    BOTH the ``mfe`` and ``mae`` float buckets must be present and numeric (the
+    `_optional_label_index` bucket populates both when both label versions are
+    bound). If either is missing/non-numeric the derived outcome is None, treated
+    exactly like any other missing continuous value. The sum is volatility-neutral:
+    a symmetric excursion (mfe = -mae) cancels, leaving only signed directional
+    drift.
+    """
+
+    mfe = _continuous_label_value(path_outcomes.get("mfe"))
+    mae = _continuous_label_value(path_outcomes.get("mae"))
+    if mfe is None or mae is None:
+        return None
+    return mfe + mae
 
 
 def _require_continuous_outcome_adequacy(
@@ -920,6 +979,12 @@ def _utc_now_seconds() -> str:
 
 
 __all__ = [
+    "CONTINUOUS_OUTCOME_BUCKET_KEYS",
+    "NET_EXCURSION_BUCKET_KEYS",
+    "NET_EXCURSION_OUTCOME",
+    "NET_EXCURSION_REQUIRED_LABEL_TYPES",
+    "NET_EXCURSION_TRIVIAL_LIFT_EPS",
+    "RECOGNIZED_CONTINUOUS_OUTCOMES",
     "ConditionalPredicate",
     "ConditionalProbeError",
     "ConditionalProbeObservationSet",

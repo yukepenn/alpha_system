@@ -321,6 +321,163 @@ def test_verdict_report_omits_path_outcome_diagnostics_when_absent() -> None:
     assert "## Path Outcome Diagnostics" not in report
 
 
+def _setup_readout(
+    *,
+    outcome_label_type: str,
+    mean_lift: float | None,
+    threshold_verdict: str = "zero-pass-met",
+    gate_status: str = "PASS",
+    n_eff: int = 24,
+    include_lift: bool = True,
+) -> dict[str, object]:
+    readout = _fast_readout(
+        status="RECORDED",
+        verdict=None,
+        surrogate_fdr_gate={
+            "threshold_verdict": threshold_verdict,
+            "gate_status": gate_status,
+        },
+        power={"n_eff": n_eff, "minimum_detectable_abs_ic": 0.25},
+        readout=(
+            {
+                "diagnostics": {
+                    "continuous_outcome_mean_lift": {
+                        "outcome_label_type": outcome_label_type,
+                        "conditioned_mean": 0.01,
+                        "base_mean": 0.0,
+                        "mean_lift": mean_lift,
+                        "conditioned_n": 30,
+                        "base_n": 80,
+                    }
+                }
+            }
+            if include_lift
+            else {}
+        ),
+    )
+    readout["study_kind"] = "context_not_equal_trigger"
+    slice_spec = readout["slice_spec"]
+    assert isinstance(slice_spec, dict)
+    slice_spec["study_kind"] = "context_not_equal_trigger"
+    slice_spec["outcome_label_type"] = outcome_label_type
+    return readout
+
+
+def _setup_final_section(readout: dict[str, object]) -> dict[str, str]:
+    report = render_verdict_report(_bundle().idea_draft, _gate_result(), readout)
+    section: dict[str, str] = {}
+    in_final = False
+    for raw in report.splitlines():
+        line = raw.strip()
+        if line == "## Final Verdict":
+            in_final = True
+            continue
+        if in_final and line.startswith("## "):
+            break
+        if in_final and line.startswith("- ") and ": " in line:
+            key, value = line[2:].split(": ", 1)
+            section[key.strip()] = value.strip()
+    return section
+
+
+def test_setup_net_excursion_zero_pass_nonzero_lift_is_signal_pending_reviewer() -> None:
+    section = _setup_final_section(
+        _setup_readout(outcome_label_type="net_excursion", mean_lift=0.0123)
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "SIGNAL_PENDING_REVIEWER"
+
+
+def test_setup_net_excursion_surrogate_not_met_well_powered_is_reject() -> None:
+    section = _setup_final_section(
+        _setup_readout(
+            outcome_label_type="net_excursion",
+            mean_lift=0.0123,
+            threshold_verdict="CALIBRATION_BLOCKED",
+            gate_status="BLOCKED",
+            n_eff=24,
+        )
+    )
+
+    assert section["verdict"] == "REJECT"
+    assert section["reason_code"] == "WELL_POWERED_NULL"
+
+
+def test_setup_net_excursion_surrogate_not_met_underpowered_is_inconclusive() -> None:
+    section = _setup_final_section(
+        _setup_readout(
+            outcome_label_type="net_excursion",
+            mean_lift=0.0123,
+            threshold_verdict="CALIBRATION_BLOCKED",
+            gate_status="BLOCKED",
+            n_eff=1,
+        )
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "UNDERPOWERED"
+
+
+def test_setup_single_excursion_zero_pass_is_review_needed_not_signal() -> None:
+    # A single excursion (mfe alone) that clears the surrogate gate is significant but
+    # volatility-confounded; it must NOT be called a signal — it routes to REVIEW_NEEDED
+    # demanding a signed net_excursion run.
+    section = _setup_final_section(
+        _setup_readout(outcome_label_type="mfe_by_horizon", mean_lift=-0.00055678)
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "REVIEW_NEEDED"
+
+
+def test_setup_context_not_equal_trigger_no_lift_is_data_quality() -> None:
+    section = _setup_final_section(
+        _setup_readout(
+            outcome_label_type="net_excursion", mean_lift=None, include_lift=False
+        )
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "DATA_QUALITY"
+
+
+def test_setup_surrogate_not_met_without_lift_is_reject_not_data_quality() -> None:
+    # Regression: the REAL lane early-returns a surrogate-blocked readout with NO
+    # continuous_outcome_mean_lift (the surrogate gate is computed before the full
+    # conditional diagnostics). A well-powered not-met gate must still classify as a
+    # WELL_POWERED_NULL REJECT, NOT fall through to DATA_QUALITY on the missing lift.
+    section = _setup_final_section(
+        _setup_readout(
+            outcome_label_type="net_excursion",
+            mean_lift=None,
+            include_lift=False,
+            threshold_verdict="CALIBRATION_BLOCKED",
+            gate_status="BLOCKED",
+            n_eff=24,
+        )
+    )
+
+    assert section["verdict"] == "REJECT"
+    assert section["reason_code"] == "WELL_POWERED_NULL"
+
+
+def test_setup_surrogate_not_met_without_lift_underpowered_is_inconclusive() -> None:
+    section = _setup_final_section(
+        _setup_readout(
+            outcome_label_type="net_excursion",
+            mean_lift=None,
+            include_lift=False,
+            threshold_verdict="CALIBRATION_BLOCKED",
+            gate_status="BLOCKED",
+            n_eff=1,
+        )
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "UNDERPOWERED"
+
+
 def _fast_readout(
     *,
     status: str = "RECORDED",

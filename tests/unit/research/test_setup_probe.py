@@ -10,9 +10,12 @@ from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP, create_mechanism_card
 from alpha_system.governance.setup_spec import SetupSpec, create_setup_spec
 from alpha_system.research.conditional_probe import (
+    NET_EXCURSION_OUTCOME,
     ConditionalProbeError,
+    build_path_label_observation_set,
     build_probe_variant_ledger_record,
     compile_setup_spec_to_conditional_probe,
+    continuous_outcome_mean_lift,
     evaluate_setup_conditional_probe,
 )
 
@@ -158,6 +161,104 @@ def test_setup_probe_fails_closed_without_surrogate_zero_pass() -> None:
             variant_id="baseline",
             created_at="2026-01-02T15:00:00Z",
         )
+
+
+def test_net_excursion_outcome_is_per_event_mfe_plus_mae() -> None:
+    # The derived net_excursion outcome value must be exactly mfe + mae per event,
+    # surfacing only signed directional drift (a symmetric excursion cancels).
+    setup = _setup_spec()
+    probe = compile_setup_spec_to_conditional_probe(setup)
+    mfe = (0.05, 0.02, 0.07, 0.03)
+    mae = (-0.01, -0.03, -0.02, -0.04)
+
+    observation_set = build_path_label_observation_set(
+        probe,
+        context_factor_values=_factor_rows("range_context", "ctx:v1", (0.8, 0.9, 0.2, 0.7)),
+        trigger_factor_values=_factor_rows("sweep_trigger", "trg:v1", (1.0, -0.2, 1.0, 0.6)),
+        path_labels=_net_excursion_path_label_rows(setup.path_label, mfe=mfe, mae=mae),
+        outcome_label_type=NET_EXCURSION_OUTCOME,
+    )
+
+    by_ts = {row["event_ts"]: row for row in observation_set.aligned_observations}
+    for index, event_ts in enumerate(sorted(by_ts)):
+        assert by_ts[event_ts]["label_value"] == pytest.approx(mfe[index] + mae[index])
+
+    # The conditioned-mean lift is the mean of the conditioned net sums minus the
+    # base mean — the volatility-neutral signed statistic the surrogate calibrates.
+    lift = continuous_outcome_mean_lift(
+        observation_set.conditioned_observations,
+        observation_set.aligned_observations,
+        outcome_label_type=NET_EXCURSION_OUTCOME,
+    )
+    assert lift["outcome_label_type"] == NET_EXCURSION_OUTCOME
+    assert lift["mean_lift"] is not None
+
+
+def test_net_excursion_adequacy_guard_rejects_constant_conditioned_outcome() -> None:
+    # A conditioned net_excursion that is constant (mfe = -mae for every event, so
+    # every net sum is the same value) carries no signed asymmetry; the continuous
+    # adequacy guard must reject it the way it rejects any near-zero-variance outcome.
+    setup = _setup_spec()
+    probe = compile_setup_spec_to_conditional_probe(setup)
+    # Context selects slots 0, 1, 3; give those a constant net sum of 0.0.
+    mfe = (0.05, 0.03, 0.09, 0.04)
+    mae = (-0.05, -0.03, 0.10, -0.04)
+
+    with pytest.raises(ConditionalProbeError, match="degenerate"):
+        build_path_label_observation_set(
+            probe,
+            context_factor_values=_factor_rows(
+                "range_context", "ctx:v1", (0.8, 0.9, 0.2, 0.7)
+            ),
+            trigger_factor_values=_factor_rows(
+                "sweep_trigger", "trg:v1", (1.0, -0.2, 1.0, 0.6)
+            ),
+            path_labels=_net_excursion_path_label_rows(setup.path_label, mfe=mfe, mae=mae),
+            outcome_label_type=NET_EXCURSION_OUTCOME,
+        )
+
+
+def test_net_excursion_requires_both_mfe_and_mae_buckets() -> None:
+    # net_excursion is derived from BOTH buckets; with only the mfe label_type bound
+    # per event the derived outcome is None for every event, so no numeric outcome
+    # survives and the adequacy guard fails closed (never a silent zero).
+    setup = _setup_spec()
+    probe = compile_setup_spec_to_conditional_probe(setup)
+    rows = _net_excursion_path_label_rows(
+        setup.path_label,
+        mfe=(0.05, 0.02, 0.07, 0.03),
+        mae=(-0.01, -0.03, -0.02, -0.04),
+        include_mae=False,
+    )
+
+    with pytest.raises(ConditionalProbeError, match="no numeric conditioned/base rows"):
+        build_path_label_observation_set(
+            probe,
+            context_factor_values=_factor_rows(
+                "range_context", "ctx:v1", (0.8, 0.9, 0.2, 0.7)
+            ),
+            trigger_factor_values=_factor_rows(
+                "sweep_trigger", "trg:v1", (1.0, -0.2, 1.0, 0.6)
+            ),
+            path_labels=rows,
+            outcome_label_type=NET_EXCURSION_OUTCOME,
+        )
+
+
+def _net_excursion_path_label_rows(
+    path_label: str,
+    *,
+    mfe: tuple[float, ...],
+    mae: tuple[float, ...],
+    include_mae: bool = True,
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for index in range(len(mfe)):
+        event_ts = _event_ts(index)
+        rows.append(_label_row(path_label, event_ts, "mfe_by_horizon", mfe[index]))
+        if include_mae:
+            rows.append(_label_row(path_label, event_ts, "mae_by_horizon", mae[index]))
+    return tuple(rows)
 
 
 # Reference simulation / value-accounting engines that the research package must
