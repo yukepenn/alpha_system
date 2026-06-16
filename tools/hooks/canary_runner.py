@@ -245,6 +245,21 @@ def overlap_neff_failclosed_canary() -> Canary:
     )
 
 
+def ic_power_statement_overlap_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.ic_power_statement_overlap import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "ic_power_statement_overlap",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def precondition_not_datagap_canary() -> Canary:
     snippet = (
         "import sys; "
@@ -474,6 +489,7 @@ def scenarios() -> list[Canary]:
         family_fdr_budget_canary(),
         pooled_se_poolkind_canary(),
         overlap_neff_failclosed_canary(),
+        ic_power_statement_overlap_canary(),
         precondition_not_datagap_canary(),
         pooled_partition_factor_id_drift_canary(),
     ]

@@ -36,6 +36,7 @@ from alpha_system.runtime.diagnostics.power import (
 )
 from alpha_system.runtime.diagnostics.splits.n_eff import (
     HorizonOverlapMetadata,
+    coerce_horizon_overlap_metadata,
     estimate_n_eff,
 )
 
@@ -212,6 +213,33 @@ def map_runtime_state_to_primary_state(
     return PRIMARY_STATE_REJECT, None
 
 
+def _engine_overlap_metadata(
+    horizon_overlap_metadata: HorizonOverlapMetadata | Mapping[str, Any],
+    *,
+    purge_gap: int | None,
+    embargo_gap: int | None,
+) -> dict[str, Any]:
+    """Engine-bound overlap metadata that carries the scorer's purge/embargo gaps.
+
+    The diagnostics engine derives the overlap discount from the same sanctioned
+    :func:`coerce_horizon_overlap_metadata` / :func:`estimate_n_eff` path the
+    scorer uses, but -- absent a walk-forward plan -- it reads any purge/embargo
+    gap from the overlap-metadata mapping itself. Folding the scorer's explicit
+    gaps into the mapping keeps the engine's embedded power_statement N_eff
+    identical to the scorer's verdict floor. We do NOT invent a new discount: the
+    ``discount_factor`` is the existing forward-overlap factor carried by the
+    coerced metadata, unchanged.
+    """
+
+    metadata = coerce_horizon_overlap_metadata(horizon_overlap_metadata)
+    payload: dict[str, Any] = dict(metadata.to_dict())
+    if purge_gap is not None:
+        payload["purge_gap"] = int(purge_gap)
+    if embargo_gap is not None:
+        payload["embargo_gap"] = int(embargo_gap)
+    return payload
+
+
 def score_mechanism(
     *,
     mechanism_id: str,
@@ -246,12 +274,27 @@ def score_mechanism(
         hashlib.sha256(f"{mechanism_id}|{factor_id}".encode()).hexdigest(),
     )
 
+    # The forward-overlap discount is mandatory at the ENGINE layer, not just in
+    # the scorer's own n_eff: the diagnostics engine's embedded power_statement /
+    # ``ic_power_*`` quality scalars must report the SAME overlap-aware N_eff as
+    # the scorer's verdict floor, never the raw row count (the #474 law as applied
+    # to the IC power_statement layer). We thread the caller-supplied horizon
+    # overlap metadata -- with the scorer's explicit purge/embargo gaps folded in
+    # so the engine and scorer remove the same gaps -- exactly as the main-effect
+    # fast-probe path already does. This shrinks N_eff and RAISES the engine's
+    # reported MDE; it can only make the floor stricter.
+    engine_overlap_metadata = _engine_overlap_metadata(
+        horizon_overlap_metadata,
+        purge_gap=purge_gap,
+        embargo_gap=embargo_gap,
+    )
     result = build_factor_diagnostics_run(
         diagnostics_run_spec=spec,
         observations=materialized_rows,
         lineage_refs={"factor_id": factor_id, "mechanism_id": mechanism_id},
         thresholds=thresholds,
         walk_forward_config=walk_forward_config,
+        horizon_overlap_metadata=engine_overlap_metadata,
     )
     report = result.report.report
     runtime_state = report.status
