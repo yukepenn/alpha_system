@@ -2,7 +2,12 @@
 
 All notable changes to `alpha_system` are recorded here.
 
-## Unreleased — PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1
+> **Not live status.** The campaign-named sections below are historical change
+> blocks; the named campaigns are completed. For the live campaign/phase run
+> `python tools/frontier/status_doctor.py`. No section header here names the
+> currently-running campaign.
+
+## PRE_CORE_ALPHA_DATA_ACCESS_HARDENING_V1 (historical changes)
 
 ### Added
 
@@ -27,7 +32,7 @@ All notable changes to `alpha_system` are recorded here.
   ETH/RTH/pre_RTH/post_RTH in-scope with session-segment diagnostics + thin-session cost
   stress). No values, registries, or Parquet/JSONL committed.
 
-## Unreleased — POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1
+## POST_RUNTIME_FEATURE_LABEL_STORAGE_AND_SEED_PACKS_V1 (historical changes)
 
 ### Added
 

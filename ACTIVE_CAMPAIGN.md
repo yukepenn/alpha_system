@@ -4,13 +4,14 @@ Project: `alpha_system`
 
 Campaign: `campaigns/ALPHA_IDEA_TO_VERDICT_LOOP_V0`
 Workflow: `workflow2`
-Run: `launching` — live `frontier-run-parallel` build (IVL-P00..P06)
-Status: `starting` — assembling the researcher idea→verdict product loop
 
-Current phase: `IVL-P00` — Role-Unification ADR + Canonical Idea-Object Schema Map
-Last completed phase: `none`
-Last completed status: `none`
-Passing phases: `0/7`
+> **Live phase / run / pass-count: do not read it here.** This committed pointer
+> lags the running campaign and intentionally states no `Current phase` / `N/M`
+> count — baking a number into committed prose is the exact live-status rot the
+> anti-rot guard forbids. The single source of truth is
+> `python tools/frontier/status_doctor.py` (+ `runs/<run_id>/state.json`). Ralph
+> updates the live state every loop; between runs the coordinator keeps only this
+> pointer's *campaign identity* synced to post-run truth.
 
 ## What this campaign is (verify live via `python tools/frontier/status_doctor.py`)
 
@@ -38,8 +39,9 @@ expansion, no paid data, no broker/paper/live — all remain trigger-gated. Allo
 REJECT / DATA_GAP / INCONCLUSIVE / WATCH / CANDIDATE_RESEARCH. No alpha/profitability/tradability
 claim. `runs/**` local-only; explicit staging only.
 
-Prior: DIFFERENTIATED_KILLSHOT_V1 COMPLETE 6/6, **0 survivors** (Track A clean null; Track B
-substrate-gap DATA_GAP — now the IVL-P06 dogfood, not a standalone campaign).
-
-Ralph updates this pointer through reviewed phase commits during the live run; between runs the
-coordinator keeps it synced to post-run truth.
+Research-state context (NOT live status — verify via `status_doctor` + the research
+ledger `decisions/POWERED_DISCOVERY_BATCH_V0/RESEARCH_TRUTH_RECONCILIATION.md`):
+simple per-instrument IC is a confirmed cross-partition NULL and conditional-setup
+regime mining is WELL_POWERED_NULL — survivor gate remains 0. BBO order-flow
+microstructure is the ready-to-author next probe (zero new materialization). All
+downstream factory modules stay trigger-gated behind the survivor gate.

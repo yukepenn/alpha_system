@@ -15,11 +15,13 @@ Campaigns group related work into reviewable goals. Each is a directory
 | `000-template` | Template | Starter campaign bundle. |
 
 `ASV1_RELEASE_HYGIENE` was a post-closeout cleanup pass with no campaign
-directory (see `handoffs/ALPHA_SYSTEM_V1/ASV1-HYGIENE.md`). The **decided next campaign** is
-`ALPHA_FEATURE_LABEL_FOUNDATION_V1` (not yet authored).
+directory (see `handoffs/ALPHA_SYSTEM_V1/ASV1-HYGIENE.md`).
 
-Use `ACTIVE_CAMPAIGN.md` to point to the current campaign; do not put campaign
-plans in the repository root.
+This index is a partial historical roster, not the live ledger. For the **current
+campaign and the decided next campaign** read `../ACTIVE_CAMPAIGN.md` and run
+`python tools/frontier/status_doctor.py`; do not maintain a "decided next campaign"
+line here. Use `ACTIVE_CAMPAIGN.md` to point to the current campaign; do not put
+campaign plans in the repository root.
 
 `G005_WORKFLOW2_TOY` is a deterministic local Workflow 2 readiness campaign. It
 creates local docs and run artifacts only; it does not call providers, GitHub,

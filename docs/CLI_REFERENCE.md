@@ -85,7 +85,9 @@ unstaged and confirm artifact policy before any commit.
 ## Planned / Target CLI Surface (design intent)
 
 > Folded from the former `CLI_COMMANDS_TARGET.md` (ASV1-P02 design intent). These
-> are *intended* commands, not all implemented yet. They must stay local-first,
+> are *intended* commands, not all implemented yet — this table is **design intent,
+> not a live capability claim**; for the actually-implemented surface read
+> `docs/SYSTEM_MAP.md` (generated) or run `alpha --help`. They must stay local-first,
 > deterministic, manifest-producing, and fail closed on missing timestamps,
 > versions, hashes, or configs. No target includes broker ops, paper/live trading,
 > order routing, deployment, PR creation, merge, or hidden cleanup.

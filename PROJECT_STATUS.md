@@ -12,8 +12,8 @@ Project: `alpha_system`
 - Template version: `3.0.0`
 - Generated: `2026-05-31T21:48:47+00:00`
 - Workflow 1: available
-- Workflow 2: provider-wired conductor available; **no live run** — paused after
-  `DIFFERENTIATED_KILLSHOT_V1` closeout (post-DK factory adjudication)
+- Workflow 2: provider-wired conductor available. **Live run/phase status is not
+  stated here** — run `python tools/frontier/status_doctor.py`
 - Auto-merge: enabled through the protected-branch PR path when `FRONTIER_ALLOW_AUTOMERGE=1`
 - Active campaign pointer: `DIFFERENTIATED_KILLSHOT_V1` COMPLETE (`6/6`,
   `PASS_WITH_WARNINGS`, current phase `none`, **0 survivors** — see post-DK note below)
@@ -36,10 +36,14 @@ Project: `alpha_system`
 Survivor gate = **0**: no promotion; no downstream factory module (broad Mining V2,
 FactorLibrary as survivor memory, AlphaBook, Strategy Sandbox, PA grammar), no
 universe expansion, and no paid data are authorized — all trigger-gated behind the
-survivor gate. Next: post-DK factory production-line adjudication → a narrow Track B
-substrate gap-closure (same pre-registered SetupSpec, existing `ES_2020_120m`
-barrier-resolving slice, no new mechanisms/sweep/promotion) → a fresh narrow shot from
-a ranked MechanismCard queue. ES/NQ/RTY existing data only.
+survivor gate. ES/NQ/RTY existing data only.
+
+> **This file does not own "what's next."** This DK note is a historical snapshot;
+> campaigns ran after DK. For the current research state and the next probe, read
+> the freshest research ledger
+> `decisions/POWERED_DISCOVERY_BATCH_V0/RESEARCH_TRUTH_RECONCILIATION.md` and run
+> `python tools/frontier/status_doctor.py`. Do not maintain a forward "Next
+> campaign" sentence here.
 
 ### Completed campaigns (chronological; the deep history above/below is not the live ledger)
 
