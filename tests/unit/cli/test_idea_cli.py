@@ -152,6 +152,60 @@ def test_idea_run_fixture_short_circuits_data_gap_to_requeue(
     assert "- verdict: DATA_GAP" in report
 
 
+def test_idea_run_nonexistent_data_root_is_environment_not_configured(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    # An unmet ENVIRONMENT precondition (a resolved data root that does not exist)
+    # must surface the DISTINCT precondition status with a nonzero exit -- never a
+    # DATA_GAP research outcome on stdout.
+    missing_root = tmp_path / "absent-data-root"
+    status = main(
+        [
+            "idea",
+            "run",
+            FIXTURE_IDEA.as_posix(),
+            "--alpha-data-root",
+            missing_root.as_posix(),
+            "--no-persist",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert status == 3
+    assert captured.out == ""
+    error = json.loads(captured.err)
+    assert error["error"] == "environment_not_configured"
+    assert error["overall_status"] == "ENVIRONMENT_NOT_CONFIGURED"
+    assert error["verdict"] == "ENVIRONMENT_NOT_CONFIGURED"
+    assert error["overall_status"] != "DATA_GAP"
+    assert error["issue_code"] == "alpha_data_root_not_found"
+    assert error["probe_invoked"] is False
+
+
+def test_idea_testability_nonexistent_data_root_is_environment_not_configured(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    missing_root = tmp_path / "absent-data-root"
+    status = main(
+        [
+            "idea",
+            "testability",
+            FIXTURE_IDEA.as_posix(),
+            "--alpha-data-root",
+            missing_root.as_posix(),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert status == 3
+    assert captured.out == ""
+    error = json.loads(captured.err)
+    assert error["overall_status"] == "ENVIRONMENT_NOT_CONFIGURED"
+    assert error["overall_status"] != "DATA_GAP"
+
+
 def test_idea_run_persists_route_to_isolated_memory_dir(tmp_path: Path, capsys) -> None:
     memory_dir = tmp_path / "research_memory"
 
@@ -280,7 +334,9 @@ def test_idea_gate_and_run_consume_embedded_resolving_slice(
     resolver_obj = _Resolver(label_spec_id=_path_label_id())
     fast_probe_calls: list[str] = []
 
-    def fake_resolver():
+    def fake_resolver(**_kwargs):
+        # The real FeatureLabelPackResolver now receives the preflight-resolved
+        # alpha_data_root; mirror that signature (accept-and-ignore) in the mock.
         return resolver_obj
 
     def fake_fast_probe(card, setup, slice_spec, *, resolver):

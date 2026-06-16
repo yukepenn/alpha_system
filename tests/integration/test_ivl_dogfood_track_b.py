@@ -77,7 +77,11 @@ def test_ivl_dogfood_track_b_gate_and_run_loop(
             "readout_id": "readout_ivl_p06_es2020_fixture",
         }
 
-    monkeypatch.setattr(idea_cli, "FeatureLabelPackResolver", lambda: resolver_obj)
+    # The real FeatureLabelPackResolver now receives the preflight-resolved
+    # alpha_data_root kwarg; mirror that in the mock (accept-and-ignore).
+    monkeypatch.setattr(
+        idea_cli, "FeatureLabelPackResolver", lambda **_kwargs: resolver_obj
+    )
     monkeypatch.setattr(idea_cli, "fast_probe", fake_fast_probe)
 
     es2024_gate_status = main(["idea", "gate", ES2024_IDEA.as_posix()])

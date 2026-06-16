@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from alpha_system.data.foundation.sources import (
+    DEFAULT_ALPHA_DATA_ROOT as _DEFAULT_ALPHA_DATA_ROOT_PATH,
+)
+from alpha_system.data.foundation.sources import resolve_alpha_data_root
 from alpha_system.governance.idea_draft import (
     CONTEXT_NOT_EQUAL_TRIGGER,
     MAIN_EFFECT,
@@ -20,7 +24,9 @@ from alpha_system.governance.idea_draft import (
 from alpha_system.governance.serialization import JsonValue
 
 FAST_PROBE_SLICE_SCHEMA = "alpha_system.research_lane.fast_probe.slice_spec.v1"
-DEFAULT_ALPHA_DATA_ROOT = "~/alpha_data/alpha_system"
+# Single source of truth for the literal lives in data.foundation.sources; this
+# module re-exports it as a string for its public surface / back-compat.
+DEFAULT_ALPHA_DATA_ROOT = _DEFAULT_ALPHA_DATA_ROOT_PATH.as_posix()
 ALLOWED_STUDY_KINDS = frozenset({MAIN_EFFECT, CONTEXT_NOT_EQUAL_TRIGGER})
 ALLOWED_LABEL_VALUE_TYPES = frozenset({"bool", "float", "int"})
 
@@ -313,12 +319,19 @@ class SliceSpec:
         return {binding.label_version_id: binding for binding in self.label_version_bindings}
 
     def resolve_data_root(self, env: Mapping[str, str] | None = None) -> Path:
-        """Resolve the local data root path without checking the filesystem."""
+        """Resolve the local data root path without checking the filesystem.
+
+        Order is env (ALPHA_DATA_ROOT) -> this slice's ``data_root`` -> the
+        canonical default. The env tier wins first (so an explicit
+        ``ALPHA_DATA_ROOT`` overrides a slice-pinned root); the canonical
+        default literal is owned by ``data.foundation.sources``.
+        """
 
         active_env = os.environ if env is None else env
         env_value = _optional_text(active_env.get("ALPHA_DATA_ROOT"), "ALPHA_DATA_ROOT")
-        root = env_value or self.data_root or DEFAULT_ALPHA_DATA_ROOT
-        return Path(root).expanduser()
+        # env wins; otherwise prefer this slice's pinned root over the default.
+        explicit = env_value or self.data_root
+        return resolve_alpha_data_root(explicit=explicit, env=active_env)
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
