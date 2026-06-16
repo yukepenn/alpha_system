@@ -310,9 +310,7 @@ def run_multi_partition_pool(
     # partitions that produced a poolable component), not merely the idea's
     # declared study_kind -- only setup-lane readouts yield a poolable component
     # today, so this stays honest about what was pooled.
-    pooled_study_kind = next(
-        outcome.study_kind for outcome in outcomes if outcome.present
-    )
+    pooled_study_kind = next(outcome.study_kind for outcome in outcomes if outcome.present)
     pooled_readout = _build_pooled_readout(
         study_kind=pooled_study_kind,
         pooled=pooled,
@@ -394,9 +392,7 @@ def _probe_partitions(
                 # typed resolution code. Never fabricate or mis-resolve a slice to
                 # manufacture OOS coverage; never abort the whole pooled run.
                 outcomes.append(
-                    _missing_partition_outcome(
-                        slice_id, member_ref, reason=f"{exc.code}: {exc}"
-                    )
+                    _missing_partition_outcome(slice_id, member_ref, reason=f"{exc.code}: {exc}")
                 )
                 continue
         readout = fast_probe(
@@ -620,6 +616,28 @@ def _mechanism_required_features(mechanism_card: Any) -> list[str]:
     return [str(feature) for feature in required]
 
 
+def _mechanism_duplicate_exposure(mechanism_card: Any) -> dict[str, JsonValue] | None:
+    """The mechanism's declared ``duplicate_exposure`` (carries the pre-registered
+    ``family_id`` used by the cross-idea family-FDR batch identity).
+
+    The memory router's ``_family_id_for_batch`` reads the co-mined family from
+    ``mechanism_card.duplicate_exposure.family_id``. If the pooled readout drops
+    ``duplicate_exposure`` (carrying only ``required_features``), N co-mined
+    variants that declared ONE shared family fall back to per-variant
+    ``alpha_spec_id`` families-of-one and pay no cross-variant multiplicity tax --
+    an under-correction. Propagate the declared ``duplicate_exposure`` verbatim so
+    the pooled signal's family-FDR correction matches the single-idea path.
+    """
+
+    if isinstance(mechanism_card, Mapping):
+        duplicate = mechanism_card.get("duplicate_exposure")
+    else:
+        duplicate = getattr(mechanism_card, "duplicate_exposure", None)
+    if isinstance(duplicate, Mapping):
+        return {str(key): value for key, value in duplicate.items()}
+    return None
+
+
 def _build_pooled_readout(
     *,
     study_kind: str,
@@ -643,13 +661,24 @@ def _build_pooled_readout(
 
     representative = _representative_gate(outcomes)
     n_eff = pooled.n_eff if pooled.n_eff is not None else 0
+    pooled_mechanism_card: dict[str, JsonValue] = {
+        "required_features": _mechanism_required_features(mechanism_card)
+    }
+    # Propagate the declared duplicate_exposure (carrying the pre-registered
+    # family_id) so the pooled signal's cross-idea family-FDR batch identity
+    # matches the single-idea path. Dropping it forces _family_id_for_batch to
+    # fall back to the per-variant alpha_spec_id -> a family-of-one -> NO
+    # cross-variant multiplicity correction (gate-weakening under-correction).
+    declared_duplicate = _mechanism_duplicate_exposure(mechanism_card)
+    if declared_duplicate is not None:
+        pooled_mechanism_card["duplicate_exposure"] = declared_duplicate
     return {
         "schema": MINING_DRIVER_SCHEMA,
         "status": FAST_READOUT_STATUS_RECORDED,
         "study_kind": study_kind,
         "stamp": "EXPLORATORY",
         "promotion_eligible": False,
-        "mechanism_card": {"required_features": _mechanism_required_features(mechanism_card)},
+        "mechanism_card": pooled_mechanism_card,
         "slice_spec": _pooled_slice_spec(study_kind, coverage),
         "row_access": {
             "status": "resolved_local_only",
@@ -918,9 +947,7 @@ def mine_ideas(
             if partition_policy:
                 partitions = list(partition_policy)
             elif years or instruments:
-                partitions = _expand_partitions(
-                    payload, years=years, instruments=instruments
-                )
+                partitions = _expand_partitions(payload, years=years, instruments=instruments)
             else:
                 partitions = _idea_partitions(payload)
             pooled = run_multi_partition_pool(
@@ -982,11 +1009,7 @@ def _idea_partitions(payload: Mapping[str, Any]) -> list[str]:
             if isinstance(value, Mapping)
         ]
         return [slice_id for slice_id in ids if slice_id]
-    direct = (
-        payload.get("slice_spec")
-        or payload.get("fast_probe_slice")
-        or payload.get("slice")
-    )
+    direct = payload.get("slice_spec") or payload.get("fast_probe_slice") or payload.get("slice")
     if isinstance(direct, Mapping):
         slice_id = direct.get("slice_id") or direct.get("id")
         if slice_id:
@@ -1022,9 +1045,7 @@ def _expand_partitions(
         else default_instruments
     )
     declared_years = [part.year for part in parsed]
-    target_years = (
-        [int(value) for value in years] if years else list(dict.fromkeys(declared_years))
-    )
+    target_years = [int(value) for value in years] if years else list(dict.fromkeys(declared_years))
     expanded: list[str] = list(declared)
     for instrument in target_instruments:
         for year in target_years:

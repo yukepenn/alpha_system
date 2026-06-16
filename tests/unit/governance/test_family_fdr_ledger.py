@@ -37,9 +37,26 @@ def _empty_ledger(tmp_path: Path) -> Path:
     return path
 
 
-def test_family_batch_key_is_deterministic() -> None:
-    key = family_batch_key(alpha_spec_id="AS1", slice_id="S1", family_id="F1")
-    assert key == "AS1::S1::F1"
+def test_family_batch_key_anchors_declared_family_across_alpha_specs() -> None:
+    # A DECLARED family (family_id != alpha_spec_id) anchors the batch key on the
+    # family_id so co-mined variants carrying DISTINCT alpha_spec_ids co-correct as
+    # ONE m=N family (the pre-registered counted-variant group). Anchoring on
+    # alpha_spec_id would split a declared family into families-of-one -> no
+    # cross-variant multiplicity tax (gate-weakening under-correction).
+    key_a = family_batch_key(alpha_spec_id="AS1", slice_id="S1", family_id="F1")
+    key_b = family_batch_key(alpha_spec_id="AS2", slice_id="S1", family_id="F1")
+    assert key_a == "F1::S1::F1"
+    assert key_a == key_b  # distinct alpha_specs, one declared family -> one batch
+
+
+def test_family_batch_key_keeps_singletons_separate() -> None:
+    # An UNDECLARED singleton falls back to family_id == alpha_spec_id; the anchor
+    # stays the alpha_spec_id so distinct singletons remain honest families-of-one
+    # and are NEVER merged (no false-merge of ideas that did not declare a family).
+    key_a = family_batch_key(alpha_spec_id="AS1", slice_id="S1", family_id="AS1")
+    key_b = family_batch_key(alpha_spec_id="AS2", slice_id="S1", family_id="AS2")
+    assert key_a == "AS1::S1::AS1"
+    assert key_a != key_b
 
 
 def test_evaluate_family_fdr_builds_records() -> None:
@@ -56,7 +73,8 @@ def test_evaluate_family_fdr_builds_records() -> None:
     assert len(evaluation.records) == 2
     by_key = {v.idea_key: v for v in evaluation.verdicts}
     assert by_key["strong"].eligible is True
-    assert all(r.batch_key == "AS1::ES_2020_120m::F1" for r in evaluation.records)
+    # F1 is a DECLARED family (F1 != AS1) -> the batch key anchors on the family_id.
+    assert all(r.batch_key == "F1::ES_2020_120m::F1" for r in evaluation.records)
 
 
 def test_validate_family_fdr_ledger_persists_and_is_idempotent(tmp_path: Path) -> None:

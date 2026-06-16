@@ -7,10 +7,14 @@ a fail-closed ``validate_family_fdr_ledger`` entry point (mirroring
 ``validate_variant_and_family_budget``: load -> evaluate -> optionally persist).
 
 Each ``FamilyFdrLedgerRecord`` records one idea's outcome inside one co-mined
-batch: the batch identity ``(family_id, slice_id, alpha_spec_id)``, the idea's
+batch: the batch identity (anchored on the declared ``family_id`` across the
+slice -- see ``family_batch_key`` / ``_family_batch_anchor``), the idea's
 ``(idea_key, p_value, run_count)``, and the corrected ``FamilyFdrVerdict``. The
-batch identity is ``(alpha_spec_id, slice_id)`` + ``family_id`` -- no invented
-YAML ``batch_id`` (per DESIGN section 2.4).
+batch anchor is the pre-registered, content-hashed ``family_id`` when a family is
+declared (so co-mined variants with DISTINCT ``alpha_spec_id`` s co-correct as one
+m=N family), and the ``alpha_spec_id`` for an undeclared singleton (so distinct
+singletons stay families-of-one). No invented YAML ``batch_id`` (per DESIGN
+section 2.4, extended for cross-alpha_spec families).
 
 This is research-only diagnostic plumbing. It defines no PnL/value truth, makes
 NO profitability/tradability/alpha claim, and is NOT wired into any live verdict
@@ -90,14 +94,39 @@ _VAGUE_TEXT = {
 }
 
 
-def family_batch_key(*, alpha_spec_id: str, slice_id: str, family_id: str) -> str:
-    """Deterministic co-mined batch identity ``(alpha_spec_id, slice_id, family_id)``.
+def _family_batch_anchor(*, alpha_spec_id: str, family_id: str) -> str:
+    """The batch-grouping anchor for the family-FDR batch key.
 
-    No invented YAML ``batch_id`` -- the batch is the set of ideas sharing an
-    AlphaSpec, slice, and family (DESIGN section 2.4).
+    A co-mined family is the PRE-REGISTERED, content-hashed counted-variant group
+    named by ``family_id`` (the same anchor ``VariantLedger.family_budget_check``
+    groups by). Variants in one family may carry DISTINCT ``alpha_spec_id`` s, so
+    anchoring the batch key on ``alpha_spec_id`` would split a declared family into
+    families-of-one and pay NO cross-variant multiplicity tax -- an under-correction
+    (gate-weakening). When a family is DECLARED (``family_id != alpha_spec_id``) the
+    anchor is ``family_id`` so all variants that declared the SAME family co-correct
+    as one m=N family. When no family is declared, ``_family_id_for_batch`` falls
+    back to ``alpha_spec_id`` (``family_id == alpha_spec_id``); the anchor stays the
+    ``alpha_spec_id`` so distinct singletons remain honest families-of-one and are
+    NEVER merged. The rule is derived deterministically from the record's own fields,
+    so the fail-closed validator recomputes the same anchor without a new field.
     """
 
-    return f"{alpha_spec_id}::{slice_id}::{family_id}"
+    return family_id if family_id != alpha_spec_id else alpha_spec_id
+
+
+def family_batch_key(*, alpha_spec_id: str, slice_id: str, family_id: str) -> str:
+    """Deterministic co-mined batch identity.
+
+    No invented YAML ``batch_id`` -- the batch is the set of ideas sharing the
+    co-mined family anchor and slice (DESIGN section 2.4, extended for cross-
+    alpha_spec families). The anchor is ``family_id`` for a declared family and
+    ``alpha_spec_id`` for an undeclared singleton (see ``_family_batch_anchor``):
+    declared variants co-correct as ONE m=N family even across distinct
+    ``alpha_spec_id`` s, while distinct singletons stay families-of-one.
+    """
+
+    anchor = _family_batch_anchor(alpha_spec_id=alpha_spec_id, family_id=family_id)
+    return f"{anchor}::{slice_id}::{family_id}"
 
 
 @dataclass(frozen=True, slots=True)
