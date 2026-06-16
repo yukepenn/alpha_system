@@ -49,6 +49,10 @@ class BacktestSummary:
     net_pnl: Decimal
     final_equity: Decimal
     warnings: tuple[str, ...]
+    sharpe: Decimal | None = None
+    max_drawdown: Decimal | None = None
+    turnover: Decimal | None = None
+    bars_per_year: Decimal | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -63,6 +67,10 @@ class BacktestSummary:
             "costs": _decimal_text(self.costs),
             "net_pnl": _decimal_text(self.net_pnl),
             "final_equity": _decimal_text(self.final_equity),
+            "sharpe": _optional_decimal_text(self.sharpe),
+            "max_drawdown": _optional_decimal_text(self.max_drawdown),
+            "turnover": _optional_decimal_text(self.turnover),
+            "bars_per_year": _optional_decimal_text(self.bars_per_year),
             "warnings": list(self.warnings),
         }
 
@@ -219,6 +227,10 @@ def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]] | Any) -> None:
 
 def _decimal_text(value: Decimal) -> str:
     return format(value.normalize(), "f")
+
+
+def _optional_decimal_text(value: Decimal | None) -> str | None:
+    return None if value is None else _decimal_text(value)
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:

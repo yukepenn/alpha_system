@@ -51,6 +51,7 @@ from alpha_system.strategies.templates import (
 )
 from tests.fixtures.backtest_reference import (
     INSTRUMENT_ID,
+    SYNTH_INSTRUMENT_MULTIPLIERS,
     signal_record,
     synthetic_bar,
     synthetic_bars,
@@ -196,6 +197,7 @@ def test_end_to_end_v0_1_fixture_workflow_is_local_only(tmp_path: Path) -> None:
         run_id="e2e-reference",
         repo_root=REPO_ROOT,
         write_outputs=True,
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
     assert reference_result.summary.total_trades == 1
     assert reference_result.manifest["engine_version"] == "reference_1min_v1"
@@ -208,6 +210,7 @@ def test_end_to_end_v0_1_fixture_workflow_is_local_only(tmp_path: Path) -> None:
         signals=[entry_signal, signal_record(1, "exit", signal_id="cost-exit")],
         config=ExecutionConfig(cost_model=CompositeCostModel(models=(BpsCost(Decimal("100")),))),
         run_id="e2e-costs",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
     slippage_result = run_reference_backtest(
         bars=synthetic_bars(4),
@@ -216,6 +219,7 @@ def test_end_to_end_v0_1_fixture_workflow_is_local_only(tmp_path: Path) -> None:
             slippage_model=CompositeSlippageModel(models=(BpsSlippageModel(Decimal("25")),))
         ),
         run_id="e2e-slippage",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
     assert costly_result.summary.costs > reference_result.summary.costs
     assert slippage_result.manifest["parameters"]["slippage_model"]["components"][0]["bps"] == "25"
@@ -241,6 +245,7 @@ def test_end_to_end_v0_1_fixture_workflow_is_local_only(tmp_path: Path) -> None:
             }
         ),
         run_id="e2e-management",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
     assert managed_result.summary.total_trades == 2
     assert managed_result.summary.open_positions == 0

@@ -16,7 +16,14 @@ from alpha_system.backtest.engine_config import (
     load_reference_engine_config,
 )
 from alpha_system.backtest.fast_path import FAST_PATH_MODE_ACCELERATED, run_fast_path_backtest
-from alpha_system.backtest.fixtures import falling_bars, no_trade_signals, signal_record, synthetic_bar, synthetic_bars
+from alpha_system.backtest.fixtures import (
+    SYNTH_INSTRUMENT_MULTIPLIERS,
+    falling_bars,
+    no_trade_signals,
+    signal_record,
+    synthetic_bar,
+    synthetic_bars,
+)
 from alpha_system.backtest.parity import FastPathGridGateError, assert_grid_fast_path_allowed, certify_parity
 from alpha_system.backtest.reference import ReferenceBacktestError
 from alpha_system.core.git_info import capture_git_info
@@ -519,6 +526,7 @@ def run_management_grid(spec: ManagementGridSpec, *, repo_root: str | Path | Non
         data_version=spec.data_version,
         factor_versions=spec.factor_versions,
         initial_cash=spec.initial_cash,
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
         run_id=f"{run_id}-baseline",
     )
 
@@ -678,6 +686,7 @@ def _run_single_config(
             data_version=spec.data_version,
             factor_versions=spec.factor_versions,
             initial_cash=spec.initial_cash,
+            instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
             run_id=f"{run_id}-{config.config_id}",
         )
         return CompletedManagementConfig(
@@ -707,6 +716,7 @@ def _run_single_config(
             data_version=spec.data_version,
             factor_versions=spec.factor_versions,
             initial_cash=spec.initial_cash,
+            instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
             run_id=f"{run_id}-{config.config_id}",
         )
         warnings.extend(result.summary.warnings)
@@ -731,6 +741,7 @@ def _run_single_config(
         data_version=spec.data_version,
         factor_versions=spec.factor_versions,
         initial_cash=spec.initial_cash,
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
         run_id=f"{run_id}-{config.config_id}",
         allow_reference_fallback=False,
     )

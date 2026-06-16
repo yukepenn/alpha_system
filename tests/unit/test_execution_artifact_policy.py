@@ -4,7 +4,7 @@ from pathlib import Path
 
 from alpha_system.backtest.execution_config import default_execution_config
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars
 
 
 def test_execution_config_does_not_write_repo_artifacts() -> None:
@@ -16,6 +16,7 @@ def test_execution_config_does_not_write_repo_artifacts() -> None:
         signals=[signal_record(0, "entry"), signal_record(1, "exit")],
         config=config,
         run_id="artifact-policy-no-output",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert _repo_execution_artifacts() == before
@@ -30,6 +31,7 @@ def test_backtest_outputs_stay_in_explicit_tempdir(tmp_path: Path) -> None:
         output_dir=output_dir,
         run_manifest_path=output_dir / "manifest.json",
         run_id="artifact-policy-tempdir",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert result.output_paths is not None

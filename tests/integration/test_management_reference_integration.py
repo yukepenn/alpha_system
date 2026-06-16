@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from alpha_system.management.integration import run_reference_backtest_with_management
 from alpha_system.management.spec import ManagementSpec
-from tests.fixtures.backtest_reference import signal_record, synthetic_bar, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bar, zero_cost_config
 
 
 def test_management_reference_integration_emits_visible_partial_and_eod_trades() -> None:
@@ -30,6 +30,7 @@ def test_management_reference_integration_emits_visible_partial_and_eod_trades()
         config=zero_cost_config(default_quantity=Decimal("1")),
         management_spec=spec,
         run_id="managed-integration",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert result.summary.total_trades == 2

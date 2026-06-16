@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_backtest_run_records_existing_registry_table_in_tempdb(tmp_path: Path) -> None:
@@ -20,6 +20,7 @@ def test_backtest_run_records_existing_registry_table_in_tempdb(tmp_path: Path) 
         registry_path=registry_path,
         run_id="registry-fixture",
         repo_root=Path.cwd(),
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert result.registry_written is True

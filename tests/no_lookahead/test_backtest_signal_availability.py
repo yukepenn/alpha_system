@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from alpha_system.backtest.reference import BacktestTimingError, run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_signal_available_ts_must_not_precede_origin_bar_availability() -> None:
@@ -16,4 +16,5 @@ def test_signal_available_ts_must_not_precede_origin_bar_availability() -> None:
             signals=[early_signal],
             config=zero_cost_config(data_latency_seconds=5),
             run_id="signal-availability-fail",
+            instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
         )

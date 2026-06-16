@@ -17,6 +17,7 @@ from alpha_system.backtest.fills import (
     resolve_exit_signal_fill,
     resolve_policy_exit_fill,
 )
+from alpha_system.backtest.instrument_economics import resolve_instrument_multipliers
 from alpha_system.backtest.orders import OrderIntent, ReferenceOrder, order_id_for
 from alpha_system.backtest.reference import (
     ReferenceBacktestError,
@@ -27,6 +28,7 @@ from alpha_system.backtest.reference import (
     _datetime,
     _factor_versions_from_signals,
     _is_last_session_bar,
+    _multiplier_for,
     _normalize_bars,
     _normalize_signals,
     _order_from_signal,
@@ -59,6 +61,8 @@ def run_reference_backtest_with_management(
     data_version: str | None = None,
     factor_versions: Mapping[str, str] | None = None,
     initial_cash: Decimal = Decimal("100000"),
+    instrument_multipliers: Mapping[str, Any] | None = None,
+    instrument_roots: Mapping[str, str] | None = None,
     run_id: str = "managed-reference",
 ) -> ReferenceBacktestResult:
     """Run the reference engine path with deterministic management rules.
@@ -96,7 +100,17 @@ def run_reference_backtest_with_management(
     }
     config_hash = hash_config(config_payload)
     signals_by_fill_bar = _signals_by_fill_bar(normalized_signals, normalized_bars, active_config)
-    account = AccountState(initial_cash=initial_cash)
+    instrument_ids = tuple({str(bar["instrument_id"]) for bar in normalized_bars})
+    multiplier_map = resolve_instrument_multipliers(
+        instrument_ids,
+        multipliers=instrument_multipliers,
+        roots=instrument_roots,
+    )
+    fee_symbols = {
+        symbol_instrument_id: str((instrument_roots or {}).get(symbol_instrument_id, symbol_instrument_id))
+        for symbol_instrument_id in instrument_ids
+    }
+    account = AccountState(initial_cash=initial_cash, instrument_multipliers=multiplier_map)
     runtime = ManagementRuntimeState()
     managed_positions: dict[str, ManagedPositionState] = {}
     trades: list[TradeRecord] = []
@@ -123,6 +137,7 @@ def run_reference_backtest_with_management(
             trades=trades,
             fills=fills,
             sorted_bars=sorted_bars,
+            symbol=fee_symbols.get(instrument_id),
         )
 
         for signal in signals_by_fill_bar.get(_bar_key(bar), ()):
@@ -147,7 +162,13 @@ def run_reference_backtest_with_management(
                     intent=OrderIntent.ENTRY,
                     quantity=active_config.default_quantity,
                 )
-                fill = resolve_entry_fill(order, bar, active_config)
+                fill = resolve_entry_fill(
+                    order,
+                    bar,
+                    active_config,
+                    multiplier=_multiplier_for(multiplier_map, instrument_id),
+                    symbol=fee_symbols.get(instrument_id),
+                )
                 account = account.open_position(
                     fill,
                     strategy_id=active_strategy_id,
@@ -192,7 +213,13 @@ def run_reference_backtest_with_management(
                     quantity=position.quantity,
                     direction=position.direction,
                 )
-                fill = resolve_exit_signal_fill(order, bar, active_config)
+                fill = resolve_exit_signal_fill(
+                    order,
+                    bar,
+                    active_config,
+                    multiplier=_multiplier_for(multiplier_map, instrument_id),
+                    symbol=fee_symbols.get(instrument_id),
+                )
                 account, closed = account.close_position(fill)
                 fills.append(fill)
                 trades.append(
@@ -263,6 +290,7 @@ def _apply_management_for_bar(
     trades: list[TradeRecord],
     fills: list[ReferenceFill],
     sorted_bars: tuple[Mapping[str, Any], ...],
+    symbol: str | None = None,
 ) -> tuple[AccountState, ManagementRuntimeState]:
     instrument_id = str(bar["instrument_id"])
     state = managed_positions.get(instrument_id)
@@ -287,6 +315,7 @@ def _apply_management_for_bar(
             run_id=run_id,
             trades=trades,
             fills=fills,
+            symbol=symbol,
         )
         return account, runtime
     for partial in decision.partial_exits:
@@ -300,6 +329,7 @@ def _apply_management_for_bar(
             run_id=run_id,
             trades=trades,
             fills=fills,
+            symbol=symbol,
         )
         if state.remaining_quantity <= 0:
             managed_positions.pop(instrument_id, None)
@@ -328,6 +358,7 @@ def _apply_full_exit(
     run_id: str,
     trades: list[TradeRecord],
     fills: list[ReferenceFill],
+    symbol: str | None = None,
 ) -> tuple[AccountState, ManagementRuntimeState]:
     position = account.open_positions.get(state.instrument_id)
     if position is None:
@@ -347,6 +378,8 @@ def _apply_full_exit(
         config,
         price=decision.price,
         reason=reason,
+        multiplier=position.multiplier,
+        symbol=symbol,
     )
     account, closed = account.close_position(fill)
     fills.append(fill)
@@ -386,6 +419,7 @@ def _apply_partial_exit(
     run_id: str,
     trades: list[TradeRecord],
     fills: list[ReferenceFill],
+    symbol: str | None = None,
 ) -> tuple[AccountState, ManagedPositionState]:
     position = account.open_positions[state.instrument_id]
     order = _management_order(
@@ -401,6 +435,8 @@ def _apply_partial_exit(
         config,
         price=partial.price,
         reason=FillReason.TAKE_PROFIT,
+        multiplier=position.multiplier,
+        symbol=symbol,
     )
     accounting = account_partial_exit(
         direction=state.direction,
@@ -410,6 +446,7 @@ def _apply_partial_exit(
         current_quantity=position.quantity,
         current_entry_cost=position.entry_cost,
         exit_cost=fill.cost,
+        multiplier=position.multiplier,
     )
     positions = dict(account.open_positions)
     if accounting.remaining_quantity > 0:

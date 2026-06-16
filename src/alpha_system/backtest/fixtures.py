@@ -21,6 +21,12 @@ FACTOR_VERSIONS = {"fixture_factor": "v1"}
 STRATEGY_ID = "fast_path_fixture_strategy"
 STRATEGY_VERSION = "v1"
 
+# The synthetic ``SYNTH`` correctness instrument is intentionally absent from the
+# futures instrument master, so the engine's fail-loud multiplier resolution needs
+# an explicit unit multiplier for fixture runs (real instruments resolve from the
+# master / an instrument_id->root mapping).
+SYNTH_INSTRUMENT_MULTIPLIERS = {INSTRUMENT_ID: Decimal("1")}
+
 
 def fixture_zero_cost_config(**overrides: Any) -> ReferenceEngineConfig:
     """Return explicit zero-cost reference config for tiny parity fixtures."""

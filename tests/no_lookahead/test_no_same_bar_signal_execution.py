@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_signal_on_bar_never_executes_inside_same_bar_by_default() -> None:
@@ -13,6 +13,7 @@ def test_signal_on_bar_never_executes_inside_same_bar_by_default() -> None:
         ],
         config=zero_cost_config(),
         run_id="no-same-bar",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     trade = result.trades[0]

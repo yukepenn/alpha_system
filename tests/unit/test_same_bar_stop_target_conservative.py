@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bar, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bar, zero_cost_config
 
 
 def test_same_bar_stop_target_ambiguity_resolves_adverse_first() -> None:
@@ -21,6 +21,7 @@ def test_same_bar_stop_target_ambiguity_resolves_adverse_first() -> None:
             target_profit_pct=Decimal("0.01"),
         ),
         run_id="same-bar-adverse",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     trade = result.trades[0]

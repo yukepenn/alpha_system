@@ -22,6 +22,14 @@ from alpha_system.backtest.fills import (
     resolve_policy_exit_fill,
     resolve_stop_target,
 )
+from alpha_system.backtest.instrument_economics import resolve_instrument_multipliers
+from alpha_system.backtest.metrics import (
+    annualized_sharpe,
+    equity_simple_returns,
+    max_drawdown,
+    median_cadence_seconds,
+    turnover_ratio,
+)
 from alpha_system.backtest.orders import OrderIntent, ReferenceOrder, order_id_for
 from alpha_system.backtest.results import (
     BacktestSummary,
@@ -39,6 +47,9 @@ from alpha_system.data.build_bars import normalize_bar_rows
 from alpha_system.data.fixture_policy import assert_registry_path_allowed
 from alpha_system.experiments.registry import RunRecord, insert_run_record
 from alpha_system.signals.spec import SignalRecord, SignalType
+
+
+_SECONDS_PER_YEAR = Decimal("31557600")  # 365.25 * 24 * 3600
 
 
 class ReferenceBacktestError(ValueError):
@@ -59,6 +70,8 @@ def run_reference_backtest(
     data_version: str | None = None,
     factor_versions: Mapping[str, str] | None = None,
     initial_cash: Decimal = Decimal("100000"),
+    instrument_multipliers: Mapping[str, Any] | None = None,
+    instrument_roots: Mapping[str, str] | None = None,
     output_dir: str | Path | None = None,
     registry_path: str | Path | None = None,
     run_manifest_path: str | Path | None = None,
@@ -67,7 +80,15 @@ def run_reference_backtest(
     run_parameters: Mapping[str, Any] | None = None,
     write_outputs: bool = False,
 ) -> ReferenceBacktestResult:
-    """Run the canonical conservative reference backtest over 1-minute bars."""
+    """Run the canonical conservative reference backtest over 1-minute bars.
+
+    ``instrument_multipliers`` (instrument_id -> contract multiplier) and
+    ``instrument_roots`` (instrument_id -> instrument-master root symbol) control
+    how each traded instrument's dollar contract multiplier is resolved (see
+    :func:`alpha_system.backtest.instrument_economics.resolve_instrument_multipliers`).
+    Resolution is fail-loud: an unknown instrument raises rather than silently
+    accounting in price points.
+    """
     active_config = config or ReferenceEngineConfig()
     normalized_bars = _normalize_bars(bars)
     normalized_signals = _normalize_signals(signals)
@@ -107,7 +128,17 @@ def run_reference_backtest(
     )
 
     signals_by_fill_bar = _signals_by_fill_bar(normalized_signals, normalized_bars, active_config)
-    account = AccountState(initial_cash=initial_cash)
+    instrument_ids = tuple({str(bar["instrument_id"]) for bar in normalized_bars})
+    multiplier_map = resolve_instrument_multipliers(
+        instrument_ids,
+        multipliers=instrument_multipliers,
+        roots=instrument_roots,
+    )
+    fee_symbols = {
+        instrument_id: str((instrument_roots or {}).get(instrument_id, instrument_id))
+        for instrument_id in instrument_ids
+    }
+    account = AccountState(initial_cash=initial_cash, instrument_multipliers=multiplier_map)
     trades: list[TradeRecord] = []
     fills: list[ReferenceFill] = []
     equity_curve = []
@@ -125,6 +156,8 @@ def run_reference_backtest(
             active_config,
             active_run_id,
             skip_instruments=positions_opened_this_bar,
+            multipliers=multiplier_map,
+            symbols=fee_symbols,
         )
         fills.extend(policy_fills)
         for fill in policy_fills:
@@ -151,6 +184,8 @@ def run_reference_backtest(
                 data_version=active_data_version,
                 factor_versions=active_factor_versions,
                 trade_sequence=len(trades) + 1,
+                multipliers=multiplier_map,
+                symbols=fee_symbols,
             )
             if produced_fill is not None:
                 fills.append(produced_fill)
@@ -165,6 +200,8 @@ def run_reference_backtest(
             active_config,
             active_run_id,
             skip_instruments=(),
+            multipliers=multiplier_map,
+            symbols=fee_symbols,
         )
         fills.extend(same_bar_policy_fills)
         for fill in same_bar_policy_fills:
@@ -185,6 +222,8 @@ def run_reference_backtest(
                 bar,
                 active_config,
                 active_run_id,
+                multipliers=multiplier_map,
+                symbols=fee_symbols,
             )
             fills.extend(eod_fills)
             for fill in eod_fills:
@@ -290,8 +329,12 @@ def _apply_signal_fill(
     data_version: str,
     factor_versions: Mapping[str, str],
     trade_sequence: int,
+    multipliers: Mapping[str, Decimal],
+    symbols: Mapping[str, str],
 ) -> tuple[AccountState, ReferenceFill | None, TradeRecord | None]:
     instrument_id = signal.instrument_id
+    multiplier = _multiplier_for(multipliers, instrument_id)
+    symbol = symbols.get(instrument_id)
     if signal.signal_type is SignalType.ENTRY:
         if instrument_id in account.open_positions:
             return account, None, None
@@ -302,7 +345,7 @@ def _apply_signal_fill(
             intent=OrderIntent.ENTRY,
             quantity=config.default_quantity,
         )
-        fill = resolve_entry_fill(order, bar, config)
+        fill = resolve_entry_fill(order, bar, config, multiplier=multiplier, symbol=symbol)
         return (
             account.open_position(
                 fill,
@@ -327,7 +370,7 @@ def _apply_signal_fill(
             quantity=position.quantity,
             direction=position.direction,
         )
-        fill = resolve_exit_signal_fill(order, bar, config)
+        fill = resolve_exit_signal_fill(order, bar, config, multiplier=multiplier, symbol=symbol)
         account, closed = account.close_position(fill)
         return (
             account,
@@ -349,6 +392,8 @@ def _apply_stop_target_exits(
     run_id: str,
     *,
     skip_instruments: Iterable[str],
+    multipliers: Mapping[str, Decimal],
+    symbols: Mapping[str, str],
 ) -> tuple[AccountState, tuple[ReferenceFill, ...]]:
     fills: list[ReferenceFill] = []
     skip = set(skip_instruments)
@@ -377,6 +422,8 @@ def _apply_stop_target_exits(
         config,
         price=resolution.price,
         reason=resolution.reason,
+        multiplier=_multiplier_for(multipliers, instrument_id),
+        symbol=symbols.get(instrument_id),
     )
     fills.append(fill)
     return account, tuple(fills)
@@ -387,9 +434,13 @@ def _apply_eod_flat_exits(
     bar: Mapping[str, Any],
     config: ReferenceEngineConfig,
     run_id: str,
+    *,
+    multipliers: Mapping[str, Decimal],
+    symbols: Mapping[str, str],
 ) -> tuple[AccountState, tuple[ReferenceFill, ...]]:
     fills: list[ReferenceFill] = []
-    position = account.open_positions.get(str(bar["instrument_id"]))
+    instrument_id = str(bar["instrument_id"])
+    position = account.open_positions.get(instrument_id)
     if position is None:
         return account, ()
     order = _policy_order(position, run_id=run_id, bar=bar, intent=OrderIntent.EOD_FLAT)
@@ -400,6 +451,8 @@ def _apply_eod_flat_exits(
             config,
             price=eod_exit_price(position.direction, bar),
             reason=FillReason.EOD_FLAT,
+            multiplier=_multiplier_for(multipliers, instrument_id),
+            symbol=symbols.get(instrument_id),
         )
     )
     return account, tuple(fills)
@@ -579,6 +632,28 @@ def _summary(
     costs = sum((trade.costs for trade in trades), Decimal("0"))
     net_pnl = sum((trade.net_pnl for trade in trades), Decimal("0"))
     final_equity = equity_curve[-1].total_equity if equity_curve else Decimal("0")
+
+    equities = [point.total_equity for point in equity_curve]
+    timestamps = [point.bar_end_ts for point in equity_curve]
+    returns = equity_simple_returns(equities)
+    cadence_seconds = median_cadence_seconds(timestamps)
+    bars_per_year = (
+        _SECONDS_PER_YEAR / cadence_seconds
+        if cadence_seconds is not None and cadence_seconds > 0
+        else None
+    )
+    sharpe = annualized_sharpe(returns, bars_per_year=bars_per_year)
+    drawdown = max_drawdown(equities)
+    initial_capital = final_equity - net_pnl
+    traded_notional = sum(
+        (
+            abs(trade.quantity) * (abs(trade.entry_price) + abs(trade.exit_price)) * _trade_multiplier(trade)
+            for trade in trades
+        ),
+        Decimal("0"),
+    )
+    turnover = turnover_ratio(traded_notional, initial_capital=initial_capital)
+
     return BacktestSummary(
         run_id=run_id,
         engine_version=engine_version,
@@ -592,7 +667,34 @@ def _summary(
         net_pnl=net_pnl,
         final_equity=final_equity,
         warnings=warnings,
+        sharpe=sharpe,
+        max_drawdown=drawdown,
+        turnover=turnover,
+        bars_per_year=bars_per_year.quantize(Decimal("0.0001")) if bars_per_year is not None else None,
     )
+
+
+def _trade_multiplier(trade: TradeRecord) -> Decimal:
+    """Recover a trade's contract multiplier from its $ gross PnL when possible.
+
+    ``TradeRecord`` stores gross PnL already in dollars plus entry/exit price and
+    quantity, so the per-trade multiplier is recoverable as
+    ``gross_pnl / (price_move * quantity)``. When the price move is zero (flat
+    trade) the multiplier is unobservable from the journal; turnover then falls
+    back to a multiplier of ``1`` for that leg, which is conservative (it cannot
+    overstate traded notional).
+    """
+    if trade.quantity == 0:
+        return Decimal("1")
+    if trade.direction == "long":
+        price_move = trade.exit_price - trade.entry_price
+    else:
+        price_move = trade.entry_price - trade.exit_price
+    denominator = price_move * trade.quantity
+    if denominator == 0:
+        return Decimal("1")
+    multiplier = trade.gross_pnl / denominator
+    return multiplier if multiplier > 0 else Decimal("1")
 
 
 def _record_backtest_run(
@@ -693,6 +795,14 @@ def _bar_key(bar: Mapping[str, Any]) -> tuple[str, str, int]:
 
 def _bar_origin_key(bar: Mapping[str, Any]) -> tuple[str, str, int]:
     return _bar_key(bar)
+
+
+def _multiplier_for(multipliers: Mapping[str, Decimal], instrument_id: str) -> Decimal:
+    multiplier = multipliers.get(instrument_id)
+    if multiplier is None:
+        msg = f"no contract multiplier resolved for instrument {instrument_id!r}"
+        raise ReferenceBacktestError(msg)
+    return multiplier
 
 
 def _quality_flags_for_bar(bar: Mapping[str, Any]) -> tuple[str, ...]:

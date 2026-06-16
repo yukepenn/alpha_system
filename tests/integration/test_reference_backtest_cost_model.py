@@ -5,7 +5,7 @@ from decimal import Decimal
 from alpha_system.backtest.costs import BpsCost, CompositeCostModel
 from alpha_system.backtest.execution_config import ExecutionConfig, fixture_zero_cost_execution_config
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars
 
 
 def test_reference_backtest_consumes_configured_cost_model() -> None:
@@ -20,12 +20,14 @@ def test_reference_backtest_consumes_configured_cost_model() -> None:
         signals=signals,
         config=costly,
         run_id="costly-reference",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
     zero_result = run_reference_backtest(
         bars=synthetic_bars(4),
         signals=signals,
         config=zero,
         run_id="zero-reference",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert costly_result.summary.costs > zero_result.summary.costs

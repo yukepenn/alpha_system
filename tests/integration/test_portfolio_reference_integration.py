@@ -8,7 +8,7 @@ from alpha_system.portfolio.integration import (
     signals_to_portfolio_targets,
 )
 from alpha_system.portfolio.spec import PortfolioSpec
-from tests.fixtures.backtest_reference import INSTRUMENT_ID, signal_record, synthetic_bar, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, INSTRUMENT_ID, signal_record, synthetic_bar, zero_cost_config
 
 
 def test_portfolio_targets_can_parameterize_reference_quantity_without_accounting() -> None:
@@ -37,6 +37,7 @@ def test_portfolio_targets_can_parameterize_reference_quantity_without_accountin
         signals=[signal],
         config=zero_cost_config(default_quantity=quantity, eod_flat=True),
         run_id="portfolio-reference-integration",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert quantity == Decimal("1")

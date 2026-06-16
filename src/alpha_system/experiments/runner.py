@@ -15,6 +15,7 @@ from alpha_system.backtest.engine_config import (
 )
 from alpha_system.backtest.fast_path import FAST_PATH_MODE_ACCELERATED, run_fast_path_backtest
 from alpha_system.backtest.fixtures import (
+    SYNTH_INSTRUMENT_MULTIPLIERS,
     falling_bars,
     no_trade_signals,
     signal_record,
@@ -249,6 +250,9 @@ def _run_single_config(
     bars, signals = _fixture_inputs(spec, config.parameters)
     requested_features = spec.fast_path_features or _features_for_parameters(config.parameters)
     warnings: list[str] = []
+    # The grid runner operates on synthetic ``SYNTH`` fixtures (see _fixture_inputs);
+    # supply the unit multiplier so engine multiplier resolution stays fail-loud.
+    grid_instrument_multipliers = SYNTH_INSTRUMENT_MULTIPLIERS
 
     if spec.engine == "reference":
         result = run_reference_backtest(
@@ -260,6 +264,7 @@ def _run_single_config(
             data_version=spec.data_version,
             factor_versions=spec.factor_versions,
             initial_cash=spec.initial_cash,
+            instrument_multipliers=grid_instrument_multipliers,
             run_id=f"{grid_run_id}-{config.config_id}",
             write_outputs=False,
         )
@@ -288,6 +293,7 @@ def _run_single_config(
             data_version=spec.data_version,
             factor_versions=spec.factor_versions,
             initial_cash=spec.initial_cash,
+            instrument_multipliers=grid_instrument_multipliers,
             run_id=f"{grid_run_id}-{config.config_id}",
             write_outputs=False,
         )
@@ -311,6 +317,7 @@ def _run_single_config(
         data_version=spec.data_version,
         factor_versions=spec.factor_versions,
         initial_cash=spec.initial_cash,
+        instrument_multipliers=grid_instrument_multipliers,
         run_id=f"{grid_run_id}-{config.config_id}",
         allow_reference_fallback=False,
     )

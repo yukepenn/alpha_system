@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from alpha_system.backtest.reference import BacktestTimingError, run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_bar_available_ts_must_respect_configured_data_latency() -> None:
@@ -13,6 +13,7 @@ def test_bar_available_ts_must_respect_configured_data_latency() -> None:
             signals=[signal_record(0, "entry")],
             config=zero_cost_config(data_latency_seconds=5),
             run_id="latency-fail",
+            instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
         )
 
 
@@ -25,6 +26,7 @@ def test_signal_executes_on_first_bar_whose_open_is_after_availability() -> None
         ],
         config=zero_cost_config(data_latency_seconds=5),
         run_id="latency-skip",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     trade = result.trades[0]

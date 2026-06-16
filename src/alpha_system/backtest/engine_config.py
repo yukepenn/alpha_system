@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -76,6 +76,39 @@ class CostModelConfig:
         }
 
 
+def _resolve_cost_model(value: Any) -> Any:
+    """Resolve the reference-engine cost model, keeping ``fixed_bps`` back-compat.
+
+    A ``fixed_bps`` mapping (or ``None``) yields the legacy ``CostModelConfig``
+    hook. Any other ``model`` (``composite`` / ``spread_cost`` /
+    ``futures_fee_schedule`` / ...) is delegated to the single sanctioned
+    ``costs.cost_model_from_mapping`` factory so the reference engine can charge
+    per-contract futures fees and an explicit spread term without a second cost
+    truth. Already-constructed cost-model objects (anything exposing
+    ``cost_for_notional``) are passed through unchanged.
+    """
+    if value is None:
+        return CostModelConfig()
+    if isinstance(value, CostModelConfig):
+        return value
+    if callable(getattr(value, "cost_for_notional", None)):
+        # Already a concrete cost model (e.g. CompositeCostModel from costs.py).
+        return value
+    if not isinstance(value, Mapping):
+        msg = "cost_model must be a mapping or a cost-model object"
+        raise EngineConfigError(msg)
+    model = str(value.get("model", "fixed_bps")).strip()
+    if model == "fixed_bps":
+        return CostModelConfig.from_mapping(value)
+    # Delegate richer cost models to the single sanctioned factory.
+    from alpha_system.backtest.costs import CostModelError, cost_model_from_mapping
+
+    try:
+        return cost_model_from_mapping(value)
+    except CostModelError as exc:
+        raise EngineConfigError(str(exc)) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class ReferenceEngineConfig:
     """Conservative Tier 1 reference execution configuration."""
@@ -87,7 +120,7 @@ class ReferenceEngineConfig:
     default_quantity: Decimal = Decimal("1")
     stop_loss_pct: Decimal | None = None
     target_profit_pct: Decimal | None = None
-    cost_model: CostModelConfig = field(default_factory=CostModelConfig)
+    cost_model: Any = field(default_factory=CostModelConfig)
     engine_version: str = REFERENCE_ENGINE_VERSION
 
     def __post_init__(self) -> None:
@@ -120,12 +153,7 @@ class ReferenceEngineConfig:
             "target_profit_pct",
             _optional_positive_decimal(self.target_profit_pct, "target_profit_pct"),
         )
-        if not isinstance(self.cost_model, CostModelConfig):
-            object.__setattr__(
-                self,
-                "cost_model",
-                CostModelConfig.from_mapping(self.cost_model),  # type: ignore[arg-type]
-            )
+        object.__setattr__(self, "cost_model", _resolve_cost_model(self.cost_model))
         object.__setattr__(self, "engine_version", _text(self.engine_version, "engine_version"))
 
     @classmethod
@@ -140,17 +168,22 @@ class ReferenceEngineConfig:
             default_quantity=_decimal(payload.get("default_quantity", "1"), "default_quantity"),
             stop_loss_pct=_optional_decimal(payload.get("stop_loss_pct"), "stop_loss_pct"),
             target_profit_pct=_optional_decimal(payload.get("target_profit_pct"), "target_profit_pct"),
-            cost_model=CostModelConfig.from_mapping(payload.get("cost_model")),
+            cost_model=_resolve_cost_model(payload.get("cost_model")),
             engine_version=str(payload.get("engine_version", REFERENCE_ENGINE_VERSION)),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        payload = asdict(self)
-        payload["default_quantity"] = _decimal_text(self.default_quantity)
-        payload["stop_loss_pct"] = _optional_decimal_text(self.stop_loss_pct)
-        payload["target_profit_pct"] = _optional_decimal_text(self.target_profit_pct)
-        payload["cost_model"] = self.cost_model.to_dict()
-        return payload
+        return {
+            "data_latency_seconds": self.data_latency_seconds,
+            "execution_timing": self.execution_timing,
+            "same_bar_policy": self.same_bar_policy,
+            "eod_flat": self.eod_flat,
+            "default_quantity": _decimal_text(self.default_quantity),
+            "stop_loss_pct": _optional_decimal_text(self.stop_loss_pct),
+            "target_profit_pct": _optional_decimal_text(self.target_profit_pct),
+            "cost_model": self.cost_model.to_dict(),
+            "engine_version": self.engine_version,
+        }
 
 
 def load_reference_engine_config(path: str | Path) -> ReferenceEngineConfig:

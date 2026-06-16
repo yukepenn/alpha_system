@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from alpha_system.management.integration import run_reference_backtest_with_management
 from alpha_system.management.spec import ManagementSpec
-from tests.fixtures.backtest_reference import signal_record, synthetic_bar, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bar, zero_cost_config
 
 
 def test_same_bar_management_stop_wins_over_target() -> None:
@@ -26,6 +26,7 @@ def test_same_bar_management_stop_wins_over_target() -> None:
         config=zero_cost_config(default_quantity=Decimal("1")),
         management_spec=spec,
         run_id="managed-same-bar",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     trade = result.trades[0]
