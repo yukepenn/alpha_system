@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bar, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bar, zero_cost_config
 
 
 def _run_same_bar_case(*, high: str, low: str, run_id: str):
@@ -21,6 +21,7 @@ def _run_same_bar_case(*, high: str, low: str, run_id: str):
             target_profit_pct=Decimal("0.01"),
         ),
         run_id=run_id,
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
 

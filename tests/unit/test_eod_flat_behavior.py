@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_eod_flat_closes_open_position_on_last_session_bar() -> None:
@@ -10,6 +10,7 @@ def test_eod_flat_closes_open_position_on_last_session_bar() -> None:
         signals=[signal_record(0, "entry", signal_id="entry")],
         config=zero_cost_config(eod_flat=True),
         run_id="eod-flat",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     trade = result.trades[0]

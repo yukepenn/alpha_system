@@ -22,6 +22,11 @@ INSTRUMENT_ID = "SYNTH"
 DATA_VERSION = "data:v1"
 FACTOR_VERSIONS = {"fixture_factor": "v1"}
 
+# The synthetic ``SYNTH`` correctness instrument is intentionally absent from the
+# futures instrument master; the reference engine's fail-loud multiplier
+# resolution needs an explicit unit multiplier for fixture-based backtests.
+SYNTH_INSTRUMENT_MULTIPLIERS = {INSTRUMENT_ID: Decimal("1")}
+
 
 def zero_cost_config(**overrides: Any) -> ReferenceEngineConfig:
     payload = {

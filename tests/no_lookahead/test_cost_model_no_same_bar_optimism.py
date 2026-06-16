@@ -8,7 +8,7 @@ from alpha_system.backtest.conservative_semantics import (
 )
 from alpha_system.backtest.execution_config import fixture_zero_cost_execution_config
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bar
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bar
 
 
 def test_cost_model_does_not_enable_same_bar_signal_execution() -> None:
@@ -23,6 +23,7 @@ def test_cost_model_does_not_enable_same_bar_signal_execution() -> None:
         signals=[signal_record(0, "entry"), signal_record(1, "exit")],
         config=fixture_zero_cost_execution_config(),
         run_id="no-same-bar-cost-model",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert result.trades[0].entry_bar_index == 1

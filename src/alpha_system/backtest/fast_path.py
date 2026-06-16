@@ -22,6 +22,7 @@ from alpha_system.backtest.fills import (
     resolve_exit_signal_fill,
     resolve_policy_exit_fill,
 )
+from alpha_system.backtest.instrument_economics import resolve_instrument_multipliers
 from alpha_system.backtest.orders import OrderIntent
 from alpha_system.backtest.reference import (
     BacktestTimingError,
@@ -32,6 +33,7 @@ from alpha_system.backtest.reference import (
     _bar_key,
     _factor_versions_from_signals,
     _is_last_session_bar,
+    _multiplier_for,
     _normalize_bars,
     _normalize_signals,
     _order_from_signal,
@@ -149,6 +151,8 @@ def run_fast_path_backtest(
     data_version: str | None = None,
     factor_versions: Mapping[str, str] | None = None,
     initial_cash: Decimal = Decimal("100000"),
+    instrument_multipliers: Mapping[str, Any] | None = None,
+    instrument_roots: Mapping[str, str] | None = None,
     run_id: str | None = None,
     allow_reference_fallback: bool = True,
 ) -> FastPathRun:
@@ -191,6 +195,8 @@ def run_fast_path_backtest(
             data_version=data_version,
             factor_versions=factor_versions,
             initial_cash=initial_cash,
+            instrument_multipliers=instrument_multipliers,
+            instrument_roots=instrument_roots,
             run_id=run_id,
         )
         return FastPathRun(
@@ -212,6 +218,8 @@ def run_fast_path_backtest(
         data_version=data_version,
         factor_versions=factor_versions,
         initial_cash=initial_cash,
+        instrument_multipliers=instrument_multipliers,
+        instrument_roots=instrument_roots,
         run_id=run_id,
     )
 
@@ -227,6 +235,8 @@ def _run_accelerated(
     data_version: str | None,
     factor_versions: Mapping[str, str] | None,
     initial_cash: Decimal,
+    instrument_multipliers: Mapping[str, Any] | None = None,
+    instrument_roots: Mapping[str, str] | None = None,
     run_id: str | None,
 ) -> FastPathRun:
     if not bars:
@@ -258,7 +268,17 @@ def _run_accelerated(
     signals_by_fill_bar = _signals_by_fill_bar(signals, bars, config)
     sorted_bars = _sort_bars(bars)
     arrays = build_bar_arrays(sorted_bars)
-    account = AccountState(initial_cash=initial_cash)
+    instrument_ids = tuple({str(bar["instrument_id"]) for bar in bars})
+    multiplier_map = resolve_instrument_multipliers(
+        instrument_ids,
+        multipliers=instrument_multipliers,
+        roots=instrument_roots,
+    )
+    fee_symbols = {
+        instrument_id: str((instrument_roots or {}).get(instrument_id, instrument_id))
+        for instrument_id in instrument_ids
+    }
+    account = AccountState(initial_cash=initial_cash, instrument_multipliers=multiplier_map)
     trades: list[TradeRecord] = []
     fills: list[ReferenceFill] = []
     equity_curve = []
@@ -277,6 +297,8 @@ def _run_accelerated(
                 config=config,
                 run_id=active_run_id,
                 skip_instruments=(),
+                multipliers=multiplier_map,
+                symbols=fee_symbols,
             ),
             run_id=active_run_id,
             bar=bar,
@@ -294,6 +316,8 @@ def _run_accelerated(
                 data_version=active_data_version,
                 factor_versions=active_factor_versions,
                 trade_sequence=len(trades) + 1,
+                multipliers=multiplier_map,
+                symbols=fee_symbols,
             )
             if produced_fill is not None:
                 fills.append(produced_fill)
@@ -310,6 +334,8 @@ def _run_accelerated(
                 config=config,
                 run_id=active_run_id,
                 skip_instruments=(),
+                multipliers=multiplier_map,
+                symbols=fee_symbols,
             ),
             run_id=active_run_id,
             bar=bar,
@@ -325,6 +351,8 @@ def _run_accelerated(
                     bar=bar,
                     config=config,
                     run_id=active_run_id,
+                    multipliers=multiplier_map,
+                    symbols=fee_symbols,
                 ),
                 run_id=active_run_id,
                 bar=bar,
@@ -392,10 +420,14 @@ def _fast_signal_fill(
     data_version: str,
     factor_versions: Mapping[str, str],
     trade_sequence: int,
+    multipliers: Mapping[str, Decimal],
+    symbols: Mapping[str, str],
 ) -> tuple[AccountState, ReferenceFill | None, TradeRecord | None]:
     instrument_id = signal.instrument_id
     if signal.signal_type is SignalType.HOLD:
         return account, None, None
+    multiplier = _multiplier_for(multipliers, instrument_id)
+    symbol = symbols.get(instrument_id)
     if signal.signal_type is SignalType.ENTRY:
         if instrument_id in account.open_positions:
             return account, None, None
@@ -406,7 +438,7 @@ def _fast_signal_fill(
             intent=OrderIntent.ENTRY,
             quantity=config.default_quantity,
         )
-        fill = resolve_entry_fill(order, bar, config)
+        fill = resolve_entry_fill(order, bar, config, multiplier=multiplier, symbol=symbol)
         return (
             account.open_position(
                 fill,
@@ -430,7 +462,7 @@ def _fast_signal_fill(
             quantity=position.quantity,
             direction=position.direction,
         )
-        fill = resolve_exit_signal_fill(order, bar, config)
+        fill = resolve_exit_signal_fill(order, bar, config, multiplier=multiplier, symbol=symbol)
         account, closed = account.close_position(fill)
         return (
             account,
@@ -452,6 +484,8 @@ def _fast_stop_target_fills(
     config: Any,
     run_id: str,
     skip_instruments: Iterable[str],
+    multipliers: Mapping[str, Decimal],
+    symbols: Mapping[str, str],
 ) -> tuple[ReferenceFill, ...]:
     skip = set(skip_instruments)
     instrument_id = str(bar["instrument_id"])
@@ -471,7 +505,15 @@ def _fast_stop_target_fills(
     intent = OrderIntent.STOP_LOSS if event.reason == "stop_loss" else OrderIntent.TAKE_PROFIT
     reason = FillReason.STOP_LOSS if event.reason == "stop_loss" else FillReason.TAKE_PROFIT
     order = _policy_order(position, run_id=run_id, bar=bar, intent=intent)
-    fill = resolve_policy_exit_fill(order, bar, config, price=event.price, reason=reason)
+    fill = resolve_policy_exit_fill(
+        order,
+        bar,
+        config,
+        price=event.price,
+        reason=reason,
+        multiplier=_multiplier_for(multipliers, instrument_id),
+        symbol=symbols.get(instrument_id),
+    )
     return (fill,)
 
 
@@ -481,8 +523,11 @@ def _fast_eod_fills(
     bar: Mapping[str, Any],
     config: Any,
     run_id: str,
+    multipliers: Mapping[str, Decimal],
+    symbols: Mapping[str, str],
 ) -> tuple[ReferenceFill, ...]:
-    position = account.open_positions.get(str(bar["instrument_id"]))
+    instrument_id = str(bar["instrument_id"])
+    position = account.open_positions.get(instrument_id)
     if position is None:
         return ()
     order = _policy_order(position, run_id=run_id, bar=bar, intent=OrderIntent.EOD_FLAT)
@@ -492,6 +537,8 @@ def _fast_eod_fills(
         config,
         price=eod_exit_price(position.direction, bar),
         reason=FillReason.EOD_FLAT,
+        multiplier=_multiplier_for(multipliers, instrument_id),
+        symbol=symbols.get(instrument_id),
     )
     return (fill,)
 
@@ -530,6 +577,8 @@ def _run_reference_fallback(
     data_version: str | None,
     factor_versions: Mapping[str, str] | None,
     initial_cash: Decimal,
+    instrument_multipliers: Mapping[str, Any] | None = None,
+    instrument_roots: Mapping[str, str] | None = None,
     run_id: str | None,
 ) -> ReferenceBacktestResult:
     if management_spec is not None:
@@ -543,6 +592,8 @@ def _run_reference_fallback(
             data_version=data_version,
             factor_versions=factor_versions,
             initial_cash=initial_cash,
+            instrument_multipliers=instrument_multipliers,
+            instrument_roots=instrument_roots,
             run_id=run_id or "fast-path-reference-fallback",
         )
     return run_reference_backtest(
@@ -554,6 +605,8 @@ def _run_reference_fallback(
         data_version=data_version,
         factor_versions=factor_versions,
         initial_cash=initial_cash,
+        instrument_multipliers=instrument_multipliers,
+        instrument_roots=instrument_roots,
         run_id=run_id,
         output_dir=None,
         registry_path=None,

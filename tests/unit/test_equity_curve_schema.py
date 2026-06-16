@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from alpha_system.backtest.equity import EQUITY_CURVE_FIELDS, assert_equity_curve_schema
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_equity_curve_schema_and_determinism() -> None:
@@ -13,8 +13,8 @@ def test_equity_curve_schema_and_determinism() -> None:
         "run_id": "equity-schema",
     }
 
-    first = run_reference_backtest(**kwargs)
-    second = run_reference_backtest(**kwargs)
+    first = run_reference_backtest(**kwargs, instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS)
+    second = run_reference_backtest(**kwargs, instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS)
 
     payload = first.equity_curve[-1].to_dict()
     assert tuple(payload) == EQUITY_CURVE_FIELDS

@@ -26,6 +26,7 @@ def test_unsupported_feature_fails_closed_when_fallback_disabled() -> None:
             requested_features=case.features,
             run_id=case.run_id,
             allow_reference_fallback=False,
+            instrument_multipliers=case.resolved_instrument_multipliers,
         )
 
 
@@ -39,6 +40,7 @@ def test_unknown_feature_fails_closed_without_reference_fallback() -> None:
             config=case.config,
             requested_features=("unknown_future_feature",),
             run_id=case.run_id,
+            instrument_multipliers=case.resolved_instrument_multipliers,
         )
 
 

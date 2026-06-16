@@ -73,8 +73,15 @@ def account_partial_exit(
     current_quantity: Decimal,
     current_entry_cost: Decimal,
     exit_cost: Decimal,
+    multiplier: Decimal = Decimal("1"),
 ) -> PartialAccounting:
-    """Return deterministic accounting effects for a partial close."""
+    """Return deterministic accounting effects for a partial close.
+
+    ``multiplier`` is the futures contract dollar multiplier; with the default
+    ``1`` gross PnL stays in price points (the reference engine threads the
+    per-instrument multiplier so partial-leg PnL is denominated in dollars,
+    matching full-exit accounting).
+    """
     if exit_quantity <= 0:
         raise ValueError("partial exit quantity must be positive")
     if current_quantity <= 0 or exit_quantity > current_quantity:
@@ -87,6 +94,7 @@ def account_partial_exit(
         entry_price=entry_price,
         exit_price=exit_price,
         quantity=exit_quantity,
+        multiplier=multiplier,
     )
     net_pnl = gross_pnl - allocated_entry_cost - exit_cost
     return PartialAccounting(

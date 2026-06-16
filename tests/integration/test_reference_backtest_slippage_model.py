@@ -6,7 +6,7 @@ from alpha_system.backtest.execution_config import ExecutionConfig
 from alpha_system.backtest.reference import run_reference_backtest
 from alpha_system.backtest.slippage import BpsSlippageModel, CompositeSlippageModel
 from alpha_system.core.hashing import hash_config
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars
 
 
 def test_reference_backtest_surfaces_slippage_model_in_reproducibility_metadata() -> None:
@@ -19,6 +19,7 @@ def test_reference_backtest_surfaces_slippage_model_in_reproducibility_metadata(
         signals=[signal_record(0, "entry"), signal_record(1, "exit")],
         config=config,
         run_id="slippage-metadata",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     parameters = result.manifest["parameters"]

@@ -35,6 +35,7 @@ class Position:
     strategy_version: str
     data_version: str
     factor_versions: Mapping[str, str]
+    multiplier: Decimal = Decimal("1")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,11 +56,37 @@ class AccountState:
     initial_cash: Decimal = Decimal("100000")
     realized_pnl: Decimal = Decimal("0")
     positions: Mapping[str, Position] | None = None
+    instrument_multipliers: Mapping[str, Decimal] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "initial_cash", _decimal(self.initial_cash))
         object.__setattr__(self, "realized_pnl", _decimal(self.realized_pnl))
         object.__setattr__(self, "positions", dict(self.positions or {}))
+        object.__setattr__(
+            self,
+            "instrument_multipliers",
+            {str(key): _decimal(value) for key, value in dict(self.instrument_multipliers or {}).items()},
+        )
+
+    def _multiplier_for(self, instrument_id: str) -> Decimal:
+        """Return the dollar contract multiplier for an instrument, failing loud.
+
+        When no per-instrument map was supplied (legacy/unit-level callers), the
+        multiplier defaults to ``1`` so pure point accounting is preserved. When a
+        map *is* supplied (the engine path), an unknown instrument fails loud
+        rather than silently defaulting to ``1``.
+        """
+        multipliers = dict(self.instrument_multipliers or {})
+        if not multipliers:
+            return Decimal("1")
+        multiplier = multipliers.get(instrument_id)
+        if multiplier is None:
+            msg = (
+                f"no contract multiplier registered for instrument {instrument_id!r}; "
+                "refusing to default to 1"
+            )
+            raise AccountingError(msg)
+        return multiplier
 
     @property
     def open_positions(self) -> Mapping[str, Position]:
@@ -95,6 +122,7 @@ class AccountState:
             strategy_version=strategy_version,
             data_version=data_version,
             factor_versions=dict(factor_versions),
+            multiplier=self._multiplier_for(fill.instrument_id),
         )
         return replace(self, positions=positions)
 
@@ -110,6 +138,7 @@ class AccountState:
             entry_price=position.entry_price,
             exit_price=fill.price,
             quantity=position.quantity,
+            multiplier=position.multiplier,
         )
         costs = position.entry_cost + fill.cost
         net_pnl = gross_pnl - costs
@@ -135,6 +164,7 @@ class AccountState:
                 entry_price=position.entry_price,
                 exit_price=mark,
                 quantity=position.quantity,
+                multiplier=position.multiplier,
             ) - position.entry_cost
         return total
 
@@ -148,12 +178,20 @@ def realized_pnl_for(
     entry_price: Decimal,
     exit_price: Decimal,
     quantity: Decimal,
+    multiplier: Decimal = Decimal("1"),
 ) -> Decimal:
-    """Return gross realized PnL for a long or short position."""
+    """Return gross realized PnL for a long or short position.
+
+    ``multiplier`` is the futures contract dollar multiplier (ES=50, NQ=20, ...).
+    With the default ``1`` the result is in price points (preserved for pure
+    point-accounting callers); the engine threads the per-instrument multiplier so
+    realized/unrealized PnL and equity are denominated in dollars.
+    """
+    points = (exit_price - entry_price) * quantity
     if direction is Direction.LONG:
-        return (exit_price - entry_price) * quantity
+        return points * multiplier
     if direction is Direction.SHORT:
-        return (entry_price - exit_price) * quantity
+        return -points * multiplier
     msg = "PnL requires long or short direction"
     raise AccountingError(msg)
 

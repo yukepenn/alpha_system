@@ -58,10 +58,18 @@ class ParityCase:
     tolerance: ParityTolerance = ParityTolerance()
     management_spec: ManagementSpec | None = None
     initial_cash: Decimal = Decimal("100000")
+    instrument_multipliers: Mapping[str, Decimal] | None = None
 
     @property
     def run_id(self) -> str:
         return f"parity-{self.case_id}"
+
+    @property
+    def resolved_instrument_multipliers(self) -> Mapping[str, Decimal]:
+        """Per-instrument multipliers for the engine; defaults the synthetic ``SYNTH`` fixture to 1."""
+        if self.instrument_multipliers is not None:
+            return self.instrument_multipliers
+        return {"SYNTH": Decimal("1")}
 
 
 def parity_cases() -> tuple[ParityCase, ...]:

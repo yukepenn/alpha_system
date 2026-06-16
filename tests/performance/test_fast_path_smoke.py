@@ -37,6 +37,7 @@ def test_fast_path_smoke_is_bounded_and_emits_no_benchmark_artifacts() -> None:
             requested_features=case.features,
             run_id=case.run_id,
             allow_reference_fallback=False,
+            instrument_multipliers=case.resolved_instrument_multipliers,
         )
     elapsed = time.perf_counter() - started
 

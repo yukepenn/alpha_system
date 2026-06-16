@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from alpha_system.backtest.reference import run_reference_backtest
-from tests.fixtures.backtest_reference import signal_record, synthetic_bars, zero_cost_config
+from tests.fixtures.backtest_reference import SYNTH_INSTRUMENT_MULTIPLIERS, signal_record, synthetic_bars, zero_cost_config
 
 
 def test_reference_backtest_runs_fixture_and_writes_local_outputs(tmp_path: Path) -> None:
@@ -17,6 +17,7 @@ def test_reference_backtest_runs_fixture_and_writes_local_outputs(tmp_path: Path
         output_dir=output_dir,
         run_manifest_path=output_dir / "manifest.json",
         run_id="integration-fixture",
+        instrument_multipliers=SYNTH_INSTRUMENT_MULTIPLIERS,
     )
 
     assert result.summary.total_trades == 1

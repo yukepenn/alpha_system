@@ -72,20 +72,42 @@ def resolve_entry_fill(
     order: ReferenceOrder,
     bar: Mapping[str, Any],
     config: ReferenceEngineConfig,
+    *,
+    multiplier: Decimal = Decimal("1"),
+    symbol: str | None = None,
 ) -> ReferenceFill:
     """Resolve an entry at the conservative executable side of the selected bar."""
     price = _entry_price(order.direction, bar)
-    return _fill(order, bar, config, price=price, reason=FillReason.ENTRY_SIGNAL)
+    return _fill(
+        order,
+        bar,
+        config,
+        price=price,
+        reason=FillReason.ENTRY_SIGNAL,
+        multiplier=multiplier,
+        symbol=symbol,
+    )
 
 
 def resolve_exit_signal_fill(
     order: ReferenceOrder,
     bar: Mapping[str, Any],
     config: ReferenceEngineConfig,
+    *,
+    multiplier: Decimal = Decimal("1"),
+    symbol: str | None = None,
 ) -> ReferenceFill:
     """Resolve a signal exit at the conservative executable side of the selected bar."""
     price = _exit_price(order.direction, bar)
-    return _fill(order, bar, config, price=price, reason=FillReason.EXIT_SIGNAL)
+    return _fill(
+        order,
+        bar,
+        config,
+        price=price,
+        reason=FillReason.EXIT_SIGNAL,
+        multiplier=multiplier,
+        symbol=symbol,
+    )
 
 
 def resolve_policy_exit_fill(
@@ -95,9 +117,19 @@ def resolve_policy_exit_fill(
     *,
     price: Decimal,
     reason: FillReason,
+    multiplier: Decimal = Decimal("1"),
+    symbol: str | None = None,
 ) -> ReferenceFill:
     """Resolve a stop, target, or EOD policy exit."""
-    return _fill(order, bar, config, price=price, reason=reason)
+    return _fill(
+        order,
+        bar,
+        config,
+        price=price,
+        reason=reason,
+        multiplier=multiplier,
+        symbol=symbol,
+    )
 
 
 def resolve_stop_target(
@@ -172,8 +204,18 @@ def _fill(
     *,
     price: Decimal,
     reason: FillReason,
+    multiplier: Decimal = Decimal("1"),
+    symbol: str | None = None,
 ) -> ReferenceFill:
-    cost = config.cost_model.cost_for_notional(price * order.quantity)
+    cost = _fill_cost(
+        config.cost_model,
+        bar=bar,
+        price=price,
+        quantity=order.quantity,
+        direction=order.direction,
+        multiplier=multiplier,
+        symbol=symbol,
+    )
     bar_index = int(bar["bar_index"])
     fill_ts = _datetime(bar["bar_start_ts"] if reason in {FillReason.ENTRY_SIGNAL, FillReason.EXIT_SIGNAL} else bar["bar_end_ts"])
     return ReferenceFill(
@@ -190,6 +232,54 @@ def _fill(
         cost=cost,
         reason=reason,
     )
+
+
+def _fill_cost(
+    cost_model: Any,
+    *,
+    bar: Mapping[str, Any],
+    price: Decimal,
+    quantity: Decimal,
+    direction: Direction,
+    multiplier: Decimal,
+    symbol: str | None,
+) -> Decimal:
+    """Compute the absolute fill cost in dollars.
+
+    A rich ``SupportsCost`` model (``CompositeCostModel`` / ``SpreadCost`` /
+    ``FuturesFeeScheduleCost``) is consumed through its full ``cost_for_fill``
+    contract so per-contract futures fees, an explicit spread term, and the
+    instrument symbol all flow through. The legacy ``fixed_bps`` hook
+    (``CostModelConfig``) exposes only ``cost_for_notional``; it is charged on the
+    dollar notional ``price * quantity * multiplier`` (back-compatible: with the
+    default ``multiplier=1`` this is exactly the prior points notional).
+    """
+    cost_for_fill = getattr(cost_model, "cost_for_fill", None)
+    if callable(cost_for_fill):
+        from alpha_system.backtest.costs import CostInput
+
+        metadata: dict[str, Any] = {}
+        resolved_symbol = symbol if symbol is not None else bar.get("instrument_id")
+        if resolved_symbol is not None:
+            metadata["symbol"] = str(resolved_symbol)
+        cost_input = CostInput(
+            price=price,
+            quantity=quantity,
+            side="buy" if direction is Direction.LONG else "sell",
+            bid=_optional_decimal(bar.get("bid")),
+            ask=_optional_decimal(bar.get("ask")),
+            spread=_optional_decimal(bar.get("spread")),
+            multiplier=multiplier,
+            metadata=metadata,
+        )
+        return cost_for_fill(cost_input).total
+    return cost_model.cost_for_notional(price * quantity * multiplier)
+
+
+def _optional_decimal(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    return _decimal(value)
 
 
 def _entry_price(direction: Direction, bar: Mapping[str, Any]) -> Decimal:

@@ -23,6 +23,12 @@ def run_backtest(args: argparse.Namespace) -> int:
         bars = read_csv_fixture_bars(args.bars_path)
         signals = read_signal_records(args.signals_path)
         factor_versions = _parse_factor_versions(tuple(args.factor_version or ()))
+        instrument_multipliers = _parse_key_value(
+            tuple(args.instrument_multiplier or ()), "--instrument-multiplier"
+        ) or None
+        instrument_roots = _parse_key_value(
+            tuple(args.instrument_root or ()), "--instrument-root"
+        ) or None
         bars = _filter_bars(
             bars,
             start_ts=args.start_ts,
@@ -43,6 +49,8 @@ def run_backtest(args: argparse.Namespace) -> int:
             strategy_version=args.strategy_version,
             data_version=args.data_version,
             factor_versions=factor_versions or None,
+            instrument_multipliers=instrument_multipliers,
+            instrument_roots=instrument_roots,
             output_dir=args.output_dir,
             registry_path=args.registry_path,
             run_manifest_path=args.run_manifest,
@@ -126,6 +134,22 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help="Declared factor version as factor_id=version; repeat for multiple factors.",
     )
     run_parser.add_argument(
+        "--instrument-multiplier",
+        action="append",
+        help=(
+            "Explicit dollar contract multiplier as instrument_id=value; repeat per "
+            "instrument. Overrides instrument-master resolution (fail-loud otherwise)."
+        ),
+    )
+    run_parser.add_argument(
+        "--instrument-root",
+        action="append",
+        help=(
+            "Map a bar instrument_id to an instrument-master root_symbol as "
+            "instrument_id=ROOT (e.g. inst_databento_es=ES); repeat per instrument."
+        ),
+    )
+    run_parser.add_argument(
         "--execution-config",
         required=True,
         help="Path to reference execution config JSON/YAML.",
@@ -191,6 +215,26 @@ def _parse_factor_versions(values: tuple[str, ...]) -> dict[str, str]:
             raise ValueError(msg)
         versions[factor_id] = factor_version
     return versions
+
+
+def _parse_key_value(values: tuple[str, ...], flag: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            msg = f"{flag} values must be key=value"
+            raise ValueError(msg)
+        key, raw = value.split("=", 1)
+        key = key.strip()
+        raw = raw.strip()
+        if not key or not raw:
+            msg = f"{flag} values must include non-empty key and value"
+            raise ValueError(msg)
+        existing = parsed.get(key)
+        if existing is not None and existing != raw:
+            msg = f"conflicting {flag} value for {key}"
+            raise ValueError(msg)
+        parsed[key] = raw
+    return parsed
 
 
 def _filter_bars(

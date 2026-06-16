@@ -122,6 +122,7 @@ def run_parity_case(case: ParityCase) -> ParityCaseResult:
         management_spec=case.management_spec,
         requested_features=case.features,
         initial_cash=case.initial_cash,
+        instrument_multipliers=case.resolved_instrument_multipliers,
         run_id=case.run_id,
         allow_reference_fallback=True,
     )
@@ -219,6 +220,7 @@ def _run_reference_case(case: ParityCase) -> ReferenceBacktestResult:
             management_spec=case.management_spec,
             config=case.config,
             initial_cash=case.initial_cash,
+            instrument_multipliers=case.resolved_instrument_multipliers,
             run_id=case.run_id,
         )
     return run_reference_backtest(
@@ -226,6 +228,7 @@ def _run_reference_case(case: ParityCase) -> ReferenceBacktestResult:
         signals=case.signals,
         config=case.config,
         initial_cash=case.initial_cash,
+        instrument_multipliers=case.resolved_instrument_multipliers,
         run_id=case.run_id,
         output_dir=None,
         registry_path=None,
