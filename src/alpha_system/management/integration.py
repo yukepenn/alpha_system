@@ -28,6 +28,7 @@ from alpha_system.backtest.reference import (
     _datetime,
     _factor_versions_from_signals,
     _is_last_session_bar,
+    _last_bar_index_by_session,
     _multiplier_for,
     _normalize_bars,
     _normalize_signals,
@@ -119,6 +120,7 @@ def run_reference_backtest_with_management(
     warnings: list[str] = []
     marks: dict[str, Decimal] = {}
     sorted_bars = _sort_bars(normalized_bars)
+    last_bar_index_by_session = _last_bar_index_by_session(sorted_bars)
 
     for bar in sorted_bars:
         instrument_id = str(bar["instrument_id"])
@@ -136,7 +138,7 @@ def run_reference_backtest_with_management(
             run_id=run_id,
             trades=trades,
             fills=fills,
-            sorted_bars=sorted_bars,
+            last_bar_index_by_session=last_bar_index_by_session,
             symbol=fee_symbols.get(instrument_id),
         )
 
@@ -198,7 +200,7 @@ def run_reference_backtest_with_management(
                     run_id=run_id,
                     trades=trades,
                     fills=fills,
-                    sorted_bars=sorted_bars,
+                    last_bar_index_by_session=last_bar_index_by_session,
                 )
                 continue
             if signal.signal_type is SignalType.EXIT:
@@ -289,7 +291,7 @@ def _apply_management_for_bar(
     run_id: str,
     trades: list[TradeRecord],
     fills: list[ReferenceFill],
-    sorted_bars: tuple[Mapping[str, Any], ...],
+    last_bar_index_by_session: Mapping[tuple[str, str], int],
     symbol: str | None = None,
 ) -> tuple[AccountState, ManagementRuntimeState]:
     instrument_id = str(bar["instrument_id"])
@@ -300,7 +302,7 @@ def _apply_management_for_bar(
         state,
         bar,
         management_spec,
-        is_last_session_bar=_is_last_session_bar(bar, sorted_bars),
+        is_last_session_bar=_is_last_session_bar(bar, last_bar_index_by_session),
     )
     if decision.full_exit is not None:
         account, runtime = _apply_full_exit(
