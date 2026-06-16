@@ -145,6 +145,7 @@ def run_reference_backtest(
     warnings: list[str] = []
     marks: dict[str, Decimal] = {}
     sorted_bars = _sort_bars(normalized_bars)
+    last_bar_index_by_session = _last_bar_index_by_session(sorted_bars)
 
     for bar in sorted_bars:
         instrument_id = str(bar["instrument_id"])
@@ -216,7 +217,7 @@ def run_reference_backtest(
                 )
             )
 
-        if active_config.eod_flat and _is_last_session_bar(bar, sorted_bars):
+        if active_config.eod_flat and _is_last_session_bar(bar, last_bar_index_by_session):
             account, eod_fills = _apply_eod_flat_exits(
                 account,
                 bar,
@@ -758,15 +759,33 @@ def _sort_bars(bars: Iterable[Mapping[str, Any]]) -> tuple[Mapping[str, Any], ..
     )
 
 
-def _is_last_session_bar(bar: Mapping[str, Any], bars: tuple[Mapping[str, Any], ...]) -> bool:
-    for candidate in bars:
-        if str(candidate["instrument_id"]) != str(bar["instrument_id"]):
-            continue
-        if str(candidate["session_id"]) != str(bar["session_id"]):
-            continue
-        if int(candidate["bar_index"]) > int(bar["bar_index"]):
-            return False
-    return True
+def _last_bar_index_by_session(
+    bars: tuple[Mapping[str, Any], ...],
+) -> dict[tuple[str, str], int]:
+    """Precompute the maximum ``bar_index`` per ``(instrument_id, session_id)``.
+
+    Single O(N) pass so the per-bar last-session-bar check in the main loop is
+    O(1) instead of O(N), making a full multi-session run O(N) overall rather
+    than O(N^2). Uses only ``instrument_id``/``session_id``/``bar_index`` that
+    are already present on each bar; no future prices are consulted.
+    """
+
+    last_index: dict[tuple[str, str], int] = {}
+    for bar in bars:
+        key = (str(bar["instrument_id"]), str(bar["session_id"]))
+        bar_index = int(bar["bar_index"])
+        existing = last_index.get(key)
+        if existing is None or bar_index > existing:
+            last_index[key] = bar_index
+    return last_index
+
+
+def _is_last_session_bar(
+    bar: Mapping[str, Any],
+    last_bar_index_by_session: Mapping[tuple[str, str], int],
+) -> bool:
+    key = (str(bar["instrument_id"]), str(bar["session_id"]))
+    return int(bar["bar_index"]) >= last_bar_index_by_session[key]
 
 
 def _single_signal_field(signals: tuple[SignalRecord, ...], field_name: str) -> str:

@@ -33,6 +33,7 @@ from alpha_system.backtest.reference import (
     _bar_key,
     _factor_versions_from_signals,
     _is_last_session_bar,
+    _last_bar_index_by_session,
     _multiplier_for,
     _normalize_bars,
     _normalize_signals,
@@ -268,6 +269,7 @@ def _run_accelerated(
     signals_by_fill_bar = _signals_by_fill_bar(signals, bars, config)
     sorted_bars = _sort_bars(bars)
     arrays = build_bar_arrays(sorted_bars)
+    last_bar_index_by_session = _last_bar_index_by_session(sorted_bars)
     instrument_ids = tuple({str(bar["instrument_id"]) for bar in bars})
     multiplier_map = resolve_instrument_multipliers(
         instrument_ids,
@@ -341,7 +343,9 @@ def _run_accelerated(
             bar=bar,
         )
 
-        if bool(getattr(config, "eod_flat", False)) and _is_last_session_bar(bar, sorted_bars):
+        if bool(getattr(config, "eod_flat", False)) and _is_last_session_bar(
+            bar, last_bar_index_by_session
+        ):
             account = _close_policy_fills(
                 account=account,
                 fills=fills,
