@@ -406,6 +406,28 @@ class _BBOAcceptedContext:
 
 
 @dataclass(frozen=True, slots=True)
+class _BBOPrimaryLabelAcceptedContext:
+    """Label accepted-context adapter for a BBO-primary scaleout unit.
+
+    The generic reference-label preflight (``_label_accepted_context``) returns
+    an object exposing ``.accepted`` (an AcceptedDatasetVersion used to build the
+    materialization plan) and ``.bar_rows`` (canonical OHLCV rows used to build
+    the OHLCV trade-row view). A BBO-primary unit has NO OHLCV canonical surface
+    on its DatasetVersion, so the BBO-aware preflight
+    (``_build_bbo_accepted_context``) supplies the accepted version plus
+    BBO-specific quality/coverage reports, and ``bar_rows`` is empty: the
+    reference cost_adjusted value math is BBO-resident and consumes the BBO
+    view, using OHLCV trade rows only as an optional synthetic-no-trade overlay
+    that is absent (and must remain absent) when no OHLCV input dataset is wired.
+    """
+
+    accepted: Any
+    bar_rows: tuple[Mapping[str, Any], ...]
+    quality_status: str
+    coverage_status: str
+
+
+@dataclass(frozen=True, slots=True)
 class _CrossMarketAcceptedContext:
     """Cross-market accepted context for one multi-instrument scaleout unit."""
 
@@ -2017,6 +2039,20 @@ _LABEL_ACCEPTED_CONTEXT_CACHE: dict[tuple[str, ...], Any] = {}
 _LABEL_ACCEPTED_CONTEXT_CACHE_MAX = 2
 
 
+def _unit_primary_schema_is_bbo(unit: ScaleoutUnit) -> bool:
+    """Return whether the unit's RESOLVED primary input schema is a BBO schema.
+
+    Dispatch is on the unit's resolved ``schema_id`` (the on-disk primary
+    surface), never on a config flag. OHLCV-primary units
+    (``schema_id == "ohlcv_1m"``) return False and take the unchanged
+    OHLCV-bound preflight; BBO-primary units (``schema_id`` startswith ``bbo``)
+    return True and route the BBO canonical loader + BBO quality/coverage. The
+    ``startswith("bbo")`` test mirrors ``_label_bbo_input_dataset``.
+    """
+
+    return unit.schema_id.startswith("bbo")
+
+
 def _label_accepted_context(
     config: ScaleoutConfig,
     unit: ScaleoutUnit,
@@ -2025,6 +2061,13 @@ def _label_accepted_context(
     canonical_root: Path,
 ) -> Any:
     from alpha_system.cli.seed_pack import _build_accepted_context
+
+    if _unit_primary_schema_is_bbo(unit):
+        return _bbo_primary_label_accepted_context(
+            unit,
+            dataset_registry_path=dataset_registry_path,
+            canonical_root=canonical_root,
+        )
 
     cache_key = (
         unit.dataset_version_id,
@@ -2046,6 +2089,56 @@ def _label_accepted_context(
         bar_row_loader=_session_bar_row_loader,
         quality_coverage_builder=_scaleout_quality_coverage_builder,
         repo_root=Path.cwd(),
+    )
+    while len(_LABEL_ACCEPTED_CONTEXT_CACHE) >= _LABEL_ACCEPTED_CONTEXT_CACHE_MAX:
+        _LABEL_ACCEPTED_CONTEXT_CACHE.pop(next(iter(_LABEL_ACCEPTED_CONTEXT_CACHE)), None)
+    _LABEL_ACCEPTED_CONTEXT_CACHE[cache_key] = context
+    return context
+
+
+def _bbo_primary_label_accepted_context(
+    unit: ScaleoutUnit,
+    *,
+    dataset_registry_path: Path,
+    canonical_root: Path,
+) -> _BBOPrimaryLabelAcceptedContext:
+    """Build the accepted-context preflight for a BBO-primary label unit.
+
+    Reuses the existing BBO-aware preflight (``_build_bbo_accepted_context``),
+    which loads the BBO canonical surface and builds BBO-appropriate
+    quality/coverage reports (bad-quote / wide-spread / missing-bbo semantics
+    via ``DataQualityReport.from_canonical_bbos`` and
+    ``CoverageReport.from_canonical_bbos``). No OHLCV bars are loaded or
+    projected: ``bar_rows`` is empty so the reference cost_adjusted compute sees
+    an empty OHLCV trade-row overlay, which is the design intent for a unit that
+    wires exactly one (BBO) input dataset (no second value truth, no
+    single-dsv-wall relaxation). The accepted DatasetVersion carries the same
+    ``dataset_version_id`` as the unit, so registered lvers stay on the BBO dsv.
+    """
+
+    cache_key = (
+        "bbo_primary",
+        unit.dataset_version_id,
+        unit.symbol,
+        unit.schema_id,
+        unit.window_start_ts,
+        unit.window_end_ts,
+        str(canonical_root),
+        str(dataset_registry_path),
+    )
+    cached = _LABEL_ACCEPTED_CONTEXT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    bbo_context = _build_bbo_accepted_context(
+        unit,
+        dataset_registry_path=dataset_registry_path,
+        canonical_root=canonical_root,
+    )
+    context = _BBOPrimaryLabelAcceptedContext(
+        accepted=bbo_context.accepted,
+        bar_rows=(),
+        quality_status=bbo_context.quality_status,
+        coverage_status=bbo_context.coverage_status,
     )
     while len(_LABEL_ACCEPTED_CONTEXT_CACHE) >= _LABEL_ACCEPTED_CONTEXT_CACHE_MAX:
         _LABEL_ACCEPTED_CONTEXT_CACHE.pop(next(iter(_LABEL_ACCEPTED_CONTEXT_CACHE)), None)
