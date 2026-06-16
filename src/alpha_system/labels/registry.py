@@ -61,6 +61,15 @@ class LabelRegistryError(ValueError):
     """Raised when label registry operations fail closed."""
 
 
+class LabelRegistryDataRootError(LabelRegistryError):
+    """Raised when the ALPHA_DATA_ROOT environment precondition is unmet.
+
+    TYPED, distinct subclass mirroring ``FeatureRegistryDataRootError`` so an
+    unset/unresolvable data root is no longer indistinguishable from the many
+    genuine fail-closed label-registry failures that share the base class.
+    """
+
+
 class LabelRegistryLifecycleState(StrEnum):
     """Narrow lifecycle states for registry discoverability only."""
 
@@ -852,7 +861,7 @@ def default_label_registry_path(
     source = os.environ if env is None else env
     root_value = alpha_data_root if alpha_data_root is not None else source.get("ALPHA_DATA_ROOT")
     if root_value is None:
-        raise LabelRegistryError("ALPHA_DATA_ROOT is required for LabelRegistry")
+        raise LabelRegistryDataRootError("ALPHA_DATA_ROOT is required for LabelRegistry")
     root = _require_path(root_value, "ALPHA_DATA_ROOT")
     _require_outside_repo(root, "ALPHA_DATA_ROOT")
     return root / DEFAULT_LABEL_REGISTRY_RELATIVE_PATH
@@ -1635,6 +1644,7 @@ __all__ = [
     "LabelDeprecationRecord",
     "LabelExposureReport",
     "LabelRegistry",
+    "LabelRegistryDataRootError",
     "LabelRegistryError",
     "LabelRegistryLifecycleState",
     "LabelRegistryRecord",

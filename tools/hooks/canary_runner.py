@@ -245,6 +245,21 @@ def overlap_neff_failclosed_canary() -> Canary:
     )
 
 
+def precondition_not_datagap_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.precondition_not_datagap import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "precondition_not_datagap",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -443,6 +458,7 @@ def scenarios() -> list[Canary]:
         family_fdr_budget_canary(),
         pooled_se_poolkind_canary(),
         overlap_neff_failclosed_canary(),
+        precondition_not_datagap_canary(),
     ]
 
 

@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from alpha_system.data.foundation.datasets import (
     CoverageReport,
     DataQualityReport,
@@ -26,7 +28,10 @@ from alpha_system.labels.families.fixed_horizon import (
 from alpha_system.labels.registry import (
     DEFAULT_LABEL_REGISTRY_RELATIVE_PATH,
     LabelRegistry,
+    LabelRegistryDataRootError,
+    LabelRegistryError,
     LabelRegistryLifecycleState,
+    default_label_registry_path,
 )
 
 HASH_0 = "0" * 64
@@ -104,6 +109,15 @@ def test_default_label_registry_path_uses_alpha_data_root(tmp_path: Path) -> Non
 
     assert registry.registry_path == alpha_data_root / DEFAULT_LABEL_REGISTRY_RELATIVE_PATH
     assert registry.registry_path.exists()
+
+
+def test_default_label_registry_path_unset_root_raises_typed_precondition() -> None:
+    # Mirror of the feature-registry typed precondition: unset ALPHA_DATA_ROOT
+    # raises the distinct subclass, which remains a LabelRegistryError subclass.
+    with pytest.raises(LabelRegistryDataRootError):
+        default_label_registry_path(env={})
+
+    assert issubclass(LabelRegistryDataRootError, LabelRegistryError)
 
 
 def _materialization_result(tmp_path: Path, dataset_id: str):

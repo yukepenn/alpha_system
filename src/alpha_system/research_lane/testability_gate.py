@@ -23,6 +23,7 @@ from alpha_system.runtime.diagnostics.label.runtime import (
     _distribution_summary,
 )
 from alpha_system.runtime.input_resolver import (
+    DATA_ROOT_PRECONDITION_CODE,
     FeatureLabelPackResolver,
     FeaturePackHandle,
     LabelPackHandle,
@@ -50,6 +51,11 @@ class GateStatus(StrEnum):
     PASS = "PASS"
     FAIL = "FAIL"
     DATA_GAP = "DATA_GAP"
+    # Distinct from DATA_GAP: an unmet ENVIRONMENT/config precondition (e.g. an
+    # unresolvable ALPHA_DATA_ROOT) surfaced by the resolver. This must never be
+    # read as a research/data finding. It outranks DATA_GAP in the rollup so a
+    # broken env is reported as a misconfiguration, not an absent-data outcome.
+    ENVIRONMENT_NOT_CONFIGURED = "ENVIRONMENT_NOT_CONFIGURED"
 
 
 class TestabilityGateError(ValueError):
@@ -345,10 +351,10 @@ def _check_features_materialized(
             allow_horizon_agnostic_partition=True,
         )
     except RuntimeInputResolverError as exc:
-        return _data_gap(
+        return _resolver_rejection_check(
             CHECK_FEATURES_MATERIALIZED,
             "feature packs are not resolvable",
-            reason=exc.reason.to_dict(),
+            exc,
         ), ()
     if not handles:
         return _data_gap(CHECK_FEATURES_MATERIALIZED, "no feature pack handles resolved"), ()
@@ -403,10 +409,10 @@ def _check_labels_exist(
             partition_id=str(slice_spec.partition_id),
         )
     except RuntimeInputResolverError as exc:
-        return _data_gap(
+        return _resolver_rejection_check(
             CHECK_LABELS_EXIST,
             "label packs are not resolvable",
-            reason=exc.reason.to_dict(),
+            exc,
         ), ()
     if not handles:
         return _data_gap(CHECK_LABELS_EXIST, "no label pack handles resolved"), ()
@@ -697,6 +703,10 @@ def _missing_slice_resolution_fields(slice_spec: TestabilitySlice) -> tuple[str,
 
 def _overall_status(checks: Sequence[GateCheckResult]) -> GateStatus:
     statuses = {check.status for check in checks}
+    # An unmet environment precondition outranks DATA_GAP: a broken env must be
+    # reported as a misconfiguration, never collapsed into an absent-data outcome.
+    if GateStatus.ENVIRONMENT_NOT_CONFIGURED in statuses:
+        return GateStatus.ENVIRONMENT_NOT_CONFIGURED
     if GateStatus.DATA_GAP in statuses:
         return GateStatus.DATA_GAP
     if GateStatus.FAIL in statuses:
@@ -783,6 +793,39 @@ def _fail(check_id: str, message: str, **detail: Any) -> GateCheckResult:
 
 def _data_gap(check_id: str, message: str, **detail: Any) -> GateCheckResult:
     return GateCheckResult(check_id, GateStatus.DATA_GAP, {"message": message, **detail})
+
+
+def _environment_not_configured(
+    check_id: str, message: str, **detail: Any
+) -> GateCheckResult:
+    return GateCheckResult(
+        check_id,
+        GateStatus.ENVIRONMENT_NOT_CONFIGURED,
+        {"message": message, **detail},
+    )
+
+
+def _resolver_rejection_check(
+    check_id: str, message: str, exc: RuntimeInputResolverError
+) -> GateCheckResult:
+    """Classify a resolver rejection: env-precondition vs genuine DATA_GAP.
+
+    Defense-in-depth backstop for the entrypoint preflight. When the resolver's
+    typed reason carries the data-root precondition code, the cause is an unmet
+    ENVIRONMENT precondition (e.g. an unresolvable ALPHA_DATA_ROOT) and is
+    classified ENVIRONMENT_NOT_CONFIGURED -- NOT DATA_GAP. A valid root with a
+    genuinely-absent partition (any other reason code) still yields DATA_GAP, so
+    the honest absent-data case is unchanged.
+    """
+
+    reason = exc.reason.to_dict()
+    if reason.get("code") == DATA_ROOT_PRECONDITION_CODE:
+        return _environment_not_configured(
+            check_id,
+            "data root environment precondition is unmet (not a data gap)",
+            reason=reason,
+        )
+    return _data_gap(check_id, message, reason=reason)
 
 
 def _partition_id(mapping: Mapping[str, Any]) -> str | None:

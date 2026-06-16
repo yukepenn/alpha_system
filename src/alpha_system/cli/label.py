@@ -33,6 +33,7 @@ from alpha_system.labels.leakage_audit import (
     audit_registered_label,
 )
 from alpha_system.labels.registry import (
+    LabelRegistryDataRootError,
     LabelRegistryError,
     default_label_registry_path,
 )
@@ -562,9 +563,10 @@ def _optional_label_registry_path(args: argparse.Namespace) -> Path | None:
     else:
         try:
             path = default_label_registry_path(alpha_data_root=args.alpha_data_root)
-        except LabelRegistryError as exc:
-            if "ALPHA_DATA_ROOT is required" not in str(exc):
-                raise
+        except LabelRegistryDataRootError:
+            # Typed precondition (unset ALPHA_DATA_ROOT): treat as "no registry
+            # selected" for optional resolution. Replaces the fragile message
+            # string-match with the distinct error type.
             return None
     return path if path.exists() else None
 

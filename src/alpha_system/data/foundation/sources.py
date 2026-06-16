@@ -100,6 +100,37 @@ PROHIBITED_ALLOWED_MODE_PREFIXES: tuple[str, ...] = (
 
 DEFAULT_ALPHA_DATA_ROOT = Path("~/alpha_data/alpha_system")
 
+
+def resolve_alpha_data_root(
+    explicit: str | os.PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> Path:
+    """Resolve the local ALPHA_DATA_ROOT path without touching the filesystem.
+
+    This is the single source of truth for the data-root resolution order so the
+    core registry path used by ``alpha idea run`` / ``alpha idea mine`` matches the
+    tool defaults instead of fail-closing on an unset env var. Resolution order:
+
+    1. an explicit override (caller-supplied path),
+    2. the ``ALPHA_DATA_ROOT`` environment variable,
+    3. the known-good local default :data:`DEFAULT_ALPHA_DATA_ROOT`
+       (``~/alpha_data/alpha_system``).
+
+    It performs NO I/O: it neither checks existence nor creates anything. Callers
+    that need an environment precondition (a root that actually exists on disk)
+    must check ``Path.is_dir()`` on the result themselves -- see
+    ``alpha_system.research_lane.environment_preflight``.
+    """
+
+    source = os.environ if env is None else env
+    raw: str | os.PathLike[str]
+    if explicit is not None:
+        raw = explicit
+    else:
+        env_value = source.get("ALPHA_DATA_ROOT")
+        raw = env_value if env_value else DEFAULT_ALPHA_DATA_ROOT
+    return Path(raw).expanduser()
+
 DEFAULT_FORBIDDEN_REPO_PATHS: tuple[str, ...] = (
     "data/raw",
     "data/canonical",

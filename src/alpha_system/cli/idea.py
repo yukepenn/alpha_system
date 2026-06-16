@@ -21,6 +21,11 @@ from alpha_system.governance.mechanism_card import EXPLORATORY_STAMP
 from alpha_system.governance.requeue import utc_now_seconds as _utc_now_seconds
 from alpha_system.governance.reviewer_verdict import create_reviewer_verdict
 from alpha_system.governance.validation import GovernanceValidationError, require_mapping
+from alpha_system.research_lane.environment_preflight import (
+    EnvironmentPreflightResult,
+    env_with_resolved_data_root,
+    evaluate_environment_preflight,
+)
 from alpha_system.research_lane.fast_probe import FastProbeError, fast_probe
 from alpha_system.research_lane.memory_router import route_verdict_to_memory
 from alpha_system.research_lane.mining_driver import MiningDriverError, mine_ideas
@@ -72,8 +77,50 @@ def run_idea_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+# Exit code for an unmet ENVIRONMENT precondition. Deliberately distinct from the
+# governance-validation exit (2) so a broken env is not confused with a malformed
+# idea, and never with a DATA_GAP (which is a 0-exit research outcome).
+ENVIRONMENT_NOT_CONFIGURED_EXIT = 3
+
+
+def _emit_environment_not_configured(preflight: EnvironmentPreflightResult) -> None:
+    """Print the LOUD, distinct unmet-precondition payload (NOT a DATA_GAP)."""
+
+    print(
+        json.dumps(
+            {
+                "error": "environment_not_configured",
+                # overall_status mirrors the gate's key so downstream readers that
+                # branch on overall_status see ENVIRONMENT_NOT_CONFIGURED, never DATA_GAP.
+                "overall_status": preflight.status.value,
+                "verdict": preflight.status.value,
+                "issue_code": preflight.issue_code,
+                "message": preflight.message,
+                "data_root": preflight.data_root.as_posix(),
+                "probe_invoked": False,
+            },
+            ensure_ascii=True,
+            indent=2,
+            sort_keys=True,
+        ),
+        file=sys.stderr,
+    )
+
+
+def _environment_preflight_for_args(args: argparse.Namespace) -> EnvironmentPreflightResult:
+    """Resolve + check the data-ops environment precondition for an idea entrypoint."""
+
+    explicit = getattr(args, "alpha_data_root", None)
+    return evaluate_environment_preflight(alpha_data_root=explicit)
+
+
 def run_idea_testability(args: argparse.Namespace) -> int:
     """Run ``alpha idea testability`` / ``alpha idea gate`` as a pre-test gate."""
+
+    preflight = _environment_preflight_for_args(args)
+    if not preflight.configured:
+        _emit_environment_not_configured(preflight)
+        return ENVIRONMENT_NOT_CONFIGURED_EXIT
 
     try:
         idea_path = Path(args.idea_yaml)
@@ -86,7 +133,9 @@ def run_idea_testability(args: argparse.Namespace) -> int:
             mechanism_card=bundle.mechanism_card,
             setup_spec=bundle.setup_spec,
             slice_spec=slice_spec,
-            resolver=FeatureLabelPackResolver(),
+            # Pin the preflight-resolved root so the registry path resolves the
+            # known-good store even if ALPHA_DATA_ROOT was unset in the process env.
+            resolver=FeatureLabelPackResolver(alpha_data_root=preflight.data_root),
         )
     except GovernanceValidationError as exc:
         print(
@@ -165,6 +214,10 @@ def run_idea_report(args: argparse.Namespace) -> int:
 def run_idea_run(args: argparse.Namespace) -> int:
     """Run the end-to-end idea validate -> gate -> probe -> report -> memory loop."""
 
+    preflight = _environment_preflight_for_args(args)
+    if not preflight.configured:
+        _emit_environment_not_configured(preflight)
+        return ENVIRONMENT_NOT_CONFIGURED_EXIT
     try:
         idea_path = Path(args.idea_yaml)
         payload = load_idea_document(idea_path)
@@ -175,14 +228,25 @@ def run_idea_run(args: argparse.Namespace) -> int:
             mechanism_card=bundle.mechanism_card,
             setup_spec=bundle.setup_spec,
             slice_spec=slice_spec_from_idea_payload(payload, slice_id=args.slice),
-            resolver=FeatureLabelPackResolver(),
+            # Pin the preflight-resolved root so the registry path resolves the
+            # known-good store even if ALPHA_DATA_ROOT was unset in the process env.
+            resolver=FeatureLabelPackResolver(alpha_data_root=preflight.data_root),
         )
+        # Defense-in-depth: even though the entrypoint preflight already gated an
+        # unmet environment precondition, the gate may independently classify a
+        # typed data-root precondition (reason code) as ENVIRONMENT_NOT_CONFIGURED.
+        # Surface it as the distinct precondition error, never a DATA_GAP readout.
+        if testability_result.overall_status == GateStatus.ENVIRONMENT_NOT_CONFIGURED:
+            _emit_environment_not_configured(
+                _environment_preflight_for_args(args)
+            )
+            return ENVIRONMENT_NOT_CONFIGURED_EXIT
         if testability_result.overall_status == GateStatus.PASS:
             fast_readout = fast_probe(
                 bundle.mechanism_card,
                 bundle.setup_spec,
                 SliceSpec.from_idea_payload(payload, slice_id=args.slice),
-                resolver=FeatureLabelPackResolver(),
+                resolver=FeatureLabelPackResolver(alpha_data_root=preflight.data_root),
             )
             probe_spent = str(fast_readout.get("status") or "").upper() == "RECORDED"
         else:
@@ -282,6 +346,10 @@ def run_idea_mine(args: argparse.Namespace) -> int:
     are unchanged.
     """
 
+    preflight = _environment_preflight_for_args(args)
+    if not preflight.configured:
+        _emit_environment_not_configured(preflight)
+        return ENVIRONMENT_NOT_CONFIGURED_EXIT
     try:
         idea_paths = _collect_idea_paths(args.idea_paths, directory=args.directory)
         if not idea_paths:
@@ -296,11 +364,15 @@ def run_idea_mine(args: argparse.Namespace) -> int:
         family_fdr_ledger_path = (
             None if args.no_persist else ensure_family_fdr_ledger_path(args.memory_dir)
         )
+        # Pin the preflight-resolved root into the mining env so per-partition
+        # registries resolve the known-good store even with ALPHA_DATA_ROOT unset.
+        mine_env = env_with_resolved_data_root(preflight)
         summary = mine_ideas(
             idea_paths,
             partition_policy=tuple(args.partition or ()) or None,
             years=tuple(args.years) if args.years else None,
             instruments=tuple(args.instruments) if args.instruments else None,
+            env=mine_env,
             persist=not args.no_persist,
             memory_dir=args.memory_dir,
             family_fdr_ledger_path=family_fdr_ledger_path,
@@ -498,6 +570,13 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         "--slice",
         help="Optional embedded slice id to select for the pre-test gate.",
     )
+    testability_parser.add_argument(
+        "--alpha-data-root",
+        help=(
+            "Explicit local data root override. Default resolution: "
+            "ALPHA_DATA_ROOT env, then ~/alpha_data/alpha_system."
+        ),
+    )
     testability_parser.set_defaults(handler=run_idea_testability)
 
     report_parser = idea_subparsers.add_parser(
@@ -568,6 +647,13 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         "--no-persist",
         action="store_true",
         help="Do not persist the route to the local research memory.",
+    )
+    run_parser.add_argument(
+        "--alpha-data-root",
+        help=(
+            "Explicit local data root override. Default resolution: "
+            "ALPHA_DATA_ROOT env, then ~/alpha_data/alpha_system."
+        ),
     )
     run_parser.set_defaults(handler=run_idea_run)
 
@@ -644,6 +730,13 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         help=(
             "Re-mine ideas already recorded in the ledgers (default: skip them, "
             "so the loop is resumable/idempotent)."
+        ),
+    )
+    mine_parser.add_argument(
+        "--alpha-data-root",
+        help=(
+            "Explicit local data root override. Default resolution: "
+            "ALPHA_DATA_ROOT env, then ~/alpha_data/alpha_system."
         ),
     )
     mine_parser.set_defaults(handler=run_idea_mine)
