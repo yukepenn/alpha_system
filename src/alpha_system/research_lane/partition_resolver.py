@@ -162,6 +162,23 @@ class _RegistryIndex:
         self._label_registry = label_registry
         self._feature_index: dict[tuple[str, str], list[Any]] | None = None
         self._label_index: dict[tuple[str, str], list[Any]] | None = None
+        # version-id -> canonical identity maps, populated lazily alongside the
+        # indexes. These translate an AUTHORED partition's declared pack_ref (a
+        # content-hash version id that uniquely identifies ONE materialized
+        # record) to the registry's CANONICAL identity, so the fan-out keys each
+        # target-partition lookup by the same identity the registry records carry
+        # -- robust to idea-declared factor_id naming drift.
+        #
+        # Feature canonical identity is (feature_id, feature_set_id): a single
+        # canonical feature_id can be materialized by MULTIPLE distinct feature
+        # sets at the same partition (e.g. liquidity_structure_range_contraction
+        # ships in both the liquidity_sweep_pa_structure and the
+        # regime_volatility_compression sets), so feature_id ALONE is ambiguous.
+        # The pair is globally unique per partition (verified against the live
+        # registry), so pinning the authored pack's feature_set_id selects the
+        # SAME pack family across partitions without ever resolving a wrong pack.
+        self._feature_identity_by_version: dict[str, tuple[str, str]] | None = None
+        self._label_id_by_version: dict[str, str] | None = None
 
     def _build_feature_index(self) -> dict[tuple[str, str], list[Any]]:
         if self._feature_index is not None:
@@ -176,11 +193,20 @@ class _RegistryIndex:
         registry = getattr(store, "registry", store)
         records = registry.read_registered_parquet_features()
         index: dict[tuple[str, str], list[Any]] = {}
+        identity_by_version: dict[str, tuple[str, str]] = {}
         for record in records:
             feature_id = record.feature_spec.feature_id
             key = (feature_id, record.partition_id)
             index.setdefault(key, []).append(record)
+            version_id = getattr(record, "feature_version_id", None)
+            feature_set_id = getattr(record, "feature_set_id", None)
+            if version_id is not None and feature_set_id is not None:
+                identity_by_version[str(version_id)] = (
+                    feature_id,
+                    str(feature_set_id),
+                )
         self._feature_index = index
+        self._feature_identity_by_version = identity_by_version
         return index
 
     def _build_label_index(self) -> dict[tuple[str, str], list[Any]]:
@@ -194,6 +220,7 @@ class _RegistryIndex:
                 self._alpha_data_root, env=self._env
             )
         index: dict[tuple[str, str], list[Any]] = {}
+        id_by_version: dict[str, str] = {}
         for record in registry.read_label_records():
             state = getattr(record, "lifecycle_state", None)
             if getattr(state, "value", state) != "REGISTERED":
@@ -202,12 +229,64 @@ class _RegistryIndex:
                 continue
             key = (record.label_id, record.partition_id)
             index.setdefault(key, []).append(record)
+            version_id = getattr(record, "label_version_id", None)
+            if version_id is not None:
+                id_by_version[str(version_id)] = record.label_id
         self._label_index = index
+        self._label_id_by_version = id_by_version
         return index
 
-    def resolve_feature(self, feature_id: str, partition_id: str) -> Any:
+    def canonical_feature_identity(
+        self, pack_ref: str | None
+    ) -> tuple[str, str] | None:
+        """Map a declared feature ``pack_ref`` (``fver_...``) to the registry's
+        canonical ``(feature_id, feature_set_id)`` identity, or ``None`` when the
+        pack_ref is unknown/absent.
+
+        The pack_ref is a content-hash version id that uniquely identifies one
+        materialized record, so this is the drift-robust way to recover the
+        canonical identity to fan the OOS lookup out by -- never a guess.
+        """
+
+        if pack_ref is None:
+            return None
+        self._build_feature_index()
+        assert self._feature_identity_by_version is not None
+        return self._feature_identity_by_version.get(str(pack_ref))
+
+    def canonical_label_id(self, pack_ref: str | None) -> str | None:
+        """Map a declared label ``pack_ref`` (``lver_...``) to the registry's
+        canonical ``label_id``, or ``None`` when the pack_ref is unknown/absent.
+        """
+
+        if pack_ref is None:
+            return None
+        self._build_label_index()
+        assert self._label_id_by_version is not None
+        return self._label_id_by_version.get(str(pack_ref))
+
+    def resolve_feature(
+        self,
+        feature_id: str,
+        partition_id: str,
+        *,
+        feature_set_id: str | None = None,
+    ) -> Any:
+        candidates = self._build_feature_index().get((feature_id, partition_id), [])
+        if feature_set_id is not None:
+            # Pin the SAME feature set the authored pack belongs to. A single
+            # canonical feature_id may be materialized by multiple feature sets at
+            # one partition; without this filter the lookup is genuinely ambiguous
+            # and would (correctly) refuse to guess. With it, the target partition's
+            # record is selected by the same (feature_id, feature_set_id) identity
+            # the authored pack carries -- never a wrong-pack resolution.
+            candidates = [
+                record
+                for record in candidates
+                if getattr(record, "feature_set_id", None) == feature_set_id
+            ]
         return _unique(
-            self._build_feature_index().get((feature_id, partition_id), []),
+            candidates,
             kind="feature",
             factor_id=feature_id,
             partition_id=partition_id,
@@ -335,7 +414,13 @@ def resolve_partition_slice(
             )
 
     for label in template_spec.label_inputs:
-        record = index.resolve_label(label.label_id, target.label_partition_id)
+        # Resolve the canonical registry label_id from the AUTHORED partition's
+        # declared pack_ref (a unique content-hash version id) so the OOS lookup
+        # keys by the same identity the target's REGISTERED records carry -- robust
+        # to idea-declared label_id drift. Fall back to the declared label_id when
+        # the pack_ref is absent or not on disk (preserves prior behaviour).
+        canonical_label_id = index.canonical_label_id(label.pack_ref) or label.label_id
+        record = index.resolve_label(canonical_label_id, target.label_partition_id)
         if record.parquet_path is None:
             raise PartitionResolutionError(
                 "label_not_materialized_for_partition",
@@ -379,12 +464,31 @@ def resolve_partition_slice(
     # --- features (horizon-agnostic full_year partition) --------------------
     feature_inputs: list[dict[str, Any]] = []
     for feature in template_spec.feature_inputs:
-        record = index.resolve_feature(feature.factor_id, target.feature_partition_id)
+        # Resolve the canonical registry (feature_id, feature_set_id) identity from
+        # the AUTHORED partition's declared pack_ref (a unique content-hash version
+        # id) so the OOS lookup keys by the same identity the target's REGISTERED
+        # records carry. An idea may declare a factor_id that differs from the
+        # registry's canonical feature_id (naming drift); without this mapping
+        # every NON-authored partition -- AND the authored one when re-resolved --
+        # would fail closed and the pool would silently degenerate to coverage<=1.
+        # Fall back to the declared factor_id (set-unpinned) when the pack_ref is
+        # absent or not on disk, preserving prior behaviour for packref-less ideas.
+        identity = index.canonical_feature_identity(feature.pack_ref)
+        if identity is None:
+            lookup_feature_id, lookup_feature_set_id = feature.factor_id, None
+        else:
+            lookup_feature_id, lookup_feature_set_id = identity
+        record = index.resolve_feature(
+            lookup_feature_id,
+            target.feature_partition_id,
+            feature_set_id=lookup_feature_set_id,
+        )
         if record.parquet_path is None:
             raise PartitionResolutionError(
                 "feature_not_materialized_for_partition",
                 (
-                    f"REGISTERED feature {feature.factor_id!r} at "
+                    f"REGISTERED feature {feature.factor_id!r} "
+                    f"(canonical {lookup_feature_id!r}) at "
                     f"{target.feature_partition_id!r} has no parquet value store"
                 ),
             )
