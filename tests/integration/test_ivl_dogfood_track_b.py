@@ -20,6 +20,17 @@ def test_ivl_dogfood_track_b_gate_and_run_loop(
     capsys,
     monkeypatch,
 ) -> None:
+    # Pin ALPHA_DATA_ROOT to an EXISTING dir so the new environment preflight
+    # (which fail-LOUDS with ENVIRONMENT_NOT_CONFIGURED when the resolved data
+    # root is absent) passes deterministically on any host. CI lacks the default
+    # ~/alpha_data/alpha_system and leaves ALPHA_DATA_ROOT unset; this test
+    # exercises the resolving-slice / DATA_GAP loop (mocked resolver + probe), not
+    # the precondition path, so a controlled existing root keeps it host-independent
+    # without weakening any assertion.
+    existing_root = tmp_path / "alpha_data_root"
+    existing_root.mkdir()
+    monkeypatch.setenv("ALPHA_DATA_ROOT", existing_root.as_posix())
+
     resolver_obj = _DogfoodResolver()
     fast_probe_calls: list[str] = []
 

@@ -23,16 +23,29 @@ market data, factor values, labels, or materialized store required:
 It uses a guaranteed-nonexistent temp path for (a) so the assertion is
 deterministic regardless of whether the developer box happens to have the
 default ``~/alpha_data/alpha_system`` store.
+
+The host-INDEPENDENT invariant for (a) is: an unmet precondition is
+``ENVIRONMENT_NOT_CONFIGURED`` and never ``DATA_GAP`` -- that holds on any host.
+The SPECIFIC sub-reason is host-dependent only because the preflight checks the
+``polars`` interpreter dependency BEFORE the on-disk root: on a host WITH
+``polars`` the nonexistent root is reached and reports ``alpha_data_root_not_found``;
+on a host WITHOUT ``polars`` (e.g. the CI canary step runs a bare interpreter) the
+earlier dependency precondition fires first and reports ``data_dependency_missing``.
+BOTH are ``ENVIRONMENT_NOT_CONFIGURED`` and neither is ``DATA_GAP``, so the canary
+asserts the invariant unconditionally and only pins the specific issue_code on the
+branch whose precondition is actually reachable on this host.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 import tempfile
 from pathlib import Path
 
 from alpha_system.research_lane.environment_preflight import (
     DATA_ROOT_NOT_FOUND_CODE,
+    POLARS_MISSING_CODE,
     EnvironmentPreconditionStatus,
     evaluate_environment_preflight,
 )
@@ -68,6 +81,14 @@ def _check_nonexistent_root_is_precondition_not_datagap() -> None:
     root = _nonexistent_root()
     _assert(not root.exists(), "canary setup invalid: temp root unexpectedly exists")
 
+    # The root-existence precondition is reached only when the EARLIER polars
+    # interpreter precondition is met. CI's canary step runs a bare interpreter
+    # WITHOUT polars, so branch on importability to keep the issue_code assertion
+    # deterministic on BOTH a polars and a polars-less host. The INVARIANT
+    # (ENVIRONMENT_NOT_CONFIGURED, never DATA_GAP) is asserted unconditionally.
+    polars_importable = importlib.util.find_spec("polars") is not None
+    expected_code = DATA_ROOT_NOT_FOUND_CODE if polars_importable else POLARS_MISSING_CODE
+
     # Explicit nonexistent root.
     explicit = evaluate_environment_preflight(alpha_data_root=root, env={})
     _assert(
@@ -79,8 +100,10 @@ def _check_nonexistent_root_is_precondition_not_datagap() -> None:
         "explicit nonexistent root leaked the DATA_GAP masquerade",
     )
     _assert(
-        explicit.issue_code == DATA_ROOT_NOT_FOUND_CODE,
-        f"explicit nonexistent root issue_code drifted: {explicit.issue_code}",
+        explicit.issue_code == expected_code,
+        "explicit nonexistent root issue_code drifted "
+        f"(polars_importable={polars_importable}): expected {expected_code!r}, "
+        f"got {explicit.issue_code!r}",
     )
 
     # Unset env whose resolved default ALSO does not exist (pointed at the temp
@@ -89,6 +112,10 @@ def _check_nonexistent_root_is_precondition_not_datagap() -> None:
     _assert(
         via_env.status is EnvironmentPreconditionStatus.ENVIRONMENT_NOT_CONFIGURED,
         f"env-pointed nonexistent root must be ENVIRONMENT_NOT_CONFIGURED, got {via_env.status}",
+    )
+    _assert(
+        via_env.status.value != GateStatus.DATA_GAP.value,
+        "env-pointed nonexistent root leaked the DATA_GAP masquerade",
     )
 
 

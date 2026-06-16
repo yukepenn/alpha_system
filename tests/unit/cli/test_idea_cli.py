@@ -13,6 +13,32 @@ from alpha_system.cli.main import build_parser, main
 from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
+
+
+@pytest.fixture(autouse=True)
+def _pin_existing_alpha_data_root(
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Make the data-root environment precondition host-independent.
+
+    The idea run/testability/mine entrypoints now run an environment preflight
+    that fail-LOUDS (ENVIRONMENT_NOT_CONFIGURED, exit 3) when the resolved
+    ``ALPHA_DATA_ROOT`` does not exist on disk. On CI the default
+    ``~/alpha_data/alpha_system`` is absent and ``ALPHA_DATA_ROOT`` is unset, so
+    these legacy tests -- whose intent is the DATA_GAP / resolving-slice path, NOT
+    the precondition path -- would spuriously fail. Pin ``ALPHA_DATA_ROOT`` to an
+    EXISTING temp dir so the preflight passes deterministically on any host while
+    each test still asserts its original behavior. Tests that intentionally
+    exercise the precondition path pass an explicit ``--alpha-data-root`` to a
+    NONEXISTENT path, which overrides this env pin (explicit wins in
+    ``resolve_alpha_data_root``), so they are unaffected.
+    """
+
+    existing_root = tmp_path_factory.mktemp("alpha_data_root")
+    monkeypatch.setenv("ALPHA_DATA_ROOT", existing_root.as_posix())
+
+
 DATASET_VERSION_ID = "dsv_cli_resolving_slice"
 PARTITION_ID = "ES_2020_120m"
 FEATURE_VERSION_ID = "fver_" + "1" * 64
