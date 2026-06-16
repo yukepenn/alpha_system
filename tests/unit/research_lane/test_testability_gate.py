@@ -438,3 +438,72 @@ def test_family_fdr_declaration_pins_method_and_alpha_when_present() -> None:
 
     assert slice_obj.family_fdr_requirement == "bonferroni"
     assert slice_obj.family_fdr_alpha == pytest.approx(0.05)
+
+
+class _DataRootRaisingFeatureStore:
+    """FeatureStore stub whose resolution fails the ALPHA_DATA_ROOT precondition."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def resolve_feature_by_version(self, feature_version_id: str) -> None:
+        from alpha_system.features.registry import FeatureRegistryDataRootError
+
+        self.calls.append(feature_version_id)
+        raise FeatureRegistryDataRootError("ALPHA_DATA_ROOT is required for FeatureRegistry")
+
+
+class _NotFoundFeatureStore:
+    """FeatureStore stub for a VALID root with a genuinely-absent partition."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def resolve_feature_by_version(self, feature_version_id: str):
+        self.calls.append(feature_version_id)
+        return None
+
+
+def test_gate_data_root_precondition_is_environment_not_configured_not_datagap() -> None:
+    bundle = _bundle()
+    resolver = FeatureLabelPackResolver(
+        feature_store=_DataRootRaisingFeatureStore(),
+        label_registry=_LabelRegistry({LABEL_VERSION_ID: _label_record("lspec_main")}),
+    )
+
+    result = evaluate_testability_gate(
+        bundle.idea_draft,
+        alpha_spec=bundle.alpha_spec,
+        mechanism_card=bundle.mechanism_card,
+        slice_spec=_slice(bundle.alpha_spec.label_references[0]),
+        resolver=resolver,
+    )
+
+    # The unmet env precondition must surface DISTINCTLY, never as a DATA_GAP.
+    assert result.overall_status is GateStatus.ENVIRONMENT_NOT_CONFIGURED
+    assert _statuses(result)[CHECK_FEATURES_MATERIALIZED] is GateStatus.ENVIRONMENT_NOT_CONFIGURED
+    feature_check = next(
+        check for check in result.checks if check.check_id == CHECK_FEATURES_MATERIALIZED
+    )
+    assert feature_check.detail["reason"]["code"] == "data_root_precondition_unmet"
+
+
+def test_gate_valid_root_absent_partition_still_data_gaps() -> None:
+    bundle = _bundle()
+    # A valid root whose registry simply has no record for the version -> the
+    # honest absent-data outcome must REMAIN a DATA_GAP (the fix must not over-fire).
+    resolver = FeatureLabelPackResolver(
+        feature_store=_NotFoundFeatureStore(),
+        label_registry=_LabelRegistry({LABEL_VERSION_ID: _label_record("lspec_main")}),
+    )
+
+    result = evaluate_testability_gate(
+        bundle.idea_draft,
+        alpha_spec=bundle.alpha_spec,
+        mechanism_card=bundle.mechanism_card,
+        slice_spec=_slice(bundle.alpha_spec.label_references[0]),
+        resolver=resolver,
+    )
+
+    assert _statuses(result)[CHECK_FEATURES_MATERIALIZED] is GateStatus.DATA_GAP
+    assert result.overall_status is GateStatus.DATA_GAP

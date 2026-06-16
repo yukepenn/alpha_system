@@ -23,7 +23,10 @@ from alpha_system.data.foundation.sources import DataFoundationValidationError
 from alpha_system.data.foundation.version_registry import resolve_dataset_version
 from alpha_system.features import consumption as feature_consumption
 from alpha_system.features.contracts import FEATURE_VERSION_PATTERN
-from alpha_system.features.registry import FeatureRegistryError
+from alpha_system.features.registry import (
+    FeatureRegistryDataRootError,
+    FeatureRegistryError,
+)
 from alpha_system.features.store import FeatureStore, FeatureStoreError
 from alpha_system.governance.serialization import (
     GovernanceSerializationError,
@@ -31,7 +34,11 @@ from alpha_system.governance.serialization import (
     canonical_serialize,
     deserialize,
 )
-from alpha_system.labels.registry import LabelRegistry, LabelRegistryError
+from alpha_system.labels.registry import (
+    LabelRegistry,
+    LabelRegistryDataRootError,
+    LabelRegistryError,
+)
 from alpha_system.labels.version import LABEL_VERSION_PATTERN
 from alpha_system.runtime.entry_contract import (
     ACCEPTED_DATASET_VERSION_LIFECYCLE_STATES,
@@ -43,6 +50,14 @@ from alpha_system.runtime.entry_contract import (
 )
 
 RejectionReasonRecord = RuntimeEntryReason
+
+# Distinct reason code for an unmet ALPHA_DATA_ROOT environment precondition,
+# kept disjoint from the generic feature_store_resolution_failed /
+# label_registry_resolution_failed codes so the testability gate can reclassify
+# an env-misconfig as a precondition status rather than a DATA_GAP. This is a
+# TYPED disambiguation (driven by the FeatureRegistryDataRootError /
+# LabelRegistryDataRootError subclasses), not the legacy message string-match.
+DATA_ROOT_PRECONDITION_CODE = "data_root_precondition_unmet"
 
 DatasetVersionResolver = Callable[[str | Path, object], object | None]
 
@@ -619,6 +634,8 @@ class FeatureLabelPackResolver:
                     )
                 )
             return resolver(feature_version_id)
+        except FeatureRegistryDataRootError as exc:
+            raise RuntimeInputResolverError(_data_root_precondition_reason(exc)) from exc
         except (FeatureRegistryError, FeatureStoreError) as exc:
             raise RuntimeInputResolverError(
                 _reason(
@@ -644,6 +661,8 @@ class FeatureLabelPackResolver:
             if resolver is None:
                 return ""
             deprecation = resolver(feature_version_id)
+        except FeatureRegistryDataRootError as exc:
+            raise RuntimeInputResolverError(_data_root_precondition_reason(exc)) from exc
         except (FeatureRegistryError, FeatureStoreError) as exc:
             raise RuntimeInputResolverError(
                 _reason(
@@ -682,6 +701,8 @@ class FeatureLabelPackResolver:
                     )
                 )
             return resolver(label_version_id)
+        except LabelRegistryDataRootError as exc:
+            raise RuntimeInputResolverError(_data_root_precondition_reason(exc)) from exc
         except LabelRegistryError as exc:
             raise RuntimeInputResolverError(
                 _reason(
@@ -704,6 +725,8 @@ class FeatureLabelPackResolver:
             if resolver is None:
                 return ""
             deprecation = resolver(label_version_id)
+        except LabelRegistryDataRootError as exc:
+            raise RuntimeInputResolverError(_data_root_precondition_reason(exc)) from exc
         except LabelRegistryError as exc:
             raise RuntimeInputResolverError(
                 _reason(
@@ -2000,8 +2023,30 @@ def _reason(
     )
 
 
+def _data_root_precondition_reason(exc: Exception) -> RejectionReasonRecord:
+    """Build the distinct env-precondition reason for an unmet ALPHA_DATA_ROOT.
+
+    Carries :data:`DATA_ROOT_PRECONDITION_CODE` so downstream classifiers (the
+    testability gate) can tell an env-misconfig apart from a genuine
+    resolution failure / absent partition and avoid the DATA_GAP masquerade.
+    """
+
+    return _reason(
+        code=DATA_ROOT_PRECONDITION_CODE,
+        message=(
+            "ALPHA_DATA_ROOT environment precondition is unmet; this is an "
+            "environment misconfiguration, not a data gap"
+        ),
+        field="alpha_data_root",
+        state=RuntimeEntryStatus.INPUTS_BLOCKED,
+        expected="a resolvable ALPHA_DATA_ROOT (env or known-good default)",
+        actual=str(exc),
+    )
+
+
 __all__ = [
     "CanonicalInputViewHandle",
+    "DATA_ROOT_PRECONDITION_CODE",
     "FeatureLabelPackResolver",
     "FeaturePackHandle",
     "LabelPackHandle",

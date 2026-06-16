@@ -4,6 +4,8 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from alpha_system.features.contracts import (
     FeatureFamily,
     FeatureInputSpec,
@@ -19,8 +21,11 @@ from alpha_system.features.contracts import (
 from alpha_system.features.registry import (
     DEFAULT_FEATURE_REGISTRY_RELATIVE_PATH,
     FeatureRegistry,
+    FeatureRegistryDataRootError,
+    FeatureRegistryError,
     FeatureRegistryLifecycleState,
     FeatureRegistryRecord,
+    default_feature_registry_path,
 )
 from alpha_system.features.request_gate import evaluate_feature_request_gate
 from alpha_system.governance.duplicate_exposure import ExposureCheckResult, ExposureRegistryStatus
@@ -98,6 +103,18 @@ def test_default_feature_registry_path_uses_alpha_data_root(tmp_path: Path) -> N
 
     assert registry.registry_path == alpha_data_root / DEFAULT_FEATURE_REGISTRY_RELATIVE_PATH
     assert registry.registry_path.exists()
+
+
+def test_default_feature_registry_path_unset_root_raises_typed_precondition() -> None:
+    # Unset ALPHA_DATA_ROOT must raise the TYPED precondition subclass so callers
+    # can distinguish an env-misconfig from the many genuine registry failures
+    # that share the base FeatureRegistryError.
+    with pytest.raises(FeatureRegistryDataRootError):
+        default_feature_registry_path(env={})
+
+    # The typed precondition is still a FeatureRegistryError subclass, so callers
+    # that only catch the base class keep working (no behavior regression).
+    assert issubclass(FeatureRegistryDataRootError, FeatureRegistryError)
 
 
 def _registry_record(

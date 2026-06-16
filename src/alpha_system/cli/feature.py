@@ -24,6 +24,7 @@ from alpha_system.features.engine import (
     resolve_feature_materialization_dataset,
 )
 from alpha_system.features.registry import (
+    FeatureRegistryDataRootError,
     FeatureRegistryError,
     default_feature_registry_path,
 )
@@ -470,9 +471,10 @@ def _optional_feature_registry_path(args: argparse.Namespace) -> Path | None:
     else:
         try:
             path = default_feature_registry_path(alpha_data_root=args.alpha_data_root)
-        except FeatureRegistryError as exc:
-            if "ALPHA_DATA_ROOT is required" not in str(exc):
-                raise
+        except FeatureRegistryDataRootError:
+            # Typed precondition (unset ALPHA_DATA_ROOT): treat as "no registry
+            # selected" for optional resolution. Replaces the fragile message
+            # string-match with the distinct error type.
             return None
     return path if path.exists() else None
 

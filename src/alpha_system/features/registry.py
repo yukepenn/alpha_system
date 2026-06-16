@@ -65,6 +65,18 @@ class FeatureRegistryError(ValueError):
     """Raised when feature registry operations fail closed."""
 
 
+class FeatureRegistryDataRootError(FeatureRegistryError):
+    """Raised when the ALPHA_DATA_ROOT environment precondition is unmet.
+
+    This is a TYPED, distinct subclass so an unset/unresolvable data root is no
+    longer indistinguishable from the ~40 genuine registry/data-integrity
+    failures that share the base ``FeatureRegistryError`` class. Callers that need
+    to surface an ENVIRONMENT-misconfig (rather than a DATA_GAP) catch this
+    subclass; callers that only care about fail-closed behavior keep catching the
+    base class unchanged.
+    """
+
+
 class FeatureRegistryLifecycleState(StrEnum):
     """Narrow lifecycle states for registry discoverability only."""
 
@@ -827,7 +839,7 @@ def default_feature_registry_path(
     source = os.environ if env is None else env
     root_value = alpha_data_root if alpha_data_root is not None else source.get("ALPHA_DATA_ROOT")
     if root_value is None:
-        raise FeatureRegistryError("ALPHA_DATA_ROOT is required for FeatureRegistry")
+        raise FeatureRegistryDataRootError("ALPHA_DATA_ROOT is required for FeatureRegistry")
     root = _require_path(root_value, "ALPHA_DATA_ROOT")
     _require_outside_repo(root, "ALPHA_DATA_ROOT")
     return root / DEFAULT_FEATURE_REGISTRY_RELATIVE_PATH
@@ -1605,6 +1617,7 @@ __all__ = [
     "REFERENCE_FEATURE_PRODUCER_ENGINE_ID",
     "FeatureDeprecationRecord",
     "FeatureRegistry",
+    "FeatureRegistryDataRootError",
     "FeatureRegistryError",
     "FeatureRegistryLifecycleState",
     "FeatureRegistryRecord",
