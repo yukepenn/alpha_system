@@ -260,6 +260,22 @@ def precondition_not_datagap_canary() -> Canary:
     )
 
 
+def pooled_partition_factor_id_drift_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.pooled_partition_factor_id_drift "
+        "import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "pooled_partition_factor_id_drift",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -459,6 +475,7 @@ def scenarios() -> list[Canary]:
         pooled_se_poolkind_canary(),
         overlap_neff_failclosed_canary(),
         precondition_not_datagap_canary(),
+        pooled_partition_factor_id_drift_canary(),
     ]
 
 
