@@ -1,0 +1,153 @@
+{
+  "alpha_spec": {
+    "cost_assumptions": {
+      "model": "The outcome label is the cost-adjusted forward return; no additional execution-cost estimate is produced by this seed.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "created_at": "2026-06-15T00:00:00Z",
+    "created_by": "STRATEGY_BACKLOG_V1/main_effect",
+    "data_assumptions": {
+      "coverage": "ES_2024_30m cost_adjusted_fwd_ret continuous outcome: non_null=59000, value_std=0.0021 (powered, non-degenerate). RESEARCH-ONLY; each horizon and each instrument is a counted variant under family-FDR.",
+      "source": "Already-materialized local FUTSUB feature and continuous-label packs are read load-only when present."
+    },
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence.",
+      "Do not sweep horizons, thresholds, or geometry after seeing this single pre-registered probe result."
+    ],
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while the continuous label is partitioned at ES_2020_60m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may record near-zero IC under a well-powered sample; that is an informative REJECT-leaning outcome, not a failure."
+    ],
+    "factor_inputs": [
+      "bbo_tradability_spread_zscore"
+    ],
+    "label_references": [
+      "lspec_a3d1b6f4a61722f4731a5341"
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized for this exploratory seed.",
+      "Any future WATCH or CANDIDATE would require reviewer-gated evidence outside this run."
+    ],
+    "target_instruments": [
+      "ES"
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    }
+  },
+  "hypothesis_card": {
+    "author": "STRATEGY_BACKLOG_V1/main_effect",
+    "created_at": "2026-06-15T00:00:00Z",
+    "expected_mechanism": "The factor reads the BBO spread z-score (a liquidity-shock proxy); the diagnostic measures whether elevated/normalizing spread carries any IC against the continuous cost-adjusted forward return, with wide-spread untradability absorbed by the cost_adjusted outcome. Value-free until the pre-test power gate and surrogate-FDR readout allow interpretation.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve the already-materialized feature and continuous-label packs.",
+      "Fail the idea if the continuous outcome is degenerate (non-positive value_std) over the observed sample.",
+      "Reject interpretation if duplicate exposure or pre-test power gates block the exploratory readout."
+    ],
+    "family": "tier1_main_effect_bbo_microstructure_ic",
+    "rationale": "A single BBO liquidity factor (spread z-score) is IC-screened against a continuous COST-ADJUSTED forward return on an ES 2024 30m slice. spread_zscore is a named-but-never-probed BBO signal candidate. NOTE ON LANE: the seed's preferred high-then-normalizes SETUP framing needs a path/net_excursion outcome, but BBO datasets have NO path labels materialized (only cost_adjusted / spread_adjusted) -- so the setup framing is recorded as a BBO-path-label FeatureRequest in the backlog rather than hacked onto a cross-dataset OHLCV path label. Here it is authored in the SUPPORTED, cost-aware main_effect lane (wide-spread bars are penalized by the cost_adjusted outcome). Counted-variant, family-FDR, overlap-aware n_eff.",
+    "risks": [
+      "The local executor may lack the materialized packs needed for a real readout.",
+      "The factor may duplicate adjacent VWAP-location exposures already screened.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "title": "BBO spread-shock (spread z-score) main-effect IC on cost-adjusted forward return (cost-aware; SETUP framing needs BBO path FeatureRequest)"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "duplicate_exposure": {
+      "family_id": "tier1_main_effect_bbo_microstructure_ic",
+      "status": "bounded",
+      "variant_id": "bbo_spread_zscore_cost_adj_fwd_ret_30m"
+    },
+    "expected_direction": "undirected",
+    "expected_mechanism": "The factor reads the BBO spread z-score (a liquidity-shock proxy); the diagnostic measures whether elevated/normalizing spread carries any IC against the continuous cost-adjusted forward return, with wide-spread untradability absorbed by the cost_adjusted outcome. Value-free until the pre-test power gate and surrogate-FDR readout allow interpretation.",
+    "horizon": "30m",
+    "rationale": "A single BBO liquidity factor (spread z-score) is IC-screened against a continuous COST-ADJUSTED forward return on an ES 2024 30m slice. spread_zscore is a named-but-never-probed BBO signal candidate. NOTE ON LANE: the seed's preferred high-then-normalizes SETUP framing needs a path/net_excursion outcome, but BBO datasets have NO path labels materialized (only cost_adjusted / spread_adjusted) -- so the setup framing is recorded as a BBO-path-label FeatureRequest in the backlog rather than hacked onto a cross-dataset OHLCV path label. Here it is authored in the SUPPORTED, cost-aware main_effect lane (wide-spread bars are penalized by the cost_adjusted outcome). Counted-variant, family-FDR, overlap-aware n_eff.",
+    "required_features": [
+      "bbo_tradability_spread_zscore"
+    ],
+    "required_labels": [
+      "cost_adjusted_fwd_ret_30m"
+    ],
+    "session": "RTH",
+    "source": "strategy_backlog_v1:bbo_spread_zscore_cost_adj_fwd_ret_30m",
+    "stamp": "EXPLORATORY",
+    "variant_budget": 1
+  },
+  "slices": {
+    "ES_2024_30m": {
+      "available_ts_satisfiable": true,
+      "continuous_label_summary": {
+        "nonzero_count": 59000,
+        "sample_count": 60000,
+        "value_std": 0.0021
+      },
+      "created_at": "2026-06-15T00:00:00Z",
+      "data_version": "dsv_databento_bbo_f9e1d70a04d9dae4",
+      "dataset_version_id": "dsv_databento_bbo_f9e1d70a04d9dae4",
+      "family_budget": 1,
+      "family_id": "tier1_main_effect_bbo_microstructure_ic",
+      "feature_pack_refs": [
+        "fver_2299793f5f46957e1822896314c220e44ec11f267d3f5252590a3e12abcbc358"
+      ],
+      "feature_request_ids": [
+        "freq_347b473cef3a93de75cdf7a8"
+      ],
+      "features": [
+        {
+          "factor_id": "bbo_tradability_spread_zscore",
+          "factor_version": "fver_2299793f5f46957e1822896314c220e44ec11f267d3f5252590a3e12abcbc358",
+          "feature_request_id": "freq_347b473cef3a93de75cdf7a8",
+          "pack_ref": "fver_2299793f5f46957e1822896314c220e44ec11f267d3f5252590a3e12abcbc358",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/bbo_tradability_top_book/feature_set_futures_scaleout_bbo_tradability_top_book/v1_es_2024/dsv_databento_bbo_f9e1d70a04d9dae4/ES_2024_full_year/values.parquet",
+          "role": "factor"
+        }
+      ],
+      "horizon_seconds": 1800,
+      "instrument_id": "ES",
+      "label_pack_refs": [
+        "lver_a3e13548ea454fa029e1047a3682b161651f432c6a74bcd2310452803dbbd0cd"
+      ],
+      "label_spec_ids": [
+        "lspec_a3d1b6f4a61722f4731a5341"
+      ],
+      "label_version_map": {
+        "lver_a3e13548ea454fa029e1047a3682b161651f432c6a74bcd2310452803dbbd0cd": [
+          "cost_adjusted_fwd_ret",
+          "float"
+        ]
+      },
+      "labels": [
+        {
+          "label_id": "cost_adjusted_fwd_ret",
+          "label_spec_id": "lspec_a3d1b6f4a61722f4731a5341",
+          "pack_ref": "lver_a3e13548ea454fa029e1047a3682b161651f432c6a74bcd2310452803dbbd0cd",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/cost_adjusted/lset_3bf6abf9e39d61944481a1ab1fbba34b875244edb0a9342b97161602b88fcc5d/dsv_databento_bbo_f9e1d70a04d9dae4/ES_2024_30m/values.parquet",
+          "role": "label"
+        }
+      ],
+      "materialized_label_version": "lver_a3e13548ea454fa029e1047a3682b161651f432c6a74bcd2310452803dbbd0cd",
+      "minimum_detectable_effect": 0.028,
+      "n_eff": 4000,
+      "partition_id": "ES_2024_30m",
+      "required_future_bars": 30,
+      "session_id": "ES:RTH",
+      "slice_id": "ES_2024_30m",
+      "study_kind": "main_effect",
+      "surrogate_base_seed": 0,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "surrogate_run_count": 1000,
+      "variant_id": "bbo_spread_zscore_cost_adj_fwd_ret_30m"
+    }
+  },
+  "source": "research/idea_to_verdict_loop_v0/seeds/main_effect_bbo_spread_zscore_cost_adj_fwd_ret_es2024_30m.idea.yaml",
+  "study_kind": "main_effect"
+}

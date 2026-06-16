@@ -1,0 +1,153 @@
+{
+  "alpha_spec": {
+    "cost_assumptions": {
+      "model": "The outcome label is the cost-adjusted forward return; no additional execution-cost estimate is produced by this seed.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "created_at": "2026-06-15T00:00:00Z",
+    "created_by": "STRATEGY_BACKLOG_V1/main_effect",
+    "data_assumptions": {
+      "coverage": "ES_2024_15m cost_adjusted_fwd_ret continuous outcome: non_null=119000, value_std=0.0015 (powered, non-degenerate). RESEARCH-ONLY; each horizon and each instrument is a counted variant under family-FDR.",
+      "source": "Already-materialized local FUTSUB feature and continuous-label packs are read load-only when present."
+    },
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence.",
+      "Do not sweep horizons, thresholds, or geometry after seeing this single pre-registered probe result."
+    ],
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while the continuous label is partitioned at ES_2020_60m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may record near-zero IC under a well-powered sample; that is an informative REJECT-leaning outcome, not a failure."
+    ],
+    "factor_inputs": [
+      "bbo_tradability_microprice"
+    ],
+    "label_references": [
+      "lspec_7d92fb46db8e1575f2cddc0d"
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized for this exploratory seed.",
+      "Any future WATCH or CANDIDATE would require reviewer-gated evidence outside this run."
+    ],
+    "target_instruments": [
+      "ES"
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    }
+  },
+  "hypothesis_card": {
+    "author": "STRATEGY_BACKLOG_V1/main_effect",
+    "created_at": "2026-06-15T00:00:00Z",
+    "expected_mechanism": "The factor reads the BBO microprice (depth-weighted mid proxy); the diagnostic measures whether its dislocation from a fair-value reference carries any IC against the continuous cost-adjusted forward return. Value-free until the overlap-aware pre-test power gate and surrogate-FDR readout allow interpretation.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve the already-materialized feature and continuous-label packs.",
+      "Fail the idea if the continuous outcome is degenerate (non-positive value_std) over the observed sample.",
+      "Reject interpretation if duplicate exposure or pre-test power gates block the exploratory readout."
+    ],
+    "family": "tier1_main_effect_bbo_microstructure_ic",
+    "rationale": "A single BBO microstructure factor (microprice, the depth-weighted top-of-book price proxy) is IC-screened against a continuous cost-adjusted forward return on an ES 2024 15m slice. microprice_minus_mid is a named-but-never-probed BBO signal candidate; feature and cost_adjusted label co-materialized on the SAME dsv_databento_bbo_f9e1d70a04d9dae4 (ZERO new materialization, BBO-dataset lver). Short horizons; sign-consistency across ES/NQ/RTY are counted instrument variants; overlap-aware n_eff; sequence after the imbalance probe resolves clean.",
+    "risks": [
+      "The local executor may lack the materialized packs needed for a real readout.",
+      "The factor may duplicate adjacent VWAP-location exposures already screened.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "title": "BBO microprice dislocation main-effect IC on cost-adjusted forward return (BBO-dataset lver, short horizon)"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "duplicate_exposure": {
+      "family_id": "tier1_main_effect_bbo_microstructure_ic",
+      "status": "bounded",
+      "variant_id": "bbo_microprice_cost_adj_fwd_ret_15m"
+    },
+    "expected_direction": "undirected",
+    "expected_mechanism": "The factor reads the BBO microprice (depth-weighted mid proxy); the diagnostic measures whether its dislocation from a fair-value reference carries any IC against the continuous cost-adjusted forward return. Value-free until the overlap-aware pre-test power gate and surrogate-FDR readout allow interpretation.",
+    "horizon": "15m",
+    "rationale": "A single BBO microstructure factor (microprice, the depth-weighted top-of-book price proxy) is IC-screened against a continuous cost-adjusted forward return on an ES 2024 15m slice. microprice_minus_mid is a named-but-never-probed BBO signal candidate; feature and cost_adjusted label co-materialized on the SAME dsv_databento_bbo_f9e1d70a04d9dae4 (ZERO new materialization, BBO-dataset lver). Short horizons; sign-consistency across ES/NQ/RTY are counted instrument variants; overlap-aware n_eff; sequence after the imbalance probe resolves clean.",
+    "required_features": [
+      "bbo_tradability_microprice"
+    ],
+    "required_labels": [
+      "cost_adjusted_fwd_ret_15m"
+    ],
+    "session": "RTH",
+    "source": "strategy_backlog_v1:bbo_microprice_cost_adj_fwd_ret_15m",
+    "stamp": "EXPLORATORY",
+    "variant_budget": 1
+  },
+  "slices": {
+    "ES_2024_15m": {
+      "available_ts_satisfiable": true,
+      "continuous_label_summary": {
+        "nonzero_count": 119000,
+        "sample_count": 120000,
+        "value_std": 0.0015
+      },
+      "created_at": "2026-06-15T00:00:00Z",
+      "data_version": "dsv_databento_bbo_f9e1d70a04d9dae4",
+      "dataset_version_id": "dsv_databento_bbo_f9e1d70a04d9dae4",
+      "family_budget": 1,
+      "family_id": "tier1_main_effect_bbo_microstructure_ic",
+      "feature_pack_refs": [
+        "fver_2516741a49026db901c2d5c3cd85ea24d2911eb5ea9fd5f25f993a8077b559ec"
+      ],
+      "feature_request_ids": [
+        "freq_ca48ac4317e83e73cb8c2e96"
+      ],
+      "features": [
+        {
+          "factor_id": "bbo_tradability_microprice",
+          "factor_version": "fver_2516741a49026db901c2d5c3cd85ea24d2911eb5ea9fd5f25f993a8077b559ec",
+          "feature_request_id": "freq_ca48ac4317e83e73cb8c2e96",
+          "pack_ref": "fver_2516741a49026db901c2d5c3cd85ea24d2911eb5ea9fd5f25f993a8077b559ec",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/bbo_tradability_top_book/feature_set_futures_scaleout_bbo_tradability_top_book/v1_es_2024/dsv_databento_bbo_f9e1d70a04d9dae4/ES_2024_full_year/values.parquet",
+          "role": "factor"
+        }
+      ],
+      "horizon_seconds": 900,
+      "instrument_id": "ES",
+      "label_pack_refs": [
+        "lver_24a32a138247789ffbb9bd91a684df42feba2eba75d14f6d281633fca5c8a054"
+      ],
+      "label_spec_ids": [
+        "lspec_7d92fb46db8e1575f2cddc0d"
+      ],
+      "label_version_map": {
+        "lver_24a32a138247789ffbb9bd91a684df42feba2eba75d14f6d281633fca5c8a054": [
+          "cost_adjusted_fwd_ret",
+          "float"
+        ]
+      },
+      "labels": [
+        {
+          "label_id": "cost_adjusted_fwd_ret",
+          "label_spec_id": "lspec_7d92fb46db8e1575f2cddc0d",
+          "pack_ref": "lver_24a32a138247789ffbb9bd91a684df42feba2eba75d14f6d281633fca5c8a054",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/cost_adjusted/lset_cc3021f48bac8e23c0a38af219e70fbf88ad89fb1890742c121ae1d1f32c0530/dsv_databento_bbo_f9e1d70a04d9dae4/ES_2024_15m/values.parquet",
+          "role": "label"
+        }
+      ],
+      "materialized_label_version": "lver_24a32a138247789ffbb9bd91a684df42feba2eba75d14f6d281633fca5c8a054",
+      "minimum_detectable_effect": 0.02,
+      "n_eff": 8000,
+      "partition_id": "ES_2024_15m",
+      "required_future_bars": 15,
+      "session_id": "ES:RTH",
+      "slice_id": "ES_2024_15m",
+      "study_kind": "main_effect",
+      "surrogate_base_seed": 0,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "surrogate_run_count": 1000,
+      "variant_id": "bbo_microprice_cost_adj_fwd_ret_15m"
+    }
+  },
+  "source": "research/idea_to_verdict_loop_v0/seeds/main_effect_bbo_microprice_cost_adj_fwd_ret_es2024_15m.idea.yaml",
+  "study_kind": "main_effect"
+}

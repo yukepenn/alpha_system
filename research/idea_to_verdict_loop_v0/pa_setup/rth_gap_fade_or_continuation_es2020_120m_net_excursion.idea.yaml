@@ -1,0 +1,234 @@
+{
+  "alpha_spec": {
+    "cost_assumptions": {
+      "model": "No execution-cost estimate is produced by this proof.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "created_at": "2026-06-15T00:00:00Z",
+    "created_by": "STRATEGY_BACKLOG_V1/setup",
+    "data_assumptions": {
+      "coverage": "ES_2020_120m path net-excursion slice; rth_open_gap_state context is pre-registered at the base_ohlcv_overnight_range factor marginal, frozen before any outcome readout. RESEARCH-ONLY first slice; cross-year (2022-2024) and cross-instrument (NQ/RTY) extensions are separately counted variants.",
+      "source": "Already-materialized local FUTSUB feature and label packs are read load-only when present."
+    },
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence.",
+      "Do not change the context threshold, the regime state definition, or the target/stop geometry after any outcome readout."
+    ],
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while path labels are partitioned at ES_2020_120m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may remain DATA_GAP / INCONCLUSIVE / REJECT under governed routing; the conditioned positive rate may be low (likely underpowered)."
+    ],
+    "factor_inputs": [
+      "base_ohlcv_overnight_range",
+      "base_ohlcv_opening_range"
+    ],
+    "label_references": [
+      "lspec_2af1f6ed0c144c500bdedb1a"
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized for this exploratory proof.",
+      "Any future WATCH or CANDIDATE would require reviewer-gated evidence outside this run."
+    ],
+    "target_instruments": [
+      "ES"
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    }
+  },
+  "hypothesis_card": {
+    "author": "STRATEGY_BACKLOG_V1/setup",
+    "created_at": "2026-06-15T00:00:00Z",
+    "expected_mechanism": "The context marks an RTH open-gap state (overnight_range-normalized displacement at/above its marginal); the trigger marks the first opening-micro-range break (opening_range break). The conditional readout asks whether the SIGNED net-excursion outcome (fade back toward prior close vs continuation in gap direction) differs in the gapped bucket. Value-free until gates allow interpretation; net asymmetry, not single-sided MFE, is judged.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve already-materialized feature and label packs.",
+      "Fail the idea if the net-excursion path outcome cannot be derived from both materialized mfe and mae packs.",
+      "Reject interpretation if duplicate exposure or surrogate-FDR gates block the exploratory readout."
+    ],
+    "family": "pa_setup_rth_gap_fade_continuation_net",
+    "rationale": "A pre-declared RTH-open-gap CONTEXT STATE (open displaced vs prior RTH close, normalized by the overnight range, a categorical gap descriptor) is read separately from an opening-micro-range break trigger. Gap fade-vs-continuation is not recorded in the fleet brain. All primitives (overnight_range, opening_range) are materialized ES/NQ/RTY 2019-2026. Fade and continuation are two counted variants under family-FDR; research-only.",
+    "risks": [
+      "The local executor may lack the materialized packs needed for a real readout.",
+      "The elevated-vol-regime context and high-sweep trigger may overlap with adjacent volatility-structure variants.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "title": "RTH open-gap context x opening-micro-range break trigger -> SIGNED net excursion fade-vs-continuation test"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "duplicate_exposure": {
+      "family_id": "pa_setup_rth_gap_fade_continuation_net",
+      "status": "bounded",
+      "variant_id": "baseline_rth_gap_x_open_microrange_break_net"
+    },
+    "expected_direction": "signed net-excursion fade-or-continuation after an RTH open gap and opening-micro-range break",
+    "expected_mechanism": "The context marks an RTH open-gap state (overnight_range-normalized displacement at/above its marginal); the trigger marks the first opening-micro-range break (opening_range break). The conditional readout asks whether the SIGNED net-excursion outcome (fade back toward prior close vs continuation in gap direction) differs in the gapped bucket. Value-free until gates allow interpretation; net asymmetry, not single-sided MFE, is judged.",
+    "horizon": "120m",
+    "rationale": "A pre-declared RTH-open-gap CONTEXT STATE (open displaced vs prior RTH close, normalized by the overnight range, a categorical gap descriptor) is read separately from an opening-micro-range break trigger. Gap fade-vs-continuation is not recorded in the fleet brain. All primitives (overnight_range, opening_range) are materialized ES/NQ/RTY 2019-2026. Fade and continuation are two counted variants under family-FDR; research-only.",
+    "required_features": [
+      "base_ohlcv_overnight_range",
+      "base_ohlcv_opening_range"
+    ],
+    "required_labels": [
+      "path_mfe_120m",
+      "path_mae_120m"
+    ],
+    "session": "RTH",
+    "source": "strategy_backlog_v1:baseline_rth_gap_x_open_microrange_break_net",
+    "stamp": "EXPLORATORY",
+    "variant_budget": 1
+  },
+  "setup_spec": {
+    "allowed_variants": [
+      "baseline_rth_gap_x_open_microrange_break_net"
+    ],
+    "confirmation": {
+      "fixed_before_readout": true,
+      "policy": "none_added"
+    },
+    "entry_context": {
+      "bucket": "rth_open_gap_state",
+      "factor_id": "base_ohlcv_overnight_range",
+      "factor_version": "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
+      "operator": ">=",
+      "signal_kind": "rth_open_gap_state",
+      "threshold": 0.6,
+      "value_field": "normalized_value"
+    },
+    "event_trigger": {
+      "event": "rth_gap_open_microrange_break",
+      "factor_id": "base_ohlcv_opening_range",
+      "factor_version": "fver_76e1f424e20d8ef6fb216644574566f8e84f56f8b2b946c3775d5d58c73cc411",
+      "operator": ">",
+      "signal_kind": "opening_microrange_break_event",
+      "threshold": 0.0,
+      "value_field": "normalized_value"
+    },
+    "forbidden_post_hoc_changes": [
+      "No context bucket changes after outcome readout.",
+      "No context threshold changes after outcome readout.",
+      "No trigger threshold changes after outcome readout.",
+      "No target or stop geometry changes after readout."
+    ],
+    "hold_time": {
+      "horizon": "120m",
+      "max_minutes": 120
+    },
+    "horizon": "120m",
+    "invalidation": {
+      "fixed_before_readout": true,
+      "policy": "fixed_path_stop_binding"
+    },
+    "path_label": "lspec_2af1f6ed0c144c500bdedb1a",
+    "regime_filter": {
+      "instrument_root": "ES",
+      "session": "RTH"
+    },
+    "stamp": "EXPLORATORY",
+    "stop": {
+      "binding": "fixed_stop_from_path_label",
+      "geometry": "unchanged"
+    },
+    "target": {
+      "geometry": "unchanged",
+      "path_outcome": "net_excursion"
+    }
+  },
+  "slices": {
+    "ES_2020_120m": {
+      "available_ts_satisfiable": true,
+      "continuous_label_summary": {
+        "nonzero_count": 309647,
+        "sample_count": 313156,
+        "value_std": 0.0065027
+      },
+      "created_at": "2026-06-15T00:00:00Z",
+      "data_version": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "family_id": "pa_setup_rth_gap_fade_continuation_net",
+      "feature_pack_refs": [
+        "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
+        "fver_76e1f424e20d8ef6fb216644574566f8e84f56f8b2b946c3775d5d58c73cc411"
+      ],
+      "feature_request_ids": [
+        "freq_36646b25db54401a5ddcd4cd",
+        "freq_6c67497f604a38ef2a19042a"
+      ],
+      "features": [
+        {
+          "factor_id": "base_ohlcv_overnight_range",
+          "factor_version": "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
+          "feature_request_id": "freq_36646b25db54401a5ddcd4cd",
+          "pack_ref": "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/vwap_session_auction/feature_set_futures_scaleout_vwap_session_auction/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "role": "context"
+        },
+        {
+          "factor_id": "base_ohlcv_opening_range",
+          "factor_version": "fver_76e1f424e20d8ef6fb216644574566f8e84f56f8b2b946c3775d5d58c73cc411",
+          "feature_request_id": "freq_6c67497f604a38ef2a19042a",
+          "pack_ref": "fver_76e1f424e20d8ef6fb216644574566f8e84f56f8b2b946c3775d5d58c73cc411",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/vwap_session_auction/feature_set_futures_scaleout_vwap_session_auction/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "role": "trigger"
+        }
+      ],
+      "horizon_seconds": 7200,
+      "instrument_id": "ES",
+      "label_pack_refs": [
+        "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9",
+        "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8"
+      ],
+      "label_spec_ids": [
+        "lspec_2af1f6ed0c144c500bdedb1a"
+      ],
+      "label_version_map": {
+        "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8": [
+          "mae_by_horizon",
+          "float"
+        ],
+        "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9": [
+          "mfe_by_horizon",
+          "float"
+        ]
+      },
+      "labels": [
+        {
+          "label_id": "path_mfe",
+          "label_spec_id": "lspec_2af1f6ed0c144c500bdedb1a",
+          "pack_ref": "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/path/lset_a840f9395ee7a5946c023ae3572b63aaf5e93c6c2a364f5dc67ec76caaf6da92/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_120m/values.parquet",
+          "role": "path"
+        },
+        {
+          "label_id": "path_mae",
+          "label_spec_id": "lspec_2af1f6ed0c144c500bdedb1a",
+          "pack_ref": "lver_076a51db5cd5a6453aaad0821db2e4cde04e9fc400faf8c4152c22cad769f8f8",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/path/lset_a840f9395ee7a5946c023ae3572b63aaf5e93c6c2a364f5dc67ec76caaf6da92/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_120m/values.parquet",
+          "role": "path"
+        }
+      ],
+      "materialized_label_version": "lver_c0ee9e38a8f761de5b1734d49abddb3076d7666ef3fbb6f0364e51acdc0d6be9",
+      "minimum_detectable_effect": 0.0384,
+      "n_eff": 2609,
+      "outcome_label_type": "net_excursion",
+      "partition_id": "ES_2020_120m",
+      "required_future_bars": 120,
+      "session_id": "ES:RTH",
+      "slice_id": "ES_2020_120m",
+      "study_kind": "context_not_equal_trigger",
+      "surrogate_base_seed": 0,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "surrogate_run_count": 1000,
+      "variant_id": "baseline_rth_gap_x_open_microrange_break_net"
+    }
+  },
+  "source": "research/idea_to_verdict_loop_v0/pa_setup/rth_gap_fade_or_continuation_es2020_120m_net_excursion.idea.yaml",
+  "study_kind": "context_not_equal_trigger"
+}
