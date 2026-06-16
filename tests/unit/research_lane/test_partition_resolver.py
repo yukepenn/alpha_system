@@ -405,6 +405,172 @@ def test_ambiguous_feature_for_partition_fails_closed(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# factor_id <-> feature_id drift (the silent single-partition degeneracy bug)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _FakeFeatureRecordWithSet:
+    """A fake feature record carrying feature_set_id (the drift-fix identity)."""
+
+    feature_spec: _FakeFeatureSpec
+    feature_version_id: str
+    feature_set_id: str
+    partition_id: str
+    dataset_version_id: str
+    parquet_path: str | None
+
+    @property
+    def feature_request_id(self) -> str:
+        return self.feature_spec.feature_request_id
+
+
+# Declared idea factor_ids that DIFFER from the registry's canonical feature_ids.
+_DRIFT_CANON = {"ctx_factor": "canonical_ctx", "trg_factor": "canonical_trg"}
+_DRIFT_PRIMARY_SET = {"ctx_factor": "fset_ctx_primary", "trg_factor": "fset_trg_primary"}
+_DRIFT_DECOY_SET = "fset_decoy_shares_feature_id"
+
+
+def _build_drift_registries(root: Path, years=(2019, 2020, 2021), *, drop=()):
+    """Registries where canonical feature_id != declared factor_id.
+
+    Each declared factor's canonical feature_id is materialized by a PRIMARY set
+    AND a decoy set sharing the feature_id, so feature_id alone is ambiguous and
+    only the (feature_id, feature_set_id) identity (recovered from the authored
+    pack_ref) resolves uniquely.
+    """
+
+    feature_records: list[_FakeFeatureRecordWithSet] = []
+    label_records: list[_FakeLabelRecord] = []
+    for year in years:
+        dsv = _DSV_BY_YEAR[year]
+        feat_partition = f"ES_{year}_full_year"
+        label_partition = f"ES_{year}_120m"
+        for factor in _FACTORS:
+            canonical = _DRIFT_CANON[factor]
+            primary = _DRIFT_PRIMARY_SET[factor]
+            if ("feature", factor, year) not in drop:
+                abs_path = root / f"features/{factor}/primary/ES_{year}.parquet"
+                abs_path.parent.mkdir(parents=True, exist_ok=True)
+                abs_path.write_text("{}", encoding="utf-8")
+                feature_records.append(
+                    _FakeFeatureRecordWithSet(
+                        feature_spec=_FakeFeatureSpec(canonical, f"freq_{factor}_{year}"),
+                        feature_version_id=f"fver_{primary}_{year}",
+                        feature_set_id=primary,
+                        partition_id=feat_partition,
+                        dataset_version_id=dsv,
+                        parquet_path=str(abs_path),
+                    )
+                )
+            # Decoy: SAME canonical feature_id, DIFFERENT set.
+            decoy_path = root / f"features/{factor}/decoy/ES_{year}.parquet"
+            decoy_path.parent.mkdir(parents=True, exist_ok=True)
+            decoy_path.write_text("{}", encoding="utf-8")
+            feature_records.append(
+                _FakeFeatureRecordWithSet(
+                    feature_spec=_FakeFeatureSpec(canonical, f"freq_decoy_{factor}_{year}"),
+                    feature_version_id=f"fver_{_DRIFT_DECOY_SET}_{factor}_{year}",
+                    feature_set_id=_DRIFT_DECOY_SET,
+                    partition_id=feat_partition,
+                    dataset_version_id=dsv,
+                    parquet_path=str(decoy_path),
+                )
+            )
+        for label in _LABELS:
+            rel = f"labels/ES_{year}_{_LABEL_TOKEN[label]}.parquet"
+            abs_path = root / rel
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            abs_path.write_text("{}", encoding="utf-8")
+            label_records.append(
+                _FakeLabelRecord(
+                    label_id=label,
+                    label_spec_id=f"lspec_{year}",
+                    label_version_id=f"lver_{_LABEL_TOKEN[label]}_{year}",
+                    partition_id=label_partition,
+                    dataset_version_id=dsv,
+                    parquet_path=str(abs_path),
+                )
+            )
+    return _FakeFeatureRegistry(feature_records), _FakeLabelRegistry(label_records)
+
+
+def _drift_idea_payload(root: Path) -> dict[str, object]:
+    payload = _idea_payload()
+    slice_payload = payload["slices"]["ES_2020_120m"]
+    slice_payload["data_root"] = str(root)
+    # Re-point the declared pack_refs at the PRIMARY-set authored versions so the
+    # resolver can recover the (feature_id, feature_set_id) identity from them.
+    for feature in slice_payload["features"]:
+        primary = _DRIFT_PRIMARY_SET[feature["factor_id"]]
+        feature["pack_ref"] = f"fver_{primary}_2020"
+    return payload
+
+
+def test_drift_resolves_cross_partition_by_pack_ref_identity(tmp_path) -> None:
+    """The defect repro: declared factor_id != canonical feature_id.
+
+    Pre-fix, the lookup by the drifted factor_id found ZERO candidates at every
+    partition and the pool degenerated to coverage<=1. The fix recovers the
+    canonical (feature_id, feature_set_id) identity from the authored pack_ref.
+    """
+
+    feature_reg, label_reg = _build_drift_registries(tmp_path)
+    payload = _drift_idea_payload(tmp_path)
+
+    # A NON-authored partition resolves (would have failed closed pre-fix).
+    spec = resolve_partition_slice(
+        payload,
+        target_partition="ES_2021_120m",
+        env={"ALPHA_DATA_ROOT": str(tmp_path)},
+        feature_store=feature_reg,
+        label_registry=label_reg,
+    )
+    assert spec.slice_id == "ES_2021_120m"
+    # Resolves the PRIMARY-set packs, NOT the decoy sharing the feature_id.
+    assert set(spec.feature_pack_refs) == {
+        "fver_fset_ctx_primary_2021",
+        "fver_fset_trg_primary_2021",
+    }
+
+
+def test_drift_authored_partition_identity_preserved(tmp_path) -> None:
+    """Re-resolving the authored partition recovers EXACTLY its declared packs."""
+
+    feature_reg, label_reg = _build_drift_registries(tmp_path)
+    payload = _drift_idea_payload(tmp_path)
+    declared = sorted(f["pack_ref"] for f in payload["slices"]["ES_2020_120m"]["features"])
+
+    spec = resolve_partition_slice(
+        payload,
+        target_partition="ES_2020_120m",
+        env={"ALPHA_DATA_ROOT": str(tmp_path)},
+        feature_store=feature_reg,
+        label_registry=label_reg,
+    )
+    assert sorted(spec.feature_pack_refs) == declared
+
+
+def test_drift_real_gap_still_fails_closed(tmp_path) -> None:
+    """Dropping the PRIMARY feature for a partition still fails closed (not masked)."""
+
+    feature_reg, label_reg = _build_drift_registries(
+        tmp_path, drop={("feature", "trg_factor", 2021)}
+    )
+    payload = _drift_idea_payload(tmp_path)
+
+    with pytest.raises(PartitionResolutionError) as exc:
+        resolve_partition_slice(
+            payload,
+            target_partition="ES_2021_120m",
+            env={"ALPHA_DATA_ROOT": str(tmp_path)},
+            feature_store=feature_reg,
+            label_registry=label_reg,
+        )
+    assert exc.value.code == "feature_not_materialized_for_partition"
+
+
+# ---------------------------------------------------------------------------
 # Setup retargeting
 # ---------------------------------------------------------------------------
 

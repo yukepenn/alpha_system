@@ -80,7 +80,7 @@
 
 ## Safety canaries (`evals/canaries/`)
 
-- `family_fdr_budget` · `fast_readout_routing` · `forbidden_boundary_import` · `forbidden_destructive_op` · `forbidden_exploratory_promotion` · `forbidden_git_add_dot` · `forbidden_large_binary` · `forbidden_raw_data_commit` · `forbidden_scope_drift` · `forbidden_secret` · `forbidden_test_tamper` · `future_shift` · `optimistic_fill` · `overlap_neff_failclosed` · `permuted_labels` · `planted_fake_alpha` · `planted_fake_alpha_clean_twin` · `pooled_se_poolkind` · `random_target` · `registry_event_ts_grid` · `true_alpha_detection`
+- `family_fdr_budget` · `fast_readout_routing` · `forbidden_boundary_import` · `forbidden_destructive_op` · `forbidden_exploratory_promotion` · `forbidden_git_add_dot` · `forbidden_large_binary` · `forbidden_raw_data_commit` · `forbidden_scope_drift` · `forbidden_secret` · `forbidden_test_tamper` · `future_shift` · `optimistic_fill` · `overlap_neff_failclosed` · `permuted_labels` · `planted_fake_alpha` · `planted_fake_alpha_clean_twin` · `pooled_partition_factor_id_drift` · `pooled_se_poolkind` · `random_target` · `registry_event_ts_grid` · `true_alpha_detection`
 
 ## Workflow entry points
 
