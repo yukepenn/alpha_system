@@ -1,0 +1,156 @@
+{
+  "schema": "alpha_system.futures_substrate_scaleout.label_scaleout_config.v1",
+  "campaign_id": "BBO_MICROSTRUCTURE_RESEARCH_V1",
+  "phase_id": "BBOMS-P01",
+  "phase_source": "FUTSUB-P19",
+  "family": "cost_adjusted",
+  "governed_scope": [
+    "spread_adjusted_fwd_ret",
+    "cost_adjusted_fwd_ret"
+  ],
+  "batch_unit_grid": {
+    "unit_grain": [
+      "family",
+      "symbol",
+      "year",
+      "horizon"
+    ],
+    "symbols": [
+      "ES",
+      "NQ",
+      "RTY"
+    ],
+    "years": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "horizons": [
+      "5m",
+      "15m",
+      "30m"
+    ],
+    "input_schemas": [
+      "bbo_1m"
+    ]
+  },
+  "budgets": {
+    "row_budget_per_unit": 550000,
+    "input_row_budget_per_unit": 1100000,
+    "parquet_file_budget_per_unit": 1,
+    "batch_unit_count": 72,
+    "aggregate_row_budget": 39600000,
+    "aggregate_input_row_budget": 79200000,
+    "aggregate_parquet_file_budget": 72
+  },
+  "dataset_selection": {
+    "inventory_ref": "configs/labels/scaleout/dataset_version_inventory.json",
+    "required_schemas": [
+      "bbo_1m"
+    ],
+    "eligible_states": [
+      "ACCEPTED",
+      "ACCEPTED_WITH_WARNINGS"
+    ],
+    "fail_closed_on_blocked_or_missing_lock": true
+  },
+  "guards": {
+    "label_available_ts_required": true,
+    "roll_splice_guard_required": true,
+    "maintenance_crossing_guard_required": true,
+    "overlap_aware_n_eff_metadata_required": true,
+    "label_anchor": "source_bar_end_ts",
+    "terminal_key": "series_id+contract_id+bar_end_ts",
+    "terminal_resolution": "bar_end_aligned_bbo_proxy",
+    "roll_policy_ref": "docs/futures_substrate_scaleout/ROLL_GUARD.md",
+    "bbo_is_tradability_proxy_not_execution_truth": true
+  },
+  "engine": {
+    "selected": "reference",
+    "selection_basis": "cost_adjusted is accepted only on the reference label engine (LCFP-P08 did not release the fast path for this family); the BBO-resident microstructure label reuses that sanctioned reference engine and adds no new value math.",
+    "registry_writes": "parent_only_serial"
+  },
+  "cost_model": {
+    "label_cost_model_version": "cost_adjusted_reference_v1",
+    "config_refs": [
+      "configs/execution/cost_models/default_conservative.json",
+      "configs/execution/cost_models/spread_sensitive_conservative.json"
+    ],
+    "label_variants": {
+      "mid_to_mid_terminal": {
+        "status": "internal_gross_terminal",
+        "definition": "BBO mid-to-mid bar-end-aligned proxy terminal used as the gross return before subtracting governed costs; not emitted as a separate label id."
+      },
+      "cost_adjusted_fwd_ret": {
+        "model": "spread_plus_bps",
+        "fixed_cost_bps": "0.25",
+        "spread_adjustment": "half_spread_round_trip",
+        "definition": "gross BBO mid-to-mid forward return minus fixed bps and half-spread entry plus half-spread exit proxy costs. Diagnostic-only cost overlay."
+      },
+      "spread_adjusted_fwd_ret": {
+        "model": "spread_adjusted",
+        "fixed_cost_bps": "0",
+        "spread_adjustment": "half_spread_round_trip",
+        "definition": "gross BBO mid-to-mid forward return minus half-spread entry plus half-spread exit proxy costs. Pre-registered research GATE label for the microstructure lane."
+      },
+      "slippage_stress_adjusted": {
+        "supported": false,
+        "reason": "No sanctioned slippage-stress-adjusted label variant exists in the current cost_adjusted label contract; the config records the gap and does not fabricate a curve."
+      }
+    },
+    "sanctioned_cost_context": [
+      {
+        "config_ref": "configs/execution/cost_models/default_conservative.json",
+        "model_name": "default_conservative",
+        "engine_version": "reference_1min_v1",
+        "bps_cost": "1.0",
+        "slippage": {
+          "model": "bps",
+          "bps": "0.5"
+        }
+      },
+      {
+        "config_ref": "configs/execution/cost_models/spread_sensitive_conservative.json",
+        "model_name": "spread_sensitive_conservative",
+        "engine_version": "reference_1min_v1",
+        "bps_cost": "1.0",
+        "spread_cost": {
+          "model": "half_spread"
+        },
+        "slippage": {
+          "model": "spread_sensitive",
+          "spread_fraction": "0.25",
+          "fallback_bps": "0.5"
+        }
+      }
+    ],
+    "bbo_proxy_semantics": "BBO-1m spreads are a time-sampled, forward-filled tradability proxy only. Label anchors and terminals resolve on source/terminal bar_end_ts; missing, bad-quote, wide-spread, or duplicate-key rows are surfaced as warning/gap metadata and are never treated as execution truth.",
+    "terminal_supersession_reason": "Canonical BBO event_ts is an intra-bar quote timestamp, so cost-adjusted terminals resolve on the one-minute bar_end_ts proxy grid rather than exact quote-event timestamps.",
+    "stale_fee_or_slippage_assumptions_forbidden": true
+  },
+  "value_store": {
+    "format": "parquet",
+    "jsonl_research_scale_allowed": false,
+    "value_namespace": "labels/materialized/futures_substrate_scaleout_v1/bbo_microstructure_cost_adjusted"
+  },
+  "checkpoint": {
+    "checkpoint_root": "materialization/futures_substrate_scaleout_v1/checkpoints/labels/bbo_microstructure_cost_adjusted",
+    "completed_manifest": "materialization/futures_substrate_scaleout_v1/checkpoints/labels/bbo_microstructure_cost_adjusted/completed_units.jsonl",
+    "completion_marker_template": "materialization/futures_substrate_scaleout_v1/checkpoints/labels/bbo_microstructure_cost_adjusted/units/{unit_id}.json"
+  },
+  "resource_guard": {
+    "resource_class": "materialization_registry",
+    "parallel_safe": false,
+    "registry": "registry/labels.sqlite"
+  },
+  "identity": {
+    "unit_id_formula": "mbu_<sha256(canonical_json(schema,campaign_id,family,symbol,year,horizon,dataset_version_ids,value_store_format,cost_model_refs))>",
+    "partition_template": "{symbol}.{year}.{horizon}",
+    "dry_run_preview_ref": "decisions/0010-bbo-resident-microstructure-label.md#dry-run-identity-preview"
+  }
+}
