@@ -183,7 +183,7 @@ load-bearing enforcement is in `memory_router`, as designed.
 - `python tools/verify.py --all` + canaries green. No PnL/value truth; machine
   never auto-promotes; research-only language.
 
-## 5. Open question for the human (genuine fork, not a knowable default)
+## 5. Correction-method policy (was: open question for the human — now RESOLVED, see §5.1)
 
 `alpha_fw` and the method (BH vs Bonferroni) are a research-policy choice, not a
 mechanical one. Default proposed: **Benjamini–Hochberg at FDR alpha = 0.10** for
@@ -192,3 +192,20 @@ proportion — appropriate for a wide hypothesis sweep feeding a downstream
 independent rail), with Bonferroni FWER 0.05 available as the conservative mode.
 Recommend BH-0.10 as the substrate default; surface to the user before it becomes
 the standing promotion policy.
+
+### 5.1 Resolution (recorded 2026-06-15)
+
+**RESOLVED: Benjamini–Hochberg at FDR alpha = 0.10 is adopted as the substrate
+default** for exploratory setup mining, with Bonferroni FWER 0.05 retained as the
+selectable conservative mode. Rationale: BH-0.10 controls the expected
+false-discovery *proportion* across a wide hypothesis sweep, which is the correct
+error notion for a broad exploratory lane that feeds a downstream **independent,
+adversarial rail** (shadow → paper → canary → ramp) — the rail, not this gate, is
+what protects real capital, so the gate's job is calibrated breadth, not FWER
+conservatism. This is a research-policy default for *recording/flagging*
+`SIGNAL_PENDING_REVIEWER`, **not** an auto-promotion authority: the machine never
+promotes; a signal still requires resolution-adequacy AND family-corrected
+significance, and the independent reviewer adjudicates. No alpha / profitability /
+tradability claim attaches to the choice of correction method. The fork above is
+closed; Bonferroni-0.05 stays available per-run for a deliberately conservative
+sweep.

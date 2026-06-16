@@ -118,3 +118,58 @@ profiles, new derived indexes, large backfills), the recorded status is:
 Original evidence basis:
 `research/label_compute_fast_path_v1/benchmark/benchmark_summary.md`,
 `reviews/LABEL_COMPUTE_FAST_PATH_V1/P172002_LCFP_P08_PANEL_CACHE_SPEEDUP-review.md`.
+
+## 7. Session 2026-06-15 deferred defects (recorded, not yet fixed)
+
+Surfaced while auditing the runner rail after the broad-mining-readiness gates
+landed. Each is **deferred, not blocking** — recorded here by SYMBOL (cite the
+symbol, not just the line, which drifts). Code fixes are out of scope for the
+artifact-consolidation doc pass; this is the recording. None weakens a guard.
+
+1. **`research_lane/verdict_report.py::_n_eff_mde` — untyped MDE-spelling fallback.**
+   `_n_eff_mde` (verdict_report.py:355) still resolves the detectable-effect via a
+   `detail.get('minimum_detectable_effect')` / `minimum_detectable_abs_ic` spelling
+   fallback (see the comment at :360-364). This is the same untyped-seam class as
+   `FAST_READOUT_CONTRACT_V1` (the gate detail is a dict glue seam consumed by
+   string-spelling). Fix = type the gate-detail seam and use one canonical accessor;
+   do not add a third spelling.
+
+2. **`research_lane/mining_driver.py` — hardcoded pool literals.** mining_driver.py:593
+   hardcodes `"pool_kind": "cross_symbol"` and :596 `"horizons": ["120m"]` in the
+   pooled-result assembly. These should derive from the idea / SliceSpec, not be
+   pinned literals — a single non-`cross_symbol` / non-`120m` idea would silently
+   mislabel its pool. Fix = thread the real pool_kind/horizons from the resolved
+   partitions.
+
+3. **`governance/canaries/registry_event_ts_grid.py::id_prefix` — `cost_adjusted`
+   family has an empty `id_prefix`.** The canary's `EventTsGridCase.id_prefix`
+   (registry_event_ts_grid.py:30) gates registration-id/pack-id matching (:40-42).
+   The `bbo_tradability_` case (:121) sets a prefix but the `cost_adjusted` family
+   case (:130) has no matching `id_prefix`, so its prefix guard is effectively a
+   no-op. Fix = give `cost_adjusted` a real `id_prefix` so the guard actually binds.
+
+4. **`research/conditional_probe.py::_continuous_label_value` — silent drop on
+   unparseable values.** `_continuous_label_value` (conditional_probe.py:803, used at
+   :323/:824/:825/:859) returns `None` for unparseable label values; downstream the
+   `None` is dropped silently rather than surfaced as a typed coverage/DATA_GAP
+   signal, so a partially-unparseable slice can quietly shrink n without a recorded
+   reason. Fix = count and surface dropped values (coverage telemetry), don't
+   swallow them.
+
+5. **mine-vs-run resolver split** (`research_lane/partition_resolver.py::resolve_partition_slice`
+   at :280 / `resolve_partition_setup` at :454 vs the embedded-slice path used by
+   `alpha idea run`). `alpha idea mine` resolves partitions by registry
+   `feature_id`/`label_id` (unambiguous, per-partition), while `alpha idea run`
+   carries an embedded SliceSpec with pinned hashes. The two resolution vocabularies
+   are a known two-path hazard (the broader two-vocabulary `from_mapping` debt noted
+   in memory). Fix = converge on the registry-keyed resolution as the single path or
+   document the split as intentional with a guard; recorded as a question, not a
+   delete.
+
+6. **`research/first_light.py` manifest path literal** (`"values.parquet.manifest.json"`
+   at first_light.py:55/63/70, schema `FIRST_LIGHT_SCHEMA`). The manifest filename is
+   a hardcoded literal. Per the current ground truth this path is **KEEP-INTENTIONAL**
+   (it is a deliberate, code-referenced manifest pointer, caught once before as a
+   false "safe to change" target). Recorded here only as a **question to revisit if
+   the manifest convention is ever centralized** — do NOT delete or relocate it on
+   suspicion (uncertain ⇒ keep).
