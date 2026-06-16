@@ -291,6 +291,21 @@ def pooled_partition_factor_id_drift_canary() -> Canary:
     )
 
 
+def ic_only_postcost_promotion_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.ic_only_postcost_promotion import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "ic_only_postcost_promotion",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -492,6 +507,7 @@ def scenarios() -> list[Canary]:
         ic_power_statement_overlap_canary(),
         precondition_not_datagap_canary(),
         pooled_partition_factor_id_drift_canary(),
+        ic_only_postcost_promotion_canary(),
     ]
 
 

@@ -22,14 +22,41 @@ from alpha_system.research_lane.verdict_report import render_verdict_report
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
 
 
-def test_verdict_report_matches_golden_research_only_report() -> None:
+def test_verdict_report_renders_expected_structured_sections() -> None:
+    # Structured-field assertions (NOT a brittle full-report string match): assert the
+    # SPECIFIC sections / fields this report must carry. A future refactor of an
+    # unrelated section's wording no longer fails this test; only a change to these
+    # load-bearing fields does. The end-to-end full-file equality lives in the CLI
+    # test below (test_alpha_idea_report_cli_writes_report_from_fixture_readouts),
+    # which validates the complete writer once against the regenerated golden.
     bundle = _bundle()
 
     report = render_verdict_report(bundle.idea_draft, _gate_result(), _fast_readout())
 
-    assert report == _expected_report(bundle)
+    # Required section headers are present and ordered (Post-Cost precedes Final Verdict).
+    for header in (
+        "# Idea Verdict Report",
+        "## Study Kind",
+        "## Surrogate State",
+        "## Post-Cost Economic Level",
+        "## Final Verdict",
+    ):
+        assert header in report, f"missing section header: {header}"
+    assert report.index("## Post-Cost Economic Level") < report.index("## Final Verdict")
+
+    # The Post-Cost Economic Level section: an IC-only readout (no measured post-cost
+    # level) renders the typed fields as n/a and clears_cost=false (fail-closed).
+    assert "## Post-Cost Economic Level" in report
+    assert "- n_legs: n/a" in report
+    assert "- round_trip_cost_bps: n/a" in report
+    assert "- traded_bucket_post_cost_mean_bps: n/a" in report
+    assert "- clears_cost: false" in report
+
+    # The governed WATCH override path still surfaces its reason code verbatim.
     assert "- reason_code: REGIME_UNSTABLE" in report
     assert validate_verdict_reason_code("REGIME_UNSTABLE").value in report
+
+    # Research-only language guard (no profitability / tradability / production claims).
     lowered = report.lower()
     assert "profit" not in lowered
     assert "tradab" not in lowered
@@ -139,13 +166,41 @@ def _main_effect_quality(
     }
 
 
-def _main_effect_report(quality: dict[str, object]) -> dict[str, str]:
+def _clearing_post_cost_level(
+    *, n_legs: int = 1, clears_cost: bool = True
+) -> dict[str, object]:
+    """A contract-valid post-cost economic LEVEL statement.
+
+    With ``clears_cost=True`` the traded bucket's post-cost mean exceeds
+    ``n_legs * round_trip_cost``; this is the promotion-eligibility evidence the
+    IC-only-promotion guard requires before a study may reach the reviewer shelf.
+    """
+
+    rt = 2.0
+    mean = (n_legs * rt) + 1.0 if clears_cost else (n_legs * rt) - 1.0
+    return {
+        "n_legs": n_legs,
+        "round_trip_cost_bps": rt,
+        "traded_bucket_post_cost_mean_bps": mean,
+        "clears_cost": clears_cost,
+    }
+
+
+def _main_effect_report(
+    quality: dict[str, object],
+    *,
+    post_cost_level: dict[str, object] | None = None,
+) -> dict[str, str]:
+    extra: dict[str, object] = {}
+    if post_cost_level is not None:
+        extra["traded_bucket_post_cost_level"] = post_cost_level
     report = render_verdict_report(
         _bundle().idea_draft,
         _gate_result(),
         _fast_readout(
             verdict=None,
             readout={"factor_diagnostics_report": {"quality_summary": quality}},
+            **extra,
         ),
     )
     section: dict[str, str] = {}
@@ -163,13 +218,42 @@ def _main_effect_report(quality: dict[str, object]) -> dict[str, str]:
     return section
 
 
-def test_main_effect_well_powered_signal_is_signal_pending_reviewer() -> None:
+def test_main_effect_well_powered_signal_with_post_cost_level_is_signal_pending_reviewer() -> None:
+    # A well-powered IC above the floor PLUS a post-cost economic level that clears
+    # cost -> the promotable reviewer shelf. IC alone is not enough (see the COST_FRAGILE
+    # test below); promotion now requires clears_cost on a cost-adjusted outcome.
     section = _main_effect_report(
-        _main_effect_quality(pearson_ic=-0.0557, rank_ic=-0.0150)
+        _main_effect_quality(pearson_ic=-0.0557, rank_ic=-0.0150),
+        post_cost_level=_clearing_post_cost_level(clears_cost=True),
     )
 
     assert section["verdict"] == "INCONCLUSIVE"
     assert section["reason_code"] == "SIGNAL_PENDING_REVIEWER"
+
+
+def test_main_effect_ic_only_no_post_cost_level_is_cost_fragile_not_promotable() -> None:
+    # THE LESSON (top_book_imbalance): a real, well-powered IC above the detectable
+    # floor is rank-order evidence only; with no post-cost economic level it can NEVER
+    # promote. It caps at the non-promoting COST_FRAGILE verdict (fail-closed).
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=-0.0557, rank_ic=-0.0150),
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "COST_FRAGILE"
+    assert section["reason_code"] != "SIGNAL_PENDING_REVIEWER"
+
+
+def test_main_effect_ic_with_non_clearing_post_cost_level_is_cost_fragile() -> None:
+    # A post-cost level that is MEASURED but does not clear cost (clears_cost=false)
+    # still cannot promote -- the level must actually clear the cost hurdle.
+    section = _main_effect_report(
+        _main_effect_quality(pearson_ic=-0.0557, rank_ic=-0.0150),
+        post_cost_level=_clearing_post_cost_level(clears_cost=False),
+    )
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "COST_FRAGILE"
 
 
 def test_main_effect_well_powered_null_is_reject() -> None:
@@ -380,13 +464,29 @@ def _setup_final_section(readout: dict[str, object]) -> dict[str, str]:
     return section
 
 
-def test_setup_net_excursion_zero_pass_nonzero_lift_is_signal_pending_reviewer() -> None:
+def test_setup_net_excursion_zero_pass_with_post_cost_level_is_signal_pending_reviewer() -> None:
+    # A surrogate-gated signed net_excursion asymmetry PLUS a post-cost level that
+    # clears cost -> the promotable reviewer shelf. The signed asymmetry alone (a raw,
+    # non-cost-adjusted excursion) is not enough; see the COST_FRAGILE test below.
+    readout = _setup_readout(outcome_label_type="net_excursion", mean_lift=0.0123)
+    readout["traded_bucket_post_cost_level"] = _clearing_post_cost_level(clears_cost=True)
+    section = _setup_final_section(readout)
+
+    assert section["verdict"] == "INCONCLUSIVE"
+    assert section["reason_code"] == "SIGNAL_PENDING_REVIEWER"
+
+
+def test_setup_net_excursion_zero_pass_ic_only_no_post_cost_level_is_cost_fragile() -> None:
+    # Same lesson on the setup lane: a surrogate-gated net_excursion asymmetry on a
+    # non-cost-adjusted outcome with NO post-cost economic level cannot promote; it
+    # caps at COST_FRAGILE (fail-closed).
     section = _setup_final_section(
         _setup_readout(outcome_label_type="net_excursion", mean_lift=0.0123)
     )
 
     assert section["verdict"] == "INCONCLUSIVE"
-    assert section["reason_code"] == "SIGNAL_PENDING_REVIEWER"
+    assert section["reason_code"] == "COST_FRAGILE"
+    assert section["reason_code"] != "SIGNAL_PENDING_REVIEWER"
 
 
 def test_setup_net_excursion_surrogate_not_met_well_powered_is_reject() -> None:
@@ -487,6 +587,7 @@ def _fast_readout(
     surrogate_fdr_gate: dict[str, object] | None = None,
     power: dict[str, object] | None = None,
     readout: dict[str, object] | None = None,
+    **extra: object,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "schema": "alpha_system.research_lane.fast_probe.v1",
@@ -553,6 +654,7 @@ def _fast_readout(
                 "next_action": "Keep as research-only watch item for reviewer routing.",
             }
         )
+    payload.update(extra)
     return payload
 
 
@@ -615,6 +717,12 @@ def _expected_report(bundle) -> str:
 - state: ZERO_PASS_MET
 - threshold_verdict: ZERO_PASS_MET
 - gate_status: PASS
+
+## Post-Cost Economic Level
+- n_legs: n/a
+- round_trip_cost_bps: n/a
+- traded_bucket_post_cost_mean_bps: n/a
+- clears_cost: false
 
 ## Final Verdict
 - verdict: WATCH

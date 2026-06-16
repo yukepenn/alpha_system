@@ -24,6 +24,7 @@ from alpha_system.research.conditional_probe import (
 from alpha_system.research_lane.fast_readout import (
     ContinuousLiftSummary,
     FastReadoutContractError,
+    PostCostLevelSummary,
 )
 from alpha_system.research_lane.testability_gate import CHECK_ORDER, TestabilityGateResult
 
@@ -145,6 +146,19 @@ def render_verdict_report(
                 "",
             ]
         )
+    post_cost = _post_cost_level_summary(readout)
+    lines.extend(
+        [
+            "## Post-Cost Economic Level",
+            f"- n_legs: {_display(post_cost.n_legs) if post_cost else 'n/a'}",
+            "- round_trip_cost_bps: "
+            f"{_display(post_cost.round_trip_cost_bps) if post_cost else 'n/a'}",
+            "- traded_bucket_post_cost_mean_bps: "
+            f"{_display(post_cost.traded_bucket_post_cost_mean_bps) if post_cost else 'n/a'}",
+            f"- clears_cost: {_display(post_cost.clears_cost) if post_cost else 'false'}",
+            "",
+        ]
+    )
     lines.extend(
         [
             "## Final Verdict",
@@ -182,6 +196,43 @@ def _continuous_lift_summary(readout: Mapping[str, Any]) -> ContinuousLiftSummar
         return ContinuousLiftSummary.from_dict(lift)
     except FastReadoutContractError:
         return None
+
+
+def _post_cost_level_summary(readout: Mapping[str, Any]) -> PostCostLevelSummary | None:
+    """Surface the traded-bucket post-cost economic LEVEL statement if present.
+
+    This is the promotion-gate evidence for the IC-only-promotion lesson (the
+    ``top_book_imbalance`` proof: a real, replicating rank-IC whose every decile
+    mean was negative after the half-spread). It is read from the ONE canonical
+    top-level location the producer carries it at -- ``traded_bucket_post_cost_level``
+    -- via the typed ``PostCostLevelSummary`` view (no recursive search, no
+    string-spelunking; the typed-seam lesson). A producer that omits the REQUIRED
+    ``n_legs`` or writes a malformed statement makes ``from_dict`` RAISE, which the
+    gate treats as "no usable post-cost level" -> not promotable (fail-closed).
+    Returns None for an IC-only probe that never measured a post-cost level.
+    """
+
+    raw = readout.get("traded_bucket_post_cost_level")
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        return PostCostLevelSummary.from_dict(raw)
+    except FastReadoutContractError:
+        return None
+
+
+def _clears_cost(readout: Mapping[str, Any]) -> bool:
+    """Single canonical promotion-eligibility predicate for the post-cost LEVEL.
+
+    True ONLY when the readout carries a typed, contract-valid post-cost level
+    statement whose ``clears_cost`` is True. Absent / malformed / not-clearing all
+    collapse to False -- the fail-closed-safe direction: no measured post-cost
+    economic level that clears cost => not promotable. IC (rank order) never sets
+    this; it is a level question, not a rank question.
+    """
+
+    summary = _post_cost_level_summary(readout)
+    return summary is not None and summary.clears_cost is True
 
 
 def _idea_mapping(value: IdeaDraft | Mapping[str, Any]) -> dict[str, Any]:
@@ -572,13 +623,38 @@ def _derive_main_effect_verdict(
             "Main-effect pearson and rank IC are both resolved but disagree in sign.",
             "Reviewer must adjudicate the sign-conflicting IC evidence; no autonomous promotion.",
         )
+    # IC-ONLY POST-COST GATE (the hardest-won lesson: top_book_imbalance had a real,
+    # year-stable, 2.9x-MDE rank-IC yet EVERY decile mean was negative after the
+    # half-spread). A resolved, well-powered IC above the detectable floor is now
+    # only DESCRIPTIVE rank-order evidence -- it can NEVER, by itself, reach the
+    # promotable SIGNAL_PENDING_REVIEWER shelf. Promotion-eligibility requires a
+    # post-cost economic LEVEL that clears cost (clears_cost==true on a cost-adjusted
+    # outcome). Absent / not-clearing that level => cap at a non-promoting COST_FRAGILE
+    # verdict (fail-closed). The IC is still fully reported in the Fast Readout / IC
+    # diagnostics section; it just no longer gates.
+    if not _clears_cost(readout):
+        return _verdict(
+            "INCONCLUSIVE",
+            VerdictReasonCode.COST_FRAGILE,
+            (
+                f"Well-powered main-effect probe resolved an IC above the detectable floor "
+                f"(pearson={pearson:.6f}, rank={rank:.6f}, mde={mde:.6f}), but IC measures "
+                "rank order, not a tradeable post-cost economic level. No post-cost level "
+                "clearing cost (clears_cost) was attached, so the IC alone cannot promote."
+            ),
+            (
+                "Run a cost-adjusted post-cost-level probe; promotion requires the traded "
+                "bucket's post-cost mean to clear n_legs x round_trip_cost. IC stays a "
+                "descriptive diagnostic only."
+            ),
+        )
     return _verdict(
         "INCONCLUSIVE",
         VerdictReasonCode.SIGNAL_PENDING_REVIEWER,
         (
             f"Well-powered main-effect probe resolved an IC above the detectable floor "
-            f"(pearson={pearson:.6f}, rank={rank:.6f}, mde={mde:.6f}); recorded as a "
-            "non-promoting signal."
+            f"(pearson={pearson:.6f}, rank={rank:.6f}, mde={mde:.6f}) AND a post-cost "
+            "economic level that clears cost; recorded as a non-promoting signal."
         ),
         "Route to the reviewer-pending signal shelf; only the reviewer gate may promote.",
     )
@@ -668,12 +744,36 @@ def _derive_setup_verdict(
                 ),
                 "Keep in research review; a near-zero net excursion carries no signed edge.",
             )
+        # IC-ONLY POST-COST GATE (same lesson as the main_effect lane). A surrogate-
+        # gated net_excursion mean_lift is a SIGNED rank/level asymmetry on a NON
+        # cost-adjusted outcome (net_excursion = mfe + mae, raw excursions, no spread
+        # netted). It therefore cannot, by itself, reach the promotable
+        # SIGNAL_PENDING_REVIEWER shelf -- promotion still requires a post-cost economic
+        # level that clears cost. Absent it => cap at non-promoting COST_FRAGILE
+        # (fail-closed). The directional asymmetry stays reported descriptively.
+        if not _clears_cost(readout):
+            return _verdict(
+                "INCONCLUSIVE",
+                VerdictReasonCode.COST_FRAGILE,
+                (
+                    "Surrogate-gated net_excursion resolved a signed directional asymmetry "
+                    f"(mean_lift={mean_lift:.6f}) on a non-cost-adjusted outcome, but no "
+                    "post-cost economic level clearing cost (clears_cost) was attached. A "
+                    "signed excursion is not a tradeable post-cost edge, so it cannot promote."
+                ),
+                (
+                    "Run a cost-adjusted post-cost-level probe; promotion requires the traded "
+                    "bucket's post-cost mean to clear n_legs x round_trip_cost. The signed "
+                    "asymmetry stays a descriptive diagnostic only."
+                ),
+            )
         return _verdict(
             "INCONCLUSIVE",
             VerdictReasonCode.SIGNAL_PENDING_REVIEWER,
             (
                 "Surrogate-gated net_excursion resolved a signed directional asymmetry "
-                f"(mean_lift={mean_lift:.6f}); recorded as a non-promoting signal."
+                f"(mean_lift={mean_lift:.6f}) AND a post-cost economic level that clears "
+                "cost; recorded as a non-promoting signal."
             ),
             "Route to the reviewer-pending signal shelf; only the reviewer gate may promote.",
         )
