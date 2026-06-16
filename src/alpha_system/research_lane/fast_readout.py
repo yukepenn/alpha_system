@@ -274,6 +274,73 @@ class IcQualitySummary:
 
 
 @dataclass(frozen=True, slots=True)
+class PostCostLevelSummary:
+    """Typed view of the traded-bucket POST-COST economic LEVEL statement.
+
+    Encodes the campaign's hardest-won lesson (the ``top_book_imbalance`` proof):
+    a real, year-stable, replicating rank-IC is NOT a tradeable economic edge --
+    that factor cleared 2.9x its MDE on rank-IC yet EVERY decile mean was negative
+    after the half-spread (top decile significantly < 0). Rank order (IC) and a
+    post-cost economic LEVEL are different questions; IC must never, by itself,
+    promote a study. Promotion-eligibility requires a post-cost LEVEL that clears
+    cost on a cost-adjusted outcome.
+
+    ``clears_cost`` is the single canonical promotion-eligibility predicate for the
+    level question: the traded bucket's post-cost mean (in bps, already net of the
+    cost-adjusted/spread-adjusted outcome's spread) must exceed
+    ``n_legs * round_trip_cost_bps``. ``n_legs`` is REQUIRED -- a relative-value /
+    multi-leg study that silently charges a single-leg round-trip cost is a
+    second-truth accounting bug (it understates the cost hurdle), so the contract
+    refuses to parse a post-cost statement that omits the leg count.
+
+    The producer carries this (when it computes a post-cost level at all) under the
+    canonical key ``traded_bucket_post_cost_level`` on the readout. When ABSENT
+    (an IC-only probe that never measured a cost-adjusted level), the verdict layer
+    treats ``clears_cost`` as False -- the fail-closed-safe direction: no measured
+    post-cost level => not promotable.
+    """
+
+    n_legs: int
+    round_trip_cost_bps: float | None
+    traded_bucket_post_cost_mean_bps: float | None
+    clears_cost: bool
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "n_legs": self.n_legs,
+            "round_trip_cost_bps": self.round_trip_cost_bps,
+            "traded_bucket_post_cost_mean_bps": self.traded_bucket_post_cost_mean_bps,
+            "clears_cost": self.clears_cost,
+        }
+
+    @classmethod
+    def from_dict(cls, mapping: Mapping[str, Any]) -> PostCostLevelSummary:
+        active = _require_mapping(mapping, field_name="traded_bucket_post_cost_level")
+        context = "traded_bucket_post_cost_level"
+        n_legs_raw = _require(active, "n_legs", context=context)
+        n_legs = _as_optional_int(n_legs_raw)
+        if n_legs is None or n_legs < 1:
+            raise FastReadoutContractError(
+                "traded_bucket_post_cost_level requires an integer n_legs >= 1 "
+                "(a single-leg cost on a multi-leg study is a second-truth cost bug)"
+            )
+        clears_cost = _require(active, "clears_cost", context=context)
+        if not isinstance(clears_cost, bool):
+            raise FastReadoutContractError(
+                "traded_bucket_post_cost_level.clears_cost must be a bool; "
+                f"got {type(clears_cost).__name__}"
+            )
+        return cls(
+            n_legs=n_legs,
+            round_trip_cost_bps=_as_optional_float(active.get("round_trip_cost_bps")),
+            traded_bucket_post_cost_mean_bps=_as_optional_float(
+                active.get("traded_bucket_post_cost_mean_bps")
+            ),
+            clears_cost=clears_cost,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class PowerStatement:
     """Typed canonical view of the top-level IC-power statement's MDE.
 
@@ -328,6 +395,10 @@ class FastReadout:
     surrogate_fdr_gate: SurrogateFdrGate | None
     ic_quality_summary: IcQualitySummary | None
     continuous_lift_summary: ContinuousLiftSummary | None
+    # The traded-bucket post-cost economic LEVEL statement -- the promotion-gate
+    # evidence the IC-only-promotion lesson requires. Present only when the probe
+    # actually measured a cost-adjusted post-cost level; None for an IC-only probe.
+    post_cost_level: PostCostLevelSummary | None
     # Passthrough opaque sub-dicts (typed elsewhere or non-drifting). Preserved
     # verbatim for round-trip so Stage B can migrate consumers safely.
     passthrough: dict[str, JsonValue] = field(default_factory=dict)
@@ -343,6 +414,7 @@ class FastReadout:
         "issue_code",
         "power",
         "surrogate_fdr_gate",
+        "traded_bucket_post_cost_level",
     )
 
     @property
@@ -402,6 +474,8 @@ class FastReadout:
             payload["power"] = dict(self.power)
         if self.surrogate_fdr_gate is not None:
             payload["surrogate_fdr_gate"] = self.surrogate_fdr_gate.to_dict()
+        if self.post_cost_level is not None:
+            payload["traded_bucket_post_cost_level"] = self.post_cost_level.to_dict()
         return payload
 
     @classmethod
@@ -426,6 +500,10 @@ class FastReadout:
         power = _opt_dict(active.get("power"))
         surrogate_raw = active.get("surrogate_fdr_gate")
         surrogate = None if surrogate_raw is None else SurrogateFdrGate.from_dict(surrogate_raw)
+        post_cost_raw = active.get("traded_bucket_post_cost_level")
+        post_cost = (
+            None if post_cost_raw is None else PostCostLevelSummary.from_dict(post_cost_raw)
+        )
 
         ic_quality = None
         continuous_lift = None
@@ -481,6 +559,7 @@ class FastReadout:
             surrogate_fdr_gate=surrogate,
             ic_quality_summary=ic_quality,
             continuous_lift_summary=continuous_lift,
+            post_cost_level=post_cost,
             passthrough=dict(passthrough),
         )
 
@@ -556,6 +635,7 @@ __all__ = [
     "FastReadout",
     "FastReadoutContractError",
     "IcQualitySummary",
+    "PostCostLevelSummary",
     "PowerStatement",
     "SurrogateFdrGate",
     "validate_fast_readout",
