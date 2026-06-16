@@ -105,7 +105,7 @@
     "event_trigger": {
       "event": "opening_range_breakout_acceptance_hold",
       "factor_id": "liquidity_structure_failed_high_breakout_flag",
-      "factor_version": "fver_5734b8296ca1ec7d7c6940d7d2cd046a836e5b5e3917d5a46d57a292cd4535d3",
+      "factor_version": "fver_08e6f88675ba2d10c86e08a0ea1962918d82201aff2059a21711929d5a43436c",
       "operator": "<=",
       "signal_kind": "acceptance_no_failed_break_event",
       "threshold": 0.0,
@@ -155,11 +155,11 @@
       "family_id": "pa_setup_opening_range_acceptance_net",
       "feature_pack_refs": [
         "fver_76e1f424e20d8ef6fb216644574566f8e84f56f8b2b946c3775d5d58c73cc411",
-        "fver_5734b8296ca1ec7d7c6940d7d2cd046a836e5b5e3917d5a46d57a292cd4535d3"
+        "fver_08e6f88675ba2d10c86e08a0ea1962918d82201aff2059a21711929d5a43436c"
       ],
       "feature_request_ids": [
         "freq_6c67497f604a38ef2a19042a",
-        "freq_1b0fb60c71bda41e6b98a5a9"
+        "freq_10a3247ee0b42c753bb3710d"
       ],
       "features": [
         {
@@ -172,9 +172,9 @@
         },
         {
           "factor_id": "liquidity_structure_failed_high_breakout_flag",
-          "factor_version": "fver_5734b8296ca1ec7d7c6940d7d2cd046a836e5b5e3917d5a46d57a292cd4535d3",
-          "feature_request_id": "freq_1b0fb60c71bda41e6b98a5a9",
-          "pack_ref": "fver_5734b8296ca1ec7d7c6940d7d2cd046a836e5b5e3917d5a46d57a292cd4535d3",
+          "factor_version": "fver_08e6f88675ba2d10c86e08a0ea1962918d82201aff2059a21711929d5a43436c",
+          "feature_request_id": "freq_10a3247ee0b42c753bb3710d",
+          "pack_ref": "fver_08e6f88675ba2d10c86e08a0ea1962918d82201aff2059a21711929d5a43436c",
           "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
           "role": "trigger"
         }

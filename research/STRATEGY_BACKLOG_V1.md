@@ -132,6 +132,40 @@ BBO-path-label FeatureRequest. The seed is authored in this backlog in its SUPPO
 cost-aware `main_effect` form (spread z-score vs BBO `cost_adjusted_fwd_ret`), where
 wide-spread untradability is absorbed by the cost-adjusted outcome.
 
+### FeatureRequest — REGISTERED BBO-dataset `cost_adjusted_fwd_ret` label (all 3 BBO ideas, 2026-06-15)
+
+During the smoke-probe re-pin pass (below), all 3 authored BBO `main_effect` ideas
+(`bbo_top_book_imbalance`, `bbo_microprice_dislocation`, `bbo_spread_shock_normalization`)
+failed-closed at the gate with `label_pack_deprecated` (INPUTS_BLOCKED) and could NOT be
+re-pinned to a REGISTERED BBO-dataset label. The live registry
+(`registry/labels.sqlite`) shows that **every** label bound to the ES 2024 BBO
+DatasetVersion `dsv_databento_bbo_f9e1d70a04d9dae4` is `lifecycle_state=DEPRECATED` —
+all 81 `cost_adjusted_fwd_ret` rows and all 81 `spread_adjusted_fwd_ret` rows, across
+every horizon (the same holds for NQ/RTY 2024). There are **zero REGISTERED labels on any
+BBO DatasetVersion**.
+
+The registry's named `replacement_label_version_id` for the deprecated BBO
+`cost_adjusted_fwd_ret` lvers points to an **OHLCV** DatasetVersion
+(`dsv_databento_ohlcv_05404069799decb0`, e.g. `lver_7edc9438…` for ES_2024_15m,
+`lver_de9c7c2c…` for ES_2024_30m). The deprecation reason is explicit: *"stale
+cost_adjusted-family registration from earlier P19 runs, bound to superseded BBO
+DatasetVersion; superseded by current OHLCV-bound full-window registration"* (W1
+disposition, FUTSUB-P22 review). Adopting that replacement would re-introduce the
+cross-dataset wrong-lver bug — a BBO feature paired with an OHLCV label — which the
+no-cross-dataset rule (above) and `data-inventory-canonical` forbid (BBO feature + BBO
+label MUST be on the SAME `dsv_databento_bbo_*`).
+
+Therefore the 3 BBO ideas are recorded here as a **registry-lifecycle FeatureRequest**,
+not re-pinned: a REGISTERED `cost_adjusted_fwd_ret` (and/or `spread_adjusted_fwd_ret`)
+label must be (re)materialized and registered on a current BBO DatasetVersion before any
+BBO `main_effect` idea can resolve. This corrects the backlog's earlier "READY
+(BBO-dataset lver)" / "co-materialized" readiness note for the BBO seeds, which assumed a
+REGISTERED BBO-dataset label that the live registry does not currently hold. The BBO
+*features* themselves are fine — `bbo_tradability_microprice` and
+`bbo_tradability_top_book_imbalance` are REGISTERED; `bbo_tradability_spread_zscore` is
+DEPRECATED but has a REGISTERED same-dataset replacement (`fver_85d552bd…`). The blocker
+is strictly the label side.
+
 ### FeatureRequest — vwap_slope column (Batch B)
 
 `vwap_slope_price_location_pullback` needs a `vwap_slope` feature; `vwap_session_auction`
@@ -168,3 +202,79 @@ queue item.)
 - `tier1_main_effect_bbo_microstructure_ic` — top-book imbalance, microprice, spread
   z-score; each horizon and each instrument is a counted variant; overlap-aware n_eff
   (horizon_bars / cadence discount) applies.
+
+## Smoke-probe re-pin pass (2026-06-15)
+
+A smoke probe of the 9 authored ideas found 8 in `DATA_GAP` from one systematic cause
+(see "Deprecated-pack-pin authoring trap" below): the authored pins named feature/label
+pack versions the registry has since marked `lifecycle_state=DEPRECATED`. The underlying
+materialized parquet is present; only the pinned VERSION is superseded. Re-pin disposition:
+
+| idea | deprecated pin(s) | registered replacement | re-pin? | smoke result |
+| --- | --- | --- | --- | --- |
+| `volume_effort` (`main_effect_volume_zscore…es2020_60m`) | none (already REGISTERED) | n/a | n/a (already resolved) | RESOLVED — probe ran, `REJECT / WELL_POWERED_NULL` (no IC above floor) |
+| `prior_session_low_sweep_reclaim` | `liquidity_structure_sweep_low_flag` fver + `…close_location_value` fver (2 features) | `fver_7393…` + `fver_6eb1…` (same feature_id+dataset+partition) | YES | RESOLVED — testability gate now PASS (all 5 checks); substrate resolves |
+| `opening_range_breakout_acceptance` | `liquidity_structure_failed_high_breakout_flag` fver | `fver_08e6…` | YES | RESOLVED — testability gate now PASS |
+| `failed_vwap_reclaim_near_session_extreme` | `liquidity_structure_prior_high_distance` fver | `fver_6b36…` | YES | RESOLVED — testability gate now PASS |
+| `range_compression_expansion_continuation` | `liquidity_structure_failed_low_breakout_flag` fver | `fver_69fd…` | YES | RESOLVED — testability gate now PASS |
+| `rth_gap_fade_or_continuation` | `base_ohlcv_overnight_range` fver | `fver_a9d0…` | YES | RESOLVED — testability gate now PASS |
+| `bbo_top_book_imbalance` | `cost_adjusted_fwd_ret` BBO lver | NONE registered on BBO dataset | NO → FeatureRequest | STILL DATA_GAP (registry-lifecycle gap; see BBO FeatureRequest above) |
+| `bbo_microprice_dislocation` | `cost_adjusted_fwd_ret` BBO lver | NONE registered on BBO dataset | NO → FeatureRequest | STILL DATA_GAP (registry-lifecycle gap) |
+| `bbo_spread_shock_normalization` | `bbo_tradability_spread_zscore` fver (has REGISTERED repl `fver_85d5…`) AND `cost_adjusted_fwd_ret` BBO lver (no BBO repl) | feature replaceable; LABEL not | NO → FeatureRequest | STILL DATA_GAP (label-side registry-lifecycle gap) |
+
+Re-pin discipline used: each deprecated `fver` was matched to the single
+`lifecycle_state='REGISTERED'` row with the SAME `feature_id` + `dataset_version_id` +
+`partition_id` (the deprecated and registered rows resolve to the same
+`materialization_output_path`). Both the `fver` pins (`feature_pack_refs[]`,
+`features[].factor_version`, `features[].pack_ref`) AND the paired
+`feature_request_id` pins (`feature_request_ids[]`, `features[].feature_request_id`) were
+re-pinned, because `runtime/input_resolver.py` (≈L509) rejects a pack whose resolved
+`feature_request_id` is not in the idea's `expected_feature_request_ids`
+(`feature_pack_not_governed_by_study_input_pack`). The pa_setup labels (`path_mfe` /
+`path_mae`) were already REGISTERED and were left unchanged.
+
+"RESOLVED" above means the deprecated-pack `DATA_GAP` is cleared and the substrate now
+resolves: `alpha idea testability` returns `overall_status=PASS` on all five gate checks
+(including `features_materialized`), so a probe shot would now be spent. The full
+`alpha idea run` net_excursion probe (1000 surrogates) executes past the gate and is
+compute-heavy; its downstream net-excursion / surrogate-FDR verdict is a separate
+exploratory readout and decides nothing on its own (it remains family-FDR /
+reviewer-gated). The point of this pass is substrate resolution, not a verdict.
+
+## Deprecated-pack-pin authoring trap (systematic, candidate generic fix)
+
+**Trap.** An `idea.yaml` template pins specific `fver` / `lver` (feature/label pack
+versions). The registry can later DEPRECATE those exact versions (e.g. a session-reset
+truth repoint or a cost_adjusted-family rebind to a new DatasetVersion), registering a
+fresh REGISTERED replacement of the SAME logical `feature_id` / `label_spec_id` on the
+SAME materialized data. The authored pin is now stale. At runtime the gate fail-closes:
+`runtime/input_resolver.py::_require_registered_pack_lifecycle` compares the resolved
+registry record's `lifecycle_state` against `REGISTERED` and, on `DEPRECATED`, raises
+`feature_pack_deprecated` / `label_pack_deprecated` at `INPUTS_BLOCKED`, surfacing the
+registry's `replacement_feature_version_id` / `replacement_label_version_id` in the
+reason. The data is materialized; only the pin is superseded — but the author only learns
+this at run time as a `DATA_GAP`, not at authoring/validate time.
+
+**Why it bites.** `alpha idea validate` (`cli/idea.py::run_idea_validate` →
+`build_idea_validation_bundle`) is pure schema/governance validation — it never touches
+the registry resolver or `lifecycle_state`. The lifecycle check only fires later, in the
+testability gate / runtime resolver (`FeatureLabelPackResolver`). So a clean
+`validate` plus a clean content-hash gives false confidence; the deprecation only shows
+up after a probe run is attempted.
+
+**PROPOSED GENERIC FIX (candidate — NOT implemented in this pass).** Have
+`alpha idea validate` (or a dedicated `alpha idea validate --check-registry` mode) detect
+a pinned pack whose registry `lifecycle_state=DEPRECATED` and FAIL/WARN LOUD at
+validate-time, naming the registry's `replacement_feature_version_id` /
+`replacement_label_version_id` (when present) plus the same-`feature_id`/`label_spec_id`
+REGISTERED candidate (when the named replacement field is empty, as it is for the
+session-reset feature deprecations). This lets authors re-pin DELIBERATELY — preserving
+pre-registration and content-hash integrity by making the version bump an explicit,
+reviewed authoring decision — instead of discovering a stale pin as a run-time
+`DATA_GAP`. Caveat from this pass: a named `replacement_*_version_id` can cross datasets
+(the BBO `cost_adjusted_fwd_ret` deprecations name an OHLCV-dataset replacement), so the
+validate-time check must SURFACE the replacement, not silently adopt it — adopting a
+cross-dataset replacement would re-introduce the wrong-`lver` bug. Cite: registry field
+`lifecycle_state` on `feature_registry_records` / `label_registry_records`, the
+`replacement_*_version_id` columns on `*_deprecation_records`, and the
+`_require_registered_pack_lifecycle` gate.

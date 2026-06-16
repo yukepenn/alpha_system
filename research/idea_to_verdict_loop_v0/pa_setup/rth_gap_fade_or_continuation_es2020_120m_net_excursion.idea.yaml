@@ -96,7 +96,7 @@
     "entry_context": {
       "bucket": "rth_open_gap_state",
       "factor_id": "base_ohlcv_overnight_range",
-      "factor_version": "fver_e9f52d26e90ce946165f3dc9e24071a1b258a2753d5b877f79a9ea898264a91a",
+      "factor_version": "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
       "operator": ">=",
       "signal_kind": "rth_open_gap_state",
       "threshold": 0.6,
@@ -154,19 +154,19 @@
       "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
       "family_id": "pa_setup_rth_gap_fade_continuation_net",
       "feature_pack_refs": [
-        "fver_e9f52d26e90ce946165f3dc9e24071a1b258a2753d5b877f79a9ea898264a91a",
+        "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
         "fver_76e1f424e20d8ef6fb216644574566f8e84f56f8b2b946c3775d5d58c73cc411"
       ],
       "feature_request_ids": [
-        "freq_b80dcb0fbcfd93fd265f2038",
+        "freq_36646b25db54401a5ddcd4cd",
         "freq_6c67497f604a38ef2a19042a"
       ],
       "features": [
         {
           "factor_id": "base_ohlcv_overnight_range",
-          "factor_version": "fver_e9f52d26e90ce946165f3dc9e24071a1b258a2753d5b877f79a9ea898264a91a",
-          "feature_request_id": "freq_b80dcb0fbcfd93fd265f2038",
-          "pack_ref": "fver_e9f52d26e90ce946165f3dc9e24071a1b258a2753d5b877f79a9ea898264a91a",
+          "factor_version": "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
+          "feature_request_id": "freq_36646b25db54401a5ddcd4cd",
+          "pack_ref": "fver_a9d0916dfcf096fb8f78a8553474c1f2e7775742131b995323830d07e89e3645",
           "relative_path": "features/materialized/futures_substrate_scaleout_v1/vwap_session_auction/feature_set_futures_scaleout_vwap_session_auction/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
           "role": "context"
         },

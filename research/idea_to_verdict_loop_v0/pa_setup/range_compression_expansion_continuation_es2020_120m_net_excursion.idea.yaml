@@ -105,7 +105,7 @@
     "event_trigger": {
       "event": "compression_expansion_breakout_hold",
       "factor_id": "liquidity_structure_failed_low_breakout_flag",
-      "factor_version": "fver_aa98dff56ffdd450ed3b4274e63359309f58e70fe0198e295f967306ec2f759a",
+      "factor_version": "fver_69fde9d07db0a3f47b89dba1a3b312580e34b7fc8bd671a84e5b528727466456",
       "operator": "<=",
       "signal_kind": "expansion_break_holds_event",
       "threshold": 0.0,
@@ -155,11 +155,11 @@
       "family_id": "pa_setup_range_compression_expansion_continuation_net",
       "feature_pack_refs": [
         "fver_42bfbf5d66248b2d51a94fcc1361b9bb0c14282ee3f23b4b9028466fcfbaba96",
-        "fver_aa98dff56ffdd450ed3b4274e63359309f58e70fe0198e295f967306ec2f759a"
+        "fver_69fde9d07db0a3f47b89dba1a3b312580e34b7fc8bd671a84e5b528727466456"
       ],
       "feature_request_ids": [
         "freq_257e4a47afbeaed9ed0c57c3",
-        "freq_21908a5548899c2a02ef885d"
+        "freq_abb96bfeb5d1fe7107187eb2"
       ],
       "features": [
         {
@@ -172,9 +172,9 @@
         },
         {
           "factor_id": "liquidity_structure_failed_low_breakout_flag",
-          "factor_version": "fver_aa98dff56ffdd450ed3b4274e63359309f58e70fe0198e295f967306ec2f759a",
-          "feature_request_id": "freq_21908a5548899c2a02ef885d",
-          "pack_ref": "fver_aa98dff56ffdd450ed3b4274e63359309f58e70fe0198e295f967306ec2f759a",
+          "factor_version": "fver_69fde9d07db0a3f47b89dba1a3b312580e34b7fc8bd671a84e5b528727466456",
+          "feature_request_id": "freq_abb96bfeb5d1fe7107187eb2",
+          "pack_ref": "fver_69fde9d07db0a3f47b89dba1a3b312580e34b7fc8bd671a84e5b528727466456",
           "relative_path": "features/materialized/futures_substrate_scaleout_v1/liquidity_sweep_pa_structure/feature_set_futures_scaleout_liquidity_sweep_pa_structure/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
           "role": "trigger"
         }
