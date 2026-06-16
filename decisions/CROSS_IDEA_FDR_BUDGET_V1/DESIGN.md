@@ -66,12 +66,27 @@ their per-test p + the corrected verdict. `evaluate_family_fdr(...)` mirrors
 fail-closed validation like `validate_variant_and_family_budget`.
 
 ### 2.4 Batch identity (reuse, no breaking YAML change)
-Co-mined batch = ideas sharing `(alpha_spec_id, slice_id)` and tested together;
+Co-mined batch = ideas sharing the declared family and slice, tested together;
 `family_id` already declared per idea (mechanism_card.duplicate_exposure + slice).
 Do NOT add a `batch_id` YAML field. Optionally add slice-level
 `family_fdr_requirement` (method) + `family_fdr_alpha` to the idea schema, parsed
 in `testability_gate.TestabilitySlice.from_mapping` (which already tolerates a
 `surrogate_fdr_requirement`).
+
+**Batch anchor (corrected — see canary `_check_comined_family_grouping`).** The
+batch key (`family_batch_key`) anchors on the pre-registered, content-hashed
+`family_id`, NOT on `alpha_spec_id`. A declared family is the counted-variant
+group `VariantLedger.family_budget_check` groups by, and its variants may carry
+DISTINCT `alpha_spec_id`s; anchoring on `alpha_spec_id` split a declared family
+into families-of-one that paid no cross-variant multiplicity tax (a gate-weakening
+under-correction). The anchor is `family_id` when a family is declared
+(`family_id != alpha_spec_id`) so the variants co-correct as one m=N family, and
+`alpha_spec_id` for an undeclared singleton (`family_id == alpha_spec_id`) so
+distinct singletons stay honest families-of-one and are never merged. The pooled
+mining readout (`mining_driver._build_pooled_readout`) must propagate the declared
+`duplicate_exposure` so the pooled path resolves the same family as the
+single-idea path. Anchor + propagation are both guarded by the canary
+(fail-on-old, pass-on-fix).
 
 ### 2.5 Testability-gate declaration (extend)
 Add `CHECK_FAMILY_FDR_DECLARED` to `research_lane/testability_gate.py` CHECK_ORDER:
