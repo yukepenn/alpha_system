@@ -1,0 +1,153 @@
+{
+  "alpha_spec": {
+    "cost_assumptions": {
+      "model": "The outcome label is the cost-adjusted forward return; no additional execution-cost estimate is produced by this seed.",
+      "scope": "Research-only loop run; no tradability or profitability claim."
+    },
+    "created_at": "2026-06-15T00:00:00Z",
+    "created_by": "STRATEGY_BACKLOG_V1/main_effect",
+    "data_assumptions": {
+      "coverage": "ES_2020_60m cost_adjusted_fwd_ret continuous outcome: non_null=327155, value_std=0.003926 (powered, non-degenerate). RESEARCH-ONLY; each horizon and each instrument is a counted variant under family-FDR.",
+      "source": "Already-materialized local FUTSUB feature and continuous-label packs are read load-only when present."
+    },
+    "exclusion_rules": [
+      "Do not spend a probe shot unless the pre-test gate passes.",
+      "Do not reinterpret rows when feature or label pack resolution reports DATA_GAP.",
+      "Do not treat an exploratory readout as promotion evidence.",
+      "Do not sweep horizons, thresholds, or geometry after seeing this single pre-registered probe result."
+    ],
+    "expected_failure_modes": [
+      "Feature packs are partitioned at ES_2020_full_year while the continuous label is partitioned at ES_2020_60m.",
+      "Local ALPHA_DATA_ROOT or optional parquet support may be unavailable.",
+      "The fast readout may record near-zero IC under a well-powered sample; that is an informative REJECT-leaning outcome, not a failure."
+    ],
+    "factor_inputs": [
+      "base_ohlcv_volume_zscore"
+    ],
+    "label_references": [
+      "lspec_5b7048a7ccab226718ab802b"
+    ],
+    "promotion_criteria": [
+      "No promotion is authorized for this exploratory seed.",
+      "Any future WATCH or CANDIDATE would require reviewer-gated evidence outside this run."
+    ],
+    "target_instruments": [
+      "ES"
+    ],
+    "timestamp_assumptions": {
+      "availability": "Feature available_ts must be no later than the decision timestamp and before label availability.",
+      "timezone": "Materialized row timestamps retain explicit UTC timestamps."
+    }
+  },
+  "hypothesis_card": {
+    "author": "STRATEGY_BACKLOG_V1/main_effect",
+    "created_at": "2026-06-15T00:00:00Z",
+    "expected_mechanism": "The factor reads session-normalized volume intensity (volume z-score); the diagnostic measures whether it carries any IC against the continuous cost-adjusted forward return with no setup, trigger, or path geometry. Value-free until the pre-test power gate and surrogate-FDR readout allow interpretation.",
+    "falsification_criteria": [
+      "Block the idea if the bounded slice cannot resolve the already-materialized feature and continuous-label packs.",
+      "Fail the idea if the continuous outcome is degenerate (non-positive value_std) over the observed sample.",
+      "Reject interpretation if duplicate exposure or pre-test power gates block the exploratory readout."
+    ],
+    "family": "tier1_main_effect_continuous_ic",
+    "rationale": "A single session-normalized volume-effort factor (volume z-score) is IC-screened against a continuous cost-adjusted forward-return outcome on a fixed ES 60m slice. The effort-vs-result / absorption-exhaustion mechanism (high effort, little directional progress) is genuinely untested in the fleet brain. This is a powered first-pass main_effect diagnostic, not a strategy; a reversal-trigger setup variant near a level is a separate counted study.",
+    "risks": [
+      "The local executor may lack the materialized packs needed for a real readout.",
+      "The factor may duplicate adjacent VWAP-location exposures already screened.",
+      "Any exploratory readout remains value-free and promotion-ineligible."
+    ],
+    "title": "Volume-effort (session-normalized volume z-score) main-effect IC on cost-adjusted forward return (powered-probe)"
+  },
+  "mechanism_card": {
+    "cost_sensitivity": {
+      "new_data": false,
+      "scope": "exploratory evidence only"
+    },
+    "duplicate_exposure": {
+      "family_id": "tier1_main_effect_continuous_ic",
+      "status": "bounded",
+      "variant_id": "volume_zscore_cost_adj_fwd_ret_60m"
+    },
+    "expected_direction": "undirected",
+    "expected_mechanism": "The factor reads session-normalized volume intensity (volume z-score); the diagnostic measures whether it carries any IC against the continuous cost-adjusted forward return with no setup, trigger, or path geometry. Value-free until the pre-test power gate and surrogate-FDR readout allow interpretation.",
+    "horizon": "60m",
+    "rationale": "A single session-normalized volume-effort factor (volume z-score) is IC-screened against a continuous cost-adjusted forward-return outcome on a fixed ES 60m slice. The effort-vs-result / absorption-exhaustion mechanism (high effort, little directional progress) is genuinely untested in the fleet brain. This is a powered first-pass main_effect diagnostic, not a strategy; a reversal-trigger setup variant near a level is a separate counted study.",
+    "required_features": [
+      "base_ohlcv_volume_zscore"
+    ],
+    "required_labels": [
+      "cost_adjusted_fwd_ret_60m"
+    ],
+    "session": "RTH",
+    "source": "strategy_backlog_v1:volume_zscore_cost_adj_fwd_ret_60m",
+    "stamp": "EXPLORATORY",
+    "variant_budget": 1
+  },
+  "slices": {
+    "ES_2020_60m": {
+      "available_ts_satisfiable": true,
+      "continuous_label_summary": {
+        "nonzero_count": 327155,
+        "sample_count": 327155,
+        "value_std": 0.003926
+      },
+      "created_at": "2026-06-15T00:00:00Z",
+      "data_version": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "dataset_version_id": "dsv_databento_ohlcv_bac95e92f1bb1850",
+      "family_budget": 1,
+      "family_id": "tier1_main_effect_continuous_ic",
+      "feature_pack_refs": [
+        "fver_b9afc95cf815945962780aa439acb4f307b2b6beee9b0d4ee09a89f9ec5e0955"
+      ],
+      "feature_request_ids": [
+        "freq_b710259db3510beb0acc460b"
+      ],
+      "features": [
+        {
+          "factor_id": "base_ohlcv_volume_zscore",
+          "factor_version": "fver_b9afc95cf815945962780aa439acb4f307b2b6beee9b0d4ee09a89f9ec5e0955",
+          "feature_request_id": "freq_b710259db3510beb0acc460b",
+          "pack_ref": "fver_b9afc95cf815945962780aa439acb4f307b2b6beee9b0d4ee09a89f9ec5e0955",
+          "relative_path": "features/materialized/futures_substrate_scaleout_v1/volume_activity/feature_set_futures_scaleout_volume_activity/v1_es_2020/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_full_year/values.parquet",
+          "role": "factor"
+        }
+      ],
+      "horizon_seconds": 3600,
+      "instrument_id": "ES",
+      "label_pack_refs": [
+        "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c"
+      ],
+      "label_spec_ids": [
+        "lspec_5b7048a7ccab226718ab802b"
+      ],
+      "label_version_map": {
+        "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c": [
+          "cost_adjusted_fwd_ret",
+          "float"
+        ]
+      },
+      "labels": [
+        {
+          "label_id": "cost_adjusted_fwd_ret",
+          "label_spec_id": "lspec_5b7048a7ccab226718ab802b",
+          "pack_ref": "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c",
+          "relative_path": "labels/materialized/futures_substrate_scaleout_v1/cost_adjusted/lset_2be9bc0694adefc4e9a416dc69a0576d3943745de94a9e3c3d917dc88ab8edc7/dsv_databento_ohlcv_bac95e92f1bb1850/ES_2020_60m/values.parquet",
+          "role": "label"
+        }
+      ],
+      "materialized_label_version": "lver_ad23b9e647fb4ca6c8334b4d91512f722e4074a40f5fd2a4012c74172dc7790c",
+      "minimum_detectable_effect": 0.005,
+      "n_eff": 327155,
+      "partition_id": "ES_2020_60m",
+      "required_future_bars": 60,
+      "session_id": "ES:RTH",
+      "slice_id": "ES_2020_60m",
+      "study_kind": "main_effect",
+      "surrogate_base_seed": 0,
+      "surrogate_fdr_requirement": "zero-pass-met",
+      "surrogate_run_count": 1000,
+      "variant_id": "volume_zscore_cost_adj_fwd_ret_60m"
+    }
+  },
+  "source": "research/idea_to_verdict_loop_v0/seeds/main_effect_volume_zscore_cost_adj_fwd_ret_es2020_60m.idea.yaml",
+  "study_kind": "main_effect"
+}
