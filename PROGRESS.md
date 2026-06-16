@@ -17,10 +17,12 @@ EXPLORATORY `context != trigger` conditional probe) is a SUBSTRATE-GAP, UNTESTED
 null; it is a closable DATA_GAP. `roll_week` is an honest DATA_GAP.
 
 Survivor gate = **0**. No promotion; no downstream factory module, no universe
-expansion, no paid data (all trigger-gated behind the survivor gate). Next: post-DK
-factory production-line adjudication → a narrow Track B substrate gap-closure (same
-SetupSpec, existing `ES_2020_120m` barrier-resolving slice, no new mechanisms/sweep/
-promotion) → a fresh narrow shot from a ranked MechanismCard queue. ES/NQ/RTY only.
+expansion, no paid data (all trigger-gated behind the survivor gate). ES/NQ/RTY only.
+
+> **This file does not own "what's next" (DK is not the latest campaign).** Work
+> ran after DK. For the current research state and the next probe, read the freshest
+> research ledger `decisions/POWERED_DISCOVERY_BATCH_V0/RESEARCH_TRUTH_RECONCILIATION.md`
+> and run `python tools/frontier/status_doctor.py`.
 
 Earlier completed since the rigor/substrate work: `DISCOVERY_RIGOR_FLOOR_V1` (rigor
 floor 8/8 — VariantLedger, sealed-holdout, RANDOM_TARGET + planted-fake-alpha canary,
@@ -76,11 +78,12 @@ locked-test partitions. All raw/canonical/registry data stays local-only under
 implies no alpha, tradability, profitability, paper/live, broker, or production
 claim. See `handoffs/ALPHA_DATA_FOUNDATION_V1/ADF1_DATABENTO_ES_NQ_RTY_OHLCV_BBO_DEEP_HISTORY.md`.
 
-## Next intended campaign
+## What's next (not owned here)
 
-Post-DK **factory production-line adjudication** (`ALPHA_FACTORY_PRODUCTION_LINE_ADJUDICATION_V1`)
-to charter the generic Idea → MechanismCard → testability gate → diagnostics → verdict
-→ rejected/survivor-memory line, then a narrow Track B substrate gap-closure on the
-existing `ES_2020_120m` slice. No broad mining, FactorLibrary, AlphaBook, sandbox, PA
-grammar, universe expansion, or paid data until the survivor gate (currently 0) earns
-them. Loading any DatasetVersion implies no alpha/tradability/profitability claim.
+This file is a historical progress log. The next probe and current research state
+are **not** maintained here — read the freshest research ledger
+`decisions/POWERED_DISCOVERY_BATCH_V0/RESEARCH_TRUTH_RECONCILIATION.md` and run
+`python tools/frontier/status_doctor.py`. No broad mining, FactorLibrary, AlphaBook,
+sandbox, PA grammar, universe expansion, or paid data until the survivor gate
+(currently 0) earns them. Loading any DatasetVersion implies no
+alpha/tradability/profitability claim.

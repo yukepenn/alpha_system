@@ -3,8 +3,9 @@
 This file is the agent entry point. It exists so Claude/Codex land on the
 invariants and the live truth without spelunking stale docs. It is short on
 purpose. `AGENTS.md` is the full constitution; this is the pre-flight card.
-Strategy/roadmap canon: `docs/OPERATING_COMPASS.md` (fixed name, internal version
-v5.0) — the autonomy-first goal, production line, idea-object hierarchy, survivor
+Strategy/roadmap canon: `docs/OPERATING_COMPASS.md` (fixed name; it bumps its own
+internal `Version:` line — read the version from the compass itself, never echo it
+here) — the autonomy-first goal, production line, idea-object hierarchy, survivor
 gate, trigger-gated route, target calibration, and the REUSE-MAP / verdict-first
 operating rules. Read it before proposing any new campaign or mechanism.
 

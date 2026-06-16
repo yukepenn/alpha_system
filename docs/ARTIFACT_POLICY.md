@@ -8,9 +8,11 @@ docs, specs, handoffs, reviews, decisions, curated configs, and tiny synthetic
 fixtures under `tests/fixtures/**` only when a later phase explicitly allows
 them.
 
-For ASV1-P02, commit-eligible artifacts are limited to the allowed docs,
-decision records, optional small README or project-status updates, and the
-commit-eligible handoff.
+Per phase, commit-eligible artifacts are limited to the allowed docs, decision
+records, optional small README or project-status updates, and the commit-eligible
+handoff. The authoritative, always-current artifact policy lives in `AGENTS.md`
+(Git And Artifact Discipline); this file is the durable per-phase reference and
+defers to `AGENTS.md` on any conflict.
 
 ## Local-Only Artifacts
 

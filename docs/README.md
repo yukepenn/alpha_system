@@ -17,8 +17,8 @@ and [`_historical/`](_historical/) (superseded docs, kept for audit).
 - [CLI_REFERENCE.md](CLI_REFERENCE.md) — current CLI surface (incl. a "Planned / Target CLI Surface" section).
 - [EXAMPLE_WORKFLOWS.md](EXAMPLE_WORKFLOWS.md) · [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-## Feature/Label Foundation (next campaign)
-- [FEATURE_LABEL_FOUNDATION_ENTRY_CONTRACT.md](FEATURE_LABEL_FOUNDATION_ENTRY_CONTRACT.md) — inputs, allowed canonical records, gates, and boundaries for `ALPHA_FEATURE_LABEL_FOUNDATION_V1`.
+## Feature/Label Foundation (entry contract)
+- [FEATURE_LABEL_FOUNDATION_ENTRY_CONTRACT.md](FEATURE_LABEL_FOUNDATION_ENTRY_CONTRACT.md) — inputs, allowed canonical records, gates, and boundaries for `ALPHA_FEATURE_LABEL_FOUNDATION_V1` (a completed campaign; this is the durable entry contract, not a "next campaign" pointer).
 
 ## Architecture & contracts
 - [ARCHITECTURE.md](ARCHITECTURE.md) · [CONTRACTS.md](CONTRACTS.md) · [LOCAL_FIRST_STACK.md](LOCAL_FIRST_STACK.md)
@@ -57,7 +57,7 @@ and [`_historical/`](_historical/) (superseded docs, kept for audit).
 - [AUDIT_REPORTS.md](AUDIT_REPORTS.md) · [REVIEW_BUNDLES.md](REVIEW_BUNDLES.md) · [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)
 
 ## Planning & status
-- [PLAN.md](PLAN.md) · [NEXT_CAMPAIGN_CANDIDATES.md](NEXT_CAMPAIGN_CANDIDATES.md) (historical candidate menu; decided next campaign is in `PROJECT_STATUS.md`).
+- [PLAN.md](PLAN.md) · [NEXT_CAMPAIGN_CANDIDATES.md](NEXT_CAMPAIGN_CANDIDATES.md) (historical candidate menu). For the decided next campaign read `../ACTIVE_CAMPAIGN.md` + `python tools/frontier/status_doctor.py` — never a self-declared-stale status file.
 
 ## L2 (design-only — future, not implemented)
 - [L2_READINESS.md](L2_READINESS.md) · [L2_DERIVED_FEATURES.md](L2_DERIVED_FEATURES.md) · [L2_FEATURE_SCOPE_POLICY.md](L2_FEATURE_SCOPE_POLICY.md) · [L2_SCOPE_BOUNDARIES.md](L2_SCOPE_BOUNDARIES.md) · [FUTURE_L2_REPLAY.md](FUTURE_L2_REPLAY.md)

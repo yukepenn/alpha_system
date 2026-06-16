@@ -1,5 +1,18 @@
 # SUBSTRATE REALITY REPORT
 
+> **SUPERSEDED for live data state (banner added 2026-06-15).** The value-layer
+> coverage tables below were measured **2026-06-07, BEFORE the
+> `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1` materialization**. They no longer
+> describe what is on disk: ES/NQ/RTY 2019–2026 features (8 families) + labels
+> (`cost_adjusted` / `path` / `fixed` / `extended` / `session`) are now
+> materialized. Do **not** read the "no values" / "single 2024 week, ES-only"
+> verdicts as current. The authoritative data-existence truth is the tool
+> `alpha data inventory` (`tools/frontier/data_inventory.py`) — built specifically
+> to kill the "config `BLOCKED:27` vs disk full of values.parquet" misread this
+> snapshot embodies. This document is retained only as the historical 2026-06-07
+> substrate snapshot; its tables are intentionally **not** hand-updated (they would
+> only re-drift).
+>
 > Repo-grounded measurement of what the local data / feature / label / runtime
 > substrate **actually contains today**, taken before authoring
 > `ALPHA_FUTURES_RESEARCH_SUBSTRATE_SCALEOUT_V1`.
