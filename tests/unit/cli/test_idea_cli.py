@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,6 +12,7 @@ import pytest
 from alpha_system.cli import idea as idea_cli
 from alpha_system.cli.main import build_parser, main
 from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
+from alpha_system.research_lane import environment_preflight as preflight_module
 
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
 
@@ -28,15 +30,55 @@ def _pin_existing_alpha_data_root(
     ``~/alpha_data/alpha_system`` is absent and ``ALPHA_DATA_ROOT`` is unset, so
     these legacy tests -- whose intent is the DATA_GAP / resolving-slice path, NOT
     the precondition path -- would spuriously fail. Pin ``ALPHA_DATA_ROOT`` to an
-    EXISTING temp dir so the preflight passes deterministically on any host while
-    each test still asserts its original behavior. Tests that intentionally
-    exercise the precondition path pass an explicit ``--alpha-data-root`` to a
-    NONEXISTENT path, which overrides this env pin (explicit wins in
-    ``resolve_alpha_data_root``), so they are unaffected.
+    EXISTING temp dir so the data-root precondition passes deterministically on any
+    host while each test still asserts its original behavior. Tests that
+    intentionally exercise the precondition path pass an explicit
+    ``--alpha-data-root`` to a NONEXISTENT path, which overrides this env pin
+    (explicit wins in ``resolve_alpha_data_root``), so they are unaffected.
+
+    NOTE: this pin alone is NOT sufficient for host independence. The preflight
+    checks the ``polars`` interpreter dependency BEFORE the on-disk root, and CI's
+    pytest interpreter is a bare ``python`` WITHOUT ``polars`` (the same reason the
+    pre-existing ``test_polars_lazy_fixture`` / ``test_duckdb_query_fixture`` fail
+    there). Tests that mock the data layer and expect a non-precondition outcome
+    additionally request the ``_neutralize_polars_precondition`` fixture below.
     """
 
     existing_root = tmp_path_factory.mktemp("alpha_data_root")
     monkeypatch.setenv("ALPHA_DATA_ROOT", existing_root.as_posix())
+
+
+@pytest.fixture
+def _neutralize_polars_precondition(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize ONLY the host-dependent ``polars`` precondition of the preflight.
+
+    The legacy tests in this module MOCK the data layer (resolver + fast_probe) and
+    assert the DATA_GAP / resolving-slice ROUTING, not the real environment. On a
+    bare CI interpreter without ``polars`` the dependency precondition fires FIRST
+    and every gated entrypoint returns ``ENVIRONMENT_NOT_CONFIGURED``
+    (``data_dependency_missing``), which masks the routing under test. Mocking the
+    env-dependency check is correct ISOLATION (assertions unchanged), not
+    weakening.
+
+    This patches at the exact name the preflight calls
+    (``environment_preflight.dependency_available``) and reports ``polars`` as
+    available while delegating every other dependency to the real check. It is
+    surgical: the REAL data-root existence check downstream is untouched, so a test
+    that passes an explicit nonexistent ``--alpha-data-root`` would still fail-LOUD.
+    Tests that intentionally exercise the precondition path do NOT request this
+    fixture, so they run the TRUE host preflight.
+    """
+
+    real_dependency_available = preflight_module.dependency_available
+
+    def _polars_always_available(module_name: str) -> bool:
+        if module_name == "polars":
+            return True
+        return real_dependency_available(module_name)
+
+    monkeypatch.setattr(
+        preflight_module, "dependency_available", _polars_always_available
+    )
 
 
 DATASET_VERSION_ID = "dsv_cli_resolving_slice"
@@ -95,6 +137,7 @@ def test_idea_validate_cli_emits_canonical_bundle(capsys) -> None:
 def test_idea_testability_cli_returns_pre_test_data_gap_without_slice(
     capsys,
     command: str,
+    _neutralize_polars_precondition: None,
 ) -> None:
     status = main(["idea", command, FIXTURE_IDEA.as_posix()])
     captured = capsys.readouterr()
@@ -138,6 +181,7 @@ def test_idea_validate_cli_fails_closed_on_missing_mechanism_gap_fields(
 def test_idea_run_fixture_short_circuits_data_gap_to_requeue(
     tmp_path: Path,
     capsys,
+    _neutralize_polars_precondition: None,
 ) -> None:
     report_path = tmp_path / "REPORT.md"
 
@@ -184,7 +228,15 @@ def test_idea_run_nonexistent_data_root_is_environment_not_configured(
 ) -> None:
     # An unmet ENVIRONMENT precondition (a resolved data root that does not exist)
     # must surface the DISTINCT precondition status with a nonzero exit -- never a
-    # DATA_GAP research outcome on stdout.
+    # DATA_GAP research outcome on stdout. This test deliberately exercises the REAL
+    # host preflight (it does NOT request the polars-neutralizing fixture), so the
+    # INVARIANT below is asserted unconditionally while the polars-DEPENDENT
+    # issue_code is branched on the real interpreter state -- the same host-
+    # independent contract the precondition canary asserts. The preflight checks the
+    # ``polars`` dependency BEFORE the on-disk root: WITH polars the nonexistent root
+    # is reached (``alpha_data_root_not_found``); WITHOUT polars (a bare CI
+    # interpreter) the earlier dependency precondition fires (``data_dependency_missing``).
+    # BOTH are ENVIRONMENT_NOT_CONFIGURED and neither is DATA_GAP.
     missing_root = tmp_path / "absent-data-root"
     status = main(
         [
@@ -205,14 +257,25 @@ def test_idea_run_nonexistent_data_root_is_environment_not_configured(
     assert error["overall_status"] == "ENVIRONMENT_NOT_CONFIGURED"
     assert error["verdict"] == "ENVIRONMENT_NOT_CONFIGURED"
     assert error["overall_status"] != "DATA_GAP"
-    assert error["issue_code"] == "alpha_data_root_not_found"
     assert error["probe_invoked"] is False
+    polars_importable = importlib.util.find_spec("polars") is not None
+    expected_issue_code = (
+        preflight_module.DATA_ROOT_NOT_FOUND_CODE
+        if polars_importable
+        else preflight_module.POLARS_MISSING_CODE
+    )
+    assert error["issue_code"] == expected_issue_code
 
 
 def test_idea_testability_nonexistent_data_root_is_environment_not_configured(
     tmp_path: Path,
     capsys,
 ) -> None:
+    # Exercises the REAL host preflight (no polars-neutralizing fixture) and asserts
+    # ONLY the host-independent INVARIANT: a nonexistent data root surfaces
+    # ENVIRONMENT_NOT_CONFIGURED (exit 3, empty stdout), never DATA_GAP -- regardless
+    # of whether the interpreter has polars. It deliberately does not assert the
+    # polars-dependent issue_code, so it holds on any host.
     missing_root = tmp_path / "absent-data-root"
     status = main(
         [
@@ -232,7 +295,11 @@ def test_idea_testability_nonexistent_data_root_is_environment_not_configured(
     assert error["overall_status"] != "DATA_GAP"
 
 
-def test_idea_run_persists_route_to_isolated_memory_dir(tmp_path: Path, capsys) -> None:
+def test_idea_run_persists_route_to_isolated_memory_dir(
+    tmp_path: Path,
+    capsys,
+    _neutralize_polars_precondition: None,
+) -> None:
     memory_dir = tmp_path / "research_memory"
 
     status = main(
@@ -256,7 +323,11 @@ def test_idea_run_persists_route_to_isolated_memory_dir(tmp_path: Path, capsys) 
     assert rows[0]["promotion_eligible"] is False
 
 
-def test_idea_run_no_persist_writes_nothing(tmp_path: Path, capsys) -> None:
+def test_idea_run_no_persist_writes_nothing(
+    tmp_path: Path,
+    capsys,
+    _neutralize_polars_precondition: None,
+) -> None:
     memory_dir = tmp_path / "research_memory"
 
     status = main(
@@ -352,6 +423,7 @@ def test_idea_gate_and_run_consume_embedded_resolving_slice(
     tmp_path: Path,
     capsys,
     monkeypatch,
+    _neutralize_polars_precondition: None,
 ) -> None:
     payload = _context_idea_payload_with_slice()
     idea_path = tmp_path / "resolving-slice.idea.yaml"

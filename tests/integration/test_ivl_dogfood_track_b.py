@@ -7,6 +7,7 @@ from pathlib import Path
 
 from alpha_system.cli import idea as idea_cli
 from alpha_system.cli.main import main
+from alpha_system.research_lane import environment_preflight as preflight_module
 from alpha_system.research_lane.testability_gate import CHECK_PATH_LABEL_TWO_CLASS
 
 DOGFOOD_DIR = Path("research/idea_to_verdict_loop_v0/dogfood")
@@ -30,6 +31,27 @@ def test_ivl_dogfood_track_b_gate_and_run_loop(
     existing_root = tmp_path / "alpha_data_root"
     existing_root.mkdir()
     monkeypatch.setenv("ALPHA_DATA_ROOT", existing_root.as_posix())
+
+    # The data-root pin alone is NOT enough: the preflight checks the ``polars``
+    # interpreter dependency BEFORE the on-disk root, and CI's pytest interpreter is
+    # a bare ``python`` WITHOUT ``polars`` (the same reason the pre-existing
+    # ``test_polars_lazy_fixture`` / ``test_duckdb_query_fixture`` fail there), so the
+    # dependency precondition would fire FIRST and every gated entrypoint would return
+    # ENVIRONMENT_NOT_CONFIGURED (data_dependency_missing), masking the mocked routing
+    # under test. Neutralize ONLY that host-dependent precondition at its source
+    # (delegating every other dependency to the real check). This is correct
+    # ISOLATION of the env dependency -- assertions unchanged -- not weakening; the
+    # REAL data-root existence check downstream is untouched.
+    real_dependency_available = preflight_module.dependency_available
+
+    def _polars_always_available(module_name: str) -> bool:
+        if module_name == "polars":
+            return True
+        return real_dependency_available(module_name)
+
+    monkeypatch.setattr(
+        preflight_module, "dependency_available", _polars_always_available
+    )
 
     resolver_obj = _DogfoodResolver()
     fast_probe_calls: list[str] = []
