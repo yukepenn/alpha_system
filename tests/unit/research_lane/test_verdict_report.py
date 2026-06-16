@@ -22,14 +22,41 @@ from alpha_system.research_lane.verdict_report import render_verdict_report
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
 
 
-def test_verdict_report_matches_golden_research_only_report() -> None:
+def test_verdict_report_renders_expected_structured_sections() -> None:
+    # Structured-field assertions (NOT a brittle full-report string match): assert the
+    # SPECIFIC sections / fields this report must carry. A future refactor of an
+    # unrelated section's wording no longer fails this test; only a change to these
+    # load-bearing fields does. The end-to-end full-file equality lives in the CLI
+    # test below (test_alpha_idea_report_cli_writes_report_from_fixture_readouts),
+    # which validates the complete writer once against the regenerated golden.
     bundle = _bundle()
 
     report = render_verdict_report(bundle.idea_draft, _gate_result(), _fast_readout())
 
-    assert report == _expected_report(bundle)
+    # Required section headers are present and ordered (Post-Cost precedes Final Verdict).
+    for header in (
+        "# Idea Verdict Report",
+        "## Study Kind",
+        "## Surrogate State",
+        "## Post-Cost Economic Level",
+        "## Final Verdict",
+    ):
+        assert header in report, f"missing section header: {header}"
+    assert report.index("## Post-Cost Economic Level") < report.index("## Final Verdict")
+
+    # The Post-Cost Economic Level section: an IC-only readout (no measured post-cost
+    # level) renders the typed fields as n/a and clears_cost=false (fail-closed).
+    assert "## Post-Cost Economic Level" in report
+    assert "- n_legs: n/a" in report
+    assert "- round_trip_cost_bps: n/a" in report
+    assert "- traded_bucket_post_cost_mean_bps: n/a" in report
+    assert "- clears_cost: false" in report
+
+    # The governed WATCH override path still surfaces its reason code verbatim.
     assert "- reason_code: REGIME_UNSTABLE" in report
     assert validate_verdict_reason_code("REGIME_UNSTABLE").value in report
+
+    # Research-only language guard (no profitability / tradability / production claims).
     lowered = report.lower()
     assert "profit" not in lowered
     assert "tradab" not in lowered
@@ -690,6 +717,12 @@ def _expected_report(bundle) -> str:
 - state: ZERO_PASS_MET
 - threshold_verdict: ZERO_PASS_MET
 - gate_status: PASS
+
+## Post-Cost Economic Level
+- n_legs: n/a
+- round_trip_cost_bps: n/a
+- traded_bucket_post_cost_mean_bps: n/a
+- clears_cost: false
 
 ## Final Verdict
 - verdict: WATCH
