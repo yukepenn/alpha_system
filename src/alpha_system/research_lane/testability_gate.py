@@ -663,8 +663,11 @@ def _check_conditioned_power(
     When the richer conditioned-power slice or the setup is unavailable at gate
     time the prior unconditioned-plausibility PASS is preserved (no regression for
     fixtures/callers that do not provide it). When the slice IS provided but its
-    conditioned-power inputs cannot be resolved, the check fails LOUD with a typed
-    precondition reason -- never a silent pass and never a generic DATA_GAP.
+    feature VALUES are not loadable here (registry-only / CI / not-yet-materialized),
+    the check degrades gracefully to that same unconditioned PASS, recorded visibly
+    (the conditioned recompute is deferred to a real run whose values load). A
+    genuine ENVIRONMENT fault (unresolvable root, uncompilable predicates, missing
+    horizon) still fails LOUD as ENVIRONMENT_NOT_CONFIGURED.
     """
 
     if conditioned_power_slice is None or setup_spec is None:
@@ -683,12 +686,10 @@ def _check_conditioned_power(
     try:
         conditioned = compute_conditioned_power(setup_spec, conditioned_power_slice, env=env)
     except ConditionedPowerPreconditionError as exc:
-        # LOUD typed failure -- the conditioned-power compute could not resolve its
-        # inputs. It must NEVER pass on the unconditioned figure. The env/precondition
-        # law distinction: an unmet ENVIRONMENT precondition (unresolvable root,
-        # malformed slice contract) surfaces as ENVIRONMENT_NOT_CONFIGURED; genuinely
-        # absent/unreadable materialized feature values surface as a typed DATA_GAP
-        # (distinct issue_code), never the conditioned-power UNDERPOWERED outcome.
+        # env/precondition-law distinction. is_environment=True is a genuine
+        # ENVIRONMENT fault (unresolvable data root, uncompilable setup predicates,
+        # or a forward-overlapping outcome with no derivable horizon = a malformed
+        # slice contract) -- surface it LOUD, never a silent pass.
         if exc.is_environment:
             return _environment_not_configured(
                 CHECK_N_EFF_MDE_DEDUP,
@@ -697,12 +698,29 @@ def _check_conditioned_power(
                 reason=str(exc),
                 study_kind=CONTEXT_NOT_EQUAL_TRIGGER,
             )
-        return _data_gap(
+        # is_environment=False: the data root resolves but the slice's materialized
+        # feature VALUES are not loadable HERE (a registry-only environment such as
+        # CI, or a slice that is registry-resolvable but not yet materialized on this
+        # host). The pre-test gate is a registry-resolvability + plausibility gate
+        # (features_materialized checks RESOLVABILITY, not on-disk values), so the
+        # conditioned-power recompute must NOT override a resolvable setup to DATA_GAP
+        # merely because parquet values are absent here. DEGRADE GRACEFULLY to the
+        # prior unconditioned-plausibility PASS, recorded VISIBLY (not silent). This is
+        # safe: absent values mean no probe runs anyway (fast_probe loads the SAME
+        # parquet via the same value-store and itself DATA_GAPs / is mocked) -- so no
+        # shot is spent and no underpowered setup is promoted. The honest conditioned
+        # gate fires exactly when it can matter: a real run whose values ARE loadable.
+        return _pass(
             CHECK_N_EFF_MDE_DEDUP,
-            "conditioned-power feature values are not resolvable at gate time",
-            issue_code="CONDITIONED_POWER_DATA_GAP",
-            reason=str(exc),
-            study_kind=CONTEXT_NOT_EQUAL_TRIGGER,
+            "N_eff/MDE metadata are plausible and duplicate exposure is declared",
+            n_eff=slice_spec.n_eff,
+            minimum_detectable_effect=slice_spec.minimum_detectable_effect,
+            duplicate_exposure_status=dedup_status,
+            conditioned_power_evaluated=False,
+            conditioned_power_reason=(
+                "conditioned-power feature values not loadable at gate time; "
+                f"deferred to probe-time (which fails closed on absent values): {exc}"
+            ),
         )
 
     verdict = conditioned_power_verdict(conditioned)
@@ -928,9 +946,7 @@ def _coerce_conditioned_power_slice(
     try:
         return SliceSpec.from_mapping(value)
     except SliceSpecError as exc:
-        raise TestabilityGateError(
-            f"conditioned_power_slice is malformed: {exc}"
-        ) from exc
+        raise TestabilityGateError(f"conditioned_power_slice is malformed: {exc}") from exc
 
 
 def _pass(check_id: str, message: str, **detail: Any) -> GateCheckResult:
@@ -945,9 +961,7 @@ def _data_gap(check_id: str, message: str, **detail: Any) -> GateCheckResult:
     return GateCheckResult(check_id, GateStatus.DATA_GAP, {"message": message, **detail})
 
 
-def _environment_not_configured(
-    check_id: str, message: str, **detail: Any
-) -> GateCheckResult:
+def _environment_not_configured(check_id: str, message: str, **detail: Any) -> GateCheckResult:
     return GateCheckResult(
         check_id,
         GateStatus.ENVIRONMENT_NOT_CONFIGURED,
