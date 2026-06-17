@@ -48,11 +48,20 @@ from alpha_system.runtime.diagnostics.splits.n_eff import (
     forward_overlap_block_size,
 )
 from alpha_system.runtime.input_resolver import (
+    DATA_ROOT_PRECONDITION_CODE,
     FeatureLabelPackResolver,
     RuntimeInputResolverError,
 )
 
 FAST_PROBE_SCHEMA = "alpha_system.research_lane.fast_probe.v1"
+ISSUE_DATA_GAP = "DATA_GAP"
+ISSUE_MISSING_DEPENDENCY = "MISSING_DEPENDENCY"
+ISSUE_ALPHA_DATA_ROOT_MISSING = "ALPHA_DATA_ROOT_MISSING"
+ISSUE_REGISTRY_UNAVAILABLE = "REGISTRY_UNAVAILABLE"
+ISSUE_DEPRECATED_PACK_PIN = "DEPRECATED_PACK_PIN"
+ISSUE_DATASET_VERSION_MISMATCH = "DATASET_VERSION_MISMATCH"
+ISSUE_VALUE_FILE_MISSING = "VALUE_FILE_MISSING"
+ISSUE_TRUE_DATA_GAP = "TRUE_DATA_GAP"
 
 # Resolution-adequate standing surrogate budget. The cross-idea FDR gate needs
 # ``run_count >= ceil(m / alpha) - 1`` to resolve an FDR-corrected p-value; the
@@ -134,6 +143,7 @@ def fast_probe(
             active_card,
             active_setup,
             active_slice,
+            issue_code=ISSUE_ALPHA_DATA_ROOT_MISSING,
             reason=f"ALPHA_DATA_ROOT/data root does not resolve: {root}",
         )
     try:
@@ -146,6 +156,7 @@ def fast_probe(
             active_card,
             active_setup,
             active_slice,
+            issue_code=_classify_gap_exception(exc),
             reason=f"bounded slice rows could not be resolved via sanctioned loader: {exc}",
         )
 
@@ -174,9 +185,10 @@ def build_fast_probe_data_gap(
     setup: SetupSpec | Mapping[str, Any] | None,
     slice_spec: SliceSpec | Mapping[str, Any],
     *,
+    issue_code: str = ISSUE_DATA_GAP,
     reason: str,
 ) -> dict[str, JsonValue]:
-    """Build an honest DATA_GAP readout without fabricated values."""
+    """Build an honest unresolved-input readout without fabricated values."""
 
     active_card = _coerce_card(card)
     active_slice = _coerce_slice(slice_spec)
@@ -192,7 +204,7 @@ def build_fast_probe_data_gap(
     payload: dict[str, JsonValue] = {
         "schema": FAST_PROBE_SCHEMA,
         "status": "INCONCLUSIVE",
-        "issue_code": "DATA_GAP",
+        "issue_code": issue_code,
         "study_kind": active_slice.study_kind,
         "stamp": EXPLORATORY_STAMP,
         "promotion_eligible": False,
@@ -201,6 +213,7 @@ def build_fast_probe_data_gap(
         "slice_spec": active_slice.to_dict(),
         "row_access": {
             "status": "unresolved",
+            "issue_code": issue_code,
             "reason": reason,
             "fabricated_values": False,
         },
@@ -1387,6 +1400,7 @@ def _readout_id(prefix: str, payload: Mapping[str, Any]) -> str:
 _DATA_GAP_EXCEPTIONS = (
     DataDependencyError,
     RuntimeInputResolverError,
+    FileNotFoundError,
     OSError,
     ValueError,
     KeyError,
@@ -1394,8 +1408,41 @@ _DATA_GAP_EXCEPTIONS = (
 )
 
 
+def _classify_gap_exception(exc: Exception) -> str:
+    if isinstance(exc, DataDependencyError):
+        return ISSUE_MISSING_DEPENDENCY
+    if isinstance(exc, FileNotFoundError):
+        return ISSUE_VALUE_FILE_MISSING
+    if isinstance(exc, RuntimeInputResolverError):
+        code = str(exc.reason.code)
+        if code == DATA_ROOT_PRECONDITION_CODE:
+            return ISSUE_ALPHA_DATA_ROOT_MISSING
+        if code in {"feature_pack_deprecated", "label_pack_deprecated"}:
+            return ISSUE_DEPRECATED_PACK_PIN
+        if code in {
+            "feature_pack_dataset_version_mismatch",
+            "label_pack_dataset_version_mismatch",
+        }:
+            return ISSUE_DATASET_VERSION_MISMATCH
+        if code.endswith("_not_found") or code.startswith("missing_"):
+            return ISSUE_TRUE_DATA_GAP
+        if code.endswith("_resolution_failed") or code.endswith("_resolver_missing"):
+            return ISSUE_REGISTRY_UNAVAILABLE
+        return code.upper()
+    if isinstance(exc, OSError):
+        return ISSUE_VALUE_FILE_MISSING
+    return ISSUE_DATA_GAP
+
+
 __all__ = [
     "FAST_PROBE_SCHEMA",
+    "ISSUE_ALPHA_DATA_ROOT_MISSING",
+    "ISSUE_DATASET_VERSION_MISMATCH",
+    "ISSUE_DEPRECATED_PACK_PIN",
+    "ISSUE_MISSING_DEPENDENCY",
+    "ISSUE_REGISTRY_UNAVAILABLE",
+    "ISSUE_TRUE_DATA_GAP",
+    "ISSUE_VALUE_FILE_MISSING",
     "RESOLUTION_ADEQUATE_SURROGATE_RUNS",
     "FastProbeError",
     "InjectedRows",

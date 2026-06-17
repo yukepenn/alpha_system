@@ -288,8 +288,8 @@ class _LabelRegistry:
         return self.records.get(label_version_id)
 
 
-def _feature_record() -> _FeatureRecord:
-    return _FeatureRecord()
+def _feature_record(**overrides: object) -> _FeatureRecord:
+    return _FeatureRecord(**overrides)
 
 
 def _label_record(label_spec_id: str) -> _LabelRecord:
@@ -679,3 +679,59 @@ def test_gate_valid_root_absent_partition_still_data_gaps() -> None:
 
     assert _statuses(result)[CHECK_FEATURES_MATERIALIZED] is GateStatus.DATA_GAP
     assert result.overall_status is GateStatus.DATA_GAP
+
+
+def test_gate_deprecated_pack_pin_fails_not_datagaps() -> None:
+    bundle = _bundle()
+    resolver = FeatureLabelPackResolver(
+        feature_store=_FeatureStore(
+            {
+                FEATURE_VERSION_ID: _feature_record(
+                    lifecycle_state="DEPRECATED",
+                    replacement_feature_version_id="fver_" + "d" * 64,
+                )
+            }
+        ),
+        label_registry=_LabelRegistry({LABEL_VERSION_ID: _label_record("lspec_main")}),
+    )
+
+    result = evaluate_testability_gate(
+        bundle.idea_draft,
+        alpha_spec=bundle.alpha_spec,
+        mechanism_card=bundle.mechanism_card,
+        slice_spec=_slice(bundle.alpha_spec.label_references[0]),
+        resolver=resolver,
+    )
+
+    assert _statuses(result)[CHECK_FEATURES_MATERIALIZED] is GateStatus.FAIL
+    assert result.overall_status is GateStatus.FAIL
+    feature_check = next(
+        check for check in result.checks if check.check_id == CHECK_FEATURES_MATERIALIZED
+    )
+    assert feature_check.detail["reason"]["code"] == "feature_pack_deprecated"
+    assert "replacement_feature_version_id=" in feature_check.detail["reason"]["actual"]
+
+
+def test_gate_dataset_version_mismatch_fails_not_datagaps() -> None:
+    bundle = _bundle()
+    resolver = FeatureLabelPackResolver(
+        feature_store=_FeatureStore(
+            {FEATURE_VERSION_ID: _feature_record(dataset_version_id="dsv_other_dataset")}
+        ),
+        label_registry=_LabelRegistry({LABEL_VERSION_ID: _label_record("lspec_main")}),
+    )
+
+    result = evaluate_testability_gate(
+        bundle.idea_draft,
+        alpha_spec=bundle.alpha_spec,
+        mechanism_card=bundle.mechanism_card,
+        slice_spec=_slice(bundle.alpha_spec.label_references[0]),
+        resolver=resolver,
+    )
+
+    assert _statuses(result)[CHECK_FEATURES_MATERIALIZED] is GateStatus.FAIL
+    assert result.overall_status is GateStatus.FAIL
+    feature_check = next(
+        check for check in result.checks if check.check_id == CHECK_FEATURES_MATERIALIZED
+    )
+    assert feature_check.detail["reason"]["code"] == "feature_pack_dataset_version_mismatch"

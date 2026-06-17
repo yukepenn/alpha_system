@@ -173,7 +173,8 @@ def test_fast_probe_data_gap_on_missing_polars_never_calls_scoring(monkeypatch, 
     result = fast_probe(card, None, payload, resolver=_Resolver(), env={})
 
     assert result["status"] == "INCONCLUSIVE"
-    assert result["issue_code"] == "DATA_GAP"
+    assert result["issue_code"] == "MISSING_DEPENDENCY"
+    assert result["row_access"]["issue_code"] == "MISSING_DEPENDENCY"
     assert result["promotion_eligible"] is False
     assert result["row_access"]["fabricated_values"] is False
     assert result["surrogate_fdr_gate"]["gate_status"] == "BLOCKED"
@@ -192,9 +193,26 @@ def test_fast_probe_data_gap_on_missing_data_root_never_calls_loader(monkeypatch
     result = fast_probe(card, None, payload, resolver=_Resolver(), env={})
 
     assert result["status"] == "INCONCLUSIVE"
-    assert result["issue_code"] == "DATA_GAP"
+    assert result["issue_code"] == "ALPHA_DATA_ROOT_MISSING"
+    assert result["row_access"]["issue_code"] == "ALPHA_DATA_ROOT_MISSING"
     assert "does not resolve" in result["row_access"]["reason"]
     assert result["row_access"]["fabricated_values"] is False
+
+
+def test_fast_probe_missing_value_file_is_value_file_missing(monkeypatch, tmp_path) -> None:
+    card = _mechanism_card()
+    payload = _main_effect_slice(tmp_path)
+
+    def missing_loader(path):
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr(fast_probe_module, "load_parquet_values", missing_loader)
+
+    result = fast_probe(card, None, payload, resolver=_Resolver(), env={})
+
+    assert result["status"] == "INCONCLUSIVE"
+    assert result["issue_code"] == "VALUE_FILE_MISSING"
+    assert result["row_access"]["issue_code"] == "VALUE_FILE_MISSING"
 
 
 def test_fast_probe_does_not_bypass_nonzero_surrogate_pass(monkeypatch, tmp_path) -> None:

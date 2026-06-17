@@ -29,6 +29,10 @@ from alpha_system.research_lane.environment_preflight import (
 from alpha_system.research_lane.fast_probe import FastProbeError, fast_probe
 from alpha_system.research_lane.memory_router import route_verdict_to_memory
 from alpha_system.research_lane.mining_driver import MiningDriverError, mine_ideas
+from alpha_system.research_lane.pack_pin_audit import (
+    audit_idea_pack_pins,
+    payload_has_versioned_pack_refs,
+)
 from alpha_system.research_lane.reviewer import adjudicate_signal
 from alpha_system.research_lane.slice_spec import SliceSpec, SliceSpecError
 from alpha_system.research_lane.testability_gate import (
@@ -48,6 +52,15 @@ def run_idea_validate(args: argparse.Namespace) -> int:
         idea_path = Path(args.idea_yaml)
         payload = load_idea_document(idea_path)
         bundle = build_idea_validation_bundle(payload, source=idea_path.as_posix())
+        preflight = None
+        if payload_has_versioned_pack_refs(payload):
+            preflight = _environment_preflight_for_args(args)
+            if not preflight.configured:
+                _emit_environment_not_configured(preflight)
+                return ENVIRONMENT_NOT_CONFIGURED_EXIT
+        pack_pin_issues = _pack_pin_issues_for_validate(payload, preflight=preflight)
+        if pack_pin_issues:
+            raise GovernanceValidationError(pack_pin_issues)
     except GovernanceValidationError as exc:
         print(
             json.dumps(
@@ -112,6 +125,21 @@ def _environment_preflight_for_args(args: argparse.Namespace) -> EnvironmentPref
 
     explicit = getattr(args, "alpha_data_root", None)
     return evaluate_environment_preflight(alpha_data_root=explicit)
+
+
+def _pack_pin_issues_for_validate(
+    payload: Mapping[str, Any],
+    *,
+    preflight: EnvironmentPreflightResult | None,
+):
+    """Return deprecated/mismatched pack-pin issues for validate, if applicable."""
+
+    if preflight is None:
+        return ()
+    return audit_idea_pack_pins(
+        payload,
+        resolver=FeatureLabelPackResolver(alpha_data_root=preflight.data_root),
+    )
 
 
 def _conditioned_power_slice_for(
@@ -589,6 +617,13 @@ def register_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     validate_parser.add_argument(
         "idea_yaml",
         help="Path to an idea YAML or JSON-subset YAML document.",
+    )
+    validate_parser.add_argument(
+        "--alpha-data-root",
+        help=(
+            "Explicit local data root override. Versioned feature/label pack pins "
+            "are audited against this root (or the canonical default)."
+        ),
     )
     validate_parser.set_defaults(handler=run_idea_validate)
 

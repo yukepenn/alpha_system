@@ -856,14 +856,14 @@ def _missing_slice_resolution_fields(slice_spec: TestabilitySlice) -> tuple[str,
 
 def _overall_status(checks: Sequence[GateCheckResult]) -> GateStatus:
     statuses = {check.status for check in checks}
-    # An unmet environment precondition outranks DATA_GAP: a broken env must be
-    # reported as a misconfiguration, never collapsed into an absent-data outcome.
+    # Environment/configuration defects and explicit FAILs must not be masked by
+    # later value availability checks that can legitimately DATA_GAP.
     if GateStatus.ENVIRONMENT_NOT_CONFIGURED in statuses:
         return GateStatus.ENVIRONMENT_NOT_CONFIGURED
-    if GateStatus.DATA_GAP in statuses:
-        return GateStatus.DATA_GAP
     if GateStatus.FAIL in statuses:
         return GateStatus.FAIL
+    if GateStatus.DATA_GAP in statuses:
+        return GateStatus.DATA_GAP
     return GateStatus.PASS
 
 
@@ -983,10 +983,26 @@ def _resolver_rejection_check(
     """
 
     reason = exc.reason.to_dict()
-    if reason.get("code") == DATA_ROOT_PRECONDITION_CODE:
+    code = str(reason.get("code") or "")
+    if (
+        code == DATA_ROOT_PRECONDITION_CODE
+        or code.endswith("_resolution_failed")
+        or code.endswith("_resolver_missing")
+    ):
         return _environment_not_configured(
             check_id,
-            "data root environment precondition is unmet (not a data gap)",
+            "resolver environment/registry precondition is unmet (not a data gap)",
+            reason=reason,
+        )
+    if code in {
+        "feature_pack_deprecated",
+        "label_pack_deprecated",
+        "feature_pack_dataset_version_mismatch",
+        "label_pack_dataset_version_mismatch",
+    }:
+        return _fail(
+            check_id,
+            "authored pack pins fail runtime preconditions before a probe shot",
             reason=reason,
         )
     return _data_gap(check_id, message, reason=reason)
