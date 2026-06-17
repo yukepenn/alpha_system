@@ -321,6 +321,21 @@ def conditioned_power_gate_canary() -> Canary:
     )
 
 
+def binary_overlap_conditioned_neff_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.binary_overlap_conditioned_neff import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "binary_overlap_conditioned_neff",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -524,6 +539,7 @@ def scenarios() -> list[Canary]:
         pooled_partition_factor_id_drift_canary(),
         ic_only_postcost_promotion_canary(),
         conditioned_power_gate_canary(),
+        binary_overlap_conditioned_neff_canary(),
     ]
 
 

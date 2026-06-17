@@ -24,9 +24,13 @@ sanctioned primitives -- no second truth:
   context/trigger operator/threshold/value_field on the SAME feature value rows
   loaded by the fast-probe loader (``core.value_store.load_parquet_values`` ->
   ``research_lane.fast_probe._load_injected_rows``).
-* ``forward_overlap_block_size`` + ``estimate_n_eff`` apply the SAME #474
+* ``_conditioned_overlap_block_size`` + ``estimate_n_eff`` apply the SAME #474
   overlap discount the conditioned IC-power site (``conditional_probe.
-  _conditioned_power_n_eff``) already uses.
+  _conditioned_power_n_eff``) already uses -- discounting the conditioned EVENT
+  series by ``required_future_bars`` for BOTH a typed forward-overlapping outcome
+  AND a BINARY multi-bar path label (``target_before_stop``, ``outcome_label_type``
+  None) whose lookahead window still spans the horizon (task #74). The gate and the
+  readout therefore report the SAME conditioned N_eff for the SAME slice.
 * ``minimum_detectable_abs_ic`` recomputes the MDE from that conditioned N_eff
   with the SAME formula the gate's downstream verdict reports.
 
@@ -260,7 +264,7 @@ def conditioned_power_from_injected_rows(
 
     outcome_label_type = conditioned_power_slice.outcome_label_type
     try:
-        block_size = forward_overlap_block_size(
+        block_size = _conditioned_overlap_block_size(
             outcome_label_type,
             required_future_bars=conditioned_power_slice.required_future_bars,
         )
@@ -314,6 +318,50 @@ def _count_conditioned_events(
         if context.evaluate(context_row) and trigger.evaluate(trigger_row):
             conditioned += 1
     return aligned, conditioned
+
+
+def _conditioned_overlap_block_size(
+    outcome_label_type: str | None,
+    *,
+    required_future_bars: int | None,
+) -> int:
+    """Overlap block size (in bars) for the conditioned EVENT series, fail-closed.
+
+    This MUST match the conditioned-power overlap the fast-probe READOUT applies
+    so the gate and the readout report the SAME conditioned N_eff for the SAME
+    slice (task #74). The readout discounts the conditioned event series by
+    ``slice_spec.required_future_bars`` whenever it exceeds 1, via
+    ``conditional_probe._conditioned_power_n_eff`` -- and the fast-probe surrogate
+    block derivation (``fast_probe._run_context_not_equal_trigger``) uses the SAME
+    binary expression. The block derivation here intentionally mirrors that pair:
+
+    * BINARY path label (``outcome_label_type`` None, e.g. ``target_before_stop``):
+      the label is contemporaneous *by type*, but a binary PATH label whose
+      lookahead window spans ``required_future_bars`` bars on a 1m cadence IS
+      forward-OVERLAPPING by its HORIZON -- consecutive joint-firing events share
+      ``required_future_bars - 1`` of their lookahead bars. So the block is
+      ``max(required_future_bars, 1)``, NOT the type-only ``1`` returned by
+      ``forward_overlap_block_size(None, ...)``. Using the type-only helper here
+      was the #74 bug: it returned block 1 -> conditioned N_eff = raw joint-firing
+      count -> a ~horizon-fold N_eff inflation that resurrects the exact #474
+      regression the #52 gate was meant to prevent.
+    * TYPED forward-overlapping outcome (e.g. ``net_excursion``, ``mfe_by_horizon``):
+      delegate to the shared fail-closed ``forward_overlap_block_size`` helper,
+      which derives the horizon block and RAISES (never silently returns 1) when
+      the horizon cannot be derived. Continuous-outcome behavior is unchanged
+      (block = horizon in both the gate and the readout already).
+
+    A binary path label with no ``required_future_bars`` (or <= 1) is a genuine
+    single-bar / contemporaneous case and keeps block 1 (no overlap to discount),
+    exactly as the readout does for ``outcome_overlap_bars`` None / <= 1.
+    """
+
+    if outcome_label_type is None:
+        return max(int(required_future_bars or 1), 1)
+    return forward_overlap_block_size(
+        outcome_label_type,
+        required_future_bars=required_future_bars,
+    )
 
 
 def _overlap_discounted_n_eff(conditioned_events: int, block_size: int) -> int:
