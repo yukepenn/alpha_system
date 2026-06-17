@@ -13,6 +13,7 @@ from alpha_system.cli import idea as idea_cli
 from alpha_system.cli.main import build_parser, main
 from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.research_lane import environment_preflight as preflight_module
+from alpha_system.research_lane import testability_gate as gate_module
 
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
 
@@ -483,6 +484,29 @@ def test_idea_gate_and_run_consume_embedded_resolving_slice(
 
     monkeypatch.setattr(idea_cli, "FeatureLabelPackResolver", fake_resolver)
     monkeypatch.setattr(idea_cli, "fast_probe", fake_fast_probe)
+    # The pre-test gate now recomputes the honest CONDITIONED (context AND trigger)
+    # power for a context_not_equal_trigger setup, which reads materialized feature
+    # values. This routing test mocks the data layer (resolver + fast_probe), so
+    # mock the conditioned-power compute at the gate's import site to return a
+    # well-powered result -- correct isolation of the routing under test (the
+    # conditioned-power LOGIC is covered by its own unit tests + canary).
+    from alpha_system.research_lane.conditioned_power import ConditionedPowerResult
+
+    def fake_compute_conditioned_power(setup_spec, conditioned_slice, *, env=None):
+        return ConditionedPowerResult(
+            aligned_event_count=4000,
+            conditioned_event_count=2000,
+            overlap_block_size=1,
+            conditioned_n_eff=2000,
+            conditioned_mde_abs_ic=0.04,
+            outcome_label_type=conditioned_slice.outcome_label_type,
+            context_factor_id="ctx",
+            trigger_factor_id="trg",
+        )
+
+    monkeypatch.setattr(
+        gate_module, "compute_conditioned_power", fake_compute_conditioned_power
+    )
 
     validate_status = main(["idea", "validate", idea_path.as_posix()])
     validate_out = json.loads(capsys.readouterr().out)

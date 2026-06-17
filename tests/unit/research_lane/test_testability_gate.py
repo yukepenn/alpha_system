@@ -9,6 +9,15 @@ import pytest
 
 from alpha_system.governance.idea_draft import MAIN_EFFECT, build_idea_validation_bundle
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
+from alpha_system.research.conditional_probe import compile_setup_spec_to_conditional_probe
+from alpha_system.research_lane.conditioned_power import (
+    PLAUSIBLE_CONDITIONED_ABS_IC_FLOOR,
+    UNDERPOWERED_CONDITIONED_ISSUE_CODE,
+    conditioned_power_from_injected_rows,
+    conditioned_power_verdict,
+)
+from alpha_system.research_lane.fast_probe import InjectedRows
+from alpha_system.research_lane.slice_spec import SliceSpec
 from alpha_system.research_lane.testability_gate import (
     CHECK_FEATURES_MATERIALIZED,
     CHECK_LABELS_EXIST,
@@ -412,6 +421,169 @@ def test_outcome_non_degeneracy_data_gaps_for_degenerate_continuous_setup() -> N
 
     assert result.check_id == CHECK_PATH_LABEL_TWO_CLASS
     assert result.status is GateStatus.DATA_GAP
+
+
+def _conditioned_setup_spec():
+    from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
+    from alpha_system.governance.setup_spec import create_setup_spec
+
+    label_id = generate_governance_id(GovernanceIdKind.LABEL_SPEC, {"k": "v"})
+    mech_id = generate_governance_id(GovernanceIdKind.MECHANISM_CARD, {"k": "v"})
+    return create_setup_spec(
+        entry_context={
+            "factor_id": "ctx_factor",
+            "factor_version": "fver_" + "a" * 64,
+            "operator": "<=",
+            "threshold": 0.05,
+            "value_field": "normalized_value",
+            "bucket": "chop",
+        },
+        event_trigger={
+            "factor_id": "trg_factor",
+            "factor_version": "fver_" + "b" * 64,
+            "operator": "<=",
+            "threshold": -0.004,
+            "value_field": "normalized_value",
+            "event": "stretch",
+        },
+        regime_filter={"session": "RTH", "instrument_root": "ES"},
+        confirmation={"policy": "none_added"},
+        invalidation={"policy": "fixed_path_stop_binding"},
+        stop={"binding": "fixed_stop_from_path_label"},
+        target={"geometry": "unchanged", "path_outcome": "net_excursion"},
+        hold_time={"horizon": "30m", "max_minutes": 30},
+        horizon="30m",
+        path_label=label_id,
+        allowed_variants=["baseline"],
+        forbidden_post_hoc_changes=["no_change"],
+        mechanism_id=mech_id,
+    )
+
+
+def _conditioned_slice_spec(setup):
+    return SliceSpec.from_mapping(
+        {
+            "slice_id": "ES_2020_30m",
+            "study_kind": "context_not_equal_trigger",
+            "dataset_version_id": "dsv_x",
+            "partition_id": "ES_2020_30m",
+            "instrument_id": "ES",
+            "session_id": "ES:RTH",
+            "data_version": "dsv_x",
+            "outcome_label_type": "net_excursion",
+            "required_future_bars": 30,
+            "feature_inputs": [
+                {
+                    "role": "context",
+                    "factor_id": "ctx_factor",
+                    "factor_version": "fver_" + "a" * 64,
+                    "pack_ref": "fver_" + "a" * 64,
+                },
+                {
+                    "role": "trigger",
+                    "factor_id": "trg_factor",
+                    "factor_version": "fver_" + "b" * 64,
+                    "pack_ref": "fver_" + "b" * 64,
+                },
+            ],
+            "label_inputs": [
+                {"role": "path", "label_id": setup.path_label, "pack_ref": "lver_" + "c" * 64}
+            ],
+        }
+    )
+
+
+def _conditioned_injected_rows(*, total: int, joint: set[int]) -> InjectedRows:
+    base = datetime(2020, 1, 2, 14, 30, tzinfo=UTC)
+
+    def row(factor_id: str, factor_version: str, index: int, value: float) -> dict:
+        return {
+            "factor_id": factor_id,
+            "factor_version": factor_version,
+            "instrument_id": "ES",
+            "event_ts": (base + timedelta(minutes=index)).isoformat(),
+            "session_id": "ES:RTH",
+            "data_version": "dsv_x",
+            "bar_index": index,
+            "value": value,
+            "normalized_value": value,
+        }
+
+    ctx = tuple(row("ctx_factor", "fver_" + "a" * 64, i, 0.04) for i in range(total))
+    trg = tuple(
+        row("trg_factor", "fver_" + "b" * 64, i, -0.005 if i in joint else 0.05)
+        for i in range(total)
+    )
+    return InjectedRows(
+        feature_rows_by_role={"context": ctx, "trigger": trg},
+        label_rows_by_role={},
+    )
+
+
+def test_conditioned_power_underpowered_setup_fails_closed_in_memory() -> None:
+    # An FQ08-shaped sparse + clustered joint-firing series: the conditioned
+    # non-overlapping n_eff (after the 30-bar #474 discount) is tiny, the
+    # conditioned MDE is above the plausible floor, and the verdict FAILS CLOSED
+    # with the typed UNDERPOWERED_CONDITIONED code (NOT a generic DATA_GAP / pass).
+    setup = _conditioned_setup_spec()
+    slice_spec = _conditioned_slice_spec(setup)
+    total = 30_000
+    joint: set[int] = set()
+    for start in range(0, total, 600):
+        joint.update(range(start, min(start + 9, total)))
+    injected = _conditioned_injected_rows(total=total, joint=joint)
+
+    probe = compile_setup_spec_to_conditional_probe(setup)
+    result = conditioned_power_from_injected_rows(probe, slice_spec, injected)
+
+    assert result.conditioned_event_count == len(joint)
+    assert result.conditioned_n_eff < total
+    assert result.conditioned_mde_abs_ic is not None
+    assert result.conditioned_mde_abs_ic > PLAUSIBLE_CONDITIONED_ABS_IC_FLOOR
+    verdict = conditioned_power_verdict(result)
+    assert verdict.passed is False
+    assert verdict.issue_code == UNDERPOWERED_CONDITIONED_ISSUE_CODE
+
+
+def test_conditioned_power_well_powered_setup_passes_in_memory() -> None:
+    setup = _conditioned_setup_spec()
+    slice_spec = _conditioned_slice_spec(setup)
+    total = 100_000
+    joint = set(range(0, 60_000))
+    injected = _conditioned_injected_rows(total=total, joint=joint)
+
+    probe = compile_setup_spec_to_conditional_probe(setup)
+    result = conditioned_power_from_injected_rows(probe, slice_spec, injected)
+
+    assert result.conditioned_event_count == len(joint)
+    assert result.conditioned_mde_abs_ic is not None
+    assert result.conditioned_mde_abs_ic <= PLAUSIBLE_CONDITIONED_ABS_IC_FLOOR
+    assert conditioned_power_verdict(result).passed is True
+
+
+def test_conditioned_setup_keeps_unconditioned_pass_when_no_conditioned_slice() -> None:
+    # When the richer conditioned-power slice is not supplied, a context!=trigger
+    # study keeps the prior unconditioned plausibility PASS (additive, no
+    # regression for callers/fixtures that do not provide it).
+    bundle = _bundle()
+    setup_slice = _slice(
+        bundle.alpha_spec.label_references[0],
+        study_kind="context_not_equal_trigger",
+        path_label_observations=(),
+        path_label_class_counts={"true": 3, "false": 1},
+    )
+    result = evaluate_testability_gate(
+        bundle.idea_draft,
+        alpha_spec=bundle.alpha_spec,
+        mechanism_card=bundle.mechanism_card,
+        slice_spec=setup_slice,
+        resolver=_resolver(label_spec_id=bundle.alpha_spec.label_references[0]),
+    )
+    n_eff_check = next(
+        check for check in result.checks if check.check_id == CHECK_N_EFF_MDE_DEDUP
+    )
+    assert n_eff_check.status is GateStatus.PASS
+    assert n_eff_check.detail["conditioned_power_evaluated"] is False
 
 
 def test_family_fdr_declaration_defaults_to_policy_when_absent() -> None:
