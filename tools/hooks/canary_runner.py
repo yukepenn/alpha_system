@@ -275,6 +275,21 @@ def precondition_not_datagap_canary() -> Canary:
     )
 
 
+def pack_pin_validate_not_datagap_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.pack_pin_validate_not_datagap import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "pack_pin_validate_not_datagap",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def pooled_partition_factor_id_drift_canary() -> Canary:
     snippet = (
         "import sys; "
@@ -536,6 +551,7 @@ def scenarios() -> list[Canary]:
         overlap_neff_failclosed_canary(),
         ic_power_statement_overlap_canary(),
         precondition_not_datagap_canary(),
+        pack_pin_validate_not_datagap_canary(),
         pooled_partition_factor_id_drift_canary(),
         ic_only_postcost_promotion_canary(),
         conditioned_power_gate_canary(),

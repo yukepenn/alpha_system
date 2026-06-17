@@ -27,7 +27,7 @@ schema, validator, data, metric, registry, or runtime behavior.
 | `RejectedIdeaRecord` | `governance/rejected_idea.py` | REJECT memory. | `alpha_spec_id_or_hypothesis_id` accepts only AlphaSpec or HypothesisCard IDs. |
 | `RequeuedVerdictRecord` | `governance/requeue.py` | DATA_GAP/accrual memory. | Validated by `validate_requeued_verdict_record`. |
 | `PromotionDecision` | `governance/promotion.py` | Reviewer-gated WATCH/CANDIDATE transition. | Requires `alpha_spec_id`, evidence refs, trial refs, and `reviewer_verdict_id`. |
-| `FactorLibrary` | Compass-stage survivor memory | Out of V0; survivor-only and gated. | No current module is chartered by IVL. Survivor count remains 0. |
+| `FactorLibrary` | Compass-stage survivor memory | Out of V0; survivor-only and gated. | No module was chartered by IVL-P00; current survivor status belongs to `status_doctor` plus the freshest research-state decision ledger. |
 
 ## Role And Link Rules
 
@@ -53,8 +53,8 @@ Verified current `data_dependency.class` values:
 
 | Legacy card | Class | V0 migration route |
 | --- | --- | --- |
-| `day_of_week_effect` | `existing_substrate` | Live main-effect exemplar selected by the campaign. |
-| `open_close_auction_flow` | `existing_substrate` | Existing-substrate legacy record, but not selected as the IVL dogfood live exemplar. |
+| `day_of_week_effect` | `existing_substrate` | Historical main-effect exemplar selected by the IVL campaign. |
+| `open_close_auction_flow` | `existing_substrate` | Existing-substrate legacy record, but not selected as the IVL dogfood exemplar. |
 | `roll_week_flow` | `derivable_from_exchange_calendar` | DATA_GAP / requeue until a later FeatureRequest implementation exists. |
 | `month_end_flow` | `derivable_from_exchange_calendar` | DATA_GAP / requeue until a later FeatureRequest implementation exists. |
 | `month_end_rebalance_flow` | `derivable_from_exchange_calendar` | DATA_GAP / requeue until a later FeatureRequest implementation exists. |
@@ -131,7 +131,7 @@ strings for canonical MechanismCard IDs.
 
 | Class | Rule |
 | --- | --- |
-| `existing_substrate` | May be considered for a load-only existing slice only after the testability gate and explicit campaign selection. In IVL, the selected live exemplar is `day_of_week_effect`. |
+| `existing_substrate` | May be considered for a load-only existing slice only after the testability gate and explicit campaign selection. In IVL history, the selected exemplar was `day_of_week_effect`. |
 | `derivable_from_exchange_calendar` | Return DATA_GAP / requeue in V0. No FeatureRequest implementation is chartered. |
 | `needs_paid_data` | Migrate as record-only metadata. RED-deferred and never tested in V0. |
 

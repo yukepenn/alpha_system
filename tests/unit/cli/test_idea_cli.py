@@ -14,6 +14,8 @@ from alpha_system.cli.main import build_parser, main
 from alpha_system.governance.ids import GovernanceIdKind, generate_governance_id
 from alpha_system.research_lane import environment_preflight as preflight_module
 from alpha_system.research_lane import testability_gate as gate_module
+from alpha_system.runtime.entry_contract import RuntimeEntryReason, RuntimeEntryStatus
+from alpha_system.runtime.input_resolver import RuntimeInputResolverError
 
 FIXTURE_IDEA = Path("research/idea_to_verdict_loop_v0/fixtures/day_of_week.idea.yaml")
 
@@ -132,6 +134,67 @@ def test_idea_validate_cli_emits_canonical_bundle(capsys) -> None:
     assert payload["setup_spec"] is None
     assert "study_kind" not in payload["alpha_spec"]
     assert "study_kind" not in payload["mechanism_card"]
+
+
+def test_idea_validate_fails_loud_on_deprecated_pack_pin(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+    _neutralize_polars_precondition: None,
+) -> None:
+    idea_path = tmp_path / "deprecated-pin.idea.yaml"
+    idea_path.write_text(json.dumps(_context_idea_payload_with_slice()), encoding="utf-8")
+
+    monkeypatch.setattr(
+        idea_cli,
+        "FeatureLabelPackResolver",
+        lambda **_kwargs: _RejectingResolver(
+            code="feature_pack_deprecated",
+            field="feature_pack_refs[0].lifecycle_state",
+            expected="REGISTERED",
+            actual=f"DEPRECATED; replacement_feature_version_id={FEATURE_VERSION_ID}",
+        ),
+    )
+
+    status = main(["idea", "validate", idea_path.as_posix()])
+    captured = capsys.readouterr()
+
+    assert status == 2
+    assert captured.out == ""
+    error = json.loads(captured.err)
+    assert error["error"] == "idea_validation_failed"
+    assert error["issues"][0]["code"] == "DEPRECATED_PACK_PIN"
+    assert "replacement_feature_version_id=" in error["issues"][0]["actual"]
+
+
+def test_idea_validate_fails_loud_on_cross_dataset_replacement(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+    _neutralize_polars_precondition: None,
+) -> None:
+    idea_path = tmp_path / "cross-dsv.idea.yaml"
+    idea_path.write_text(json.dumps(_context_idea_payload_with_slice()), encoding="utf-8")
+
+    monkeypatch.setattr(
+        idea_cli,
+        "FeatureLabelPackResolver",
+        lambda **_kwargs: _RejectingResolver(
+            code="label_pack_dataset_version_mismatch",
+            field="label_pack_refs[0].dataset_version_id",
+            expected=DATASET_VERSION_ID,
+            actual="dsv_other_dataset",
+        ),
+    )
+
+    status = main(["idea", "validate", idea_path.as_posix()])
+    captured = capsys.readouterr()
+
+    assert status == 2
+    assert captured.out == ""
+    error = json.loads(captured.err)
+    assert error["issues"][0]["code"] == "DATASET_VERSION_MISMATCH"
+    assert error["issues"][0]["actual"] == "dsv_other_dataset"
 
 
 @pytest.mark.parametrize("command", ["testability", "gate"])
@@ -547,8 +610,12 @@ def test_idea_gate_and_run_consume_embedded_resolving_slice(
     assert report_path.read_text(encoding="utf-8") == run_out["report"]
     assert "- verdict: REJECT" in run_out["report"]
     assert fast_probe_calls == ["resolving-slice"]
-    assert resolver_obj.feature_calls == [FEATURE_VERSION_ID, FEATURE_VERSION_ID]
-    assert resolver_obj.label_calls == [LABEL_VERSION_ID, LABEL_VERSION_ID]
+    assert resolver_obj.feature_calls == [
+        FEATURE_VERSION_ID,
+        FEATURE_VERSION_ID,
+        FEATURE_VERSION_ID,
+    ]
+    assert resolver_obj.label_calls == [LABEL_VERSION_ID, LABEL_VERSION_ID, LABEL_VERSION_ID]
 
 
 def _context_idea_payload_with_slice() -> dict[str, Any]:
@@ -791,3 +858,28 @@ class _Resolver:
             _LabelHandle(label_version_id=ref, label_spec_id=self.label_spec_id)
             for ref in refs
         )
+
+
+class _RejectingResolver:
+    def __init__(
+        self,
+        *,
+        code: str,
+        field: str,
+        expected: str,
+        actual: str,
+    ) -> None:
+        self.reason = RuntimeEntryReason(
+            code=code,
+            message="unit resolver rejection",
+            field=field,
+            decision_state=RuntimeEntryStatus.INPUTS_BLOCKED,
+            expected=expected,
+            actual=actual,
+        )
+
+    def resolve_feature_packs(self, *args, **kwargs):
+        raise RuntimeInputResolverError(self.reason)
+
+    def resolve_label_packs(self, *args, **kwargs):
+        raise RuntimeInputResolverError(self.reason)
