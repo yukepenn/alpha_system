@@ -114,6 +114,29 @@ def _environment_preflight_for_args(args: argparse.Namespace) -> EnvironmentPref
     return evaluate_environment_preflight(alpha_data_root=explicit)
 
 
+def _conditioned_power_slice_for(
+    payload: Mapping[str, Any],
+    bundle: Any,
+    *,
+    slice_id: str | None,
+) -> SliceSpec | None:
+    """Build the richer fast-probe slice for the gate's conditioned-power check.
+
+    Only a context_not_equal_trigger idea (one that mints a SetupSpec) carries the
+    context/trigger predicates the conditioned-power compute needs, so we only build
+    the slice for that study kind. A malformed slice is left to the gate's own typed
+    handling; here a SliceSpecError simply means no conditioned slice is supplied and
+    the gate keeps its prior unconditioned plausibility behavior.
+    """
+
+    if bundle.setup_spec is None:
+        return None
+    try:
+        return SliceSpec.from_idea_payload(payload, slice_id=slice_id)
+    except SliceSpecError:
+        return None
+
+
 def run_idea_testability(args: argparse.Namespace) -> int:
     """Run ``alpha idea testability`` / ``alpha idea gate`` as a pre-test gate."""
 
@@ -133,9 +156,15 @@ def run_idea_testability(args: argparse.Namespace) -> int:
             mechanism_card=bundle.mechanism_card,
             setup_spec=bundle.setup_spec,
             slice_spec=slice_spec,
+            # The richer materialized-slice descriptor enables the honest CONDITIONED
+            # (context AND trigger) power check for a context_not_equal_trigger setup.
+            conditioned_power_slice=_conditioned_power_slice_for(
+                payload, bundle, slice_id=args.slice
+            ),
             # Pin the preflight-resolved root so the registry path resolves the
             # known-good store even if ALPHA_DATA_ROOT was unset in the process env.
             resolver=FeatureLabelPackResolver(alpha_data_root=preflight.data_root),
+            env=env_with_resolved_data_root(preflight),
         )
     except GovernanceValidationError as exc:
         print(
@@ -228,9 +257,15 @@ def run_idea_run(args: argparse.Namespace) -> int:
             mechanism_card=bundle.mechanism_card,
             setup_spec=bundle.setup_spec,
             slice_spec=slice_spec_from_idea_payload(payload, slice_id=args.slice),
+            # The richer materialized-slice descriptor enables the honest CONDITIONED
+            # (context AND trigger) power check for a context_not_equal_trigger setup.
+            conditioned_power_slice=_conditioned_power_slice_for(
+                payload, bundle, slice_id=args.slice
+            ),
             # Pin the preflight-resolved root so the registry path resolves the
             # known-good store even if ALPHA_DATA_ROOT was unset in the process env.
             resolver=FeatureLabelPackResolver(alpha_data_root=preflight.data_root),
+            env=env_with_resolved_data_root(preflight),
         )
         # Defense-in-depth: even though the entrypoint preflight already gated an
         # unmet environment precondition, the gate may independently classify a

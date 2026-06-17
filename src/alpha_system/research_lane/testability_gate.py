@@ -14,10 +14,22 @@ from alpha_system.governance.family_fdr_correction import (
     DEFAULT_FDR_ALPHA,
     DEFAULT_FDR_METHOD,
 )
-from alpha_system.governance.idea_draft import MAIN_EFFECT, IdeaDraft, validate_idea_draft
+from alpha_system.governance.idea_draft import (
+    CONTEXT_NOT_EQUAL_TRIGGER,
+    MAIN_EFFECT,
+    IdeaDraft,
+    validate_idea_draft,
+)
 from alpha_system.governance.mechanism_card import MechanismCard, validate_mechanism_card
 from alpha_system.governance.setup_spec import SetupSpec, validate_setup_spec
 from alpha_system.governance.surrogate_run import ZERO_PASS_MET
+from alpha_system.research_lane.conditioned_power import (
+    PLAUSIBLE_CONDITIONED_ABS_IC_FLOOR,
+    ConditionedPowerPreconditionError,
+    compute_conditioned_power,
+    conditioned_power_verdict,
+)
+from alpha_system.research_lane.slice_spec import SliceSpec, SliceSpecError
 from alpha_system.runtime.diagnostics.label.runtime import (
     _class_balance_summary,
     _distribution_summary,
@@ -240,16 +252,28 @@ def evaluate_testability_gate(
     mechanism_card: MechanismCard | Mapping[str, Any],
     setup_spec: SetupSpec | Mapping[str, Any] | None = None,
     slice_spec: TestabilitySlice | Mapping[str, Any] | None = None,
+    conditioned_power_slice: SliceSpec | Mapping[str, Any] | None = None,
     resolver: FeatureLabelPackResolver | None = None,
     probe_runner: Callable[[], object] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> TestabilityGateResult:
-    """Evaluate testability checks before any probe or metric is run."""
+    """Evaluate testability checks before any probe or metric is run.
+
+    ``conditioned_power_slice`` is the richer materialized-slice descriptor (the
+    same ``SliceSpec`` the fast probe loads). When the study is a
+    ``context_not_equal_trigger`` setup it lets the N_eff/MDE check recompute the
+    honest CONDITIONED (context AND trigger) power and gate on a plausible-effect
+    MDE floor, instead of accepting the author's UNCONDITIONED figure. When it is
+    absent the check keeps its prior unconditioned-plausibility behavior for that
+    study kind (e.g. unit fixtures that do not carry feature parquet rows).
+    """
 
     active_idea = _coerce_idea_draft(idea_draft)
     active_alpha = _coerce_alpha_spec(alpha_spec)
     active_mechanism = _coerce_mechanism_card(mechanism_card)
     active_setup = _coerce_setup_spec(setup_spec)
     active_slice = _coerce_slice(slice_spec)
+    active_conditioned_slice = _coerce_conditioned_power_slice(conditioned_power_slice)
 
     feature_check, feature_handles = _check_features_materialized(
         active_mechanism,
@@ -267,7 +291,13 @@ def evaluate_testability_gate(
         feature_check,
         label_check,
         _check_outcome_non_degeneracy(active_slice),
-        _check_n_eff_mde_and_dedup(active_mechanism, active_slice),
+        _check_n_eff_mde_and_dedup(
+            active_mechanism,
+            active_slice,
+            setup_spec=active_setup,
+            conditioned_power_slice=active_conditioned_slice,
+            env=env,
+        ),
         _check_available_ts_and_surrogate(active_slice, feature_handles, label_handles),
     )
     return TestabilityGateResult(
@@ -530,6 +560,10 @@ def _check_path_label_two_class(slice_spec: TestabilitySlice | None) -> GateChec
 def _check_n_eff_mde_and_dedup(
     mechanism_card: MechanismCard,
     slice_spec: TestabilitySlice | None,
+    *,
+    setup_spec: SetupSpec | None = None,
+    conditioned_power_slice: SliceSpec | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> GateCheckResult:
     dedup = dict(mechanism_card.duplicate_exposure)
     if not dedup:
@@ -585,12 +619,131 @@ def _check_n_eff_mde_and_dedup(
             "MDE must be finite and within (0, 1]",
             minimum_detectable_effect=mde,
         )
+    # For a context_not_equal_trigger (conditional SETUP) study the author-supplied
+    # n_eff/MDE above are the UNCONDITIONED full-slice figures; the real power is
+    # governed by the CONDITIONED (context AND trigger) joint-firing event count,
+    # collapsed to non-overlapping at the label horizon (the #474 rule applied to
+    # the conditioned event series). Recompute the honest conditioned power and
+    # gate on a plausible-effect MDE floor. main_effect is already
+    # unconditioned-correct, so it keeps the unconditioned plausibility result.
+    if slice_spec.study_kind == CONTEXT_NOT_EQUAL_TRIGGER:
+        return _check_conditioned_power(
+            dedup_status=dedup_status,
+            slice_spec=slice_spec,
+            setup_spec=setup_spec,
+            conditioned_power_slice=conditioned_power_slice,
+            env=env,
+        )
     return _pass(
         CHECK_N_EFF_MDE_DEDUP,
         "N_eff/MDE metadata are plausible and duplicate exposure is declared",
         n_eff=slice_spec.n_eff,
         minimum_detectable_effect=mde,
         duplicate_exposure_status=dedup_status,
+    )
+
+
+def _check_conditioned_power(
+    *,
+    dedup_status: str,
+    slice_spec: TestabilitySlice,
+    setup_spec: SetupSpec | None,
+    conditioned_power_slice: SliceSpec | None,
+    env: Mapping[str, str] | None,
+) -> GateCheckResult:
+    """Gate a conditional SETUP on its honest CONDITIONED (context AND trigger) power.
+
+    The conditioned N_eff is the joint-firing (context AND trigger) event count
+    discounted to non-overlapping at the label horizon (#474). The MDE is
+    recomputed from THAT N_eff and compared to a plausible-effect floor: a
+    conditioned MDE ABOVE the floor means the setup cannot detect even a plausibly
+    large conditional effect, so the check FAILS closed with a typed reason
+    (``UNDERPOWERED_CONDITIONED``), distinct from DATA_GAP.
+
+    When the richer conditioned-power slice or the setup is unavailable at gate
+    time the prior unconditioned-plausibility PASS is preserved (no regression for
+    fixtures/callers that do not provide it). When the slice IS provided but its
+    feature VALUES are not loadable here (registry-only / CI / not-yet-materialized),
+    the check degrades gracefully to that same unconditioned PASS, recorded visibly
+    (the conditioned recompute is deferred to a real run whose values load). A
+    genuine ENVIRONMENT fault (unresolvable root, uncompilable predicates, missing
+    horizon) still fails LOUD as ENVIRONMENT_NOT_CONFIGURED.
+    """
+
+    if conditioned_power_slice is None or setup_spec is None:
+        # No conditioned-power inputs supplied: keep the prior unconditioned PASS so
+        # this composes additively. Record that the conditioned check was not run.
+        return _pass(
+            CHECK_N_EFF_MDE_DEDUP,
+            "N_eff/MDE metadata are plausible and duplicate exposure is declared",
+            n_eff=slice_spec.n_eff,
+            minimum_detectable_effect=slice_spec.minimum_detectable_effect,
+            duplicate_exposure_status=dedup_status,
+            conditioned_power_evaluated=False,
+            conditioned_power_reason="conditioned-power slice/setup not supplied to the gate",
+        )
+
+    try:
+        conditioned = compute_conditioned_power(setup_spec, conditioned_power_slice, env=env)
+    except ConditionedPowerPreconditionError as exc:
+        # env/precondition-law distinction. is_environment=True is a genuine
+        # ENVIRONMENT fault (unresolvable data root, uncompilable setup predicates,
+        # or a forward-overlapping outcome with no derivable horizon = a malformed
+        # slice contract) -- surface it LOUD, never a silent pass.
+        if exc.is_environment:
+            return _environment_not_configured(
+                CHECK_N_EFF_MDE_DEDUP,
+                "conditioned-power environment precondition unmet (not a data gap)",
+                issue_code="CONDITIONED_POWER_PRECONDITION_UNMET",
+                reason=str(exc),
+                study_kind=CONTEXT_NOT_EQUAL_TRIGGER,
+            )
+        # is_environment=False: the data root resolves but the slice's materialized
+        # feature VALUES are not loadable HERE (a registry-only environment such as
+        # CI, or a slice that is registry-resolvable but not yet materialized on this
+        # host). The pre-test gate is a registry-resolvability + plausibility gate
+        # (features_materialized checks RESOLVABILITY, not on-disk values), so the
+        # conditioned-power recompute must NOT override a resolvable setup to DATA_GAP
+        # merely because parquet values are absent here. DEGRADE GRACEFULLY to the
+        # prior unconditioned-plausibility PASS, recorded VISIBLY (not silent). This is
+        # safe: absent values mean no probe runs anyway (fast_probe loads the SAME
+        # parquet via the same value-store and itself DATA_GAPs / is mocked) -- so no
+        # shot is spent and no underpowered setup is promoted. The honest conditioned
+        # gate fires exactly when it can matter: a real run whose values ARE loadable.
+        return _pass(
+            CHECK_N_EFF_MDE_DEDUP,
+            "N_eff/MDE metadata are plausible and duplicate exposure is declared",
+            n_eff=slice_spec.n_eff,
+            minimum_detectable_effect=slice_spec.minimum_detectable_effect,
+            duplicate_exposure_status=dedup_status,
+            conditioned_power_evaluated=False,
+            conditioned_power_reason=(
+                "conditioned-power feature values not loadable at gate time; "
+                f"deferred to probe-time (which fails closed on absent values): {exc}"
+            ),
+        )
+
+    verdict = conditioned_power_verdict(conditioned)
+    detail: dict[str, Any] = {
+        "conditioned_power": conditioned.to_dict(),
+        "conditioned_mde_abs_ic": conditioned.conditioned_mde_abs_ic,
+        "plausible_conditioned_abs_ic_floor": PLAUSIBLE_CONDITIONED_ABS_IC_FLOOR,
+        "author_n_eff": slice_spec.n_eff,
+        "author_minimum_detectable_effect": slice_spec.minimum_detectable_effect,
+        "duplicate_exposure_status": dedup_status,
+        "conditioned_power_evaluated": True,
+    }
+    if not verdict.passed:
+        return _fail(
+            CHECK_N_EFF_MDE_DEDUP,
+            verdict.reason,
+            issue_code=verdict.issue_code,
+            **detail,
+        )
+    return _pass(
+        CHECK_N_EFF_MDE_DEDUP,
+        "conditioned N_eff/MDE are plausibly powered and duplicate exposure is declared",
+        **detail,
     )
 
 
@@ -783,6 +936,19 @@ def _coerce_slice(value: TestabilitySlice | Mapping[str, Any] | None) -> Testabi
     return TestabilitySlice.from_mapping(value)
 
 
+def _coerce_conditioned_power_slice(
+    value: SliceSpec | Mapping[str, Any] | None,
+) -> SliceSpec | None:
+    if value is None:
+        return None
+    if isinstance(value, SliceSpec):
+        return value
+    try:
+        return SliceSpec.from_mapping(value)
+    except SliceSpecError as exc:
+        raise TestabilityGateError(f"conditioned_power_slice is malformed: {exc}") from exc
+
+
 def _pass(check_id: str, message: str, **detail: Any) -> GateCheckResult:
     return GateCheckResult(check_id, GateStatus.PASS, {"message": message, **detail})
 
@@ -795,9 +961,7 @@ def _data_gap(check_id: str, message: str, **detail: Any) -> GateCheckResult:
     return GateCheckResult(check_id, GateStatus.DATA_GAP, {"message": message, **detail})
 
 
-def _environment_not_configured(
-    check_id: str, message: str, **detail: Any
-) -> GateCheckResult:
+def _environment_not_configured(check_id: str, message: str, **detail: Any) -> GateCheckResult:
     return GateCheckResult(
         check_id,
         GateStatus.ENVIRONMENT_NOT_CONFIGURED,

@@ -306,6 +306,21 @@ def ic_only_postcost_promotion_canary() -> Canary:
     )
 
 
+def conditioned_power_gate_canary() -> Canary:
+    snippet = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "from alpha_system.governance.canaries.conditioned_power_gate import main; "
+        "raise SystemExit(main([]))"
+    )
+    return Canary(
+        "conditioned_power_gate",
+        [sys.executable, "-c", snippet],
+        {},
+        expect_block=False,
+    )
+
+
 def scenarios() -> list[Canary]:
     py = sys.executable
     return [
@@ -508,6 +523,7 @@ def scenarios() -> list[Canary]:
         precondition_not_datagap_canary(),
         pooled_partition_factor_id_drift_canary(),
         ic_only_postcost_promotion_canary(),
+        conditioned_power_gate_canary(),
     ]
 
 
